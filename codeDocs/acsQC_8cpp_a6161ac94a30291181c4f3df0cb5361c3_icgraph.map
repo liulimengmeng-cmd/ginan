@@ -1,0 +1,15 @@
+<map id="obsFreqs" name="obsFreqs">
+<area shape="rect" id="Node000001" href="$acsQC_8cpp.html#a6161ac94a30291181c4f3df0cb5361c3" title="Select observed frequency bands that are usable for slip detection." alt="" coords="281,105,361,131"/>
+<area shape="rect" id="Node000002" href="$acsQC_8cpp.html#a9a7675a515de2802ed917e9d32dd897d" title="Cycle slip detection for dual&#45;frequency." alt="" coords="143,5,230,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="296,98,232,44,213,33,216,28,235,40,299,93"/>
+<area shape="rect" id="Node000003" href="$acsQC_8cpp.html#a7b37fc255c80330a5497de5bee8f2dbb" title="Cycle slip detection and repair." alt="" coords="5,55,92,80"/>
+<area shape="poly" id="edge5_Node000001_Node000003" title=" " alt="" coords="267,114,139,94,92,82,93,77,141,89,268,109"/>
+<area shape="rect" id="Node000011" href="$acsQC_8cpp.html#a5278f59e23c92b2a1912d5dde5e2f809" title="Cycle slip detection and repair for triple&#45;frequency." alt="" coords="143,55,230,80"/>
+<area shape="poly" id="edge3_Node000001_Node000011" title=" " alt="" coords="273,103,220,83,222,78,275,98"/>
+<area shape="rect" id="Node000012" href="$acsQC_8cpp.html#a0d2d4fd45a0cdf961784d89cc132442e" title="Detect cycle slip by geometry free phase jump." alt="" coords="145,156,228,181"/>
+<area shape="poly" id="edge6_Node000001_Node000012" title=" " alt="" coords="275,138,222,158,220,153,273,133"/>
+<area shape="rect" id="Node000013" href="$acsQC_8cpp.html#a36663ab87649ee3624e072af7fec6409" title="Detect slip by Melbourne&#45;Wubbena linear combination jump." alt="" coords="140,205,233,231"/>
+<area shape="poly" id="edge7_Node000001_Node000013" title=" " alt="" coords="299,143,235,196,216,208,213,203,232,192,296,138"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="139,38,86,57,84,52,137,33"/>
+<area shape="poly" id="edge4_Node000011_Node000003" title=" " alt="" coords="130,70,92,70,92,65,130,65"/>
+</map>
