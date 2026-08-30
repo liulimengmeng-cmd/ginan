@@ -353,20 +353,15 @@ void writeIonStec(string filename, KFState& kfState)
     }
 }
 
-bool writeIonStecCovariance(
-    string         filename,
-    const KFState& kfState,
-    int            maxStates,
-    const string&  posteriorStage,
+namespace
+{
+StecCovarianceCsvEpoch captureStecCovarianceEpoch(
+    const KFState&                 kfState,
+    int                            maxStates,
+    const string&                  posteriorStage,
     const StecCovarianceArContext& arContext
 )
 {
-    if (filename.empty())
-    {
-        BOOST_LOG_TRIVIAL(error) << "STEC covariance output filename is empty";
-        return false;
-    }
-
     StecCovarianceCsvEpoch epoch;
     GWeek week = kfState.time;
     GTow  tow = kfState.time;
@@ -444,7 +439,23 @@ bool writeIonStecCovariance(
         }
     }
 
-    const auto serialized = serializeStecCovarianceCsvEpoch(epoch, maxStates);
+    return epoch;
+}
+
+bool appendStecCovariancePayload(
+    const string&                  filename,
+    const string&                  schema,
+    const StecCovarianceCsvResult& serialized,
+    int                            stateCount,
+    int                            maxStates,
+    const char*                    productName
+)
+{
+    if (filename.empty())
+    {
+        BOOST_LOG_TRIVIAL(error) << productName << " output filename is empty";
+        return false;
+    }
 
     std::filesystem::path outputPath(filename);
     if (outputPath.has_parent_path())
@@ -479,7 +490,7 @@ bool writeIonStecCovariance(
 
     if (writeSchema)
     {
-        output << stecCovarianceCsvSchema();
+        output << schema;
     }
     output << serialized.payload;
     output.flush();
@@ -493,7 +504,7 @@ bool writeIonStecCovariance(
     if (serialized.status != E_StecCovarianceCsvStatus::OK)
     {
         BOOST_LOG_TRIVIAL(warning)
-            << "STEC covariance epoch status="
+            << productName << " epoch status="
             << stecCovarianceCsvStatusName(serialized.status)
             << " state_count=" << stateCount
             << " max_states=" << maxStates
@@ -502,6 +513,52 @@ bool writeIonStecCovariance(
     }
 
     return true;
+}
+}  // namespace
+
+bool writeIonStecCovariance(
+    string         filename,
+    const KFState& kfState,
+    int            maxStates,
+    const string&  posteriorStage,
+    const StecCovarianceArContext& arContext
+)
+{
+    const auto epoch = captureStecCovarianceEpoch(kfState, maxStates, posteriorStage, arContext);
+    const auto serialized = serializeStecCovarianceCsvEpoch(epoch, maxStates);
+    return appendStecCovariancePayload(
+        filename,
+        stecCovarianceCsvSchema(),
+        serialized,
+        static_cast<int>(epoch.states.size()),
+        maxStates,
+        "STEC covariance"
+    );
+}
+
+bool writeIonStecSatelliteDifferenceCovariance(
+    string         filename,
+    const KFState& kfState,
+    int            maxSourceStates,
+    const string&  posteriorStage,
+    const StecCovarianceArContext& arContext
+)
+{
+    const auto sourceEpoch =
+        captureStecCovarianceEpoch(kfState, maxSourceStates, posteriorStage, arContext);
+    const auto differenceEpoch = buildStecSatelliteDifferenceCovarianceEpoch(sourceEpoch);
+    const auto serialized = serializeStecSatelliteDifferenceCovarianceCsvEpoch(
+        differenceEpoch,
+        maxSourceStates
+    );
+    return appendStecCovariancePayload(
+        filename,
+        stecSatelliteDifferenceCovarianceCsvSchema(),
+        serialized,
+        static_cast<int>(differenceEpoch.states.size()),
+        maxSourceStates,
+        "STEC satellite-difference covariance"
+    );
 }
 
 void obsIonoDataFromFilter(

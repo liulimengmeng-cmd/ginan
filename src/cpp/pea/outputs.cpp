@@ -444,6 +444,17 @@ void createTracefiles(ReceiverMap& receiverMap, Network& pppNet, Network& ionNet
             );
         }
 
+        if (acsConfig.output_ionstec_satellite_difference_covariance)
+        {
+            newTraceFile |= createNewTraceFile(
+                "",
+                "Network",
+                logptime,
+                insertSuffix(acsConfig.ionstec_satellite_difference_covariance_filename, suff),
+                pppNet.kfState.metaDataMap[IONSTEC_SD_COVARIANCE_FILENAME_STR + metaSuff]
+            );
+        }
+
         if (acsConfig.output_trop_sinex)
         {
             newTraceFile |= createNewTraceFile(
@@ -1276,7 +1287,8 @@ void perEpochPostProcessingAndOutputs(
         {
             writeIonStec(kfState.metaDataMap[IONSTEC_FILENAME_STR + META_SUFFIX], augmentedKF);
         }
-        if (acsConfig.output_ionstec_covariance)
+        if (acsConfig.output_ionstec_covariance ||
+            acsConfig.output_ionstec_satellite_difference_covariance)
         {
             string posteriorStage = inRts
                 ? "RTS_SMOOTHED_POSTERIOR_NO_EPOCH_AR"
@@ -1328,13 +1340,26 @@ void perEpochPostProcessingAndOutputs(
                 }
             }
 
-            writeIonStecCovariance(
-                kfState.metaDataMap[IONSTEC_COVARIANCE_FILENAME_STR + META_SUFFIX],
-                *ionstecCovarianceState_ptr,
-                acsConfig.ionstec_covariance_max_states,
-                posteriorStage,
-                arContext
-            );
+            if (acsConfig.output_ionstec_covariance)
+            {
+                writeIonStecCovariance(
+                    kfState.metaDataMap[IONSTEC_COVARIANCE_FILENAME_STR + META_SUFFIX],
+                    *ionstecCovarianceState_ptr,
+                    acsConfig.ionstec_covariance_max_states,
+                    posteriorStage,
+                    arContext
+                );
+            }
+            if (acsConfig.output_ionstec_satellite_difference_covariance)
+            {
+                writeIonStecSatelliteDifferenceCovariance(
+                    kfState.metaDataMap[IONSTEC_SD_COVARIANCE_FILENAME_STR + META_SUFFIX],
+                    *ionstecCovarianceState_ptr,
+                    acsConfig.ionstec_covariance_max_states,
+                    posteriorStage,
+                    arContext
+                );
+            }
         }
         if (acsConfig.output_ionex)
         {

@@ -1428,6 +1428,11 @@ void ACSConfig::info(Trace& s)  ///< Trace file to output to
         ss << "\tionstec covariance filename:   " << ionstec_covariance_filename << "\n";
         ss << "\tionstec covariance max states: " << ionstec_covariance_max_states << "\n";
     }
+    if (output_ionstec_satellite_difference_covariance)
+    {
+        ss << "\tionstec satellite-difference covariance filename: "
+           << ionstec_satellite_difference_covariance_filename << "\n";
+    }
     if (output_bias_sinex)
     {
         ss << "\tbias sinex filename:           " << bias_sinex_filename << "\n";
@@ -5319,6 +5324,23 @@ bool ACSConfig::parse(
                     {"@ covariance_max_states"},
                     "Maximum IONO_STEC states exported per epoch; larger epochs are explicitly skipped"
                 );
+                tryGetFromYaml(
+                    output_ionstec_satellite_difference_covariance,
+                    ionstec,
+                    {"@ output_satellite_difference_covariance"},
+                    "Output satellite-differenced IONO_STEC estimates and the full globally "
+                    "transformed posterior covariance"
+                );
+                conditionalPrefix(
+                    "<IONSTEC_DIRECTORY>",
+                    ionstec_satellite_difference_covariance_filename,
+                    tryGetFromYaml(
+                        ionstec_satellite_difference_covariance_filename,
+                        ionstec,
+                        {"@ satellite_difference_covariance_filename"},
+                        "Satellite-differenced IONO_STEC covariance filename"
+                    )
+                );
             }
 
             {
@@ -8671,6 +8693,7 @@ bool ACSConfig::parse(
         replaceTags(ionstec_directory);
         replaceTags(ionstec_filename);
         replaceTags(ionstec_covariance_filename);
+        replaceTags(ionstec_satellite_difference_covariance_filename);
         replaceTags(raw_ubx_directory);
         replaceTags(raw_ubx_filename);
         replaceTags(raw_sbf_directory);

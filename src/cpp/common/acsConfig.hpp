@@ -378,6 +378,9 @@ struct OutputOptions
     string ionstec_covariance_filename       =
         "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC.COV";
     int    ionstec_covariance_max_states     = 512;
+    bool   output_ionstec_satellite_difference_covariance = false;
+    string ionstec_satellite_difference_covariance_filename =
+        "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC.SD.COV";
 
     bool   output_erp    = false;
     string erp_directory = "<OUTPUTS_ROOT>";

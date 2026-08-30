@@ -78,6 +78,50 @@ struct StecCovarianceCsvResult
     double                    maxAbsAsymmetryTecu2 = 0;
 };
 
+struct StecSatelliteDifferenceDatumRecord
+{
+    int         datumIndex = -1;
+    std::string site;
+    std::string constellation;
+    int         stateNumber = 0;
+    std::string referenceSatellite;
+    int         memberCount = 0;
+};
+
+struct StecSatelliteDifferenceTransformRecord
+{
+    int    differenceLocalIndex = -1;
+    int    sourceLocalIndex = -1;
+    double coefficient = 0;
+};
+
+struct StecSatelliteDifferenceStateRecord
+{
+    int         localIndex = -1;
+    int         datumIndex = -1;
+    std::string site;
+    std::string constellation;
+    std::string targetSatellite;
+    std::string referenceSatellite;
+    int         stateNumber = 0;
+    int         targetSourceLocalIndex = -1;
+    int         referenceSourceLocalIndex = -1;
+    double      estimateTecu = 0;
+};
+
+struct StecSatelliteDifferenceCovarianceEpoch
+{
+    int                                                 gpsWeek = 0;
+    double                                              gpsTow = 0;
+    std::string                                         posteriorStage;
+    int                                                 sourceStateCount = 0;
+    int                                                 singletonDatumCount = 0;
+    std::vector<StecSatelliteDifferenceDatumRecord>     datums;
+    std::vector<StecSatelliteDifferenceTransformRecord> transform;
+    std::vector<StecSatelliteDifferenceStateRecord>     states;
+    std::vector<double>                                 covarianceTecu2;
+};
+
 const char* stecCovarianceCsvStatusName(E_StecCovarianceCsvStatus status);
 
 std::string stecCovarianceCsvSchema();
@@ -86,4 +130,16 @@ StecCovarianceCsvResult serializeStecCovarianceCsvEpoch(
     const StecCovarianceCsvEpoch& epoch,
     int                           maxStates,
     double                        relativeSymmetryTolerance = 1e-10
+);
+
+StecSatelliteDifferenceCovarianceEpoch buildStecSatelliteDifferenceCovarianceEpoch(
+    const StecCovarianceCsvEpoch& sourceEpoch
+);
+
+std::string stecSatelliteDifferenceCovarianceCsvSchema();
+
+StecCovarianceCsvResult serializeStecSatelliteDifferenceCovarianceCsvEpoch(
+    const StecSatelliteDifferenceCovarianceEpoch& epoch,
+    int                                           maxSourceStates,
+    double                                        relativeSymmetryTolerance = 1e-10
 );

@@ -42,6 +42,14 @@ bool writeIonStecCovariance(
     const StecCovarianceArContext& arContext
 );
 
+bool writeIonStecSatelliteDifferenceCovariance(
+    string         filename,
+    const KFState& kfState,
+    int            maxSourceStates,
+    const string&  posteriorStage,
+    const StecCovarianceArContext& arContext
+);
+
 bool configIonModel(Trace& trace);
 int  configIonModelSphhar(Trace& trace);
 int  configIonModelSphcap(Trace& trace);

@@ -71,6 +71,8 @@ outputs:
     output_covariance: true
     covariance_filename: <CONFIG>-<LOGTIME>.STEC.COV
     covariance_max_states: 256
+    output_satellite_difference_covariance: true
+    satellite_difference_covariance_filename: <CONFIG>-<LOGTIME>.STEC.SD.COV
 
 satellite_options:
   global:
