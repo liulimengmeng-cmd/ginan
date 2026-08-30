@@ -1,0 +1,57 @@
+inputs:
+  include_yamls:
+    - exampleConfigs/ppp_example.yaml
+  inputs_root: <EXP0_DATA_ROOT>/products
+  gnss_observations:
+    gnss_observations_root: ../data
+
+outputs:
+  outputs_root: <EXP0_OUTPUT_ROOT>
+  metadata:
+    config_description: exp0_ar_main_<HASH>
+  trace:
+    level: 4
+    output_receivers: false
+    output_network: true
+    output_residuals: false
+    output_residual_chain: false
+  gpx:
+    output: false
+  pos:
+    output: false
+  ionstec:
+    output: true
+    directory: ionstec
+    filename: <CONFIG>-<LOGTIME>.STEC
+    output_covariance: true
+    covariance_filename: <CONFIG>-<LOGTIME>.STEC.COV
+    covariance_max_states: 256
+
+processing_options:
+  epoch_control:
+    max_epochs: 60
+    epoch_interval: 30
+  gnss_general:
+    sys_options:
+      gps:
+        process: true
+        ambiguity_resolution: true
+      gal:
+        process: false
+      glo:
+        process: false
+  ambiguity_resolution:
+    mode: LAMBDA_ALT
+    success_rate_threshold: 0.9999
+    solution_ratio_threshold: 3
+    once_per_epoch: true
+    fix_and_hold: false
+
+mongo:
+  enable: none
+  output_components: none
+  output_states: none
+  output_measurements: none
+  output_test_stats: none
+  delete_history: none
+  output_trace: none

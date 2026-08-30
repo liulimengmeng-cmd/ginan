@@ -128,6 +128,7 @@ add_executable(pea
 		iono/geomagField.cpp
 		iono/ionex.cpp
 		iono/ionoMeas.cpp
+		iono/stecCovariance.cpp
 		iono/ionoModel.cpp
 		iono/ionoSBAS.cpp
 		iono/ionoSpherical.cpp

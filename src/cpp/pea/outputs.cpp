@@ -32,9 +32,11 @@
 #include "common/streamUbx.hpp"
 #include "common/summary.hpp"
 #include "iono/ionoModel.hpp"
+#include "iono/stecCovariance.hpp"
 #include "orbprop/orbitProp.hpp"
 #include "pea/inputsOutputs.hpp"
 #include "pea/minimumConstraints.hpp"
+#include "pea/ppp.hpp"
 #include "sbas/sbas.hpp"
 
 using boost::date_time::not_a_date_time;
@@ -428,6 +430,17 @@ void createTracefiles(ReceiverMap& receiverMap, Network& pppNet, Network& ionNet
                 logptime,
                 insertSuffix(acsConfig.ionstec_filename, suff),
                 pppNet.kfState.metaDataMap[IONSTEC_FILENAME_STR + metaSuff]
+            );
+        }
+
+        if (acsConfig.output_ionstec_covariance)
+        {
+            newTraceFile |= createNewTraceFile(
+                "",
+                "Network",
+                logptime,
+                insertSuffix(acsConfig.ionstec_covariance_filename, suff),
+                pppNet.kfState.metaDataMap[IONSTEC_COVARIANCE_FILENAME_STR + metaSuff]
             );
         }
 
@@ -1042,7 +1055,9 @@ void perEpochPostProcessingAndOutputs(
         }
     }
 
-    KFState augmentedKF = kfState;
+    KFState                   augmentedKF = kfState;
+    KFState*                  epochArState_ptr = nullptr;
+    AmbiguityResolutionAttempt epochArAttempt;
 
     if (acsConfig.process_ppp)
     {
@@ -1129,8 +1144,9 @@ void perEpochPostProcessingAndOutputs(
             }
 
             auto& arState = *arState_ptr;
+            epochArState_ptr = arState_ptr;
 
-            fixAndHoldAmbiguities(pppTrace, arState);
+            epochArAttempt = fixAndHoldAmbiguities(pppTrace, arState);
 
             arState.outputStates(pppTrace, "/AR" + _RTS);
 
@@ -1259,6 +1275,60 @@ void perEpochPostProcessingAndOutputs(
         if (acsConfig.output_ionstec)
         {
             writeIonStec(kfState.metaDataMap[IONSTEC_FILENAME_STR + META_SUFFIX], augmentedKF);
+        }
+        if (acsConfig.output_ionstec_covariance)
+        {
+            string posteriorStage = inRts
+                ? "RTS_SMOOTHED_POSTERIOR_NO_EPOCH_AR"
+                : "FILTER_POSTERIOR_NO_EPOCH_AR";
+            const KFState* ionstecCovarianceState_ptr = &augmentedKF;
+
+            StecCovarianceArContext arContext;
+            arContext.routineInvoked = epochArAttempt.routineInvoked;
+            arContext.eligibleAmbiguityCount = epochArAttempt.eligibleAmbiguityCount;
+            arContext.resolvedCombinationCount = epochArAttempt.resolvedCombinationCount;
+            arContext.pseudoObservationsSubmitted =
+                epochArAttempt.pseudoObservationsSubmitted;
+            arContext.mode = enum_to_string(acsConfig.ambrOpts.mode);
+            arContext.configuredSuccessRateThreshold = acsConfig.ambrOpts.succsThres;
+            arContext.configuredSolutionRatioThreshold = acsConfig.ambrOpts.ratioThres;
+            arContext.diagnosticStatus = epochArAttempt.diagnosticStatus;
+            arContext.selectedDecorrelatedAmbiguityCount =
+                epochArAttempt.selectedDecorrelatedAmbiguityCount;
+            arContext.integerCandidateCount = epochArAttempt.integerCandidateCount;
+            arContext.bootstrappedSuccessRate = epochArAttempt.bootstrappedSuccessRate;
+            arContext.bestSquaredNorm = epochArAttempt.bestSquaredNorm;
+            arContext.secondSquaredNorm = epochArAttempt.secondSquaredNorm;
+            arContext.solutionRatio = epochArAttempt.solutionRatio;
+
+            if (epochArState_ptr)
+            {
+                ionstecCovarianceState_ptr = epochArState_ptr;
+
+                const string stagePrefix = inRts
+                    ? "RTS_SMOOTHED_POSTERIOR"
+                    : "FILTER_POSTERIOR";
+                if (epochArAttempt.pseudoObservationsSubmitted)
+                {
+                    posteriorStage = stagePrefix + "_AFTER_AR_PSEUDOOBS_SUBMITTED_UNVERIFIED";
+                }
+                else if (epochArAttempt.eligibleAmbiguityCount > 0)
+                {
+                    posteriorStage = stagePrefix + "_AFTER_AR_ATTEMPT_NO_RESOLVED_COMBINATIONS";
+                }
+                else
+                {
+                    posteriorStage = stagePrefix + "_AFTER_AR_ATTEMPT_NO_ELIGIBLE_AMBIGUITIES";
+                }
+            }
+
+            writeIonStecCovariance(
+                kfState.metaDataMap[IONSTEC_COVARIANCE_FILENAME_STR + META_SUFFIX],
+                *ionstecCovarianceState_ptr,
+                acsConfig.ionstec_covariance_max_states,
+                posteriorStage,
+                arContext
+            );
         }
         if (acsConfig.output_ionex)
         {

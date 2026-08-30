@@ -17,6 +17,7 @@
 #include "common/common.hpp"
 #include "common/eigenIncluder.hpp"
 #include "common/trace.hpp"
+#include "pea/ppp.hpp"
 
 static bool filterError = false;
 
@@ -176,17 +177,21 @@ void applyUCAmbiguities(
     kfState.filterKalman(trace, kfMeas, "/AR", true);
 }
 
-void fixAndHoldAmbiguities(
+AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     Trace&   trace,   ///< Debug trace
     KFState& kfState  ///< Filter state
 )
 {
+    AmbiguityResolutionAttempt result;
+
     tracepdeex(3, trace, "%s: %s\n", __FUNCTION__, kfState.time.to_string().c_str());
 
     if (acsConfig.ambrOpts.mode == E_ARmode::OFF)
     {
-        return;
+        return result;
     }
+
+    result.routineInvoked = true;
 
     GinAR_mtx        ARmtx;
     map<string, int> nsat;  // number of satellites visible by station
@@ -212,8 +217,12 @@ void fixAndHoldAmbiguities(
         ind++;
     }
 
+    result.eligibleAmbiguityCount = ind;
     if (ind == 0)
-        return;
+    {
+        result.diagnosticStatus = "NO_ELIGIBLE_AMBIGUITIES";
+        return result;
+    }
 
     ARmtx.aflt  = kfState.x(indices);
     ARmtx.Paflt = kfState.P(indices, indices);
@@ -230,9 +239,19 @@ void fixAndHoldAmbiguities(
 
     // Resolve and apply ambiguities
     int nfix = GNSS_AR(trace, ARmtx, ARopt);
+    result.resolvedCombinationCount = nfix;
+    result.diagnosticStatus = ARmtx.diagnosticStatus;
+    result.selectedDecorrelatedAmbiguityCount =
+        ARmtx.selectedDecorrelatedAmbiguityCount;
+    result.integerCandidateCount = ARmtx.integerCandidateCount;
+    result.bootstrappedSuccessRate = ARmtx.bootstrappedSuccessRate;
+    result.bestSquaredNorm = ARmtx.bestSquaredNorm;
+    result.secondSquaredNorm = ARmtx.secondSquaredNorm;
+    result.solutionRatio = ARmtx.solutionRatio;
     if (nfix > 0)
     {
         applyUCAmbiguities(trace, kfState, ARmtx);
+        result.pseudoObservationsSubmitted = true;
     }
 
     while (0)
@@ -244,6 +263,8 @@ void fixAndHoldAmbiguities(
             break;
         }
     }
+
+    return result;
 }
 
 bool queryBiasUC(

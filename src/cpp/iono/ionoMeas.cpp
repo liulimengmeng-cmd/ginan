@@ -10,7 +10,11 @@
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
 #include "iono/ionoModel.hpp"
+#include "iono/stecCovariance.hpp"
 #include "orbprop/coordinates.hpp"
+
+#include <filesystem>
+#include <limits>
 
 constexpr double PHASE_BIAS_STD = 0.05;
 bool             ionoConfigured = false;
@@ -347,6 +351,153 @@ void writeIonStec(string filename, KFState& kfState)
 
         tracepdeex(0, stecfile, "\n");
     }
+}
+
+bool writeIonStecCovariance(
+    string         filename,
+    const KFState& kfState,
+    int            maxStates,
+    const string&  posteriorStage,
+    const StecCovarianceArContext& arContext
+)
+{
+    if (filename.empty())
+    {
+        BOOST_LOG_TRIVIAL(error) << "STEC covariance output filename is empty";
+        return false;
+    }
+
+    StecCovarianceCsvEpoch epoch;
+    GWeek week = kfState.time;
+    GTow  tow = kfState.time;
+    epoch.gpsWeek = week;
+    epoch.gpsTow = tow;
+    epoch.posteriorStage = posteriorStage;
+    epoch.arRoutineInvoked = arContext.routineInvoked;
+    epoch.arEligibleAmbiguityCount = arContext.eligibleAmbiguityCount;
+    epoch.arResolvedCombinationCount = arContext.resolvedCombinationCount;
+    epoch.arPseudoObservationsSubmitted = arContext.pseudoObservationsSubmitted;
+    epoch.arMode = arContext.mode;
+    epoch.arConfiguredSuccessRateThreshold = arContext.configuredSuccessRateThreshold;
+    epoch.arConfiguredSolutionRatioThreshold = arContext.configuredSolutionRatioThreshold;
+    epoch.arDiagnosticStatus = arContext.diagnosticStatus;
+    epoch.arSelectedDecorrelatedAmbiguityCount =
+        arContext.selectedDecorrelatedAmbiguityCount;
+    epoch.arIntegerCandidateCount = arContext.integerCandidateCount;
+    epoch.arBootstrappedSuccessRate = arContext.bootstrappedSuccessRate;
+    epoch.arBestSquaredNorm = arContext.bestSquaredNorm;
+    epoch.arSecondSquaredNorm = arContext.secondSquaredNorm;
+    epoch.arSolutionRatio = arContext.solutionRatio;
+
+    std::vector<int> filterIndices;
+    for (const auto& [key, filterIndex] : kfState.kfIndexMap)
+    {
+        if (key.type != KF::IONO_STEC)
+        {
+            continue;
+        }
+
+        StecCovarianceStateRecord state;
+        state.filterIndex = filterIndex;
+        state.site = key.str;
+        state.satellite = key.Sat.id();
+        state.stateNumber = key.num;
+
+        if (filterIndex >= 0 && filterIndex < kfState.x.rows())
+        {
+            state.estimateTecu = kfState.x(filterIndex);
+        }
+        else
+        {
+            state.estimateTecu = std::numeric_limits<double>::quiet_NaN();
+        }
+
+        filterIndices.push_back(filterIndex);
+        epoch.states.push_back(std::move(state));
+    }
+
+    const int stateCount = static_cast<int>(epoch.states.size());
+    if (stateCount <= maxStates && stateCount > 0)
+    {
+        epoch.covarianceTecu2.assign(
+            stateCount * stateCount,
+            std::numeric_limits<double>::quiet_NaN()
+        );
+
+        for (int row = 0; row < stateCount; row++)
+        {
+            for (int column = 0; column < stateCount; column++)
+            {
+                const int filterRow = filterIndices[row];
+                const int filterColumn = filterIndices[column];
+                if (filterRow >= 0 && filterRow < kfState.P.rows() &&
+                    filterColumn >= 0 && filterColumn < kfState.P.cols())
+                {
+                    epoch.covarianceTecu2[row * stateCount + column] =
+                        kfState.P(filterRow, filterColumn);
+                }
+            }
+        }
+    }
+
+    const auto serialized = serializeStecCovarianceCsvEpoch(epoch, maxStates);
+
+    std::filesystem::path outputPath(filename);
+    if (outputPath.has_parent_path())
+    {
+        std::error_code directoryError;
+        std::filesystem::create_directories(outputPath.parent_path(), directoryError);
+        if (directoryError)
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "Unable to create STEC covariance output directory: "
+                << directoryError.message();
+            return false;
+        }
+    }
+
+    std::error_code fileError;
+    const bool writeSchema = !std::filesystem::exists(outputPath, fileError) ||
+                             std::filesystem::file_size(outputPath, fileError) == 0;
+    if (fileError)
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "Unable to inspect STEC covariance output file: " << fileError.message();
+        return false;
+    }
+
+    std::ofstream output(filename, std::ios::app);
+    if (!output)
+    {
+        BOOST_LOG_TRIVIAL(error) << "Unable to open STEC covariance output file: " << filename;
+        return false;
+    }
+
+    if (writeSchema)
+    {
+        output << stecCovarianceCsvSchema();
+    }
+    output << serialized.payload;
+    output.flush();
+
+    if (!output)
+    {
+        BOOST_LOG_TRIVIAL(error) << "Failed while writing STEC covariance output file: " << filename;
+        return false;
+    }
+
+    if (serialized.status != E_StecCovarianceCsvStatus::OK)
+    {
+        BOOST_LOG_TRIVIAL(warning)
+            << "STEC covariance epoch status="
+            << stecCovarianceCsvStatusName(serialized.status)
+            << " state_count=" << stateCount
+            << " max_states=" << maxStates
+            << " max_abs_asymmetry_tecu2=" << serialized.maxAbsAsymmetryTecu2;
+        return false;
+    }
+
+    return true;
 }
 
 void obsIonoDataFromFilter(

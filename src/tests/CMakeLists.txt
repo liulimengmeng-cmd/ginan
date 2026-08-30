@@ -56,6 +56,16 @@ add_executable(trace_file_cache_tests
     unit/test_TraceFileCache.cpp
 )
 
+add_executable(stec_covariance_tests
+    ../cpp/iono/stecCovariance.cpp
+    unit/test_StecCovariance.cpp
+)
+
+add_executable(gnss_ambiguity_diagnostics_tests
+    ../cpp/ambres/GNSSambres.cpp
+    unit/test_GnssAmbiguityDiagnostics.cpp
+)
+
 add_executable(preprocessor_frequency_tests
     ../cpp/common/constants.cpp
     ../cpp/common/preprocessorFreqs.cpp
@@ -92,6 +102,8 @@ add_sanity_checker_test(sbas_sanity_checker_tests
 add_custom_target(unit_tests
     DEPENDS receiver_metadata_tests
             trace_file_cache_tests
+            stec_covariance_tests
+            gnss_ambiguity_diagnostics_tests
             preprocessor_frequency_tests
             rinex_epoch_tests
             config_sanity_manager_tests
@@ -112,6 +124,11 @@ target_link_libraries(trace_file_cache_tests PRIVATE
     Boost::unit_test_framework
 )
 
+target_link_libraries(gnss_ambiguity_diagnostics_tests PRIVATE
+    Boost::log
+    Boost::program_options
+)
+
 target_link_libraries(preprocessor_frequency_tests PRIVATE
     Boost::program_options
     Boost::unit_test_framework
@@ -130,5 +147,7 @@ endif()
 
 configure_unit_test(receiver_metadata_tests)
 configure_unit_test(trace_file_cache_tests)
+configure_unit_test(stec_covariance_tests)
+configure_unit_test(gnss_ambiguity_diagnostics_tests)
 configure_unit_test(preprocessor_frequency_tests)
 configure_unit_test(rinex_epoch_tests)

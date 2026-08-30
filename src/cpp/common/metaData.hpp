@@ -15,6 +15,7 @@ using std::string;
 #define COST_FILENAME_STR ((string) "costFilename")
 #define IONEX_FILENAME_STR ((string) "ionexFilename")
 #define IONSTEC_FILENAME_STR ((string) "ionstecFilename")
+#define IONSTEC_COVARIANCE_FILENAME_STR ((string) "ionstecCovarianceFilename")
 #define ION_FILENAME_STR ((string) "ionFilename")
 #define SP3_FILENAME_STR ((string) "sp3Filename")
 #define CLK_FILENAME_STR ((string) "clkFilename")

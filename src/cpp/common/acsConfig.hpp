@@ -371,9 +371,13 @@ struct OutputOptions
     string rinex_nav_filename  = "<RINEX_NAV_DIRECTORY>/<CONFIG>-<LOGTIME>_nav_<SYS>.rnx";
     double rinex_nav_version   = 3.05;
 
-    bool   output_ionstec    = false;
-    string ionstec_directory = "<OUTPUTS_ROOT>";
-    string ionstec_filename  = "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC";
+    bool   output_ionstec                    = false;
+    string ionstec_directory                 = "<OUTPUTS_ROOT>";
+    string ionstec_filename                  = "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC";
+    bool   output_ionstec_covariance         = false;
+    string ionstec_covariance_filename       =
+        "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC.COV";
+    int    ionstec_covariance_max_states     = 512;
 
     bool   output_erp    = false;
     string erp_directory = "<OUTPUTS_ROOT>";

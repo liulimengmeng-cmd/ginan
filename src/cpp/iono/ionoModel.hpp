@@ -8,6 +8,7 @@ constexpr double STEC2DELAY = 4.48397972589608;
 constexpr int MIN_NSAT_REC = 3;
 
 struct ReceiverMap;
+struct StecCovarianceArContext;
 
 extern bool ionoConfigured;
 
@@ -32,6 +33,14 @@ bool queryBiasDCB(
 void ionexFileWrite(Trace& trace, string filename, GTime time, KFState& kfState);
 
 void writeIonStec(string filename, KFState& kFstate);
+
+bool writeIonStecCovariance(
+    string         filename,
+    const KFState& kfState,
+    int            maxStates,
+    const string&  posteriorStage,
+    const StecCovarianceArContext& arContext
+);
 
 bool configIonModel(Trace& trace);
 int  configIonModelSphhar(Trace& trace);

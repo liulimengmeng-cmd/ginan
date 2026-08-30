@@ -1,5 +1,7 @@
 #include "ambres/GNSSambres.hpp"
 #include <math.h>
+#include <iterator>
+#include <limits>
 
 #define LOG_PI 1.14472988584940017
 #define SQRT2 1.41421356237309510
@@ -43,7 +45,10 @@ int simple_round(
     mtrx.zfix.resize(0);
 
     if (namb <= 0)
+    {
+        mtrx.diagnosticStatus = "NO_ELIGIBLE_AMBIGUITIES";
         return 0;
+    }
 
     double ratthr = 1 / (opt.ratthr + 1);
     double sucthr = 1 - pow(opt.sucthr, 1.0 / namb);
@@ -70,10 +75,15 @@ int simple_round(
     MatrixXd Z = MatrixXd::Identity(namb, namb);
 
     if (nfix == 0)
+    {
+        mtrx.diagnosticStatus = "ROUND_VALIDATION_FAILED";
         return 0;
+    }
 
     mtrx.Ztrs = Z(zind, xind);
     mtrx.zfix = ret(zind);
+    mtrx.selectedDecorrelatedAmbiguityCount = nfix;
+    mtrx.diagnosticStatus = "RESOLVED_BY_ROUNDING";
 
     return nfix;
 }
@@ -93,7 +103,10 @@ int interat_round(
     mtrx.zfix.resize(0);
 
     if (namb <= 0)
+    {
+        mtrx.diagnosticStatus = "NO_ELIGIBLE_AMBIGUITIES";
         return 0;
+    }
 
     double sucthr = 1 - pow(opt.sucthr, 1.0 / namb);
     double ratthr = 1 / (opt.ratthr + 1);
@@ -148,10 +161,15 @@ int interat_round(
     }
 
     if (nfix == 0)
+    {
+        mtrx.diagnosticStatus = "ITERATIVE_ROUND_VALIDATION_FAILED";
         return 0;
+    }
 
     mtrx.Ztrs = Ztrs;
     mtrx.zfix = xfix;
+    mtrx.selectedDecorrelatedAmbiguityCount = nfix;
+    mtrx.diagnosticStatus = "RESOLVED_BY_ITERATIVE_ROUNDING";
 
     return nfix;
 }
@@ -332,6 +350,7 @@ int integer_bootst(
 
     if (ldlt_.isPositive() == false)
     {
+        mtrx.diagnosticStatus = "COVARIANCE_NOT_POSITIVE_DEFINITE";
         tracepdeex(
             1,
             trace,
@@ -392,6 +411,9 @@ int integer_bootst(
 
     mtrx.Ztrs = mtrx2.Ztrs * Zt;
     mtrx.zfix = mtrx2.zfix;
+    mtrx.diagnosticStatus = mtrx2.diagnosticStatus;
+    mtrx.selectedDecorrelatedAmbiguityCount =
+        mtrx2.selectedDecorrelatedAmbiguityCount;
 
     return nfix;
 }
@@ -407,6 +429,7 @@ int lambda_search(
 
     if (info < 0)
     {
+        mtrx.diagnosticStatus = "DECORRELATION_FAILED";
         tracepdeex(2, trace, "\n Matrix decorrelation failed ... ");
         return 0;
     }
@@ -416,21 +439,32 @@ int lambda_search(
     int kmax = k;
 
     double succ = erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
+    mtrx.bootstrappedSuccessRate = succ;
 
     if (succ < opt.sucthr)
+    {
+        mtrx.selectedDecorrelatedAmbiguityCount = 1;
+        mtrx.diagnosticStatus = "SUCCESS_RATE_BELOW_THRESHOLD";
         return 0;
+    }
 
     int zsiz = 1;
 
     while (k >= 0)
     {
-        succ *= erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
-        if (succ < opt.sucthr)
+        const double nextSucc = succ * erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
+        if (nextSucc < opt.sucthr)
             break;
+        succ = nextSucc;
         zsiz++;
     }
+    mtrx.bootstrappedSuccessRate = succ;
+    mtrx.selectedDecorrelatedAmbiguityCount = zsiz;
     if (zsiz < 3)
+    {
+        mtrx.diagnosticStatus = "INSUFFICIENT_DECORRELATED_AMBIGUITIES";
         return 0;
+    }
 
     int kmin = kmax - zsiz + 1;
 
@@ -527,37 +561,60 @@ int lambda_search(
     }
 
     if (zfixList.size() < 1)
+    {
+        mtrx.diagnosticStatus = "NO_INTEGER_CANDIDATES";
         return 0;
+    }
 
     double   mindist = zfixList.begin()->first;
     VectorXd zfix0   = zfixList.begin()->second;
     mtrx.zfix        = zfix0;
     MatrixXd Z       = mtrx.Ztrs.bottomRows(zsiz);
     mtrx.Ztrs        = Z;
+    mtrx.integerCandidateCount = zfixList.size();
+    mtrx.bestSquaredNorm = mindist;
+
+    if (zfixList.size() > 1)
+    {
+        auto secondCandidate = std::next(zfixList.begin());
+        mtrx.secondSquaredNorm = secondCandidate->first;
+        if (mindist > 0)
+        {
+            mtrx.solutionRatio = mtrx.secondSquaredNorm / mindist;
+        }
+        else if (mtrx.secondSquaredNorm == 0)
+        {
+            mtrx.solutionRatio = 1;
+        }
+        else
+        {
+            mtrx.solutionRatio = std::numeric_limits<double>::max();
+        }
+    }
 
     switch (opt.mode)
     {
         case E_ARmode::LAMBDA:
+            mtrx.diagnosticStatus = "RESOLVED_WITH_SUCCESS_RATE_ONLY";
             return zfix0.size();
 
         case E_ARmode::LAMBDA_ALT:
         {
-            double first  = 0;
-            double second = 0;
-            for (auto& [dis, fixvec] : zfixList)
+            if (mtrx.secondSquaredNorm < 0)
             {
-                if (first == 0)
-                    first = dis;
-                else if (second == 0)
-                    second = dis;
-                else
-                    break;
-            }
-
-            if ((second / first) < opt.ratthr)
+                mtrx.diagnosticStatus = "INSUFFICIENT_RATIO_CANDIDATES";
                 return 0;
+            }
+            else if (mtrx.solutionRatio < opt.ratthr)
+            {
+                mtrx.diagnosticStatus = "RATIO_BELOW_THRESHOLD";
+                return 0;
+            }
             else
+            {
+                mtrx.diagnosticStatus = "RESOLVED_RATIO_ACCEPTED";
                 return zfix0.size();
+            }
         }
 
         case E_ARmode::LAMBDA_AL2:
@@ -590,6 +647,10 @@ int lambda_search(
             mtrx.zfix = zfix0(zind);
             mtrx.Ztrs = Z(zind, xind);
 
+            mtrx.diagnosticStatus = zind.empty()
+                ? "NO_COMMON_INTEGER_COMBINATIONS"
+                : "RESOLVED_COMMON_SET";
+
             return zind.size();
         }
 
@@ -616,6 +677,7 @@ int lambda_search(
             }
 
             mtrx.zfix = zbie;
+            mtrx.diagnosticStatus = "BIE_WEIGHTED_ESTIMATE";
 
             return zbie.size();
         }
@@ -631,9 +693,18 @@ int GNSS_AR(
     GinAR_opt  opt     ///< Object containing processing options
 )
 {
+    mtrx.diagnosticStatus = "NOT_RUN";
+    mtrx.selectedDecorrelatedAmbiguityCount = 0;
+    mtrx.integerCandidateCount = 0;
+    mtrx.bootstrappedSuccessRate = -1;
+    mtrx.bestSquaredNorm = -1;
+    mtrx.secondSquaredNorm = -1;
+    mtrx.solutionRatio = -1;
+
     switch (opt.mode)
     {
         case E_ARmode::OFF:
+            mtrx.diagnosticStatus = "MODE_OFF";
             return 0;
         case E_ARmode::ROUND:
             return simple_round(trace, mtrx, opt);

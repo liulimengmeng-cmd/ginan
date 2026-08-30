@@ -161,7 +161,22 @@ void receiverSlr(
 
 bool satQuat(SatPos& satPos, vector<E_Source> attitudeTypes, Quaterniond& quat);
 
-void fixAndHoldAmbiguities(Trace& trace, KFState& kfState);
+struct AmbiguityResolutionAttempt
+{
+    bool routineInvoked = false;
+    int  eligibleAmbiguityCount = 0;
+    int  resolvedCombinationCount = 0;
+    bool pseudoObservationsSubmitted = false;
+    string diagnosticStatus = "NOT_RUN";
+    int    selectedDecorrelatedAmbiguityCount = 0;
+    int    integerCandidateCount = 0;
+    double bootstrappedSuccessRate = -1;
+    double bestSquaredNorm = -1;
+    double secondSquaredNorm = -1;
+    double solutionRatio = -1;
+};
+
+AmbiguityResolutionAttempt fixAndHoldAmbiguities(Trace& trace, KFState& kfState);
 
 bool queryBiasUC(
     Trace&     trace,

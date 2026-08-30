@@ -1423,6 +1423,11 @@ void ACSConfig::info(Trace& s)  ///< Trace file to output to
     {
         ss << "\tionstec filename:              " << ionstec_filename << "\n";
     }
+    if (output_ionstec_covariance)
+    {
+        ss << "\tionstec covariance filename:   " << ionstec_covariance_filename << "\n";
+        ss << "\tionstec covariance max states: " << ionstec_covariance_max_states << "\n";
+    }
     if (output_bias_sinex)
     {
         ss << "\tbias sinex filename:           " << bias_sinex_filename << "\n";
@@ -5292,6 +5297,28 @@ bool ACSConfig::parse(
                     ionstec_filename,
                     tryGetFromYaml(ionstec_filename, ionstec, {"@ filename"})
                 );
+                tryGetFromYaml(
+                    output_ionstec_covariance,
+                    ionstec,
+                    {"@ output_covariance"},
+                    "Output the full IONO_STEC posterior covariance as an upper-triangular CSV"
+                );
+                conditionalPrefix(
+                    "<IONSTEC_DIRECTORY>",
+                    ionstec_covariance_filename,
+                    tryGetFromYaml(
+                        ionstec_covariance_filename,
+                        ionstec,
+                        {"@ covariance_filename"},
+                        "IONO_STEC posterior covariance filename"
+                    )
+                );
+                tryGetFromYaml(
+                    ionstec_covariance_max_states,
+                    ionstec,
+                    {"@ covariance_max_states"},
+                    "Maximum IONO_STEC states exported per epoch; larger epochs are explicitly skipped"
+                );
             }
 
             {
@@ -8643,6 +8670,7 @@ bool ACSConfig::parse(
         replaceTags(slr_obs_filename);
         replaceTags(ionstec_directory);
         replaceTags(ionstec_filename);
+        replaceTags(ionstec_covariance_filename);
         replaceTags(raw_ubx_directory);
         replaceTags(raw_ubx_filename);
         replaceTags(raw_sbf_directory);

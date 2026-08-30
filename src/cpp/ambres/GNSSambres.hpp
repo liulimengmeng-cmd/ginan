@@ -27,6 +27,14 @@ struct GinAR_mtx
 
     VectorXd afix;
     MatrixXd Pafix;
+
+    string diagnosticStatus = "NOT_RUN";
+    int    selectedDecorrelatedAmbiguityCount = 0;
+    int    integerCandidateCount = 0;
+    double bootstrappedSuccessRate = -1;
+    double bestSquaredNorm = -1;
+    double secondSquaredNorm = -1;
+    double solutionRatio = -1;
 };
 
 struct GinAR_opt
