@@ -23,8 +23,14 @@ wrong-fix risk, an independent geophysical gradient truth or a PPP-AR gradient b
   day products.  They do not include a model-day YAML because Ginan appends list-valued inputs.
 - Ambiguity resolution is explicitly disabled in both model and validation float runs.
 - `validate_experiment0_2024_validation_split.py` must pass before a held-out PEA run.
-- The model, geometry, covariance arms and quiet model-only calibration are written to a hashed
-  freeze JSON before any held-out output is generated or inspected.
+- The first model, geometry, covariance-arm and quiet-calibration freeze was written before any
+  held-out output.  A code audit made after a quiet structural run but before any held-out score
+  exposed defects in that evaluator.  The first freeze and run are excluded.  The correction and
+  its analysis-blind limitation are recorded in `EXPERIMENT_0_2024_BLIND_AMENDMENT.md`.
+- A replacement freeze must bind the evaluator and local parser hashes, Git/runtime identity,
+  complete YAML include closure, manifests and audits, model outputs, PEA binary, numerical rules
+  and two new output paths that do not exist.  Replacement quiet/storm runs may start only after
+  that freeze is published.  Neither the freeze nor final report may overwrite an existing file.
 
 ## Response and geometry
 
@@ -72,9 +78,25 @@ separate model and held-out PEA runs is unknown and is not invented.
 
 Quiet model-station leave-one-site-out predictions provide calibration residuals.  Continuous
 one-hour blocks receive equal weight in the NLL objective.  Each arm freezes a non-negative
-`kappa` by minimizing
+`kappa` by minimizing a Gaussian NLL.  Every three-parameter fit must have rank three, and a LOSO
+row is admitted only when all three arms succeed so that the comparison uses identical samples.
+
+For `none` and `diagonal`, the registered working variance is
 
 `NLL(residual; variance = kappa^2 V_prediction + Q_validation)`.
+
+For `full`, the LOSO validation row and training rows come from the same joint network covariance.
+If `beta_hat = B y_train`, the known covariance
+`c = Cov(x_validation beta_hat, y_validation) = x_validation B Q_train,validation`
+must be retained.  Its calibration variance is therefore
+
+`kappa^2 V_prediction + Q_validation - 2 c`.
+
+At `kappa=1` this is the exact linear residual variance under the exported joint covariance.
+`kappa` inflates prediction variance only; the validation marginal and known cross term are not
+scaled.  A non-positive candidate variance has infinite NLL.  In final held-out scoring, model and
+validation products come from separate PEA runs, so their unavailable cross-run covariance remains
+zero rather than being invented.
 
 Held-out observations never enter this step.  Storm data are scored with the quiet calibration and
 are not re-calibrated.
@@ -88,4 +110,12 @@ station/satellite rows within a sampled block.
 
 The original numerical thresholds are reported as diagnostic analogues only.  Passing them does
 not rescue the failed fixed-STEC gate; failing them does not prove that full covariance is useless
-for a future credible PPP-AR product.
+for a future credible PPP-AR product.  A full-versus-diagonal coverage benefit must be directional:
+it is the reduction in absolute error from the 95% target, not merely an absolute difference
+between the two coverages.  Gaussian log-score comparisons are reported as mean NLL differences,
+not unit-dependent percentages of NLL.
+
+All evaluation inputs are hashed before and after the single scoring pass and must remain stable.
+The evaluator verifies the frozen code, constants, configuration and input provenance before it
+opens the replacement held-out sidecars.  It refuses an existing report path; a failed run cannot
+replace or masquerade as a previous report.

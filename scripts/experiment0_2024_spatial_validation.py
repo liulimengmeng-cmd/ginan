@@ -41,9 +41,10 @@ from validate_stec_satellite_difference_covariance import (
 )
 
 
-FREEZE_SCHEMA = "GINAN_EXPERIMENT0_2024_FLOAT_SPATIAL_FREEZE_V1"
-REPORT_SCHEMA = "GINAN_EXPERIMENT0_2024_FLOAT_SPATIAL_VALIDATION_V1"
+FREEZE_SCHEMA = "GINAN_EXPERIMENT0_2024_FLOAT_SPATIAL_FREEZE_V2"
+REPORT_SCHEMA = "GINAN_EXPERIMENT0_2024_FLOAT_SPATIAL_VALIDATION_V2"
 METHODS = ("none", "diagonal", "full")
+EXPECTED_FORWARD_STAGE = "FILTER_POSTERIOR_NO_EPOCH_AR"
 GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
 EARTH_RADIUS_M = 6_371_000.0
 SHELL_HEIGHT_M = 506_700.0
@@ -101,6 +102,7 @@ class FitResult:
     method: str
     beta: np.ndarray
     beta_covariance: np.ndarray
+    beta_observation_gain: np.ndarray
     rank: int
     training_count: int
     residual_variance: float
@@ -115,6 +117,19 @@ class CalibrationRecord:
     residual: float
     prediction_variance: float
     target_variance: float
+    prediction_target_covariance: float = 0.0
+    target_satellite: str = ""
+    reference_satellite: str = ""
+
+    @property
+    def key(self) -> tuple[int, Decimal, str, str, str]:
+        return (
+            self.gps_week,
+            self.gps_tow,
+            self.site,
+            self.target_satellite,
+            self.reference_satellite,
+        )
 
     @property
     def block(self) -> str:
@@ -177,14 +192,11 @@ def _ecef_to_geodetic(ecef: np.ndarray) -> tuple[float, float, float]:
     height = 0.0
     for _ in range(12):
         sin_latitude = math.sin(latitude)
-        prime_vertical = WGS84_A / math.sqrt(
-            1 - WGS84_E2 * sin_latitude * sin_latitude
-        )
+        prime_vertical = WGS84_A / math.sqrt(1 - WGS84_E2 * sin_latitude * sin_latitude)
         height = horizontal / max(math.cos(latitude), 1e-15) - prime_vertical
         next_latitude = math.atan2(
             z,
-            horizontal
-            * (1 - WGS84_E2 * prime_vertical / (prime_vertical + height)),
+            horizontal * (1 - WGS84_E2 * prime_vertical / (prime_vertical + height)),
         )
         if abs(next_latitude - latitude) < 1e-14:
             latitude = next_latitude
@@ -237,23 +249,24 @@ def ray_geometry(
     sin_central = math.sin(central_angle)
     cos_central = math.cos(central_angle)
     ipp_latitude = math.asin(
-        sin_latitude * cos_central
-        + cos_latitude * sin_central * math.cos(azimuth)
+        sin_latitude * cos_central + cos_latitude * sin_central * math.cos(azimuth)
     )
     longitude_increment = math.atan2(
         math.sin(azimuth) * sin_central * cos_latitude,
         cos_central - sin_latitude * math.sin(ipp_latitude),
     )
-    ipp_longitude = (longitude + longitude_increment + math.pi) % (2 * math.pi) - math.pi
+    ipp_longitude = (longitude + longitude_increment + math.pi) % (
+        2 * math.pi
+    ) - math.pi
 
     map_argument = (
-        EARTH_RADIUS_M
-        / shell_radius
-        * math.sin(MSLM_ALPHA * (math.pi / 2 - elevation))
+        EARTH_RADIUS_M / shell_radius * math.sin(MSLM_ALPHA * (math.pi / 2 - elevation))
     )
     mapping_factor = 1 / math.sqrt(max(1e-15, 1 - map_argument * map_argument))
 
-    delta_longitude = (ipp_longitude - ORIGIN_LON_RAD + math.pi) % (2 * math.pi) - math.pi
+    delta_longitude = (ipp_longitude - ORIGIN_LON_RAD + math.pi) % (
+        2 * math.pi
+    ) - math.pi
     east_1000km = shell_radius * math.cos(ORIGIN_LAT_RAD) * delta_longitude / 1e6
     north_1000km = shell_radius * (ipp_latitude - ORIGIN_LAT_RAD) / 1e6
     feature = mapping_factor * np.array([1.0, east_1000km, north_1000km])
@@ -332,10 +345,14 @@ def _covariance_matrix(epoch: DifferenceEpoch) -> np.ndarray:
 
 
 def iter_spatial_epochs(stec_path: Path, sd_path: Path) -> Iterator[SpatialEpoch]:
-    with stec_path.open("r", encoding="utf-8", errors="strict", newline="") as stec_stream:
+    with stec_path.open(
+        "r", encoding="utf-8", errors="strict", newline=""
+    ) as stec_stream:
         geometry_iterator = iter_geometry_epochs(stec_stream)
         geometry_item = next(geometry_iterator, None)
-        with sd_path.open("r", encoding="utf-8", errors="strict", newline="") as sd_stream:
+        with sd_path.open(
+            "r", encoding="utf-8", errors="strict", newline=""
+        ) as sd_stream:
             for epoch in iter_difference_epochs(sd_stream):
                 key = _epoch_key(epoch.gps_week, epoch.gps_tow_text)
                 while geometry_item is not None and geometry_item[0] < key:
@@ -349,7 +366,9 @@ def iter_spatial_epochs(stec_path: Path, sd_path: Path) -> Iterator[SpatialEpoch
 
                 count = epoch.difference_state_count
                 if sorted(epoch.states) != list(range(count)):
-                    raise SpatialInputError(f"noncontiguous SD state catalogue at {key}")
+                    raise SpatialInputError(
+                        f"noncontiguous SD state catalogue at {key}"
+                    )
                 covariance = _covariance_matrix(epoch)
                 kept: list[int] = []
                 design_rows: list[np.ndarray] = []
@@ -428,17 +447,27 @@ def fit_spatial_plane(
 
     if method == "none":
         beta, _, rank, _ = np.linalg.lstsq(design, values, rcond=1e-12)
+        if int(rank) != design.shape[1]:
+            raise SpatialInputError(
+                f"spatial design is rank deficient: rank={rank}, required={design.shape[1]}"
+            )
         residual = values - design @ beta
         degrees_of_freedom = max(design.shape[0] - int(rank), 1)
         residual_variance = float(residual @ residual / degrees_of_freedom)
         information_inverse, information_rank = _symmetric_pseudoinverse(
             design.T @ design
         )
+        if information_rank != design.shape[1]:
+            raise SpatialInputError(
+                "spatial information matrix is rank deficient: "
+                f"rank={information_rank}, required={design.shape[1]}"
+            )
         beta_covariance = residual_variance * information_inverse
         return FitResult(
             method=method,
             beta=beta,
             beta_covariance=beta_covariance,
+            beta_observation_gain=information_inverse @ design.T,
             rank=information_rank,
             training_count=design.shape[0],
             residual_variance=residual_variance,
@@ -458,7 +487,13 @@ def fit_spatial_plane(
 
     information = design.T @ covariance_inverse @ design
     information_inverse, information_rank = _symmetric_pseudoinverse(information)
-    beta = information_inverse @ design.T @ covariance_inverse @ values
+    if information_rank != design.shape[1]:
+        raise SpatialInputError(
+            "spatial information matrix is rank deficient: "
+            f"rank={information_rank}, required={design.shape[1]}"
+        )
+    beta_observation_gain = information_inverse @ design.T @ covariance_inverse
+    beta = beta_observation_gain @ values
     residual = values - design @ beta
     weighted_residual = float(residual @ covariance_inverse @ residual)
     degrees_of_freedom = max(covariance_rank - information_rank, 1)
@@ -466,6 +501,7 @@ def fit_spatial_plane(
         method=method,
         beta=beta,
         beta_covariance=information_inverse,
+        beta_observation_gain=beta_observation_gain,
         rank=information_rank,
         training_count=design.shape[0],
         residual_variance=weighted_residual / degrees_of_freedom,
@@ -482,11 +518,41 @@ def predict_spatial_plane(
     return mean, variance
 
 
+def prediction_target_covariance(
+    fit: FitResult,
+    prediction_design: np.ndarray,
+    training_target_covariance: np.ndarray,
+) -> np.ndarray:
+    """Return marginal Cov(predicted target, observed target) for one fit.
+
+    The full arm uses the retained train--target block from the joint SD
+    covariance.  The none and diagonal arms define that cross block to be zero.
+    """
+
+    target_count = prediction_design.shape[0]
+    if prediction_design.shape != (target_count, 3):
+        raise SpatialInputError("invalid prediction design dimensions")
+    if training_target_covariance.shape != (fit.training_count, target_count):
+        raise SpatialInputError("training-target covariance dimension mismatch")
+    if fit.beta_observation_gain.shape != (3, fit.training_count):
+        raise SpatialInputError("beta observation gain dimension mismatch")
+    if fit.method != "full":
+        return np.zeros(target_count)
+    covariance = np.diag(
+        prediction_design @ fit.beta_observation_gain @ training_target_covariance
+    )
+    if np.any(~np.isfinite(covariance)):
+        raise SpatialInputError("nonfinite prediction-target covariance")
+    return covariance
+
+
 def product_gap_keys(product_audit_path: Path, label: str) -> set[tuple[int, Decimal]]:
     payload = json.loads(product_audit_path.read_text(encoding="utf-8"))
     try:
         experiment = payload["experiments"][label]
-        defective = experiment["validation"]["eligible_satellites_with_coverage_defects"]
+        defective = experiment["validation"][
+            "eligible_satellites_with_coverage_defects"
+        ]
     except (KeyError, TypeError) as error:
         raise SpatialInputError("unrecognised product audit structure") from error
     keys: set[tuple[int, Decimal]] = set()
@@ -507,6 +573,7 @@ def _valid_spatial_epoch(epoch: SpatialEpoch, gaps: set[tuple[int, Decimal]]) ->
     return (
         epoch.key not in gaps
         and epoch.status == "OK"
+        and epoch.posterior_stage == EXPECTED_FORWARD_STAGE
         and epoch.declared_difference_count > 0
         and epoch.values.size >= 4
         and len(set(str(site) for site in epoch.sites)) >= 3
@@ -528,7 +595,6 @@ def collect_loso_calibration(
     epoch_count = 0
     usable_epoch_count = 0
     dropped_geometry_epochs = 0
-    fit_failures: Counter[str] = Counter()
     for epoch in iter_spatial_epochs(stec_path, sd_path):
         epoch_count += 1
         observed_sites.update(str(site) for site in epoch.sites)
@@ -543,7 +609,16 @@ def collect_loso_calibration(
             if np.count_nonzero(test) == 0 or len(set(epoch.sites[train])) < 3:
                 continue
             train_covariance = epoch.covariance[np.ix_(train, train)]
+            train_target_covariance = epoch.covariance[np.ix_(train, test)]
             target_variance = np.diag(epoch.covariance)[test]
+            test_indices = np.flatnonzero(test)
+            target_satellites = [
+                epoch.target_satellites[int(index)] for index in test_indices
+            ]
+            reference_satellites = [
+                epoch.reference_satellites[int(index)] for index in test_indices
+            ]
+            method_results: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
             for method in METHODS:
                 try:
                     fit = fit_spatial_plane(
@@ -555,13 +630,41 @@ def collect_loso_calibration(
                     prediction, prediction_variance = predict_spatial_plane(
                         fit, epoch.design[test]
                     )
-                except SpatialInputError:
-                    fit_failures[method] += 1
-                    continue
-                for residual, model_variance, validation_variance in zip(
+                    prediction_target = prediction_target_covariance(
+                        fit,
+                        epoch.design[test],
+                        train_target_covariance,
+                    )
+                except SpatialInputError as error:
+                    raise SpatialInputError(
+                        "LOSO calibration fit failed; refusing method-specific rows: "
+                        f"epoch={epoch.gps_week}:{epoch.gps_tow}, site={site}, "
+                        f"method={method}: {error}"
+                    ) from error
+                method_results[method] = (
+                    prediction,
+                    prediction_variance,
+                    prediction_target,
+                )
+
+            for method in METHODS:
+                prediction, prediction_variance, prediction_target = method_results[
+                    method
+                ]
+                for (
+                    residual,
+                    model_variance,
+                    validation_variance,
+                    cross_covariance,
+                    target_satellite,
+                    reference_satellite,
+                ) in zip(
                     epoch.values[test] - prediction,
                     prediction_variance,
                     target_variance,
+                    prediction_target,
+                    target_satellites,
+                    reference_satellites,
                     strict=True,
                 ):
                     records[method].append(
@@ -572,6 +675,9 @@ def collect_loso_calibration(
                             residual=float(residual),
                             prediction_variance=float(model_variance),
                             target_variance=float(validation_variance),
+                            prediction_target_covariance=float(cross_covariance),
+                            target_satellite=target_satellite,
+                            reference_satellite=reference_satellite,
                         )
                     )
 
@@ -580,12 +686,27 @@ def collect_loso_calibration(
             f"quiet model sites mismatch: observed={sorted(observed_sites)}, "
             f"expected={sorted(expected_sites)}"
         )
+    record_counts = {method: len(records[method]) for method in METHODS}
+    if len(set(record_counts.values())) != 1:
+        raise SpatialInputError(
+            f"LOSO calibration methods have different row counts: {record_counts}"
+        )
+    record_keys = {
+        method: [record.key for record in records[method]]
+        for method in METHODS
+    }
+    reference_keys = record_keys[METHODS[0]]
+    if any(record_keys[method] != reference_keys for method in METHODS[1:]):
+        raise SpatialInputError("LOSO calibration methods have different row keys")
     return records, {
         "epoch_count": epoch_count,
         "usable_epoch_count": usable_epoch_count,
         "registered_product_gap_epoch_count": len(gaps),
         "dropped_geometry_epoch_count": dropped_geometry_epochs,
-        "fit_failures": dict(fit_failures),
+        "fit_failures": {},
+        "strict_common_method_rows": True,
+        "identical_method_record_key_sequence": True,
+        "calibration_record_counts": record_counts,
         "observed_sites": sorted(observed_sites),
     }
 
@@ -596,34 +717,94 @@ def _block_equal_weights(records: list[CalibrationRecord]) -> np.ndarray:
     return weights / weights.sum()
 
 
-def calibration_nll(records: list[CalibrationRecord], kappa: float) -> float:
-    if not records or kappa < 0 or not math.isfinite(kappa):
-        return math.inf
+def calibration_variances(records: list[CalibrationRecord], kappa: float) -> np.ndarray:
+    """Return LOSO residual variances under the frozen arm definition.
+
+    Kappa scales only the prediction variance.  The validation marginal and
+    the known full-arm prediction--validation cross covariance are not scaled.
+    None/diagonal records carry a zero cross covariance by construction.
+    """
+
+    prediction = np.array([record.prediction_variance for record in records])
+    target = np.array([record.target_variance for record in records])
+    cross = np.array([record.prediction_target_covariance for record in records])
+    return kappa * kappa * prediction + target - 2 * cross
+
+
+def _calibration_arrays(
+    records: list[CalibrationRecord],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     residual = np.array([record.residual for record in records])
     prediction = np.array([record.prediction_variance for record in records])
     target = np.array([record.target_variance for record in records])
-    variance = kappa * kappa * prediction + target
+    cross = np.array([record.prediction_target_covariance for record in records])
+    weights = _block_equal_weights(records)
+    return residual, prediction, target, cross, weights
+
+
+def _calibration_nll_from_arrays(
+    residual: np.ndarray,
+    prediction: np.ndarray,
+    target: np.ndarray,
+    cross: np.ndarray,
+    weights: np.ndarray,
+    kappa: float,
+) -> float:
+    if kappa < 0 or not math.isfinite(kappa):
+        return math.inf
+    variance = kappa * kappa * prediction + target - 2 * cross
     if np.any(~np.isfinite(variance)) or np.any(variance <= 0):
         return math.inf
-    weights = _block_equal_weights(records)
     terms = 0.5 * (np.log(2 * math.pi * variance) + residual * residual / variance)
     return float(weights @ terms)
 
 
+def calibration_nll(records: list[CalibrationRecord], kappa: float) -> float:
+    if not records:
+        return math.inf
+    return _calibration_nll_from_arrays(*_calibration_arrays(records), kappa)
+
+
 def optimise_kappa(records: list[CalibrationRecord]) -> tuple[float, float]:
+    if not records:
+        raise SpatialInputError("no finite LOSO calibration variance for any kappa")
+    arrays = _calibration_arrays(records)
+
+    def objective_at(kappa: float) -> float:
+        return _calibration_nll_from_arrays(*arrays, kappa)
+
     candidates = np.concatenate(([0.0], np.geomspace(1e-4, 1e4, 321)))
-    objective = np.array([calibration_nll(records, float(value)) for value in candidates])
+    objective = np.array([objective_at(float(value)) for value in candidates])
     best = int(np.argmin(objective))
-    if best == 0 or best == len(candidates) - 1:
+    if not math.isfinite(float(objective[best])):
+        raise SpatialInputError("no finite LOSO calibration variance for any kappa")
+    if best == len(candidates) - 1:
+        raise SpatialInputError(
+            f"kappa optimisation hit upper search boundary {candidates[-1]:g}"
+        )
+    if best == 0:
         return float(candidates[best]), float(objective[best])
-    low = math.log(candidates[best - 1])
-    high = math.log(candidates[best + 1])
+
+    # log1p/expm1 retain approximately logarithmic spacing away from zero while
+    # giving the physical kappa=0 boundary a finite search coordinate.  This
+    # also safely brackets a discrete optimum at the smallest positive grid
+    # point without ever evaluating log(0).
+    positive_scale = float(candidates[1])
+
+    def search_coordinate(kappa: float) -> float:
+        return math.log1p(kappa / positive_scale)
+
+    def kappa_from_search(coordinate: float) -> float:
+        return positive_scale * math.expm1(coordinate)
+
+    low = search_coordinate(float(candidates[best - 1]))
+    high = search_coordinate(float(candidates[best + 1]))
     golden = (math.sqrt(5) - 1) / 2
     left = high - golden * (high - low)
     right = low + golden * (high - low)
     for _ in range(60):
-        if calibration_nll(records, math.exp(left)) < calibration_nll(
-            records, math.exp(right)
+        if objective_at(kappa_from_search(left)) < objective_at(
+            kappa_from_search(right)
         ):
             high = right
             right = left
@@ -632,17 +813,19 @@ def optimise_kappa(records: list[CalibrationRecord]) -> tuple[float, float]:
             low = left
             left = right
             right = low + golden * (high - low)
-    kappa = math.exp((low + high) / 2)
-    return kappa, calibration_nll(records, kappa)
+    kappa = kappa_from_search((low + high) / 2)
+    refined = (kappa, objective_at(kappa))
+    gridded = (float(candidates[best]), float(objective[best]))
+    return min((refined, gridded), key=lambda result: result[1])
 
 
 def calibration_summary(
     records: list[CalibrationRecord], kappa: float
 ) -> dict[str, object]:
     residual = np.array([record.residual for record in records])
-    prediction = np.array([record.prediction_variance for record in records])
-    target = np.array([record.target_variance for record in records])
-    variance = kappa * kappa * prediction + target
+    variance = calibration_variances(records, kappa)
+    if np.any(~np.isfinite(variance)) or np.any(variance <= 0):
+        raise SpatialInputError("nonpositive calibrated LOSO residual variance")
     half_width = 1.959963984540054 * np.sqrt(variance)
     coverage = float(np.mean(np.abs(residual) <= half_width))
     return {
@@ -676,7 +859,10 @@ def build_freeze(
         if not records[method]:
             raise SpatialInputError(f"no LOSO calibration records for {method}")
         kappa, _ = optimise_kappa(records[method])
-        calibration[method] = calibration_summary(records[method], kappa)
+        calibration[method] = {
+            **calibration_summary(records[method], kappa),
+            "boundary_hit": False,
+        }
 
     return {
         "schema": FREEZE_SCHEMA,
@@ -708,7 +894,11 @@ def build_freeze(
         "calibration_protocol": {
             "source": "quiet model stations only",
             "scheme": "leave-one-site-out at each epoch; continuous one-hour blocks receive equal NLL weight",
-            "objective": "minimise NLL of residual variance kappa^2*V_prediction+Q_validation",
+            "objective": (
+                "minimise NLL of residual variance "
+                "kappa^2*V_prediction+Q_validation-2*Cov(prediction,validation); "
+                "the cross term is retained only for the full arm and is not scaled by kappa"
+            ),
             "storm_recalibration": False,
         },
         "source_summary": source_summary,
@@ -738,8 +928,11 @@ def build_freeze(
                 "maximum_width_increase_percent": 25.0,
             },
             "full_vs_diagonal_materiality": {
-                "coverage_difference_points": 3.0,
-                "nll_difference_percent": 5.0,
+                "coverage_error_reduction_points": 3.0,
+                "mean_log_score_rule": (
+                    "report diagonal-minus-full mean Gaussian log score in nats per prediction; "
+                    "assess direction and uncertainty with its paired block-bootstrap interval"
+                ),
             },
             "calibrated_coverage": {
                 "overall_percent": [93.0, 97.0],
@@ -754,7 +947,10 @@ def build_freeze(
 
 def _verified_freeze(path: Path) -> dict[str, object]:
     freeze = json.loads(path.read_text(encoding="utf-8"))
-    if freeze.get("schema") != FREEZE_SCHEMA or freeze.get("heldout_output_read") is not False:
+    if (
+        freeze.get("schema") != FREEZE_SCHEMA
+        or freeze.get("heldout_output_read") is not False
+    ):
         raise SpatialInputError("invalid or contaminated spatial freeze")
     for record in freeze["input_hashes"].values():
         source = Path(record["path"])
@@ -848,9 +1044,7 @@ def predict_day(
             )
 
     if model_sites != expected_model_sites:
-        raise SpatialInputError(
-            f"{label} model sites mismatch: {sorted(model_sites)}"
-        )
+        raise SpatialInputError(f"{label} model sites mismatch: {sorted(model_sites)}")
     if heldout_sites != expected_heldout_sites:
         raise SpatialInputError(
             f"{label} heldout sites mismatch: {sorted(heldout_sites)}"
@@ -943,21 +1137,19 @@ def comparison_metrics(scores: dict[str, object]) -> dict[str, float | bool]:
     none = scores["none"]["calibrated"]
     diagonal = scores["diagonal"]["calibrated"]
     full = scores["full"]["calibrated"]
-    coverage_error_reduction = (
-        abs(none["coverage_percent"] - 95) - abs(full["coverage_percent"] - 95)
+    coverage_error_reduction = abs(none["coverage_percent"] - 95) - abs(
+        full["coverage_percent"] - 95
     )
-    interval_score_reduction = 100 * (
-        none["mean_interval_score_tecu"] - full["mean_interval_score_tecu"]
-    ) / none["mean_interval_score_tecu"]
-    width_increase = 100 * (
-        full["mean_width_tecu"] / none["mean_width_tecu"] - 1
+    interval_score_reduction = (
+        100
+        * (none["mean_interval_score_tecu"] - full["mean_interval_score_tecu"])
+        / none["mean_interval_score_tecu"]
     )
-    coverage_difference = abs(
-        full["coverage_percent"] - diagonal["coverage_percent"]
-    )
-    nll_difference = 100 * (diagonal["nll"] - full["nll"]) / max(
-        abs(diagonal["nll"]), 1e-12
-    )
+    width_increase = 100 * (full["mean_width_tecu"] / none["mean_width_tecu"] - 1)
+    diagonal_coverage_error = abs(diagonal["coverage_percent"] - 95)
+    full_coverage_error = abs(full["coverage_percent"] - 95)
+    coverage_error_reduction_vs_diagonal = diagonal_coverage_error - full_coverage_error
+    mean_log_score_improvement = diagonal["nll"] - full["nll"]
     return {
         "full_vs_none_coverage_error_reduction_points": coverage_error_reduction,
         "full_vs_none_interval_score_reduction_percent": interval_score_reduction,
@@ -966,10 +1158,14 @@ def comparison_metrics(scores: dict[str, object]) -> dict[str, float | bool]:
             (coverage_error_reduction >= 5 or interval_score_reduction >= 10)
             and width_increase <= 25
         ),
-        "full_vs_diagonal_coverage_difference_points": coverage_difference,
-        "full_vs_diagonal_nll_improvement_percent": nll_difference,
-        "full_vs_diagonal_material_benefit": (
-            coverage_difference >= 3 or nll_difference >= 5
+        "full_vs_diagonal_coverage_error_reduction_points": (
+            coverage_error_reduction_vs_diagonal
+        ),
+        "full_vs_diagonal_mean_log_score_improvement_nats_per_prediction": (
+            mean_log_score_improvement
+        ),
+        "full_vs_diagonal_coverage_material_benefit": (
+            coverage_error_reduction_vs_diagonal >= 3
         ),
     }
 
@@ -1019,7 +1215,10 @@ def build_report(
     freeze = _verified_freeze(freeze_path)
     if _sha256(product_audit) != freeze["input_hashes"]["product_audit"]["sha256"]:
         raise SpatialInputError("product audit differs from frozen copy")
-    if _sha256(quiet_model_stec) != freeze["input_hashes"]["quiet_model_stec"]["sha256"]:
+    if (
+        _sha256(quiet_model_stec)
+        != freeze["input_hashes"]["quiet_model_stec"]["sha256"]
+    ):
         raise SpatialInputError("quiet model STEC differs from freeze")
     if _sha256(quiet_model_sd) != freeze["input_hashes"]["quiet_model_sd"]["sha256"]:
         raise SpatialInputError("quiet model SD differs from freeze")
@@ -1032,8 +1231,7 @@ def build_report(
     model_sites = set(split["model_stations"])
     heldout_sites = set(split["heldout_stations"])
     kappas = {
-        method: float(freeze["calibration"][method]["kappa"])
-        for method in METHODS
+        method: float(freeze["calibration"][method]["kappa"]) for method in METHODS
     }
     paths = {
         "quiet": (
@@ -1126,7 +1324,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     for label in ("quiet", "storm"):
         evaluate_parser.add_argument(f"--{label}-model-stec", type=Path, required=True)
         evaluate_parser.add_argument(f"--{label}-model-sd", type=Path, required=True)
-        evaluate_parser.add_argument(f"--{label}-heldout-stec", type=Path, required=True)
+        evaluate_parser.add_argument(
+            f"--{label}-heldout-stec", type=Path, required=True
+        )
         evaluate_parser.add_argument(f"--{label}-heldout-sd", type=Path, required=True)
     evaluate_parser.add_argument("--output", type=Path, required=True)
 
