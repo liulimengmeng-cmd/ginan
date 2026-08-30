@@ -13,6 +13,7 @@ This experiment tests an integer-estimability prerequisite. It does not yet esta
 - Date: 2024-07-17 (day 199), 30 s observations.
 - Estimation stations: MARS, GRAZ, MATE, DYNG, SOFI, NICO.
 - Signals: GPS L1C and L2W only.
+- Satellite screening: G01 excluded because the selected WUM precise orbit, clock and both admitted phase-OSB signals contain no G01 record.
 - External products: WUM final SP3/CLK/ERP/OSB, IGS20_2303 ANTEX, IGS weekly coordinate SINEX, broadcast navigation, and the model/loading tables listed with SHA-256 values in `EXPERIMENT_1_2024_DATA_MANIFEST.md`.
 - Held-out stations: ZIM2, WTZR, POTS. They do not enter these estimation/control runs.
 

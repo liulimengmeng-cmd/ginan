@@ -80,6 +80,11 @@ satellite_options:
     models:
       phase_bias:
         enable: true
+  # G01 is observed in the RINEX files but is absent from the selected WUM
+  # day-199 SP3, CLK, L1C OSB and L2W OSB products.  Do not mix broadcast
+  # fallback and undefined biases into the precise-product experiment.
+  G01:
+    exclude: true
 
 receiver_options:
   global:

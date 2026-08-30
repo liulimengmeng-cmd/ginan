@@ -6,6 +6,7 @@
 - Observation date: 2024-07-17 (2024 day 199), 00:00:00--00:59:30 GPST.
 - Sampling: 30 s, 120 epochs.
 - Observation signals admitted by the configuration: GPS L1C and L2W only.
+- Satellite screening: G01 is excluded because it is absent from the selected WUM day-199 SP3, CLK, L1C OSB and L2W OSB files. The other 15 GPS satellites encountered in the four-hour audit have all four product types.
 - Estimation stations: MARS, GRAZ, MATE, DYNG, SOFI, NICO.
 - Reserved held-out stations: ZIM2, WTZR, POTS. They are present locally and covered by the selected SINEX/BLQ files, but are not inputs to this run.
 - Configuration: `Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml`.
