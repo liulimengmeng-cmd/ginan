@@ -99,9 +99,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
-    root = args.data_root.resolve()
+def build_audit(root: Path) -> dict[str, object]:
+    """Build the deterministic RINEX QC payload without writing output files."""
+
+    root = root.resolve()
     manifest_path = root / "input_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     observation_records = [
@@ -118,12 +119,6 @@ def main() -> int:
         audit["experiment"] = record["experiment"]
         audit["sha256_matches_manifest"] = sha256_file(path) == record["sha256"]
         audits.append(audit)
-        print(
-            f"{audit['experiment']} {audit['station']}: "
-            f"epochs={audit['unique_epoch_count']} max_gap={audit['max_gap_seconds']} "
-            f"pass={audit['pass']}",
-            flush=True,
-        )
 
     expected_file_count = len(manifest["stations"]) * len(manifest["dates"])
     all_pass = (
@@ -131,7 +126,7 @@ def main() -> int:
         and all(audit["pass"] for audit in audits)
         and all(audit["sha256_matches_manifest"] for audit in audits)
     )
-    payload = {
+    return {
         "schema": "GINAN_EXPERIMENT0_2024_RINEX_QC_V1",
         "input_manifest": manifest_path.as_posix(),
         "input_manifest_sha256": sha256_file(manifest_path),
@@ -147,13 +142,29 @@ def main() -> int:
         "pass": all_pass,
         "files": audits,
     }
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    root = args.data_root.resolve()
+    payload = build_audit(root)
+    for audit in payload["files"]:
+        print(
+            f"{audit['experiment']} {audit['station']}: "
+            f"epochs={audit['unique_epoch_count']} max_gap={audit['max_gap_seconds']} "
+            f"pass={audit['pass']}",
+            flush=True,
+        )
+
     output_path = args.output or root / "rinex_qc.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     partial = output_path.with_name(output_path.name + ".part")
-    partial.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    partial.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     os.replace(partial, output_path)
     print(f"audit: {output_path}", flush=True)
-    return 0 if all_pass else 1
+    return 0 if payload["pass"] else 1
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -65,7 +66,9 @@ COV,2323,12345.5,1,1,1
         )
         report = validate_file(path)
         self.assertFalse(report["all_valid"])
-        self.assertIn("writer_status=STATE_LIMIT_EXCEEDED", report["epochs"][0]["errors"])
+        self.assertIn(
+            "writer_status=STATE_LIMIT_EXCEEDED", report["epochs"][0]["errors"]
+        )
 
     def test_rejects_zero_state_epoch_without_crashing(self) -> None:
         path = write_case(
@@ -78,6 +81,18 @@ COV,2323,12345.5,1,1,1
         self.assertIn("writer_status=NO_STATES", errors)
         self.assertIn("state_count_not_positive", errors)
         self.assertIn("nonfinite_estimate_or_covariance", errors)
+        diagnostics = report["epochs"][0]
+        for field in (
+            "diagonal_error_tecu2",
+            "minimum_eigenvalue_tecu2",
+            "maximum_eigenvalue_tecu2",
+            "psd_tolerance_tecu2",
+            "positive_spectrum_condition_number",
+        ):
+            self.assertIsNone(diagnostics[field])
+        serialized = json.dumps(report, allow_nan=False)
+        self.assertNotIn("NaN", serialized)
+        self.assertNotIn("Infinity", serialized)
 
     def test_rejects_inconsistent_ar_evidence(self) -> None:
         path = write_case(

@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import experiment0_2024_blind_provenance as provenance_module
 from experiment0_2024_blind_provenance import (
     FILE_RECORD_FIELDS,
     InputChangedError,
@@ -179,6 +180,62 @@ class Experiment0BlindProvenanceTests(unittest.TestCase):
         self.assertTrue(runtime["python"]["version"])
         self.assertTrue(runtime["numpy"]["version"])
         self.assertTrue(runtime["numpy"]["module_path"])
+
+    def test_wsl_windows_git_fallback_for_linked_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repo = Path(temporary_directory) / "linked-worktree"
+            repo.mkdir()
+
+            def fake_git(executable, repository, *arguments, allow_detached=False):
+                del repository, allow_detached
+                if executable == "git":
+                    raise ProvenanceError(
+                        "native WSL Git cannot resolve Windows gitdir"
+                    )
+                if arguments == ("rev-parse", "--show-toplevel"):
+                    return "D:/linked-worktree"
+                if arguments == ("rev-parse", "HEAD"):
+                    return "a" * 40
+                if arguments == (
+                    "symbolic-ref",
+                    "--quiet",
+                    "--short",
+                    "HEAD",
+                ):
+                    return "codex/test"
+                if arguments == (
+                    "status",
+                    "--porcelain=v1",
+                    "--untracked-files=no",
+                    "--ignore-submodules=none",
+                ):
+                    return ""
+                raise AssertionError(arguments)
+
+            def fake_wslpath(option, path):
+                del path
+                if option == "-w":
+                    return "D:/linked-worktree"
+                if option == "-u":
+                    return str(repo)
+                raise AssertionError(option)
+
+            with (
+                patch.object(
+                    provenance_module.platform, "system", return_value="Linux"
+                ),
+                patch.object(
+                    provenance_module.shutil, "which", return_value="/mnt/d/Git/git.exe"
+                ),
+                patch.object(provenance_module, "_git", side_effect=fake_git),
+                patch.object(provenance_module, "_wslpath", side_effect=fake_wslpath),
+            ):
+                identity = git_identity(repo)
+
+            self.assertEqual(identity["backend"], "git.exe")
+            self.assertEqual(identity["repository"], str(repo.resolve()))
+            self.assertEqual(identity["head"], "a" * 40)
+            self.assertTrue(identity["tracked_clean"])
 
     def test_begin_and_complete_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

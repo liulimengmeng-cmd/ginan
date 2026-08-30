@@ -25,6 +25,7 @@ import errno
 import json
 import os
 import platform
+import shutil
 import stat
 import subprocess
 import sys
@@ -366,9 +367,14 @@ def atomic_write_json_no_replace(path: PathLike, payload: object) -> FileRecord:
     return published_record
 
 
-def _git(repo: Path, *arguments: str, allow_detached: bool = False) -> str | None:
+def _git(
+    executable: str,
+    repo: str | os.PathLike[str],
+    *arguments: str,
+    allow_detached: bool = False,
+) -> str | None:
     completed = subprocess.run(
-        ["git", "-C", str(repo), *arguments],
+        [executable, "-C", str(repo), *arguments],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -380,24 +386,92 @@ def _git(repo: Path, *arguments: str, allow_detached: bool = False) -> str | Non
     if completed.returncode != 0:
         error = completed.stderr.strip() or completed.stdout.strip()
         raise ProvenanceError(
-            f"git {' '.join(arguments)} failed with {completed.returncode}: {error}"
+            f"{executable} {' '.join(arguments)} failed with "
+            f"{completed.returncode}: {error}"
+        )
+    return completed.stdout.strip()
+
+
+def _wslpath(option: str, path: str | os.PathLike[str]) -> str:
+    completed = subprocess.run(
+        ["wslpath", option, str(path)],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+    )
+    if completed.returncode != 0 or not completed.stdout.strip():
+        error = completed.stderr.strip() or completed.stdout.strip()
+        raise ProvenanceError(
+            f"wslpath {option} failed with {completed.returncode}: {error}"
         )
     return completed.stdout.strip()
 
 
 def git_identity(repo: PathLike) -> dict[str, object]:
-    """Record commit, branch, and cleanliness of tracked files only."""
+    """Record commit, branch, and cleanliness of tracked files only.
+
+    A worktree created by Windows Git stores a Windows path in its ``.git``
+    redirection file.  Native WSL Git interprets that path as a relative Linux
+    path and fails.  On WSL only, the function therefore falls back to the
+    installed Windows ``git.exe`` and converts paths with ``wslpath``.  The
+    recorded repository remains the canonical Linux path, so freeze/evaluate
+    identity comparison is stable within the formal WSL runtime.
+    """
 
     requested = _absolute_path(repo)
-    top_level_text = _git(requested, "rev-parse", "--show-toplevel")
-    assert top_level_text is not None
-    top_level = Path(top_level_text).resolve(strict=True)
-    head = _git(top_level, "rev-parse", "HEAD")
+    executable = "git"
+    repository_argument: str = str(requested)
+    try:
+        top_level_text = _git(
+            executable, repository_argument, "rev-parse", "--show-toplevel"
+        )
+        assert top_level_text is not None
+        top_level = Path(top_level_text).resolve(strict=True)
+        repository_argument = str(top_level)
+    except ProvenanceError as native_error:
+        if platform.system() != "Linux" or shutil.which("git.exe") is None:
+            raise
+        executable = "git.exe"
+        repository_argument = _wslpath("-w", requested)
+        try:
+            top_level_text = _git(
+                executable,
+                repository_argument,
+                "rev-parse",
+                "--show-toplevel",
+            )
+        except ProvenanceError as windows_error:
+            raise ProvenanceError(
+                f"native Git failed ({native_error}); Windows Git fallback also "
+                f"failed ({windows_error})"
+            ) from windows_error
+        assert top_level_text is not None
+        top_level = Path(_wslpath("-u", top_level_text)).resolve(strict=True)
+        repository_argument = top_level_text
+
+    if (
+        requested.resolve(strict=True) != top_level
+        and top_level not in requested.parents
+    ):
+        raise ProvenanceError(
+            f"requested path {requested} is outside Git top level {top_level}"
+        )
+
+    head = _git(executable, repository_argument, "rev-parse", "HEAD")
     branch = _git(
-        top_level, "symbolic-ref", "--quiet", "--short", "HEAD", allow_detached=True
+        executable,
+        repository_argument,
+        "symbolic-ref",
+        "--quiet",
+        "--short",
+        "HEAD",
+        allow_detached=True,
     )
     status_text = _git(
-        top_level,
+        executable,
+        repository_argument,
         "status",
         "--porcelain=v1",
         "--untracked-files=no",
@@ -407,6 +481,7 @@ def git_identity(repo: PathLike) -> dict[str, object]:
     tracked_status = status_text.splitlines() if status_text else []
     return {
         "repository": str(top_level),
+        "backend": executable,
         "head": head,
         "branch": branch,
         "detached": branch is None,

@@ -74,7 +74,9 @@ def _require_length(row: list[str], expected: int, line_number: int) -> None:
 
 def _parse_binary_flag(value: str, field_name: str, line_number: int) -> bool:
     if value not in {"0", "1"}:
-        raise ValueError(f"line {line_number}: {field_name} expects 0 or 1, got {value!r}")
+        raise ValueError(
+            f"line {line_number}: {field_name} expects 0 or 1, got {value!r}"
+        )
     return value == "1"
 
 
@@ -103,7 +105,9 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
 
         if record_type == "META":
             if schema is None:
-                raise ValueError(f"line {line_number}: META precedes covariance schema marker")
+                raise ValueError(
+                    f"line {line_number}: META precedes covariance schema marker"
+                )
             if schema == "GINAN_STEC_COVARIANCE_V2":
                 _require_length(row, 22, line_number)
                 integer_coordinate_count = int(row[9])
@@ -141,7 +145,9 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
                 ar_dropped_singleton_group_count=dropped_singleton_group_count,
                 ar_resolved_combination_count=int(row[resolved_index]),
                 ar_pseudoobservations_submitted=_parse_binary_flag(
-                    row[resolved_index + 1], "ar_pseudoobservations_submitted", line_number
+                    row[resolved_index + 1],
+                    "ar_pseudoobservations_submitted",
+                    line_number,
                 ),
                 ar_mode=row[resolved_index + 2],
                 ar_configured_success_rate_threshold=float(row[resolved_index + 3]),
@@ -180,7 +186,9 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
                 variance_tecu2=float(row[9]),
             )
             if state.local_index in current.states:
-                raise ValueError(f"line {line_number}: duplicate STATE index {state.local_index}")
+                raise ValueError(
+                    f"line {line_number}: duplicate STATE index {state.local_index}"
+                )
             current.states[state.local_index] = state
         elif record_type == "COV":
             pair = (int(row[3]), int(row[4]))
@@ -209,10 +217,7 @@ def validate_epoch(
         errors.append("ar_eligible_ambiguity_count_negative")
     if epoch.ar_integer_ambiguity_coordinate_count < 0:
         errors.append("ar_integer_ambiguity_coordinate_count_negative")
-    if (
-        epoch.ar_integer_ambiguity_coordinate_count
-        > epoch.ar_eligible_ambiguity_count
-    ):
+    if epoch.ar_integer_ambiguity_coordinate_count > epoch.ar_eligible_ambiguity_count:
         errors.append("ar_integer_ambiguity_coordinate_count_exceeds_eligible_count")
     if epoch.ar_receiver_datum_group_count < 0:
         errors.append("ar_receiver_datum_group_count_negative")
@@ -271,7 +276,10 @@ def validate_epoch(
         or epoch.ar_solution_ratio != -1
     ):
         errors.append("ar_diagnostics_present_without_routine_invocation")
-    if epoch.ar_pseudoobservations_submitted and epoch.ar_resolved_combination_count <= 0:
+    if (
+        epoch.ar_pseudoobservations_submitted
+        and epoch.ar_resolved_combination_count <= 0
+    ):
         errors.append("ar_pseudoobservations_submitted_without_resolved_combinations")
     if not math.isfinite(epoch.ar_configured_success_rate_threshold):
         errors.append("ar_configured_success_rate_threshold_nonfinite")
@@ -303,7 +311,8 @@ def validate_epoch(
     if epoch.ar_routine_invoked and epoch.ar_diagnostic_status == "NOT_RUN":
         errors.append("ar_routine_invoked_without_diagnostic_status")
     if epoch.ar_diagnostic_status == "SUCCESS_RATE_BELOW_THRESHOLD" and not (
-        0 <= epoch.ar_bootstrapped_success_rate
+        0
+        <= epoch.ar_bootstrapped_success_rate
         < epoch.ar_configured_success_rate_threshold
     ):
         errors.append("ar_success_rate_failure_status_inconsistent")
@@ -320,7 +329,9 @@ def validate_epoch(
     if sorted(epoch.states) != list(range(n)):
         errors.append("state_catalog_incomplete_or_noncontiguous")
     if len(epoch.covariance) != expected_entries:
-        errors.append(f"covariance_entries={len(epoch.covariance)},expected={expected_entries}")
+        errors.append(
+            f"covariance_entries={len(epoch.covariance)},expected={expected_entries}"
+        )
 
     matrix = np.full((n, n), np.nan, dtype=float)
     for (row, column), value in epoch.covariance.items():
@@ -331,7 +342,11 @@ def validate_epoch(
         matrix[column, row] = value
 
     estimates = np.array(
-        [epoch.states[index].estimate_tecu for index in range(n) if index in epoch.states],
+        [
+            epoch.states[index].estimate_tecu
+            for index in range(n)
+            if index in epoch.states
+        ],
         dtype=float,
     )
     finite = (
@@ -343,11 +358,11 @@ def validate_epoch(
     if not finite:
         errors.append("nonfinite_estimate_or_covariance")
 
-    diagonal_error = math.inf
-    minimum_eigenvalue = math.nan
-    maximum_eigenvalue = math.nan
-    condition_number = math.inf
-    psd_tolerance = math.nan
+    diagonal_error: float | None = None
+    minimum_eigenvalue: float | None = None
+    maximum_eigenvalue: float | None = None
+    condition_number: float | None = None
+    psd_tolerance: float | None = None
 
     if finite:
         state_variances = np.array(
@@ -441,7 +456,9 @@ def validate_file(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="GINAN_STEC_COVARIANCE_V2/V3 file")
-    parser.add_argument("--json-output", type=Path, help="write the full validation report")
+    parser.add_argument(
+        "--json-output", type=Path, help="write the full validation report"
+    )
     parser.add_argument("--psd-absolute-tolerance", type=float, default=1e-12)
     parser.add_argument("--psd-relative-tolerance", type=float, default=1e-10)
     return parser
@@ -461,14 +478,21 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     summary = {
         key: report[key]
-        for key in ("schema", "input", "epoch_count", "valid_epoch_count", "invalid_epoch_count", "all_valid")
+        for key in (
+            "schema",
+            "input",
+            "epoch_count",
+            "valid_epoch_count",
+            "invalid_epoch_count",
+            "all_valid",
+        )
     }
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps(summary, ensure_ascii=False, indent=2, allow_nan=False))
 
     if args.json_output:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2, allow_nan=True) + "\n",
+            json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
         )
 
