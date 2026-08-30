@@ -1,0 +1,12 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_0_2024_common.yaml
+    - Docs/stecCovarianceFeasibility/experiment_0_2024_quiet_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp0_2024_quiet_12epoch_smoke_main_<HASH>
+
+processing_options:
+  epoch_control:
+    max_epochs: 12

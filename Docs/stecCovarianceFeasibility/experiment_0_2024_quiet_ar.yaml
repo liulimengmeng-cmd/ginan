@@ -1,0 +1,47 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_0_2024_common.yaml
+  erp_files:
+    - quiet/products/WUM0MGXFIN_20241290000_01D_01D_ERP.ERP
+  snx_files:
+    - shared/products/tables/igs_satellite_metadata.snx
+    - shared/products/tables/sat_yaw_bias_rate.snx
+    - quiet/products/AUT23133.SNX
+  satellite_data:
+    nav_files:
+      - quiet/products/BRDC00IGS_R_20241290000_01D_MN.rnx
+    clk_files:
+      - quiet/products/WUM0MGXFIN_20241290000_01D_30S_CLK.CLK
+    bsx_files:
+      - quiet/products/WUM0MGXFIN_20241290000_01D_01D_OSB.BIA
+    sp3_files:
+      - quiet/products/WUM0MGXFIN_20241280000_01D_05M_ORB.SP3
+      - quiet/products/WUM0MGXFIN_20241290000_01D_05M_ORB.SP3
+      - quiet/products/WUM0MGXFIN_20241300000_01D_05M_ORB.SP3
+    obx_files: []
+  gnss_observations:
+    rnx_inputs:
+      - quiet/data/ARMC00AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/BATH00AUS_S_20241290000_01D_30S_MO.rnx
+      - quiet/data/HOB200AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/MCHL00AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/MOBS00AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/STR100AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/SYDN00AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/TID100AUS_R_20241290000_01D_30S_MO.rnx
+      - quiet/data/WGGA00AUS_S_20241290000_01D_30S_MO.rnx
+      - quiet/data/YARR00AUS_R_20241290000_01D_30S_MO.rnx
+
+outputs:
+  metadata:
+    config_description: exp0_2024_quiet_ar_main_<HASH>
+
+satellite_options:
+  G01:
+    exclude: true
+  G10:
+    exclude: true
+
+processing_options:
+  epoch_control:
+    start_epoch: 2024-05-08 00:00:00
