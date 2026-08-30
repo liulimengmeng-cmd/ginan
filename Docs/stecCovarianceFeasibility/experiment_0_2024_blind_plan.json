@@ -1,0 +1,91 @@
+{
+  "schema": "GINAN_EXPERIMENT0_2024_BLIND_PLAN_V1",
+  "repository": "/mnt/d/tec/ginan-main-stec-cov",
+  "static_inputs": {
+    "code.driver": "scripts/experiment0_2024_blind_driver.py",
+    "code.spatial": "scripts/experiment0_2024_spatial_validation.py",
+    "code.parser": "scripts/validate_stec_satellite_difference_covariance.py",
+    "code.provenance_helper": "scripts/experiment0_2024_blind_provenance.py",
+    "code.raw_validator": "scripts/validate_stec_covariance.py",
+    "code.validation_split_validator": "scripts/validate_experiment0_2024_validation_split.py",
+    "manifest.input": "/home/rx/GINAN/inputData/experiment0_2024/input_manifest.json",
+    "audit.rinex_qc": "/home/rx/GINAN/inputData/experiment0_2024/rinex_qc.json",
+    "audit.split": "/home/rx/GINAN/inputData/experiment0_2024/split_audit.json",
+    "audit.product": "/home/rx/GINAN/inputData/experiment0_2024/experiment0_2024_product_audit.json",
+    "audit.validation_split": "/home/rx/GINAN/inputData/experiment0_2024/validation_split_audit.json",
+    "audit.model.quiet.raw": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/audit/quiet-float-forward-raw.json",
+    "audit.model.quiet.sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/audit/quiet-float-forward-sd.json",
+    "audit.model.storm.raw": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/audit/storm-float-forward-raw.json",
+    "audit.model.storm.sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/audit/storm-float-forward-sd.json",
+    "protocol.float_pivot": "Docs/stecCovarianceFeasibility/EXPERIMENT_0_2024_FLOAT_PIVOT_PROTOCOL.md",
+    "protocol.blind_amendment": "Docs/stecCovarianceFeasibility/EXPERIMENT_0_2024_BLIND_AMENDMENT.md",
+    "yaml.quiet_model": "Docs/stecCovarianceFeasibility/experiment_0_2024_quiet_float.yaml",
+    "yaml.storm_model": "Docs/stecCovarianceFeasibility/experiment_0_2024_storm_float.yaml",
+    "yaml.quiet_heldout": "Docs/stecCovarianceFeasibility/experiment_0_2024_quiet_heldout_float.yaml",
+    "yaml.storm_heldout": "Docs/stecCovarianceFeasibility/experiment_0_2024_storm_heldout_float.yaml",
+    "yaml.quiet_model_inputs": "Docs/stecCovarianceFeasibility/experiment_0_2024_quiet_ar.yaml",
+    "yaml.storm_model_inputs": "Docs/stecCovarianceFeasibility/experiment_0_2024_storm_ar.yaml",
+    "yaml.include.common": "Docs/stecCovarianceFeasibility/experiment_0_2024_common.yaml"
+  },
+  "model": {
+    "quiet": {
+      "stec": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/ionstec/exp0_2024_quiet_float_main_1296966-2024-05-08_00:00.STEC",
+      "sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/ionstec/exp0_2024_quiet_float_main_1296966-2024-05-08_00:00.STEC.SD.COV",
+      "audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/audit/quiet-float-forward-sd.json",
+      "console": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_float_full_2880e_1296966/run.console.log"
+    },
+    "storm": {
+      "stec": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/ionstec/exp0_2024_storm_float_main_1296966-2024-05-11_00:00.STEC",
+      "sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/ionstec/exp0_2024_storm_float_main_1296966-2024-05-11_00:00.STEC.SD.COV",
+      "audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/audit/storm-float-forward-sd.json",
+      "console": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_float_full_2880e_1296966/run.console.log"
+    }
+  },
+  "pea": {
+    "binary": "bin/pea",
+    "commit": "1296966",
+    "environment": {
+      "LD_LIBRARY_PATH": "/home/rx/.local/boost-1.82/lib"
+    },
+    "quiet_argv": [
+      "./bin/pea",
+      "-y",
+      "Docs/stecCovarianceFeasibility/experiment_0_2024_quiet_heldout_float.yaml",
+      "-a",
+      "EXP0_DATA_ROOT:/home/rx/GINAN/inputData/experiment0_2024",
+      "-a",
+      "EXP0_OUTPUT_ROOT:/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966"
+    ],
+    "storm_argv": [
+      "./bin/pea",
+      "-y",
+      "Docs/stecCovarianceFeasibility/experiment_0_2024_storm_heldout_float.yaml",
+      "-a",
+      "EXP0_DATA_ROOT:/home/rx/GINAN/inputData/experiment0_2024",
+      "-a",
+      "EXP0_OUTPUT_ROOT:/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966"
+    ]
+  },
+  "heldout": {
+    "quiet": {
+      "output_root": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966",
+      "stec": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_quiet_heldout_float_main_1296966-2024-05-08_00:00.STEC",
+      "raw_cov": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_quiet_heldout_float_main_1296966-2024-05-08_00:00.STEC.COV",
+      "sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_quiet_heldout_float_main_1296966-2024-05-08_00:00.STEC.SD.COV",
+      "raw_audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/audit/quiet-heldout-blindv2-forward-raw.json",
+      "sd_audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/audit/quiet-heldout-blindv2-forward-sd.json",
+      "console": "/home/rx/GINAN/inputData/outputs/exp0_2024_quiet_heldout_float_blindv2_20260830a_1296966/run.console.log"
+    },
+    "storm": {
+      "output_root": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966",
+      "stec": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_storm_heldout_float_main_1296966-2024-05-11_00:00.STEC",
+      "raw_cov": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_storm_heldout_float_main_1296966-2024-05-11_00:00.STEC.COV",
+      "sd": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/ionstec/exp0_2024_storm_heldout_float_main_1296966-2024-05-11_00:00.STEC.SD.COV",
+      "raw_audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/audit/storm-heldout-blindv2-forward-raw.json",
+      "sd_audit": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/audit/storm-heldout-blindv2-forward-sd.json",
+      "console": "/home/rx/GINAN/inputData/outputs/exp0_2024_storm_heldout_float_blindv2_20260830a_1296966/run.console.log"
+    }
+  },
+  "freeze_output": "/home/rx/GINAN/inputData/experiment0_2024/spatial_model_freeze_blindv2_20260830a.json",
+  "freeze_receipt_output": "/home/rx/GINAN/inputData/experiment0_2024/spatial_model_freeze_blindv2_20260830a.receipt.json"
+}
