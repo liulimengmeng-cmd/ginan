@@ -9,4 +9,6 @@ outputs:
 processing_options:
   epoch_control:
     start_epoch: 2024-07-17 00:30:00
-    max_epochs: 60
+    # Match the primary run through 03:59:30, leaving a 420-epoch independent
+    # overlap after reinitialisation at 00:30.
+    max_epochs: 420

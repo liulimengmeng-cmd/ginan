@@ -25,16 +25,23 @@ The first dry-run exposed that included YAML vector fields are appended. An earl
 
 No 2019 observation/product remains in the accepted resolved input list. GIM, ATT/OBX and Zhang internal products are excluded.
 
-## Pending runtime evidence
+## Superseded runtime evidence (audited 2026-08-31)
 
-The actual 2024 PEA smoke run has not started. At the time of the readiness check, PID 51 was an existing 180-station Zhang PEA run consuming about 8.8--10.2 GB RAM and more than eight CPU cores. Starting another PEA run would risk both experiments, so it was deliberately deferred without terminating or altering the existing process.
+The statement above that runtime had not started became stale later on
+2026-08-30.  A 480-epoch primary run exists at
+`/home/rx/GINAN/inputData/outputs/exp1_2024_receiver_sd_primary_480e_503da57`.
+Its trace reports `pea_version: untagged-503da57`.  The executable SHA-256 was
+not recorded and the executable path was subsequently overwritten, so that
+historical binary hash is `NOT_RECORDED/OVERWRITTEN`.
 
-After resources are free, the next required actions are:
+That run predates the 2026-08-31 ambiguity-resolution corrections.  It reported
+205/480 forward epochs with submitted integer pseudo-observations, but all were
+partial-rank and 199 of the 205 accepted epochs contained only four-term
+wide-lane-like constraints.  The old LAMBDA search could overstate the solution
+ratio, and all multi-row integer pseudo-observations used a rank-one noise
+matrix instead of independent diagonal noise.  The 205/480 value and its
+AR-conditioned state/covariance outputs are therefore invalidated.
 
-1. commit and rebuild a clean executable so the run hash has no dirty marker;
-2. run a 12-epoch primary smoke and audit the files actually loaded;
-3. validate V3 covariance blocks and receiver-datum accounting;
-4. run the full primary/control/restart matrix;
-5. assemble arc, slip, reference-change and integer-quality evidence before any `fixed STEC` claim.
-
-This status is software/configuration evidence only. It is not PPP-AR acceptance and not evidence that complete covariance improves regional ionospheric-gradient prediction intervals.
+The correction and rerun requirements are frozen in
+`AMBIGUITY_RESOLUTION_CORRECTION_20260831.md`.  No corrected ambiguity-fix rate,
+PPP-AR acceptance or fixed-STEC claim is currently available.

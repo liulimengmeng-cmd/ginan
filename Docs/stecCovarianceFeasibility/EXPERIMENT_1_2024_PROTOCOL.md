@@ -27,9 +27,14 @@ The external WUM OSB file is Bias-SINEX. No Zhang `HOU_OSB_LIKE` product or Zhan
 | Float | `experiment_1_float_control.yaml` | quantify covariance and coordinate effects without integer constraints |
 | Undifferenced AR | `experiment_1_undifferenced_ar_control.yaml` | reproduce the non-integer-estimable official-main AR input as a negative control |
 | Phase-OSB disabled | `experiment_1_phase_osb_disabled_control.yaml` | test whether accepted integers depend on satellite phase-OSB application; the BSX file may still be parsed, but its phase correction is disabled |
-| Independent restart | `experiment_1_restart_0030.yaml` | reinitialize the filter at 00:30 and compare the overlapping 00:30--00:59:30 window |
+| Independent restart | `experiment_1_restart_0030.yaml` | reinitialize the filter at 00:30 and compare the overlapping 00:30--03:59:30 window |
 
 All runs use the same observations, precise orbit/clock products, station coordinates, loading models, elevation mask and stochastic settings unless the table explicitly says otherwise.
+
+The primary and three controls run for 480 epochs (00:00--03:59:30).  The
+independent restart runs for 420 epochs (00:30--03:59:30).  The former one-hour
+and half-hour defaults were too short: the superseded 480-epoch run did not
+first reach the pseudo-observation path until 01:39:30.
 
 ## Required evidence
 

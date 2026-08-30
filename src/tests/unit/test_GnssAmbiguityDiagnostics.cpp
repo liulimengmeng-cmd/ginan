@@ -15,6 +15,33 @@ bool check(bool condition, const char* message)
     }
     return condition;
 }
+
+bool sameAmbiguityMap(const map<int, KFKey>& left, const map<int, KFKey>& right)
+{
+    if (left.size() != right.size())
+    {
+        return false;
+    }
+
+    for (const auto& [index, leftKey] : left)
+    {
+        const auto rightEntry = right.find(index);
+        if (rightEntry == right.end())
+        {
+            return false;
+        }
+
+        const auto& rightKey = rightEntry->second;
+        if (leftKey.type != rightKey.type || leftKey.str != rightKey.str ||
+            leftKey.Sat.sys != rightKey.Sat.sys || leftKey.Sat.prn != rightKey.Sat.prn ||
+            leftKey.num != rightKey.num)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 }  // namespace
 
 int main()
@@ -68,6 +95,116 @@ int main()
     passed &= check(
         roundMatrix.selectedDecorrelatedAmbiguityCount == 2,
         "round selected ambiguity count"
+    );
+
+    // Regression for a false ratio-test acceptance in the LAMBDA candidate
+    // search.  The depth-first search encounters squared norms 1.371, 11.171
+    // and 11.171 before the actual second-best norm 3.971.  Stopping when the
+    // third candidate is encountered therefore inflates the ratio from
+    // 3.971 / 1.371 = 2.896 to 11.171 / 1.371 = 8.148.
+    GinAR_mtx ratioMatrix;
+    ratioMatrix.aflt.resize(3);
+    ratioMatrix.aflt << 0.01, 0.01, 0.37;
+    ratioMatrix.Paflt = MatrixXd::Identity(3, 3) * 0.1;
+    GinAR_opt ratioOptions;
+    ratioOptions.mode = E_ARmode::LAMBDA_ALT;
+    ratioOptions.sucthr = 0;
+    ratioOptions.ratthr = 3;
+    ratioOptions.nset = 2;
+    passed &= check(
+        GNSS_AR(trace, ratioMatrix, ratioOptions) == 0,
+        "lambda rejects when the true second-best candidate fails the ratio test"
+    );
+    passed &= check(
+        ratioMatrix.diagnosticStatus == "RATIO_BELOW_THRESHOLD",
+        "lambda true second-best ratio diagnostic"
+    );
+    passed &= check(
+        ratioMatrix.integerCandidateCount == 2,
+        "lambda candidate pool respects the configured size"
+    );
+    passed &= check(
+        std::abs(ratioMatrix.bestSquaredNorm - 1.371) < 1e-12,
+        "lambda finds the true best squared norm"
+    );
+    passed &= check(
+        std::abs(ratioMatrix.secondSquaredNorm - 3.971) < 1e-12,
+        "lambda finds the true second-best squared norm"
+    );
+    passed &= check(
+        ratioMatrix.solutionRatio < ratioOptions.ratthr,
+        "lambda uses the non-inflated solution ratio"
+    );
+
+    GinAR_mtx tiedRatioMatrix;
+    tiedRatioMatrix.aflt.resize(3);
+    tiedRatioMatrix.aflt << 0.5, 0.01, 0.01;
+    tiedRatioMatrix.Paflt = MatrixXd::Identity(3, 3) * 0.1;
+    GinAR_opt tiedRatioOptions = ratioOptions;
+    tiedRatioOptions.nset = 8;
+    passed &= check(
+        GNSS_AR(trace, tiedRatioMatrix, tiedRatioOptions) == 0,
+        "lambda rejects equal-distance best candidates"
+    );
+    passed &= check(
+        tiedRatioMatrix.diagnosticStatus == "RATIO_BELOW_THRESHOLD",
+        "lambda equal-distance ratio diagnostic"
+    );
+    passed &= check(
+        tiedRatioMatrix.integerCandidateCount == 2,
+        "lambda retains both equal-distance candidates"
+    );
+    passed &= check(
+        std::abs(tiedRatioMatrix.bestSquaredNorm - tiedRatioMatrix.secondSquaredNorm) < 1e-12,
+        "lambda equal-distance candidates remain distinct"
+    );
+    passed &= check(
+        std::abs(tiedRatioMatrix.solutionRatio - 1) < 1e-12,
+        "lambda tie produces unit ratio"
+    );
+
+    GinAR_mtx commonSetTieMatrix;
+    commonSetTieMatrix.aflt.resize(3);
+    commonSetTieMatrix.aflt << 0.5, 0.5, 0.01;
+    commonSetTieMatrix.Paflt = MatrixXd::Identity(3, 3) * 0.1;
+    GinAR_opt commonSetTieOptions = ratioOptions;
+    commonSetTieOptions.mode = E_ARmode::LAMBDA_AL2;
+    passed &= check(
+        GNSS_AR(trace, commonSetTieMatrix, commonSetTieOptions) == 1,
+        "lambda common-set retains only the coordinate shared by cutoff ties"
+    );
+    passed &= check(
+        commonSetTieMatrix.integerCandidateCount == 4,
+        "lambda common-set retains every candidate tied at the cutoff"
+    );
+    MatrixXd expectedCommonSetTransform(1, 3);
+    expectedCommonSetTransform << 0, 0, 1;
+    passed &= check(
+        commonSetTieMatrix.Ztrs.isApprox(expectedCommonSetTransform, 1e-12) &&
+            commonSetTieMatrix.zfix.size() == 1 &&
+            std::abs(commonSetTieMatrix.zfix(0)) < 1e-12,
+        "lambda common-set identifies only the third coordinate as common"
+    );
+
+    GinAR_mtx bieTieMatrix;
+    bieTieMatrix.aflt.resize(3);
+    bieTieMatrix.aflt << 0.5, 0.5, 0.01;
+    bieTieMatrix.Paflt = MatrixXd::Identity(3, 3) * 0.1;
+    GinAR_opt bieTieOptions = ratioOptions;
+    bieTieOptions.mode = E_ARmode::LAMBDA_BIE;
+    passed &= check(
+        GNSS_AR(trace, bieTieMatrix, bieTieOptions) == 3,
+        "lambda BIE returns all ambiguity coordinates for cutoff ties"
+    );
+    passed &= check(
+        bieTieMatrix.integerCandidateCount == 4,
+        "lambda BIE retains every candidate tied at the cutoff"
+    );
+    VectorXd expectedBieTie(3);
+    expectedBieTie << 0.5, 0.5, 0;
+    passed &= check(
+        bieTieMatrix.zfix.isApprox(expectedBieTie, 1e-12),
+        "lambda BIE preserves the symmetric cutoff-tie mean"
     );
 
     GinAR_mtx ambiguityMatrix;
@@ -146,6 +283,53 @@ int main()
     passed &= check(
         transformedCovariance.isApprox(transformedCovariance.transpose(), 1e-12),
         "receiver transformed covariance is symmetric"
+    );
+
+    GinAR_mtx integerFeedbackMatrix;
+    integerFeedbackMatrix.Ztrs.resize(2, 5);
+    integerFeedbackMatrix.Ztrs << 2, -1, 3, 0, 0, 0, 1, -2, 3, -1;
+    integerFeedbackMatrix.zfix.resize(2);
+    integerFeedbackMatrix.zfix << 7, -4;
+    const VectorXd originalFixedIntegers = integerFeedbackMatrix.zfix;
+    passed &= check(
+        mapIntegerAmbiguityConstraintsToOriginalState(
+            integerFeedbackMatrix,
+            receiverTransform,
+            ambiguityMatrix.ambmap
+        ),
+        "integer feedback maps resolved constraints to original ambiguity states"
+    );
+    MatrixXd expectedOriginalFeedback(2, 7);
+    expectedOriginalFeedback << 2, -1, -1, 3, -3, 0, 0, 0, -1, 1, -2, 2, 3, -1;
+    passed &= check(
+        integerFeedbackMatrix.Ztrs.isApprox(expectedOriginalFeedback, 1e-12),
+        "integer feedback applies non-identity Z times receiver transform"
+    );
+    passed &= check(
+        sameAmbiguityMap(integerFeedbackMatrix.ambmap, ambiguityMatrix.ambmap),
+        "integer feedback restores the original ambiguity map"
+    );
+    passed &= check(
+        integerFeedbackMatrix.zfix.isApprox(originalFixedIntegers, 1e-12),
+        "integer feedback preserves fixed integer values"
+    );
+
+    GinAR_mtx invalidFeedbackMatrix;
+    invalidFeedbackMatrix.Ztrs = MatrixXd::Identity(2, 2);
+    invalidFeedbackMatrix.zfix = VectorXd::Zero(2);
+    const MatrixXd invalidFeedbackBefore = invalidFeedbackMatrix.Ztrs;
+    passed &= check(
+        !mapIntegerAmbiguityConstraintsToOriginalState(
+            invalidFeedbackMatrix,
+            receiverTransform,
+            ambiguityMatrix.ambmap
+        ),
+        "integer feedback rejects incompatible Z and receiver-transform dimensions"
+    );
+    passed &= check(
+        invalidFeedbackMatrix.Ztrs.isApprox(invalidFeedbackBefore, 1e-12) &&
+            invalidFeedbackMatrix.ambmap.empty(),
+        "failed integer feedback mapping leaves its input unchanged"
     );
 
     GinAR_mtx singletonMatrix;

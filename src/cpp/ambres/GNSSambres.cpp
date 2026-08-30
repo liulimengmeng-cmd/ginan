@@ -136,6 +136,38 @@ ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
     return result;
 }
 
+bool mapIntegerAmbiguityConstraintsToOriginalState(
+    GinAR_mtx&                        integerAmbiguityResolution,
+    const ReceiverAmbiguityTransform& integerTransform,
+    const map<int, KFKey>&            originalAmbiguityMap
+)
+{
+    const int resolvedCombinationCount = integerAmbiguityResolution.Ztrs.rows();
+    const int integerCoordinateCount    = integerTransform.matrix.rows();
+    const int originalAmbiguityCount    = integerTransform.matrix.cols();
+
+    if (integerAmbiguityResolution.Ztrs.cols() != integerCoordinateCount ||
+        integerAmbiguityResolution.zfix.size() != resolvedCombinationCount ||
+        originalAmbiguityMap.size() != originalAmbiguityCount)
+    {
+        return false;
+    }
+
+    for (int column = 0; column < originalAmbiguityCount; column++)
+    {
+        if (originalAmbiguityMap.find(column) == originalAmbiguityMap.end())
+        {
+            return false;
+        }
+    }
+
+    integerAmbiguityResolution.Ztrs =
+        (integerAmbiguityResolution.Ztrs * integerTransform.matrix).eval();
+    integerAmbiguityResolution.ambmap = originalAmbiguityMap;
+
+    return true;
+}
+
 /** Probability of error (assuming normal distribution) */
 double round_perr(
     double dx,  ///< Distance between value and mean
@@ -595,7 +627,23 @@ int lambda_search(
 
     int kmin = kmax - zsiz + 1;
 
-    map<double, VectorXd> zfixList;
+    // Keep equal-distance candidates distinct.  A tie is meaningful for the
+    // ratio test (ratio == 1) and must not be overwritten by map::operator[].
+    multimap<double, VectorXd> zfixList;
+
+    // Plain LAMBDA needs only the best candidate and the ratio test needs
+    // exactly the best two.  Common-set and BIE modes use the configured pool,
+    // with two as their minimum useful size.
+    const int candidateLimit = opt.mode == E_ARmode::LAMBDA
+        ? 1
+        : opt.mode == E_ARmode::LAMBDA_ALT ? 2 : std::max(2, opt.nset);
+    const bool retainCutoffTies =
+        opt.mode == E_ARmode::LAMBDA_AL2 || opt.mode == E_ARmode::LAMBDA_BIE;
+    const auto distanceTolerance = [](double distance)
+    {
+        return 64 * std::numeric_limits<double>::epsilon() *
+               std::max(1.0, std::abs(distance));
+    };
 
     MatrixXd L    = mtrx.Ltrs;
     VectorXd D    = mtrx.Dtrs;
@@ -620,7 +668,7 @@ int lambda_search(
     {
         double newdist = dist(k) + zdif(k) * zdif(k) / D(k);
 
-        if (newdist < maxdist)
+        if (newdist <= maxdist + distanceTolerance(maxdist))
         {
             if (k != kmin)
             {
@@ -638,29 +686,40 @@ int lambda_search(
             else
             {
                 VectorXd zcut     = zfix.tail(zsiz);
-                zfixList[newdist] = zcut;
+                zfixList.emplace(newdist, zcut);
                 ncand             = zfixList.size();
                 double maxd       = newdist * opt.ratthr;
 
                 if (ncand > 1 && maxd < maxdist)
                     maxdist = maxd;
 
-                if (ncand > opt.nset)
-                    break;
-
-                if (opt.nset > 0 && (ncand >= opt.nset))
+                if (ncand >= candidateLimit)
                 {
-                    int ntot = 0;
-                    for (auto it = zfixList.begin(); it != zfixList.end();)
+                    auto cutoff = zfixList.begin();
+                    std::advance(cutoff, candidateLimit - 1);
+                    const double cutoffDistance = cutoff->first;
+
+                    if (retainCutoffTies)
                     {
-                        if (ntot++ >= opt.nset)
-                            it = zfixList.erase(it);
-                        else
+                        const double cutoffTolerance = distanceTolerance(cutoffDistance);
+                        for (auto it = std::next(cutoff); it != zfixList.end();)
                         {
-                            maxd = it->first;
-                            ++it;
+                            if (it->first <= cutoffDistance + cutoffTolerance)
+                            {
+                                ++it;
+                            }
+                            else
+                            {
+                                it = zfixList.erase(it);
+                            }
                         }
                     }
+                    else
+                    {
+                        zfixList.erase(std::next(cutoff), zfixList.end());
+                    }
+
+                    maxd = cutoffDistance;
 
                     if (maxd < maxdist)
                         maxdist = maxd;

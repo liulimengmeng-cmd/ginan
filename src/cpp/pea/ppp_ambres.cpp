@@ -95,7 +95,7 @@ bool applyBestIntegerAmbiguity(
     return true;
 }
 
-void applyUCAmbiguities(
+bool applyUCAmbiguities(
     Trace&     trace,    ///< Debug trace
     KFState&   kfState,  ///< Reference to Kalman filter containing float solutions
     GinAR_mtx& mtrx  ///< Reference to structure containing fixed ambiguities and Z transformations
@@ -108,6 +108,66 @@ void applyUCAmbiguities(
 
     MatrixXd Z    = mtrx.Ztrs;
     VectorXd zfix = mtrx.zfix;
+
+    if (Z.rows() != nz || Z.cols() != nx)
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "PPP-AR integer pseudo-observation design dimensions are inconsistent";
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR PSEUDOOBS_DESIGN rows=%d original_ambiguities=%d "
+            "z_rows=%d z_columns=%d status=INVALID_DIMENSIONS",
+            nz,
+            nx,
+            static_cast<int>(Z.rows()),
+            static_cast<int>(Z.cols())
+        );
+        return false;
+    }
+
+    vector<KFKey> ambiguityKeys;
+    vector<int>   ambiguityStateIndices;
+    ambiguityKeys.reserve(nx);
+    ambiguityStateIndices.reserve(nx);
+    for (int column = 0; column < nx; column++)
+    {
+        const auto ambiguity = mtrx.ambmap.find(column);
+        if (ambiguity == mtrx.ambmap.end())
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "PPP-AR integer pseudo-observation ambiguity map is not contiguous";
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR PSEUDOOBS_DESIGN rows=%d original_ambiguities=%d "
+                "status=INVALID_AMBIGUITY_MAP",
+                nz,
+                nx
+            );
+            return false;
+        }
+
+        const auto state = kfState.kfIndexMap.find(ambiguity->second);
+        if (state == kfState.kfIndexMap.end() || state->second < 0 ||
+            state->second >= kfState.x.rows())
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "PPP-AR integer pseudo-observation references a missing ambiguity state";
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR PSEUDOOBS_DESIGN rows=%d original_ambiguities=%d "
+                "status=MISSING_AMBIGUITY_STATE",
+                nz,
+                nx
+            );
+            return false;
+        }
+
+        ambiguityKeys.push_back(ambiguity->second);
+        ambiguityStateIndices.push_back(state->second);
+    }
 
     if (AR_VERBO)
     {
@@ -128,9 +188,14 @@ void applyUCAmbiguities(
         KFMeasEntry measEntry(&kfState);
 
         measEntry.obsKey.type    = KF::Z_AMB;
-        measEntry.obsKey.comment = "Ambiguity Psueodobs";
+        measEntry.obsKey.num     = i;
+        measEntry.obsKey.comment = "Ambiguity Pseudoobs";
 
-        measEntry.addNoiseEntry(measEntry.obsKey, 1, FIXED_AMB_VAR);
+        // Each resolved integer combination is an independent pseudo-
+        // observation.  Reusing one noise key here makes every row share the
+        // same scalar noise source, producing FIXED_AMB_VAR * 11^T (rank one)
+        // instead of the intended FIXED_AMB_VAR * I.
+        measEntry.setNoise(FIXED_AMB_VAR);
 
         tracepdeex(4, trace, "      Applying:  ");
 
@@ -143,7 +208,7 @@ void applyUCAmbiguities(
 
             double ambiguity = 0;
 
-            KFKey key = mtrx.ambmap[j];
+            const KFKey& key = ambiguityKeys[j];
             kfState.getKFValue(key, ambiguity);
 
             residual -= Z(i, j) * ambiguity;
@@ -162,7 +227,7 @@ void applyUCAmbiguities(
             init.x = ambiguity;
             init.P = 3600;
 
-            measEntry.addDsgnEntry(mtrx.ambmap[j], Z(i, j), init);
+            measEntry.addDsgnEntry(key, Z(i, j), init);
         }
 
         tracepdeex(4, trace, "= %+10.5f\n", zfix(i));
@@ -174,7 +239,77 @@ void applyUCAmbiguities(
 
     KFMeas kfMeas(kfState, kfMeasEntryList, kfState.time);
 
+    MatrixXd expectedDesign = MatrixXd::Zero(nz, kfState.x.rows());
+    for (int column = 0; column < nx; column++)
+    {
+        // Mirror KFMeasEntry::addDsgnEntry(), which accumulates coefficients
+        // when more than one input column refers to the same state key.
+        expectedDesign.col(ambiguityStateIndices[column]) += Z.col(column);
+    }
+    if (kfMeas.H.rows() != expectedDesign.rows() ||
+        kfMeas.H.cols() != expectedDesign.cols() ||
+        !kfMeas.H.isApprox(expectedDesign, 1e-12))
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "PPP-AR integer pseudo-observation design does not match mapped Z*D constraints";
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR PSEUDOOBS_DESIGN rows=%d original_ambiguities=%d "
+            "status=INVALID_Z_TIMES_D_DESIGN",
+            nz,
+            nx
+        );
+        return false;
+    }
+
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR PSEUDOOBS_DESIGN rows=%d original_ambiguities=%d "
+        "status=MATCHES_Z_TIMES_D",
+        nz,
+        nx
+    );
+
+    const MatrixXd expectedNoise = MatrixXd::Identity(nz, nz) * FIXED_AMB_VAR;
+    if (kfMeas.R.rows() != expectedNoise.rows() ||
+        kfMeas.R.cols() != expectedNoise.cols() ||
+        !kfMeas.R.isApprox(expectedNoise, FIXED_AMB_VAR * 1e-12))
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "PPP-AR integer pseudo-observation noise is not independent diagonal noise";
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR PSEUDOOBS_NOISE rows=%d status=INVALID_NON_DIAGONAL",
+            nz
+        );
+        return false;
+    }
+
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR PSEUDOOBS_NOISE rows=%d variance=%.3e status=INDEPENDENT_DIAGONAL",
+        nz,
+        FIXED_AMB_VAR
+    );
+
     kfState.filterKalman(trace, kfMeas, "/AR", true);
+
+    // filterKalman() has no acceptance return value.  This event therefore
+    // records only that the checked pseudo-observation block was submitted and
+    // the filter call returned; it is deliberately not a correct-fix claim.
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR PSEUDOOBS_SUBMISSION rows=%d "
+        "status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED",
+        nz
+    );
+
+    return true;
 }
 
 AmbiguityResolutionAttempt fixAndHoldAmbiguities(
@@ -300,10 +435,41 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     result.solutionRatio = integerARmtx.solutionRatio;
     if (nfix > 0)
     {
-        integerARmtx.Ztrs = integerARmtx.Ztrs * integerTransform.matrix;
-        integerARmtx.ambmap = ARmtx.ambmap;
-        applyUCAmbiguities(trace, kfState, integerARmtx);
-        result.pseudoObservationsSubmitted = true;
+        const int integerCoordinateCount = integerARmtx.Ztrs.cols();
+        const int originalAmbiguityCount = integerTransform.matrix.cols();
+        if (!mapIntegerAmbiguityConstraintsToOriginalState(
+                integerARmtx,
+                integerTransform,
+                ARmtx.ambmap
+            ))
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR INTEGER_FEEDBACK rows=%d integer_coordinates=%d "
+                "original_ambiguities=%d status=INVALID_DIMENSIONS",
+                nfix,
+                integerCoordinateCount,
+                originalAmbiguityCount
+            );
+            result.diagnosticStatus = "INTEGER_FEEDBACK_MAPPING_INVALID";
+            return result;
+        }
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR INTEGER_FEEDBACK rows=%d integer_coordinates=%d "
+            "original_ambiguities=%d status=Z_TIMES_D_MAPPED",
+            nfix,
+            integerCoordinateCount,
+            originalAmbiguityCount
+        );
+        result.pseudoObservationsSubmitted =
+            applyUCAmbiguities(trace, kfState, integerARmtx);
+        if (!result.pseudoObservationsSubmitted)
+        {
+            result.diagnosticStatus = "PSEUDOOBS_MODEL_INVALID";
+        }
     }
 
     while (0)

@@ -123,7 +123,9 @@ processing_options:
     slr: false
   epoch_control:
     start_epoch: 2024-07-17 00:00:00
-    max_epochs: 120
+    # Four hours are required because the superseded run did not first submit
+    # integer pseudo-observations until 01:39:30.
+    max_epochs: 480
     epoch_interval: 30
     wait_next_epoch: 3600
   gnss_general:

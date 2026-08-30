@@ -84,4 +84,10 @@ ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
     const map<E_Sys, bool>& receiverAmbiguityPivot
 );
 
+bool mapIntegerAmbiguityConstraintsToOriginalState(
+    GinAR_mtx&                        integerAmbiguityResolution,
+    const ReceiverAmbiguityTransform& integerTransform,
+    const map<int, KFKey>&            originalAmbiguityMap
+);
+
 int GNSS_AR(Trace& trace, GinAR_mtx& mtrx, GinAR_opt opt);
