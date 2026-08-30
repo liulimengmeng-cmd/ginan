@@ -334,7 +334,12 @@ def validate_epoch(
         [epoch.states[index].estimate_tecu for index in range(n) if index in epoch.states],
         dtype=float,
     )
-    finite = estimates.size == n and np.isfinite(estimates).all() and np.isfinite(matrix).all()
+    finite = (
+        n > 0
+        and estimates.size == n
+        and np.isfinite(estimates).all()
+        and np.isfinite(matrix).all()
+    )
     if not finite:
         errors.append("nonfinite_estimate_or_covariance")
 

@@ -67,6 +67,18 @@ COV,2323,12345.5,1,1,1
         self.assertFalse(report["all_valid"])
         self.assertIn("writer_status=STATE_LIMIT_EXCEEDED", report["epochs"][0]["errors"])
 
+    def test_rejects_zero_state_epoch_without_crashing(self) -> None:
+        path = write_case(
+            "META,2323,12345.5,NO_STATES,0,0,0,FILTER_POSTERIOR_NO_EPOCH_AR,"
+            "0,0,0,0,0,0,0,0,OFF,0.9999,3,NOT_RUN,0,0,-1,-1,-1,-1\n"
+        )
+        report = validate_file(path)
+        self.assertFalse(report["all_valid"])
+        errors = report["epochs"][0]["errors"]
+        self.assertIn("writer_status=NO_STATES", errors)
+        self.assertIn("state_count_not_positive", errors)
+        self.assertIn("nonfinite_estimate_or_covariance", errors)
+
     def test_rejects_inconsistent_ar_evidence(self) -> None:
         path = write_case(
             "META,2323,12345.5,STATE_LIMIT_EXCEEDED,600,0,0,"
