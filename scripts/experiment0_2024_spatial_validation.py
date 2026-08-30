@@ -291,6 +291,13 @@ def iter_geometry_epochs(
         current_key = key
         site = row[3]
         satellite = row[4]
+        geometry_fields = (row[7], row[9], row[10], row[11], row[13], row[14], row[15])
+        if any(not value.strip() for value in geometry_fields):
+            # A STEC state may survive its current observation.  The writer then
+            # emits the state but deliberately leaves observation geometry blank.
+            # Such a row is unavailable to the frozen spatial design and is
+            # dropped without inventing or carrying geometry forward.
+            continue
         state_number = int(row[7])
         geometry_key = (site, satellite, state_number)
         if geometry_key in current:
@@ -501,8 +508,8 @@ def _valid_spatial_epoch(epoch: SpatialEpoch, gaps: set[tuple[int, Decimal]]) ->
         epoch.key not in gaps
         and epoch.status == "OK"
         and epoch.declared_difference_count > 0
-        and epoch.dropped_geometry_count == 0
-        and epoch.values.size == epoch.declared_difference_count
+        and epoch.values.size >= 4
+        and len(set(str(site) for site in epoch.sites)) >= 3
         and np.isfinite(epoch.design).all()
         and np.isfinite(epoch.values).all()
         and np.isfinite(epoch.covariance).all()

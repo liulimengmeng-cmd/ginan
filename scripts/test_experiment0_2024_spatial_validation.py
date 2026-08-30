@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import io
 import sys
 import unittest
 from decimal import Decimal
@@ -19,6 +20,7 @@ from experiment0_2024_spatial_validation import (
     optimise_kappa,
     predict_spatial_plane,
     ray_geometry,
+    iter_geometry_epochs,
 )
 
 
@@ -78,6 +80,16 @@ class Experiment0SpatialValidationTests(unittest.TestCase):
         self.assertTrue(math.isfinite(objective))
         self.assertAlmostEqual(kappa, math.sqrt(3.9), places=3)
         self.assertLess(objective, calibration_nll(records, 1.0))
+
+    def test_blank_observation_geometry_is_dropped_without_parse_failure(self) -> None:
+        payload = (
+            "IONO_MEA,2313,259200.000,TEST,G02,1.0,2.0e+00, , ,             ,"
+            "             ,             ,    ,  6378137.000,        0.000,        0.000\n"
+        )
+        epochs = list(iter_geometry_epochs(io.StringIO(payload)))
+        self.assertEqual(len(epochs), 1)
+        self.assertEqual(epochs[0][0], (2313, Decimal("259200.000")))
+        self.assertEqual(epochs[0][1], {})
 
 
 if __name__ == "__main__":
