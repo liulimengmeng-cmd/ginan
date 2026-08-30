@@ -15,6 +15,7 @@ covariance-file failure.
 
 - upstream base: `origin/main` at `7baa32a`;
 - branch: `codex/main-stec-covariance-feasibility`;
+- implementation commit and PEA runtime version: `4e6c718` / `untagged-4e6c718`;
 - configuration: `experiment_0_ar_smoke.yaml`;
 - observations: ALIC, DARW and HOB2, 2019 day 199, GPS only;
 - epochs: 60 at 30 seconds, from GPS TOW 345600 through 347370;
@@ -60,16 +61,16 @@ be scientific validation and is not an accepted next step.
 
 ## Artifact checksums
 
-Runtime result root: `D:\tec\exp0-ar-smoke-v2-diagnostics`.
+Runtime result root: `D:\tec\exp0-ar-clean-4e6c718`.
 
 | Artifact | Bytes | SHA-256 |
 |---|---:|---|
 | forward `.STEC.COV` | 916,053 | `6163362A45F57CEC3A55ABE7320712FB254497451443DF66D1830A79BBAB18C7` |
-| forward validation JSON | 76,388 | `01C0A6BFCEFED007BFE77CA8594FCFA8DE377434684893C2023E74049A57D893` |
+| forward validation JSON | 76,381 | `9B54BBEF50DAC5193625731D4D4A5C9AF7C87865886B41B9A905D64132CE28E8` |
 | RTS `.STEC_smoothed.COV` | 921,690 | `8F804A0ABA1A7551B15A44A25E74F870AB8DD33C59DC7ED108682613440BCBF2` |
-| RTS validation JSON | 76,564 | `C5B094D45AC296A71B5B1BADA14E7C566A6B3B9D181288A3F983F4057DFF9CF4` |
+| RTS validation JSON | 76,557 | `B6793A8BC2FA96CE6F420B3081E867C20AA51C6D626E1863F9451F36B64CDBDB` |
 | AR configuration | 1,228 | `E17947CCD403B85A4223DC7BDD25ED4AC3A523DEC121B16B007692C499A464DA` |
-| test PEA binary | 14,176,840 | `BD5B53D759FC215774620611534494F3E8CC2C4284C95D18D107D87749A18CC6` |
+| test PEA binary | 14,176,840 | `10CEA79B4793A047FA756CE565E3F288DEBD9B0698DAB40F8B75AC7009F35A82` |
 
 ## Consequence for the research plan
 
