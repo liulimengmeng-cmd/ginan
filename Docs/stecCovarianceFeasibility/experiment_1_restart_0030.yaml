@@ -1,0 +1,12 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1_2024_restart_0030_main_<HASH>
+
+processing_options:
+  epoch_control:
+    start_epoch: 2024-07-17 00:30:00
+    max_epochs: 60

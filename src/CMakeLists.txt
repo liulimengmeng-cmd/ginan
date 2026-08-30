@@ -376,7 +376,9 @@ include(GitVersion)
 
 # Ensure the file with the commit version is generated before compiling
 add_custom_target(updateGit ALL
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GitVersion.cmake
+    COMMAND ${CMAKE_COMMAND}
+            "-DGIT_EXECUTABLE=${GIT_EXECUTABLE}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GitVersion.cmake
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Updating git version"
 )

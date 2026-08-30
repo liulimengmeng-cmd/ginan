@@ -165,6 +165,10 @@ struct AmbiguityResolutionAttempt
 {
     bool routineInvoked = false;
     int  eligibleAmbiguityCount = 0;
+    int  integerAmbiguityCoordinateCount = 0;
+    bool receiverSingleDifferenceApplied = false;
+    int  receiverDatumGroupCount = 0;
+    int  droppedSingletonGroupCount = 0;
     int  resolvedCombinationCount = 0;
     bool pseudoObservationsSubmitted = false;
     string diagnosticStatus = "NOT_RUN";

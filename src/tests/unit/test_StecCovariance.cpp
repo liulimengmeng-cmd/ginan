@@ -13,6 +13,10 @@ StecCovarianceCsvEpoch twoStateEpoch()
     epoch.posteriorStage = "FILTER_POSTERIOR_AFTER_AR_PSEUDOOBS_SUBMITTED_UNVERIFIED";
     epoch.arRoutineInvoked = true;
     epoch.arEligibleAmbiguityCount = 5;
+    epoch.arIntegerAmbiguityCoordinateCount = 3;
+    epoch.arReceiverSingleDifferenceApplied = true;
+    epoch.arReceiverDatumGroupCount = 2;
+    epoch.arDroppedSingletonGroupCount = 0;
     epoch.arResolvedCombinationCount = 2;
     epoch.arPseudoObservationsSubmitted = true;
     epoch.arMode = "LAMBDA_ALT";
@@ -56,7 +60,7 @@ int main()
     );
     passed &= check(
         result.payload.find(
-            "FILTER_POSTERIOR_AFTER_AR_PSEUDOOBS_SUBMITTED_UNVERIFIED,1,5,2,1,"
+            "FILTER_POSTERIOR_AFTER_AR_PSEUDOOBS_SUBMITTED_UNVERIFIED,1,5,3,1,2,0,2,1,"
             "LAMBDA_ALT,0.99990000000000001,3,RESOLVED_RATIO_ACCEPTED,2,2,"
             "0.99995000000000001,1.25,5,4"
         ) != std::string::npos,
@@ -102,13 +106,17 @@ int main()
     );
 
     const auto schema = stecCovarianceCsvSchema();
-    passed &= check(schema.find("GINAN_STEC_COVARIANCE_V2") != std::string::npos, "schema version");
+    passed &= check(schema.find("GINAN_STEC_COVARIANCE_V3") != std::string::npos, "schema version");
     passed &= check(schema.find("estimate_tecu") != std::string::npos, "estimate units");
     passed &= check(schema.find("covariance_tecu2") != std::string::npos, "covariance units");
     passed &= check(schema.find("posterior_stage") != std::string::npos, "posterior semantics");
     passed &= check(
         schema.find("ar_resolved_combination_count") != std::string::npos,
         "ambiguity-resolution evidence fields"
+    );
+    passed &= check(
+        schema.find("ar_integer_ambiguity_coordinate_count") != std::string::npos,
+        "integer-estimable coordinate evidence"
     );
 
     if (passed)

@@ -1,7 +1,9 @@
 #include "ambres/GNSSambres.hpp"
+#include <algorithm>
 #include <math.h>
 #include <iterator>
 #include <limits>
+#include <tuple>
 
 #define LOG_PI 1.14472988584940017
 #define SQRT2 1.41421356237309510
@@ -9,6 +11,131 @@
 
 bool   AR_VERBO      = false;
 double FIXED_AMB_VAR = 1e-8;
+
+ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
+    const GinAR_mtx&        ambiguityResolution,
+    const map<E_Sys, bool>& receiverAmbiguityPivot
+)
+{
+    using GroupKey = std::tuple<string, E_Sys, int>;
+
+    ReceiverAmbiguityTransform result;
+    const int columnCount = ambiguityResolution.aflt.size();
+
+    map<GroupKey, vector<int>> groups;
+    for (const auto& [localIndex, key] : ambiguityResolution.ambmap)
+    {
+        if (localIndex < 0 || localIndex >= columnCount)
+        {
+            continue;
+        }
+        groups[{key.str, key.Sat.sys, key.num}].push_back(localIndex);
+    }
+
+    int rowCount = 0;
+    bool anySingleDifferenceEnabled = false;
+    for (const auto& [group, members] : groups)
+    {
+        const E_Sys system = std::get<1>(group);
+        const auto enabled = receiverAmbiguityPivot.find(system);
+        const bool singleDifference =
+            enabled != receiverAmbiguityPivot.end() && enabled->second;
+        anySingleDifferenceEnabled = anySingleDifferenceEnabled || singleDifference;
+        rowCount += singleDifference
+            ? std::max(0, static_cast<int>(members.size()) - 1)
+            : static_cast<int>(members.size());
+    }
+
+    if (!anySingleDifferenceEnabled)
+    {
+        result.matrix = MatrixXd::Identity(columnCount, columnCount);
+    }
+    else
+    {
+        result.matrix = MatrixXd::Zero(rowCount, columnCount);
+    }
+
+    int row = 0;
+    for (const auto& [group, members] : groups)
+    {
+        const auto& [receiver, system, observation] = group;
+        const auto enabled = receiverAmbiguityPivot.find(system);
+        const bool singleDifference =
+            enabled != receiverAmbiguityPivot.end() && enabled->second;
+
+        ReceiverAmbiguityDatum datum;
+        datum.receiver = receiver;
+        datum.system = system;
+        datum.observation = observation;
+        datum.memberCount = members.size();
+        datum.singleDifferenced = singleDifference;
+
+        if (!singleDifference)
+        {
+            result.identityGroupCount++;
+            result.groups.push_back(datum);
+            if (anySingleDifferenceEnabled)
+            {
+                for (int member : members)
+                {
+                    result.matrix(row++, member) = 1;
+                }
+            }
+            continue;
+        }
+
+        if (members.size() < 2)
+        {
+            result.droppedSingletonGroupCount++;
+            if (!members.empty())
+            {
+                datum.pivot = ambiguityResolution.ambmap.at(members.front()).Sat;
+            }
+            result.groups.push_back(datum);
+            continue;
+        }
+
+        const int pivot = *std::min_element(
+            members.begin(),
+            members.end(),
+            [&](int left, int right)
+            {
+                const double leftVariance = ambiguityResolution.Paflt(left, left);
+                const double rightVariance = ambiguityResolution.Paflt(right, right);
+                const bool leftFinite = std::isfinite(leftVariance);
+                const bool rightFinite = std::isfinite(rightVariance);
+                if (leftFinite != rightFinite)
+                {
+                    return leftFinite;
+                }
+                if (leftFinite && leftVariance != rightVariance)
+                {
+                    return leftVariance < rightVariance;
+                }
+                return ambiguityResolution.ambmap.at(left).Sat <
+                       ambiguityResolution.ambmap.at(right).Sat;
+            }
+        );
+
+        datum.pivot = ambiguityResolution.ambmap.at(pivot).Sat;
+        result.singleDifferencedGroupCount++;
+        result.groups.push_back(datum);
+
+        for (int member : members)
+        {
+            if (member == pivot)
+            {
+                continue;
+            }
+            result.matrix(row, member) = +1;
+            result.matrix(row, pivot) = -1;
+            row++;
+        }
+    }
+
+    return result;
+}
+
 /** Probability of error (assuming normal distribution) */
 double round_perr(
     double dx,  ///< Distance between value and mean

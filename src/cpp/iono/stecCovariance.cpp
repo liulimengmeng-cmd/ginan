@@ -47,6 +47,10 @@ void appendMeta(
            << csvEscape(epoch.posteriorStage) << ','
            << epoch.arRoutineInvoked << ','
            << epoch.arEligibleAmbiguityCount << ','
+           << epoch.arIntegerAmbiguityCoordinateCount << ','
+           << epoch.arReceiverSingleDifferenceApplied << ','
+           << epoch.arReceiverDatumGroupCount << ','
+           << epoch.arDroppedSingletonGroupCount << ','
            << epoch.arResolvedCombinationCount << ','
            << epoch.arPseudoObservationsSubmitted << ','
            << csvEscape(epoch.arMode) << ','
@@ -85,10 +89,12 @@ const char* stecCovarianceCsvStatusName(E_StecCovarianceCsvStatus status)
 string stecCovarianceCsvSchema()
 {
     return
-        "# GINAN_STEC_COVARIANCE_V2\n"
+        "# GINAN_STEC_COVARIANCE_V3\n"
         "# META,gps_week,gps_tow,status,state_count,upper_triangle_count,"
         "max_abs_asymmetry_tecu2,posterior_stage,ar_routine_invoked,"
-        "ar_eligible_ambiguity_count,ar_resolved_combination_count,"
+        "ar_eligible_ambiguity_count,ar_integer_ambiguity_coordinate_count,"
+        "ar_receiver_single_difference_applied,ar_receiver_datum_group_count,"
+        "ar_dropped_singleton_group_count,ar_resolved_combination_count,"
         "ar_pseudoobservations_submitted,ar_mode,ar_configured_success_rate_threshold,"
         "ar_configured_solution_ratio_threshold,ar_diagnostic_status,"
         "ar_selected_decorrelated_ambiguity_count,ar_integer_candidate_count,"

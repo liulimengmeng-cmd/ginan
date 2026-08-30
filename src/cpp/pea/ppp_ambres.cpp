@@ -227,6 +227,56 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     ARmtx.aflt  = kfState.x(indices);
     ARmtx.Paflt = kfState.P(indices, indices);
 
+    const ReceiverAmbiguityTransform integerTransform =
+        buildReceiverAmbiguityIntegerTransform(ARmtx, acsConfig.receiver_amb_pivot);
+    result.integerAmbiguityCoordinateCount = integerTransform.matrix.rows();
+    result.receiverSingleDifferenceApplied =
+        integerTransform.singleDifferencedGroupCount > 0;
+    result.receiverDatumGroupCount = integerTransform.singleDifferencedGroupCount;
+    result.droppedSingletonGroupCount = integerTransform.droppedSingletonGroupCount;
+
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR INTEGER_COORDINATES original=%d integer=%d receiver_sd_groups=%d "
+        "identity_groups=%d dropped_singletons=%d",
+        ind,
+        result.integerAmbiguityCoordinateCount,
+        integerTransform.singleDifferencedGroupCount,
+        integerTransform.identityGroupCount,
+        integerTransform.droppedSingletonGroupCount
+    );
+    for (const auto& datum : integerTransform.groups)
+    {
+        if (!datum.singleDifferenced)
+        {
+            continue;
+        }
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR RECEIVER_SD receiver=%s system=%s signal=%s reference=%s "
+            "members=%d status=%s",
+            datum.receiver.c_str(),
+            enum_to_string(datum.system).c_str(),
+            enum_to_string(int_to_enum<E_ObsCode>(datum.observation)).c_str(),
+            datum.pivot.id().c_str(),
+            datum.memberCount,
+            datum.memberCount >= 2 ? "INTEGER_COORDINATES_CREATED" : "SINGLETON_DROPPED"
+        );
+    }
+
+    if (integerTransform.matrix.rows() == 0)
+    {
+        result.diagnosticStatus = "NO_INTEGER_ESTIMABLE_AMBIGUITIES";
+        return result;
+    }
+
+    GinAR_mtx integerARmtx;
+    integerARmtx.aflt = integerTransform.matrix * ARmtx.aflt;
+    integerARmtx.Paflt =
+        integerTransform.matrix * ARmtx.Paflt * integerTransform.matrix.transpose();
+
     GinAR_opt ARopt;
     ARopt.mode   = acsConfig.ambrOpts.mode;
     ARopt.sucthr = acsConfig.ambrOpts.succsThres;
@@ -238,19 +288,21 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
         AR_VERBO = true;
 
     // Resolve and apply ambiguities
-    int nfix = GNSS_AR(trace, ARmtx, ARopt);
+    int nfix = GNSS_AR(trace, integerARmtx, ARopt);
     result.resolvedCombinationCount = nfix;
-    result.diagnosticStatus = ARmtx.diagnosticStatus;
+    result.diagnosticStatus = integerARmtx.diagnosticStatus;
     result.selectedDecorrelatedAmbiguityCount =
-        ARmtx.selectedDecorrelatedAmbiguityCount;
-    result.integerCandidateCount = ARmtx.integerCandidateCount;
-    result.bootstrappedSuccessRate = ARmtx.bootstrappedSuccessRate;
-    result.bestSquaredNorm = ARmtx.bestSquaredNorm;
-    result.secondSquaredNorm = ARmtx.secondSquaredNorm;
-    result.solutionRatio = ARmtx.solutionRatio;
+        integerARmtx.selectedDecorrelatedAmbiguityCount;
+    result.integerCandidateCount = integerARmtx.integerCandidateCount;
+    result.bootstrappedSuccessRate = integerARmtx.bootstrappedSuccessRate;
+    result.bestSquaredNorm = integerARmtx.bestSquaredNorm;
+    result.secondSquaredNorm = integerARmtx.secondSquaredNorm;
+    result.solutionRatio = integerARmtx.solutionRatio;
     if (nfix > 0)
     {
-        applyUCAmbiguities(trace, kfState, ARmtx);
+        integerARmtx.Ztrs = integerARmtx.Ztrs * integerTransform.matrix;
+        integerARmtx.ambmap = ARmtx.ambmap;
+        applyUCAmbiguities(trace, kfState, integerARmtx);
         result.pseudoObservationsSubmitted = true;
     }
 

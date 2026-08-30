@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Ginan GINAN_STEC_COVARIANCE_V2 epoch blocks.
+"""Validate Ginan GINAN_STEC_COVARIANCE_V2/V3 epoch blocks.
 
 The validator treats every META/STATE/COV block as an independently auditable
 posterior covariance epoch.  It does not infer successful ambiguity fixing from
@@ -34,6 +34,7 @@ class StateRow:
 
 @dataclass
 class EpochBlock:
+    schema: str
     gps_week: int
     gps_tow_text: str
     status: str
@@ -43,6 +44,10 @@ class EpochBlock:
     posterior_stage: str
     ar_routine_invoked: bool
     ar_eligible_ambiguity_count: int
+    ar_integer_ambiguity_coordinate_count: int
+    ar_receiver_single_difference_applied: bool
+    ar_receiver_datum_group_count: int
+    ar_dropped_singleton_group_count: int
     ar_resolved_combination_count: int
     ar_pseudoobservations_submitted: bool
     ar_mode: str
@@ -74,12 +79,21 @@ def _parse_binary_flag(value: str, field_name: str, line_number: int) -> bool:
 
 
 def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
-    schema_seen = False
+    schema: str | None = None
     current: EpochBlock | None = None
 
     for line_number, raw_line in enumerate(stream, start=1):
-        if raw_line.strip() == "# GINAN_STEC_COVARIANCE_V2":
-            schema_seen = True
+        stripped = raw_line.strip()
+        if stripped in {
+            "# GINAN_STEC_COVARIANCE_V2",
+            "# GINAN_STEC_COVARIANCE_V3",
+        }:
+            detected = stripped.removeprefix("# ")
+            if schema is not None and schema != detected:
+                raise ValueError(
+                    f"line {line_number}: mixed covariance schemas {schema} and {detected}"
+                )
+            schema = detected
             continue
         if not raw_line.strip() or raw_line.startswith("#"):
             continue
@@ -88,10 +102,28 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
         record_type = row[0]
 
         if record_type == "META":
-            _require_length(row, 22, line_number)
+            if schema is None:
+                raise ValueError(f"line {line_number}: META precedes covariance schema marker")
+            if schema == "GINAN_STEC_COVARIANCE_V2":
+                _require_length(row, 22, line_number)
+                integer_coordinate_count = int(row[9])
+                receiver_single_difference_applied = False
+                receiver_datum_group_count = 0
+                dropped_singleton_group_count = 0
+                resolved_index = 10
+            else:
+                _require_length(row, 26, line_number)
+                integer_coordinate_count = int(row[10])
+                receiver_single_difference_applied = _parse_binary_flag(
+                    row[11], "ar_receiver_single_difference_applied", line_number
+                )
+                receiver_datum_group_count = int(row[12])
+                dropped_singleton_group_count = int(row[13])
+                resolved_index = 14
             if current is not None:
                 yield current
             current = EpochBlock(
+                schema=schema,
                 gps_week=int(row[1]),
                 gps_tow_text=row[2],
                 status=row[3],
@@ -103,20 +135,24 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
                     row[8], "ar_routine_invoked", line_number
                 ),
                 ar_eligible_ambiguity_count=int(row[9]),
-                ar_resolved_combination_count=int(row[10]),
+                ar_integer_ambiguity_coordinate_count=integer_coordinate_count,
+                ar_receiver_single_difference_applied=receiver_single_difference_applied,
+                ar_receiver_datum_group_count=receiver_datum_group_count,
+                ar_dropped_singleton_group_count=dropped_singleton_group_count,
+                ar_resolved_combination_count=int(row[resolved_index]),
                 ar_pseudoobservations_submitted=_parse_binary_flag(
-                    row[11], "ar_pseudoobservations_submitted", line_number
+                    row[resolved_index + 1], "ar_pseudoobservations_submitted", line_number
                 ),
-                ar_mode=row[12],
-                ar_configured_success_rate_threshold=float(row[13]),
-                ar_configured_solution_ratio_threshold=float(row[14]),
-                ar_diagnostic_status=row[15],
-                ar_selected_decorrelated_ambiguity_count=int(row[16]),
-                ar_integer_candidate_count=int(row[17]),
-                ar_bootstrapped_success_rate=float(row[18]),
-                ar_best_squared_norm=float(row[19]),
-                ar_second_squared_norm=float(row[20]),
-                ar_solution_ratio=float(row[21]),
+                ar_mode=row[resolved_index + 2],
+                ar_configured_success_rate_threshold=float(row[resolved_index + 3]),
+                ar_configured_solution_ratio_threshold=float(row[resolved_index + 4]),
+                ar_diagnostic_status=row[resolved_index + 5],
+                ar_selected_decorrelated_ambiguity_count=int(row[resolved_index + 6]),
+                ar_integer_candidate_count=int(row[resolved_index + 7]),
+                ar_bootstrapped_success_rate=float(row[resolved_index + 8]),
+                ar_best_squared_norm=float(row[resolved_index + 9]),
+                ar_second_squared_norm=float(row[resolved_index + 10]),
+                ar_solution_ratio=float(row[resolved_index + 11]),
             )
             continue
 
@@ -152,8 +188,8 @@ def iter_epoch_blocks(stream: TextIO) -> Iterator[EpochBlock]:
                 raise ValueError(f"line {line_number}: duplicate COV pair {pair}")
             current.covariance[pair] = float(row[5])
 
-    if not schema_seen:
-        raise ValueError("missing GINAN_STEC_COVARIANCE_V2 schema marker")
+    if schema is None:
+        raise ValueError("missing GINAN_STEC_COVARIANCE_V2/V3 schema marker")
     if current is not None:
         yield current
 
@@ -171,18 +207,56 @@ def validate_epoch(
         errors.append(f"writer_status={epoch.status}")
     if epoch.ar_eligible_ambiguity_count < 0:
         errors.append("ar_eligible_ambiguity_count_negative")
+    if epoch.ar_integer_ambiguity_coordinate_count < 0:
+        errors.append("ar_integer_ambiguity_coordinate_count_negative")
+    if (
+        epoch.ar_integer_ambiguity_coordinate_count
+        > epoch.ar_eligible_ambiguity_count
+    ):
+        errors.append("ar_integer_ambiguity_coordinate_count_exceeds_eligible_count")
+    if epoch.ar_receiver_datum_group_count < 0:
+        errors.append("ar_receiver_datum_group_count_negative")
+    if epoch.ar_dropped_singleton_group_count < 0:
+        errors.append("ar_dropped_singleton_group_count_negative")
+    if epoch.schema == "GINAN_STEC_COVARIANCE_V3" and (
+        epoch.ar_integer_ambiguity_coordinate_count
+        + epoch.ar_receiver_datum_group_count
+        + epoch.ar_dropped_singleton_group_count
+        != epoch.ar_eligible_ambiguity_count
+    ):
+        errors.append("ar_integer_coordinate_accounting_inconsistent")
+    if (
+        epoch.ar_receiver_single_difference_applied
+        and epoch.ar_receiver_datum_group_count <= 0
+    ):
+        errors.append("ar_receiver_single_difference_without_datum_group")
+    if (
+        not epoch.ar_receiver_single_difference_applied
+        and epoch.ar_receiver_datum_group_count != 0
+    ):
+        errors.append("ar_receiver_datum_group_without_single_difference")
     if epoch.ar_resolved_combination_count < 0:
         errors.append("ar_resolved_combination_count_negative")
-    if epoch.ar_resolved_combination_count > epoch.ar_eligible_ambiguity_count:
-        errors.append("ar_resolved_combination_count_exceeds_eligible_count")
+    if (
+        epoch.ar_resolved_combination_count
+        > epoch.ar_integer_ambiguity_coordinate_count
+    ):
+        errors.append("ar_resolved_combination_count_exceeds_integer_coordinate_count")
     if epoch.ar_selected_decorrelated_ambiguity_count < 0:
         errors.append("ar_selected_decorrelated_ambiguity_count_negative")
-    if epoch.ar_selected_decorrelated_ambiguity_count > epoch.ar_eligible_ambiguity_count:
-        errors.append("ar_selected_decorrelated_ambiguity_count_exceeds_eligible_count")
+    if (
+        epoch.ar_selected_decorrelated_ambiguity_count
+        > epoch.ar_integer_ambiguity_coordinate_count
+    ):
+        errors.append("ar_selected_decorrelated_count_exceeds_integer_coordinate_count")
     if epoch.ar_integer_candidate_count < 0:
         errors.append("ar_integer_candidate_count_negative")
     if not epoch.ar_routine_invoked and (
         epoch.ar_eligible_ambiguity_count != 0
+        or epoch.ar_integer_ambiguity_coordinate_count != 0
+        or epoch.ar_receiver_single_difference_applied
+        or epoch.ar_receiver_datum_group_count != 0
+        or epoch.ar_dropped_singleton_group_count != 0
         or epoch.ar_resolved_combination_count != 0
         or epoch.ar_pseudoobservations_submitted
     ):
@@ -303,6 +377,10 @@ def validate_epoch(
         "posterior_stage": epoch.posterior_stage,
         "ar_routine_invoked": epoch.ar_routine_invoked,
         "ar_eligible_ambiguity_count": epoch.ar_eligible_ambiguity_count,
+        "ar_integer_ambiguity_coordinate_count": epoch.ar_integer_ambiguity_coordinate_count,
+        "ar_receiver_single_difference_applied": epoch.ar_receiver_single_difference_applied,
+        "ar_receiver_datum_group_count": epoch.ar_receiver_datum_group_count,
+        "ar_dropped_singleton_group_count": epoch.ar_dropped_singleton_group_count,
         "ar_resolved_combination_count": epoch.ar_resolved_combination_count,
         "ar_pseudoobservations_submitted": epoch.ar_pseudoobservations_submitted,
         "ar_mode": epoch.ar_mode,
@@ -335,15 +413,17 @@ def validate_file(
     psd_relative_tolerance: float = 1e-10,
 ) -> dict[str, object]:
     epoch_results: list[dict[str, object]] = []
+    schema: str | None = None
     with path.open("r", encoding="utf-8", newline="") as stream:
         for epoch in iter_epoch_blocks(stream):
+            schema = epoch.schema
             epoch_results.append(
                 validate_epoch(epoch, psd_absolute_tolerance, psd_relative_tolerance)
             )
 
     valid_epochs = sum(bool(epoch["valid"]) for epoch in epoch_results)
     return {
-        "schema": "GINAN_STEC_COVARIANCE_V2",
+        "schema": schema,
         "input": str(path.resolve()),
         "epoch_count": len(epoch_results),
         "valid_epoch_count": valid_epochs,
@@ -355,7 +435,7 @@ def validate_file(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", type=Path, help="GINAN_STEC_COVARIANCE_V2 file")
+    parser.add_argument("input", type=Path, help="GINAN_STEC_COVARIANCE_V2/V3 file")
     parser.add_argument("--json-output", type=Path, help="write the full validation report")
     parser.add_argument("--psd-absolute-tolerance", type=float, default=1e-12)
     parser.add_argument("--psd-relative-tolerance", type=float, default=1e-10)

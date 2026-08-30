@@ -1286,6 +1286,12 @@ void perEpochPostProcessingAndOutputs(
             StecCovarianceArContext arContext;
             arContext.routineInvoked = epochArAttempt.routineInvoked;
             arContext.eligibleAmbiguityCount = epochArAttempt.eligibleAmbiguityCount;
+            arContext.integerAmbiguityCoordinateCount =
+                epochArAttempt.integerAmbiguityCoordinateCount;
+            arContext.receiverSingleDifferenceApplied =
+                epochArAttempt.receiverSingleDifferenceApplied;
+            arContext.receiverDatumGroupCount = epochArAttempt.receiverDatumGroupCount;
+            arContext.droppedSingletonGroupCount = epochArAttempt.droppedSingletonGroupCount;
             arContext.resolvedCombinationCount = epochArAttempt.resolvedCombinationCount;
             arContext.pseudoObservationsSubmitted =
                 epochArAttempt.pseudoObservationsSubmitted;

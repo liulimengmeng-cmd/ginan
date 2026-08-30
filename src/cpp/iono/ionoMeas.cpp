@@ -375,6 +375,10 @@ bool writeIonStecCovariance(
     epoch.posteriorStage = posteriorStage;
     epoch.arRoutineInvoked = arContext.routineInvoked;
     epoch.arEligibleAmbiguityCount = arContext.eligibleAmbiguityCount;
+    epoch.arIntegerAmbiguityCoordinateCount = arContext.integerAmbiguityCoordinateCount;
+    epoch.arReceiverSingleDifferenceApplied = arContext.receiverSingleDifferenceApplied;
+    epoch.arReceiverDatumGroupCount = arContext.receiverDatumGroupCount;
+    epoch.arDroppedSingletonGroupCount = arContext.droppedSingletonGroupCount;
     epoch.arResolvedCombinationCount = arContext.resolvedCombinationCount;
     epoch.arPseudoObservationsSubmitted = arContext.pseudoObservationsSubmitted;
     epoch.arMode = arContext.mode;

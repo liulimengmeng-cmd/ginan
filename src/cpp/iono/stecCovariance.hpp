@@ -16,6 +16,10 @@ struct StecCovarianceArContext
 {
     bool        routineInvoked = false;
     int         eligibleAmbiguityCount = 0;
+    int         integerAmbiguityCoordinateCount = 0;
+    bool        receiverSingleDifferenceApplied = false;
+    int         receiverDatumGroupCount = 0;
+    int         droppedSingletonGroupCount = 0;
     int         resolvedCombinationCount = 0;
     bool        pseudoObservationsSubmitted = false;
     std::string mode = "OFF";
@@ -47,6 +51,10 @@ struct StecCovarianceCsvEpoch
     std::string                            posteriorStage;
     bool                                   arRoutineInvoked = false;
     int                                    arEligibleAmbiguityCount = 0;
+    int                                    arIntegerAmbiguityCoordinateCount = 0;
+    bool                                   arReceiverSingleDifferenceApplied = false;
+    int                                    arReceiverDatumGroupCount = 0;
+    int                                    arDroppedSingletonGroupCount = 0;
     int                                    arResolvedCombinationCount = 0;
     bool                                   arPseudoObservationsSubmitted = false;
     std::string                            arMode = "OFF";

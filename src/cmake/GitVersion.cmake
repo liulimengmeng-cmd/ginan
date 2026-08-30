@@ -8,11 +8,19 @@ if (GIT_FOUND)
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             )
     execute_process(
-        COMMAND bash -c "git diff --quiet --exit-code || echo -dirty "
-        OUTPUT_VARIABLE GINAN_COMMIT_DIFF
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
+        RESULT_VARIABLE GINAN_GIT_DIFF_RESULT
+        ERROR_QUIET
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
+    if (GINAN_GIT_DIFF_RESULT EQUAL 1)
+        set(GINAN_COMMIT_DIFF "-dirty")
+    elseif (NOT GINAN_GIT_DIFF_RESULT EQUAL 0)
+        set(GINAN_COMMIT_DIFF "-git-error")
+        message(WARNING "Git diff check failed with exit code ${GINAN_GIT_DIFF_RESULT}")
+    else()
+        set(GINAN_COMMIT_DIFF "")
+    endif()
     execute_process(
         COMMAND ${GIT_EXECUTABLE} describe --exact-match --tags
         OUTPUT_VARIABLE GINAN_COMMIT_TAG ERROR_QUIET

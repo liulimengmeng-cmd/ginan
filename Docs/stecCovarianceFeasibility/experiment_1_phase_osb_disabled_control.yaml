@@ -1,0 +1,13 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1_2024_phase_osb_disabled_control_main_<HASH>
+
+satellite_options:
+  global:
+    models:
+      phase_bias:
+        enable: false

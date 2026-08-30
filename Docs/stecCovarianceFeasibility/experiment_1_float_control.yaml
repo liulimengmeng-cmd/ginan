@@ -1,0 +1,15 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1_2024_float_control_main_<HASH>
+
+processing_options:
+  gnss_general:
+    sys_options:
+      gps:
+        ambiguity_resolution: false
+  ambiguity_resolution:
+    mode: OFF

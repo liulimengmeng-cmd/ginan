@@ -60,4 +60,28 @@ struct GinAR_opt
     double Max_Hold_tim  = 600; /* max hold (seconds) */
 };
 
+struct ReceiverAmbiguityDatum
+{
+    string receiver;
+    E_Sys  system = E_Sys::NONE;
+    int    observation = 0;
+    SatSys pivot;
+    int    memberCount = 0;
+    bool   singleDifferenced = false;
+};
+
+struct ReceiverAmbiguityTransform
+{
+    MatrixXd matrix;
+    vector<ReceiverAmbiguityDatum> groups;
+    int singleDifferencedGroupCount = 0;
+    int identityGroupCount = 0;
+    int droppedSingletonGroupCount = 0;
+};
+
+ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
+    const GinAR_mtx&        ambiguityResolution,
+    const map<E_Sys, bool>& receiverAmbiguityPivot
+);
+
 int GNSS_AR(Trace& trace, GinAR_mtx& mtrx, GinAR_opt opt);
