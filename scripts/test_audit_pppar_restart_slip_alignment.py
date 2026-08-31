@@ -33,6 +33,10 @@ class RestartSlipAlignmentTest(unittest.TestCase):
             report["reset_alignment_counts"],
             {"one_or_more_satellite_reset_epochs_differ": 1},
         )
+        self.assertEqual(
+            report["agreement_reset_contingency_counts"],
+            {"disagreed__one_or_more_satellite_reset_epochs_differ": 1},
+        )
 
     def test_reports_matching_common_slip_epoch(self) -> None:
         event = (
@@ -56,7 +60,25 @@ class RestartSlipAlignmentTest(unittest.TestCase):
             {"all_satellite_reset_epochs_match": 1},
         )
 
+    def test_agreement_rows_are_retained_as_reset_history_control(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            primary = Path(temporary) / "primary.trace"
+            restart = Path(temporary) / "restart.trace"
+            primary.write_text(candidate(11, 7), encoding="utf-8")
+            restart.write_text(candidate(1, 7), encoding="utf-8")
+            report = audit(
+                primary,
+                restart,
+                datetime(2024, 7, 17, tzinfo=timezone.utc),
+                10,
+            )
+        self.assertEqual(report["agreed_integer_rhs_count"], 1)
+        self.assertEqual(report["disagreed_integer_rhs_count"], 0)
+        self.assertEqual(
+            report["agreement_reset_contingency_counts"],
+            {"agreed__one_or_more_satellite_reset_epochs_differ": 1},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
-

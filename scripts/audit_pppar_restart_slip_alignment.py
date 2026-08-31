@@ -103,7 +103,9 @@ def audit(
     )
     primary_events = parse_reset_events(primary_trace)
     restart_events = parse_reset_events(restart_trace)
-    counts: Counter[str] = Counter()
+    disagreement_counts: Counter[str] = Counter()
+    contingency: Counter[str] = Counter()
+    reset_origin_counts: Counter[str] = Counter()
     by_family: dict[str, Counter[str]] = defaultdict(Counter)
     samples: list[dict[str, object]] = []
 
@@ -111,9 +113,10 @@ def audit(
         primary_rows = {(row[0], row[1]): row for row in primary[key]}
         restart_rows = {(row[0], row[1]): row for row in restart[key]}
         for expression in primary_rows.keys() & restart_rows.keys():
-            if abs(primary_rows[expression][2] - restart_rows[expression][2]) <= 1e-9:
-                continue
             family, terms = expression
+            rhs_disagreed = (
+                abs(primary_rows[expression][2] - restart_rows[expression][2]) > 1e-9
+            )
             satellites = sorted({match[1] for match in TERM_RE.findall(terms)})
             receiver = key[1]
             alignment = []
@@ -136,14 +139,31 @@ def audit(
                         "same_reset_epoch": first["epoch"] == second["epoch"],
                     }
                 )
+                first_is_start = first["detector"] == "RUN_START"
+                second_is_start = second["detector"] == "RUN_START"
+                if first_is_start and second_is_start:
+                    origin = "both_run_start"
+                elif first_is_start:
+                    origin = "primary_start_restart_event"
+                elif second_is_start:
+                    origin = "primary_event_restart_start"
+                elif first["epoch"] == second["epoch"]:
+                    origin = "both_events_same_epoch"
+                else:
+                    origin = "both_events_different_epoch"
+                if rhs_disagreed:
+                    reset_origin_counts[origin] += 1
             status = (
                 "all_satellite_reset_epochs_match"
                 if alignment and all(row["same_reset_epoch"] for row in alignment)
                 else "one_or_more_satellite_reset_epochs_differ"
             )
-            counts[status] += 1
-            by_family[family][status] += 1
-            if len(samples) < 50:
+            agreement = "disagreed" if rhs_disagreed else "agreed"
+            contingency[f"{agreement}__{status}"] += 1
+            by_family[family][f"{agreement}__{status}"] += 1
+            if rhs_disagreed:
+                disagreement_counts[status] += 1
+            if rhs_disagreed and len(samples) < 50:
                 samples.append(
                     {
                         "epoch": key[0],
@@ -163,8 +183,31 @@ def audit(
         "restart_trace": str(restart_trace),
         "day_start_utc": day_start.isoformat().replace("+00:00", "Z"),
         "restart_epoch_offset": restart_epoch_offset,
-        "disagreed_integer_rhs_count": sum(counts.values()),
-        "reset_alignment_counts": dict(sorted(counts.items())),
+        "shared_integer_rhs_count": sum(contingency.values()),
+        "agreed_integer_rhs_count": sum(
+            count for label, count in contingency.items() if label.startswith("agreed__")
+        ),
+        "disagreed_integer_rhs_count": sum(disagreement_counts.values()),
+        "reset_alignment_counts": dict(sorted(disagreement_counts.items())),
+        "agreement_reset_contingency_counts": dict(sorted(contingency.items())),
+        "disagreement_rate_by_reset_alignment": {
+            status: (
+                contingency[f"disagreed__{status}"] /
+                (
+                    contingency[f"agreed__{status}"] +
+                    contingency[f"disagreed__{status}"]
+                )
+                if contingency[f"agreed__{status}"] + contingency[f"disagreed__{status}"]
+                else None
+            )
+            for status in (
+                "all_satellite_reset_epochs_match",
+                "one_or_more_satellite_reset_epochs_differ",
+            )
+        },
+        "disagreed_row_satellite_reset_origin_counts": dict(
+            sorted(reset_origin_counts.items())
+        ),
         "by_family": {
             family: dict(sorted(rows.items()))
             for family, rows in sorted(by_family.items())
@@ -174,6 +217,7 @@ def audit(
             "different reset histories are an association and do not prove the integer is wrong",
             "matching reset epochs do not certify the candidate integer",
             "structured detector events do not replace independent ambiguity truth",
+            "run-start differences are expected and require the agreement-row control",
         ],
     }
 
@@ -202,4 +246,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
