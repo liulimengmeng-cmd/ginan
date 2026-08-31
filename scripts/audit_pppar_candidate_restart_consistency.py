@@ -83,6 +83,7 @@ def compare_groups(
     disagreed_rhs_count = 0
     maximum_rhs_difference = 0.0
     by_receiver: dict[str, Counter[str]] = defaultdict(Counter)
+    by_family: dict[str, Counter[str]] = defaultdict(Counter)
     disagreement_samples: list[dict[str, object]] = []
     disagreement_epochs: set[int] = set()
     primary_disagreement_residuals: list[float] = []
@@ -113,6 +114,8 @@ def compare_groups(
         shared_row_count += len(shared_expressions)
         by_receiver[receiver]["shared_row_count"] += len(shared_expressions)
         for expression in shared_expressions:
+            family = expression[0]
+            by_family[family]["shared_row_count"] += 1
             difference = abs(
                 primary_by_expression[expression][2]
                 - restart_by_expression[expression][2]
@@ -121,9 +124,11 @@ def compare_groups(
             if difference <= 1e-9:
                 agreed_rhs_count += 1
                 by_receiver[receiver]["agreed_rhs_count"] += 1
+                by_family[family]["agreed_rhs_count"] += 1
             else:
                 disagreed_rhs_count += 1
                 by_receiver[receiver]["disagreed_rhs_count"] += 1
+                by_family[family]["disagreed_rhs_count"] += 1
                 disagreement_epochs.add(key[0])
                 primary_row = primary_by_expression[expression]
                 restart_row = restart_by_expression[expression]
@@ -164,7 +169,7 @@ def compare_groups(
         by_receiver[receiver]["restart_only_group_count"] += 1
 
     return {
-        "schema": "GINAN_PPPAR_CANDIDATE_RESTART_CONSISTENCY_V1",
+        "schema": "GINAN_PPPAR_CANDIDATE_RESTART_CONSISTENCY_V2",
         "primary_candidate_group_count": len(primary),
         "restart_candidate_group_count": len(restart),
         "shared_candidate_group_count": len(shared_keys),
@@ -210,6 +215,10 @@ def compare_groups(
         "by_receiver": {
             receiver: dict(sorted(counts.items()))
             for receiver, counts in sorted(by_receiver.items())
+        },
+        "by_family": {
+            family: dict(sorted(counts.items()))
+            for family, counts in sorted(by_family.items())
         },
         "claim_limits": [
             "agreement is conditional on candidate rows shared by both independent runs",

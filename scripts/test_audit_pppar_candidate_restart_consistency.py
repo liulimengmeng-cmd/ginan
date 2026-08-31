@@ -62,6 +62,13 @@ PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidat
             )
         self.assertEqual(report["disagreed_integer_rhs_count"], 1)
         self.assertEqual(report["disagreement_epoch_count"], 1)
+        self.assertEqual(
+            report["by_family"]["SECOND_D2"],
+            {
+                "disagreed_rhs_count": 1,
+                "shared_row_count": 1,
+            },
+        )
         self.assertEqual(report["disagreement_samples"][0]["difference"], 1)
         self.assertEqual(
             report["primary_disagreement_abs_residual_median"],
