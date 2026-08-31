@@ -1,15 +1,25 @@
 # Independent 12:00 cold restart of the fixed-SINEX diagnostic control.
 inputs:
   include_yamls:
-    - Docs/stecCovarianceFeasibility/experiment_1m_restart_1200_float_probe.yaml
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+  gnss_observations:
+    gnss_observations_root: ../data_restart_2024199_1200
 
 outputs:
   metadata:
     config_description: exp1r_2024_restart_1200_fixed_sinex_float_probe
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+
+  epoch_control:
+    start_epoch: 2024-07-17 12:00:00
+    max_epochs: 1440
 
 estimation_parameters:
   receivers:
     global:
       pos:
         estimated: [false]
-
