@@ -23,6 +23,101 @@
 
 static bool filterError = false;
 
+struct PhaseWindupIntegerCanonicalization
+{
+    VectorXd integerOffsets;
+    int nonzeroOffsetCount = 0;
+    int missingReceiverCount = 0;
+    int missingSatelliteStateCount = 0;
+    int nonfinitePhaseWindupCount = 0;
+    bool complete = false;
+};
+
+static PhaseWindupIntegerCanonicalization buildPhaseWindupIntegerCanonicalization(
+    Trace&            trace,
+    const GinAR_mtx&  ambiguityResolution
+)
+{
+    PhaseWindupIntegerCanonicalization result;
+    const int ambiguityCount = ambiguityResolution.aflt.size();
+    result.integerOffsets = VectorXd::Zero(ambiguityCount);
+
+    for (const auto& [column, key] : ambiguityResolution.ambmap)
+    {
+        if (column < 0 || column >= ambiguityCount)
+        {
+            result.missingSatelliteStateCount++;
+            continue;
+        }
+        if (key.rec_ptr == nullptr)
+        {
+            result.missingReceiverCount++;
+            continue;
+        }
+        const auto satelliteState = key.rec_ptr->satStatMap.find(key.Sat);
+        if (satelliteState == key.rec_ptr->satStatMap.end())
+        {
+            result.missingSatelliteStateCount++;
+            continue;
+        }
+
+        const double continuousPhaseWindup = satelliteState->second.phw;
+        if (!std::isfinite(continuousPhaseWindup))
+        {
+            result.nonfinitePhaseWindupCount++;
+            continue;
+        }
+
+        // phaseWindup() chooses the continuous branch with
+        //   phw = fraction + floor(previous - fraction + 0.5).
+        // Removing the nearest integer winding maps every cold start to the
+        // same [-0.5, 0.5) representative.  Since the measurement model uses
+        // lambda*(phw + N), the corresponding ambiguity coordinate is
+        // Nc = Nraw + winding.
+        const double integerWinding = std::floor(continuousPhaseWindup + 0.5);
+        result.integerOffsets(column) = integerWinding;
+        if (integerWinding != 0)
+        {
+            result.nonzeroOffsetCount++;
+        }
+        tracepdeex(
+            4,
+            trace,
+            "\nPPP_AR PHASE_WINDUP_CANONICAL_ROW receiver=%s satellite=%s signal=%s "
+            "continuous_phw=%.17g integer_winding=%.0f raw_float=%.17g "
+            "canonical_float=%.17g status=INTEGER_GAUGE_MAPPED",
+            key.str.c_str(),
+            key.Sat.id().c_str(),
+            key.code().c_str(),
+            continuousPhaseWindup,
+            integerWinding,
+            ambiguityResolution.aflt(column),
+            ambiguityResolution.aflt(column) + integerWinding
+        );
+    }
+
+    result.complete =
+        static_cast<int>(ambiguityResolution.ambmap.size()) == ambiguityCount &&
+        result.missingReceiverCount == 0 &&
+        result.missingSatelliteStateCount == 0 &&
+        result.nonfinitePhaseWindupCount == 0;
+    const int summaryTraceLevel = result.complete ? 2 : 1;
+    tracepdeex(
+        summaryTraceLevel,
+        trace,
+        "\nPPP_AR PHASE_WINDUP_CANONICALIZATION ambiguities=%d nonzero_offsets=%d "
+        "missing_receivers=%d missing_satellite_states=%d nonfinite_phase_windup=%d "
+        "status=%s",
+        ambiguityCount,
+        result.nonzeroOffsetCount,
+        result.missingReceiverCount,
+        result.missingSatelliteStateCount,
+        result.nonfinitePhaseWindupCount,
+        result.complete ? "COMPLETE_INTEGER_GAUGE" : "INCOMPLETE_NOT_APPLIED"
+    );
+    return result;
+}
+
 static void traceIntegerComplementRows(
     Trace&                 trace,
     const MatrixXd&        rowsInOriginalAmbiguities,
@@ -946,6 +1041,23 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     ARmtx.aflt  = kfState.x(indices);
     ARmtx.Paflt = kfState.P(indices, indices);
 
+    VectorXd phaseWindupIntegerOffsets;
+    if (acsConfig.ambrOpts.canonicalize_phase_windup_integer)
+    {
+        const PhaseWindupIntegerCanonicalization canonicalization =
+            buildPhaseWindupIntegerCanonicalization(trace, ARmtx);
+        if (!canonicalization.complete ||
+            !canonicalizeIntegerAmbiguityFloats(
+                ARmtx,
+                canonicalization.integerOffsets
+            ))
+        {
+            result.diagnosticStatus = "PHASE_WINDUP_CANONICALIZATION_INVALID";
+            return result;
+        }
+        phaseWindupIntegerOffsets = canonicalization.integerOffsets;
+    }
+
     const ReceiverAmbiguityTransform integerTransform =
         buildReceiverAmbiguityIntegerTransform(ARmtx, acsConfig.receiver_amb_pivot);
     result.integerAmbiguityCoordinateCount = integerTransform.matrix.rows();
@@ -1126,7 +1238,8 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
         if (!mapIntegerAmbiguityConstraintsToOriginalState(
                 integerARmtx,
                 integerTransform,
-                ARmtx.ambmap
+                ARmtx.ambmap,
+                phaseWindupIntegerOffsets
             ))
         {
             tracepdeex(

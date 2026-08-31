@@ -875,6 +875,7 @@ struct AmbROptions
     bool fix_and_hold   = false;
     bool integer_complement_diagnostics = false;
     bool dual_frequency_subset_probe_only = false;
+    bool canonicalize_phase_windup_integer = false;
 };
 
 /** Rinex 2 conversions for individual receivers

@@ -340,6 +340,61 @@ int main()
         "integer feedback preserves fixed integer values"
     );
 
+    GinAR_mtx canonicalFloatMatrix = ambiguityMatrix;
+    VectorXd phaseWindupIntegerOffsets(7);
+    phaseWindupIntegerOffsets << 1, -2, 0, 3, -1, 0, 0;
+    const VectorXd rawFloatAmbiguities = canonicalFloatMatrix.aflt;
+    passed &= check(
+        canonicalizeIntegerAmbiguityFloats(
+            canonicalFloatMatrix,
+            phaseWindupIntegerOffsets
+        ),
+        "integer phase-windup offsets canonicalize ambiguity floats"
+    );
+    passed &= check(
+        canonicalFloatMatrix.aflt.isApprox(
+            rawFloatAmbiguities + phaseWindupIntegerOffsets,
+            1e-12
+        ) && canonicalFloatMatrix.Paflt.isApprox(ambiguityMatrix.Paflt, 1e-12),
+        "canonicalization changes only the ambiguity gauge"
+    );
+
+    GinAR_mtx canonicalFeedbackMatrix;
+    canonicalFeedbackMatrix.Ztrs.resize(2, 5);
+    canonicalFeedbackMatrix.Ztrs << 2, -1, 3, 0, 0, 0, 1, -2, 3, -1;
+    canonicalFeedbackMatrix.zfix = originalFixedIntegers;
+    passed &= check(
+        mapIntegerAmbiguityConstraintsToOriginalState(
+            canonicalFeedbackMatrix,
+            receiverTransform,
+            ambiguityMatrix.ambmap,
+            phaseWindupIntegerOffsets
+        ),
+        "canonical integer constraints map back to the original phase-windup gauge"
+    );
+    passed &= check(
+        canonicalFeedbackMatrix.Ztrs.isApprox(expectedOriginalFeedback, 1e-12),
+        "canonical feedback retains the mapped integer design"
+    );
+    passed &= check(
+        canonicalFeedbackMatrix.zfix.isApprox(
+            originalFixedIntegers -
+                expectedOriginalFeedback * phaseWindupIntegerOffsets,
+            1e-12
+        ),
+        "canonical feedback removes the exact winding offset from the right-hand side"
+    );
+
+    GinAR_mtx invalidCanonicalFloatMatrix = ambiguityMatrix;
+    const VectorXd invalidFractionalOffsets = VectorXd::Constant(7, 0.5);
+    passed &= check(
+        !canonicalizeIntegerAmbiguityFloats(
+            invalidCanonicalFloatMatrix,
+            invalidFractionalOffsets
+        ) && invalidCanonicalFloatMatrix.aflt.isApprox(ambiguityMatrix.aflt, 1e-12),
+        "canonicalization rejects non-integer offsets without mutating ambiguity floats"
+    );
+
     GinAR_mtx invalidFeedbackMatrix;
     invalidFeedbackMatrix.Ztrs = MatrixXd::Identity(2, 2);
     invalidFeedbackMatrix.zfix = VectorXd::Zero(2);

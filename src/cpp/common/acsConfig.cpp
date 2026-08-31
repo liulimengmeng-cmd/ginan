@@ -8229,6 +8229,13 @@ bool ACSConfig::parse(
                     "Probe covariance-ranked full-rank dual-frequency satellite subsets and "
                     "skip the legacy ambiguity-resolution feedback path"
                 );
+                tryGetFromYaml(
+                    ambrOpts.canonicalize_phase_windup_integer,
+                    ambiguity_resolution,
+                    {"@ canonicalize_phase_windup_integer"},
+                    "Move ambiguity floats to a restart-invariant phase-windup integer branch "
+                    "before integer search and map accepted constraints back to the filter gauge"
+                );
             }
 
             // 			predictions

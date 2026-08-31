@@ -529,7 +529,8 @@ IterativeIntegerFamilyResolution resolveIntegerFamilyIteratively(
 bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
-    const map<int, KFKey>&            originalAmbiguityMap
+    const map<int, KFKey>&            originalAmbiguityMap,
+    const VectorXd&                   originalIntegerOffsets
 )
 {
     const int resolvedCombinationCount = integerAmbiguityResolution.Ztrs.rows();
@@ -538,7 +539,9 @@ bool mapIntegerAmbiguityConstraintsToOriginalState(
 
     if (integerAmbiguityResolution.Ztrs.cols() != integerCoordinateCount ||
         integerAmbiguityResolution.zfix.size() != resolvedCombinationCount ||
-        originalAmbiguityMap.size() != originalAmbiguityCount)
+        originalAmbiguityMap.size() != originalAmbiguityCount ||
+        (originalIntegerOffsets.size() != 0 &&
+         originalIntegerOffsets.size() != originalAmbiguityCount))
     {
         return false;
     }
@@ -551,10 +554,50 @@ bool mapIntegerAmbiguityConstraintsToOriginalState(
         }
     }
 
-    integerAmbiguityResolution.Ztrs =
+    if (originalIntegerOffsets.size() > 0 &&
+        (!originalIntegerOffsets.allFinite() ||
+         (originalIntegerOffsets.array() - originalIntegerOffsets.array().round())
+                 .abs()
+                 .maxCoeff() > 1e-12))
+    {
+        return false;
+    }
+
+    const MatrixXd originalStateTransform =
         (integerAmbiguityResolution.Ztrs * integerTransform.matrix).eval();
+    VectorXd originalStateFixedIntegers = integerAmbiguityResolution.zfix;
+    if (originalIntegerOffsets.size() > 0)
+    {
+        // Search was performed in canonical coordinates Nc = Nraw + k.
+        // Therefore Z*Nraw = zfix - Z*k in the original filter gauge.
+        originalStateFixedIntegers -= originalStateTransform * originalIntegerOffsets;
+    }
+    integerAmbiguityResolution.Ztrs = originalStateTransform;
+    integerAmbiguityResolution.zfix = originalStateFixedIntegers;
     integerAmbiguityResolution.ambmap = originalAmbiguityMap;
 
+    return true;
+}
+
+bool canonicalizeIntegerAmbiguityFloats(
+    GinAR_mtx&      ambiguityResolution,
+    const VectorXd& integerOffsets
+)
+{
+    const int ambiguityCount = ambiguityResolution.aflt.size();
+    if (integerOffsets.size() != ambiguityCount ||
+        ambiguityResolution.Paflt.rows() != ambiguityCount ||
+        ambiguityResolution.Paflt.cols() != ambiguityCount ||
+        !integerOffsets.allFinite() ||
+        (ambiguityCount > 0 &&
+         (integerOffsets.array() - integerOffsets.array().round())
+                 .abs()
+                 .maxCoeff() > 1e-12))
+    {
+        return false;
+    }
+
+    ambiguityResolution.aflt += integerOffsets;
     return true;
 }
 

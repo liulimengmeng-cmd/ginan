@@ -1,0 +1,21 @@
+# Independent 06:00 cold restart of the canonical phase-windup probe.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+  gnss_observations:
+    gnss_observations_root: ../data_restart_2024199_0600
+
+outputs:
+  metadata:
+    config_description: exp1v_2024_restart_0600_windup_canonical_float_probe
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    start_epoch: 2024-07-17 06:00:00
+    max_epochs: 2160
+

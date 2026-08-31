@@ -160,7 +160,18 @@ ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
 bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
-    const map<int, KFKey>&            originalAmbiguityMap
+    const map<int, KFKey>&            originalAmbiguityMap,
+    const VectorXd&                   originalIntegerOffsets = VectorXd()
+);
+
+/** Add an exact integer gauge offset to ambiguity float values.
+ *
+ * Covariances and state keys are unchanged.  The offset is retained by the
+ * caller so fixed constraints can be mapped back to the original state gauge.
+ */
+bool canonicalizeIntegerAmbiguityFloats(
+    GinAR_mtx&       ambiguityResolution,
+    const VectorXd&  integerOffsets
 );
 
 DualFrequencyAmbiguityTransform buildDualFrequencyAmbiguityIntegerTransform(
