@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <math.h>
+#include <sstream>
 #include "ambres/GNSSambres.hpp"
 #include "common/acsConfig.hpp"
 #include "common/algebra.hpp"
@@ -20,6 +21,77 @@
 #include "pea/ppp.hpp"
 
 static bool filterError = false;
+
+static void traceIntegerComplementRows(
+    Trace&                 trace,
+    const MatrixXd&        rowsInOriginalAmbiguities,
+    const VectorXd&        fixedIntegers,
+    const map<int, KFKey>& originalAmbiguityMap
+)
+{
+    const int rowCount = rowsInOriginalAmbiguities.rows();
+    const int columnCount = rowsInOriginalAmbiguities.cols();
+    if (fixedIntegers.size() != rowCount ||
+        static_cast<int>(originalAmbiguityMap.size()) != columnCount)
+    {
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR INTEGER_COMPLEMENT_ROW stage=2 status=INVALID_DIMENSIONS "
+            "rows=%d columns=%d fixed_integers=%d ambiguity_map=%d "
+            "action=PROBE_ONLY_NOT_SUBMITTED",
+            rowCount,
+            columnCount,
+            static_cast<int>(fixedIntegers.size()),
+            static_cast<int>(originalAmbiguityMap.size())
+        );
+        return;
+    }
+
+    for (int row = 0; row < rowCount; row++)
+    {
+        int support = 0;
+        bool integerCoefficients = true;
+        std::ostringstream terms;
+        for (int column = 0; column < columnCount; column++)
+        {
+            const double coefficient = rowsInOriginalAmbiguities(row, column);
+            const long long roundedCoefficient = std::llround(coefficient);
+            if (std::abs(coefficient - roundedCoefficient) > 1e-9)
+            {
+                integerCoefficients = false;
+            }
+            if (roundedCoefficient == 0)
+            {
+                continue;
+            }
+            const auto ambiguity = originalAmbiguityMap.find(column);
+            if (ambiguity == originalAmbiguityMap.end())
+            {
+                integerCoefficients = false;
+                continue;
+            }
+            const KFKey& key = ambiguity->second;
+            terms << (roundedCoefficient >= 0 ? "+" : "")
+                  << roundedCoefficient << " A(" << key.str << ","
+                  << key.Sat.id() << "," << key.code() << ") ";
+            support++;
+        }
+
+        const int traceOutputLevel = integerCoefficients && support > 0 ? 2 : 1;
+        tracepdeex(
+            traceOutputLevel,
+            trace,
+            "\nPPP_AR INTEGER_COMPLEMENT_ROW stage=2 row=%d rhs=%.17g "
+            "support=%d status=%s terms=%saction=PROBE_ONLY_NOT_SUBMITTED",
+            row,
+            fixedIntegers(row),
+            support,
+            integerCoefficients && support > 0 ? "INTEGER_MAPPED" : "INVALID_MAPPING",
+            terms.str().c_str()
+        );
+    }
+}
 
 bool recordFilterError(RejectCallbackDetails rejectDetails)
 {
@@ -449,6 +521,8 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
                 "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
                 "remaining_coordinates=%d stage2_probe_rows=%d combined_independent_rows=%d "
                 "target_integer_rank=%d stage2_status=%s stage2_success_rate=%.17g "
+                "stage2_selected_decorrelated=%d stage2_integer_candidates=%d "
+                "stage2_best_squared_norm=%.17g stage2_second_squared_norm=%.17g "
                 "stage2_ratio=%.17g action=PROBE_ONLY_NOT_SUBMITTED",
                 nfix,
                 static_cast<int>(complement.ambiguityResolution.aflt.size()),
@@ -457,8 +531,25 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
                 result.integerAmbiguityCoordinateCount,
                 complementProbe.diagnosticStatus.c_str(),
                 complementProbe.bootstrappedSuccessRate,
+                complementProbe.selectedDecorrelatedAmbiguityCount,
+                complementProbe.integerCandidateCount,
+                complementProbe.bestSquaredNorm,
+                complementProbe.secondSquaredNorm,
                 complementProbe.solutionRatio
             );
+            if (complementFixCount > 0)
+            {
+                const MatrixXd rowsInOriginalAmbiguities =
+                    complementProbe.Ztrs *
+                    complement.transformToInputCoordinates *
+                    integerTransform.matrix;
+                traceIntegerComplementRows(
+                    trace,
+                    rowsInOriginalAmbiguities,
+                    complementProbe.zfix,
+                    ARmtx.ambmap
+                );
+            }
         }
         else
         {
@@ -467,7 +558,10 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
                 trace,
                 "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
                 "remaining_coordinates=%d stage2_probe_rows=0 combined_independent_rows=%d "
-                "target_integer_rank=%d stage2_status=%s action=PROBE_ONLY_NOT_SUBMITTED",
+                "target_integer_rank=%d stage2_status=%s stage2_success_rate=-1 "
+                "stage2_selected_decorrelated=0 stage2_integer_candidates=0 "
+                "stage2_best_squared_norm=-1 stage2_second_squared_norm=-1 "
+                "stage2_ratio=-1 action=PROBE_ONLY_NOT_SUBMITTED",
                 nfix,
                 result.integerAmbiguityCoordinateCount - nfix,
                 nfix,

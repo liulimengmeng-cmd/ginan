@@ -4,7 +4,7 @@ inputs:
 
 outputs:
   metadata:
-    config_description: exp1c_2024_integer_complement_probe_<HASH>
+    config_description: exp1c_2024_integer_complement_probe
 
 processing_options:
   ambiguity_resolution:
