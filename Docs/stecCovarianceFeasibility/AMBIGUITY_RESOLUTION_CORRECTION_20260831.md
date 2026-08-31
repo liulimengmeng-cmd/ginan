@@ -80,24 +80,40 @@ matrix and refuses submission if the check fails.
 
 These are defect-exposure counts, not post-correction fixing results.
 
-## Validation state and required reruns
+## Validation state after the corrected rerun
 
-Completed:
+Completed on 2026-08-31:
 
-- source-level call-chain and upstream-main comparison;
-- deterministic false-ratio and equal-distance regression tests;
-- receiver-datum transform unit tests; and
-- `git diff --check`.
+- full `pea` rebuild; frozen executable SHA-256
+  `6aa8f383a2fa1007364e95222e2e4cf4fb9c5f93b91cd97221cac2c42e098d9e`;
+- deterministic false-ratio, equal-distance, datum-transform and diagonal-noise
+  regression tests;
+- corrected primary, FLOAT, phase-OSB-disabled, undifferenced and independent
+  restart runs in a serial batch with no other PEA process;
+- mapped-design, independent-noise and returned-submission runtime evidence for
+  every submitted epoch;
+- restart comparison and coordinate-integrity audit; and
+- receipt rehash audit with status `PASS`.
 
-Pending because an unrelated, pre-existing 180-station PEA process was using
-about 12 GB RAM and nearly all WSL CPU capacity during this correction:
+The authoritative batch is
+`/home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v2_noconcurrent_20260831_headf6c316d_bin6aa8f383`.
+Detailed results and hashes are in
+`EXPERIMENT_1_2024_CORRECTED_RESULTS_20260831.md`.
 
-1. full `pea` rebuild with a recorded binary SHA-256;
-2. corrected Experiment 1 primary and independent-restart runs;
-3. same-products FLOAT control with satellite phase OSBs enabled;
-4. phase-OSB disabled, inverted-sign and double-application controls;
-5. undifferenced negative control; and
-6. coordinate integrity, shared single-signal constraint, wrong-fix injection,
-   arc/slip and complete-rank audits.
+The corrected primary run submitted checked pseudo-observations in 199/480
+epochs and the restart in 178/420 epochs.  Shared restart comparisons have zero
+integer mismatch, and disabling phase OSBs yields zero submitted epoch.
+However, all submitted rows are L1C/L2W wide-lane-type partial constraints;
+single-signal rows and complete-rank epochs are both zero.  The result is not a
+complete PPP-AR solution.
 
-No corrected ambiguity-fix rate or fixed-STEC claim is made before those reruns.
+Still pending:
+
+1. a complete per-signal/narrow-lane integer datum;
+2. inverted-sign and double-application phase-OSB controls;
+3. deliberate wrong-fix injection;
+4. preregistered coordinate thresholds with a velocity-propagated reference;
+   and
+5. full-rank arc/slip and fixed-versus-FLOAT scientific acceptance.
+
+No fixed-STEC claim is made.

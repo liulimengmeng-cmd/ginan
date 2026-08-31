@@ -42,6 +42,28 @@ ratio, and all multi-row integer pseudo-observations used a rank-one noise
 matrix instead of independent diagonal noise.  The 205/480 value and its
 AR-conditioned state/covariance outputs are therefore invalidated.
 
-The correction and rerun requirements are frozen in
-`AMBIGUITY_RESOLUTION_CORRECTION_20260831.md`.  No corrected ambiguity-fix rate,
-PPP-AR acceptance or fixed-STEC claim is currently available.
+The correction and rerun requirements were frozen in
+`AMBIGUITY_RESOLUTION_CORRECTION_20260831.md`.  The statement that no corrected
+runtime result was yet available is superseded by the completed rerun below;
+the prohibition on claiming complete PPP-AR acceptance or fixed STEC remains.
+
+## Corrected no-concurrency rerun completed on 2026-08-31
+
+The five-condition corrected batch completed successfully at
+`/home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v2_noconcurrent_20260831_headf6c316d_bin6aa8f383`.
+No other PEA process was active at preflight or at any per-run resource gate.
+The frozen PEA SHA-256 is
+`6aa8f383a2fa1007364e95222e2e4cf4fb9c5f93b91cd97221cac2c42e098d9e`.
+
+The primary submitted checked integer pseudo-observations in 199/480 epochs;
+the phase-OSB-disabled control submitted none; the undifferenced negative
+control submitted partial rows in 17/480 epochs; and the independent restart
+submitted rows in 178/420 epochs.  Restart comparison found zero mismatches in
+6464 shared implied satellite-pair differences.
+
+Every submitted row is an L1C/L2W wide-lane-type partial constraint.  There are
+zero single-signal rows and zero complete-rank epochs in all five conditions.
+The software correction is runtime-verified, but a complete PPP-AR solution and
+fixed STEC have not been established.  Full results, coordinate audit, exact
+input data and artifact hashes are recorded in
+`EXPERIMENT_1_2024_CORRECTED_RESULTS_20260831.md`.
