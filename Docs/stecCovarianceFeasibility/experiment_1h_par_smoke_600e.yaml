@@ -1,0 +1,15 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1h_2024_covariance_ranked_par_smoke_600e
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+  epoch_control:
+    # The first accepted d2 candidate in the preceding full-day run appeared
+    # at epoch 518.  Run from midnight so file streams advance normally.
+    max_epochs: 600
