@@ -24,6 +24,9 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
         self.assertEqual(report["structural_pass_epoch_count"], 1)
         self.assertEqual(report["full_epoch_candidate_count"], 0)
         self.assertEqual(report["second_family_reached_group_count"], 0)
+        self.assertEqual(report["wide_lane_full_group_count"], 0)
+        self.assertEqual(report["second_family_fixed_row_count"], 0)
+        self.assertEqual(report["structural_failures"], [])
 
     def test_rejects_rank_or_submission_violation(self) -> None:
         payload = """
@@ -37,6 +40,7 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
             report = audit_trace(trace)
         self.assertFalse(report["structural_basis_pass"])
         self.assertEqual(len(report["action_violations"]), 2)
+        self.assertEqual(len(report["structural_failures"]), 1)
 
 
 if __name__ == "__main__":

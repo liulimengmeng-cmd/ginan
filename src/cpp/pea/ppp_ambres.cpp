@@ -300,10 +300,16 @@ static void traceDualFrequencyDatumDiagnostic(
 
         GinAR_mtx secondFamilyProbe =
             conditionedSecondFamily.ambiguityResolution;
+        GinAR_opt secondFamilyOptions = options;
+        // A one- or two-dimensional d2 remainder is scientifically useful as
+        // a diagnostic direction.  The success-rate and ratio thresholds are
+        // unchanged, no row is submitted, and a full datum still requires all
+        // d2 rows in the group.
+        secondFamilyOptions.minimumDecorrelatedAmbiguityCount = 1;
         const int secondFamilyFixedCount = GNSS_AR(
             trace,
             secondFamilyProbe,
-            options
+            secondFamilyOptions
         );
         const bool secondFamilyIntegerValued = secondFamilyFixedCount == familyCount &&
             (secondFamilyProbe.Ztrs.array() -
@@ -361,6 +367,7 @@ static void traceDualFrequencyDatumDiagnostic(
             "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
             "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
             "second_d2_target=%d second_d2_fixed=%d second_d2_status=%s "
+            "second_d2_minimum_decorrelated=%d "
             "second_d2_success_rate=%.17g second_d2_ratio=%.17g "
             "second_d2_unimodular=%d combined_integer_valued=%d "
             "combined_rank=%d target_rank=%d status=%s "
@@ -376,6 +383,7 @@ static void traceDualFrequencyDatumDiagnostic(
             familyCount,
             secondFamilyFixedCount,
             secondFamilyProbe.diagnosticStatus.c_str(),
+            secondFamilyOptions.minimumDecorrelatedAmbiguityCount,
             secondFamilyProbe.bootstrappedSuccessRate,
             secondFamilyProbe.solutionRatio,
             secondFamilyUnimodular,

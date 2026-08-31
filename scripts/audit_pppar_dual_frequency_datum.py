@@ -35,6 +35,7 @@ def audit_trace(path: Path) -> dict[str, object]:
     stage_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     candidate_row_count = 0
     action_violations: list[dict[str, object]] = []
+    safety_field_violations: list[dict[str, object]] = []
 
     with path.open("r", encoding="utf-8", errors="replace") as stream:
         for line_number, line in enumerate(stream, 1):
@@ -66,9 +67,24 @@ def audit_trace(path: Path) -> dict[str, object]:
                 candidate_row_count += 1
             elif "DUAL_FREQUENCY_DATUM_SUMMARY" in line:
                 summary_by_epoch[current_epoch] = record
+                if (
+                    record.get("wrong_fix_certified") != "0"
+                    or record.get("filter_feedback") != "0"
+                ):
+                    safety_field_violations.append(
+                        {
+                            "epoch": current_epoch,
+                            "line": line_number,
+                            "wrong_fix_certified": record.get(
+                                "wrong_fix_certified"
+                            ),
+                            "filter_feedback": record.get("filter_feedback"),
+                        }
+                    )
 
     audited_epochs = sorted(set(basis_by_epoch) | set(summary_by_epoch))
     structural_pass_epochs: list[int] = []
+    structural_failures: list[dict[str, object]] = []
     target_ranks: list[int] = []
     for epoch in audited_epochs:
         basis = basis_by_epoch.get(epoch)
@@ -87,6 +103,21 @@ def audit_trace(path: Path) -> dict[str, object]:
             and as_int(basis, "incomplete_groups") == 0
         ):
             structural_pass_epochs.append(epoch)
+        else:
+            structural_failures.append(
+                {
+                    "epoch": epoch,
+                    "status": basis.get("status"),
+                    "expected_rank": expected_rank,
+                    "actual_rank": actual_rank,
+                    "incomplete_groups": as_int(basis, "incomplete_groups"),
+                    "unmatched_ambiguities": as_int(
+                        basis,
+                        "unmatched_ambiguities",
+                    ),
+                    "covers_all": basis.get("covers_all"),
+                }
+            )
 
     full_candidate_epochs = [
         epoch
@@ -107,6 +138,23 @@ def audit_trace(path: Path) -> dict[str, object]:
         for record in records
         if record.get("status") == "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
     ]
+    wide_lane_full_groups = [
+        (epoch, record)
+        for epoch, records in stage_records.items()
+        for record in records
+        if int(record.get("wide_lane_fixed", "-1"))
+        == int(record.get("wide_lane_target", "-2"))
+    ]
+    second_family_fixed_groups = [
+        (epoch, record)
+        for epoch, records in stage_records.items()
+        for record in records
+        if int(record.get("second_d2_fixed", "0")) > 0
+    ]
+    second_family_fixed_row_count = sum(
+        int(record["second_d2_fixed"])
+        for _, record in second_family_fixed_groups
+    )
     stage_status_counts = Counter(
         record.get("status", "MISSING")
         for records in stage_records.values()
@@ -131,6 +179,7 @@ def audit_trace(path: Path) -> dict[str, object]:
         all_epochs_have_records
         and len(structural_pass_epochs) == len(audited_epochs)
         and not action_violations
+        and not safety_field_violations
     )
 
     return {
@@ -144,9 +193,13 @@ def audit_trace(path: Path) -> dict[str, object]:
         "structural_basis_pass": structural_basis_pass,
         "structural_pass_epoch_count": len(structural_pass_epochs),
         "structural_pass_epochs": structural_pass_epochs,
+        "structural_failures": structural_failures,
         "target_rank_min": min(target_ranks) if target_ranks else None,
         "target_rank_max": max(target_ranks) if target_ranks else None,
         "second_family_reached_group_count": len(second_family_reached),
+        "wide_lane_full_group_count": len(wide_lane_full_groups),
+        "second_family_fixed_group_count": len(second_family_fixed_groups),
+        "second_family_fixed_row_count": second_family_fixed_row_count,
         "full_group_candidate_count": len(full_group_candidates),
         "full_epoch_candidate_count": len(full_candidate_epochs),
         "full_epoch_candidate_epochs": sorted(full_candidate_epochs),
@@ -157,8 +210,9 @@ def audit_trace(path: Path) -> dict[str, object]:
             sorted(second_family_status_counts.items())
         ),
         "action_violations": action_violations,
+        "safety_field_violations": safety_field_violations,
         "safety": {
-            "diagnostic_only": not action_violations,
+            "diagnostic_only": not action_violations and not safety_field_violations,
             "filter_feedback_certified": False,
             "wrong_fix_certified": False,
         },
