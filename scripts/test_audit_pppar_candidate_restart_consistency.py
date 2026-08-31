@@ -13,7 +13,7 @@ from audit_pppar_candidate_restart_consistency import (
 def trace(epoch: int, rhs: int) -> str:
     return f"""
 ------=============== Epoch {epoch} =============-----------
-PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SELECTED_SUBSET family=SECOND_D2 row=3 rhs={rhs} support=2 status=INTEGER_MAPPED terms=+1 A(A,G02,L2W) -1 A(A,G01,L2W) action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SELECTED_SUBSET family=SECOND_D2 row=3 rhs={rhs} float_value={rhs + 0.1} float_minus_integer=0.1 formal_sigma=0.05 support=2 status=INTEGER_MAPPED terms=+1 A(A,G02,L2W) -1 A(A,G01,L2W) action=PROBE_ONLY_NOT_SUBMITTED
 """
 
 
@@ -46,6 +46,10 @@ class CandidateRestartConsistencyTest(unittest.TestCase):
         self.assertEqual(report["disagreed_integer_rhs_count"], 1)
         self.assertEqual(report["disagreement_epoch_count"], 1)
         self.assertEqual(report["disagreement_samples"][0]["difference"], 1)
+        self.assertEqual(
+            report["primary_disagreement_abs_residual_median"],
+            0.1,
+        )
         self.assertFalse(report["all_shared_integer_rows_agree"])
 
 

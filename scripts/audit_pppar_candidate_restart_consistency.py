@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -14,7 +15,7 @@ EPOCH_RE = re.compile(r"Epoch\s+(\d+)\s+=")
 FIELD_RE = re.compile(r"([A-Za-z0-9_]+)=([^\s]+)")
 
 
-CandidateRow = tuple[str, str, float]
+CandidateRow = tuple[str, str, float, float, float, float]
 GroupKey = tuple[int, str]
 
 
@@ -41,7 +42,16 @@ def parse_candidate_groups(path: Path, epoch_offset: int = 0) -> dict[GroupKey, 
             receiver = record.get("receiver", "MISSING")
             family = record.get("family", "MISSING")
             rhs = float(record["rhs"])
-            groups[(current_epoch, receiver)].add((family, terms, rhs))
+            groups[(current_epoch, receiver)].add(
+                (
+                    family,
+                    terms,
+                    rhs,
+                    float(record.get("float_value", "nan")),
+                    float(record.get("float_minus_integer", "nan")),
+                    float(record.get("formal_sigma", "nan")),
+                )
+            )
     return dict(groups)
 
 
@@ -59,12 +69,18 @@ def compare_groups(
     by_receiver: dict[str, Counter[str]] = defaultdict(Counter)
     disagreement_samples: list[dict[str, object]] = []
     disagreement_epochs: set[int] = set()
+    primary_disagreement_residuals: list[float] = []
+    restart_disagreement_residuals: list[float] = []
+    primary_disagreement_sigmas: list[float] = []
+    restart_disagreement_sigmas: list[float] = []
 
     for key in shared_keys:
         receiver = key[1]
         primary_rows = primary[key]
         restart_rows = restart[key]
-        if primary_rows == restart_rows:
+        primary_signatures = {row[:3] for row in primary_rows}
+        restart_signatures = {row[:3] for row in restart_rows}
+        if primary_signatures == restart_signatures:
             exact_group_count += 1
             by_receiver[receiver]["exact_group_count"] += 1
         else:
@@ -72,17 +88,18 @@ def compare_groups(
             by_receiver[receiver]["differing_group_count"] += 1
 
         primary_by_expression = {
-            (family, terms): rhs for family, terms, rhs in primary_rows
+            (row[0], row[1]): row for row in primary_rows
         }
         restart_by_expression = {
-            (family, terms): rhs for family, terms, rhs in restart_rows
+            (row[0], row[1]): row for row in restart_rows
         }
         shared_expressions = primary_by_expression.keys() & restart_by_expression.keys()
         shared_row_count += len(shared_expressions)
         by_receiver[receiver]["shared_row_count"] += len(shared_expressions)
         for expression in shared_expressions:
             difference = abs(
-                primary_by_expression[expression] - restart_by_expression[expression]
+                primary_by_expression[expression][2]
+                - restart_by_expression[expression][2]
             )
             maximum_rhs_difference = max(maximum_rhs_difference, difference)
             if difference <= 1e-9:
@@ -92,6 +109,16 @@ def compare_groups(
                 disagreed_rhs_count += 1
                 by_receiver[receiver]["disagreed_rhs_count"] += 1
                 disagreement_epochs.add(key[0])
+                primary_row = primary_by_expression[expression]
+                restart_row = restart_by_expression[expression]
+                if primary_row[4] == primary_row[4]:
+                    primary_disagreement_residuals.append(abs(primary_row[4]))
+                if restart_row[4] == restart_row[4]:
+                    restart_disagreement_residuals.append(abs(restart_row[4]))
+                if primary_row[5] == primary_row[5]:
+                    primary_disagreement_sigmas.append(primary_row[5])
+                if restart_row[5] == restart_row[5]:
+                    restart_disagreement_sigmas.append(restart_row[5])
                 if len(disagreement_samples) < 50:
                     disagreement_samples.append(
                         {
@@ -99,12 +126,17 @@ def compare_groups(
                             "receiver": receiver,
                             "family": expression[0],
                             "terms": expression[1],
-                            "primary_rhs": primary_by_expression[expression],
-                            "restart_rhs": restart_by_expression[expression],
+                            "primary_rhs": primary_row[2],
+                            "restart_rhs": restart_row[2],
                             "difference": (
-                                restart_by_expression[expression]
-                                - primary_by_expression[expression]
+                                restart_row[2] - primary_row[2]
                             ),
+                            "primary_float_value": primary_row[3],
+                            "restart_float_value": restart_row[3],
+                            "primary_float_minus_integer": primary_row[4],
+                            "restart_float_minus_integer": restart_row[4],
+                            "primary_formal_sigma": primary_row[5],
+                            "restart_formal_sigma": restart_row[5],
                         }
                     )
 
@@ -136,6 +168,26 @@ def compare_groups(
             max(disagreement_epochs) if disagreement_epochs else None
         ),
         "disagreement_samples": disagreement_samples,
+        "primary_disagreement_abs_residual_median": (
+            statistics.median(primary_disagreement_residuals)
+            if primary_disagreement_residuals
+            else None
+        ),
+        "restart_disagreement_abs_residual_median": (
+            statistics.median(restart_disagreement_residuals)
+            if restart_disagreement_residuals
+            else None
+        ),
+        "primary_disagreement_formal_sigma_median": (
+            statistics.median(primary_disagreement_sigmas)
+            if primary_disagreement_sigmas
+            else None
+        ),
+        "restart_disagreement_formal_sigma_median": (
+            statistics.median(restart_disagreement_sigmas)
+            if restart_disagreement_sigmas
+            else None
+        ),
         "all_shared_integer_rows_agree": (
             shared_row_count > 0 and disagreed_rhs_count == 0
         ),
