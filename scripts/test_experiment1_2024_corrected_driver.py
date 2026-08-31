@@ -93,6 +93,21 @@ def _write_fake_pea(proc: Path, pid: int, starttime_ticks: int = 1000) -> Path:
 
 
 class DriverTests(unittest.TestCase):
+    def test_windows_worktree_gitdir_is_mapped_for_wsl(self) -> None:
+        repository = Path("/mnt/d/tec/ginan-main-stec-cov")
+        mapped = driver._normalise_gitdir_path(
+            "C:/Users/rx/Documents/GINAN/ginan/.git/worktrees/ginan-main-stec-cov",
+            repository,
+            platform_name="posix",
+        )
+        self.assertEqual(
+            mapped,
+            Path(
+                "/mnt/c/Users/rx/Documents/GINAN/ginan/.git/worktrees/"
+                "ginan-main-stec-cov"
+            ),
+        )
+
     def test_registered_manifest_has_exactly_23_valid_hashes(self) -> None:
         manifest_path = (
             Path(__file__).resolve().parents[1]

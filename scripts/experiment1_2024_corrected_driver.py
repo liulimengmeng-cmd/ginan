@@ -658,14 +658,51 @@ def _run_capture(command: Sequence[str], cwd: Path, *, binary: bool = False) -> 
     return completed.stdout if binary else completed.stdout.decode("utf-8").strip()
 
 
+def _normalise_gitdir_path(
+    raw_path: str, repository: Path, *, platform_name: str = os.name
+) -> Path:
+    """Resolve a worktree gitdir pointer across Windows and WSL."""
+
+    stripped = raw_path.strip()
+    windows_absolute = re.fullmatch(r"([A-Za-z]):[\\/](.*)", stripped)
+    if windows_absolute and platform_name != "nt":
+        drive, remainder = windows_absolute.groups()
+        components = [part for part in re.split(r"[\\/]", remainder) if part]
+        return Path("/mnt") / drive.lower() / Path(*components)
+    candidate = Path(stripped)
+    if candidate.is_absolute():
+        return candidate
+    return (repository / candidate).resolve()
+
+
+def _git_command(repository: Path, arguments: Sequence[str]) -> list[str]:
+    command = ["git"]
+    dot_git = repository / ".git"
+    if dot_git.is_file():
+        pointer = dot_git.read_text(encoding="utf-8").strip()
+        prefix = "gitdir:"
+        if not pointer.lower().startswith(prefix):
+            raise DriverError(f"invalid git worktree pointer: {dot_git}")
+        git_dir = _normalise_gitdir_path(pointer[len(prefix) :], repository)
+        command.extend(["--git-dir", str(git_dir), "--work-tree", str(repository)])
+    command.extend(arguments)
+    return command
+
+
 def git_identity(repository: Path) -> dict[str, object]:
-    head = str(_run_capture(["git", "rev-parse", "HEAD"], repository))
-    branch = str(_run_capture(["git", "branch", "--show-current"], repository))
+    head = str(_run_capture(_git_command(repository, ["rev-parse", "HEAD"]), repository))
+    branch = str(
+        _run_capture(_git_command(repository, ["branch", "--show-current"]), repository)
+    )
     status_bytes = _run_capture(
-        ["git", "status", "--porcelain=v1", "-z"], repository, binary=True
+        _git_command(repository, ["status", "--porcelain=v1", "-z"]),
+        repository,
+        binary=True,
     )
     diff_bytes = _run_capture(
-        ["git", "diff", "--binary", "HEAD", "--"], repository, binary=True
+        _git_command(repository, ["diff", "--binary", "HEAD", "--"]),
+        repository,
+        binary=True,
     )
     assert isinstance(status_bytes, bytes) and isinstance(diff_bytes, bytes)
     return {
