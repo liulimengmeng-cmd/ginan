@@ -18,6 +18,23 @@ PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidat
 
 
 class CandidateRestartConsistencyTest(unittest.TestCase):
+    def test_aligns_rts_rows_by_absolute_time(self) -> None:
+        rts_payload = """
+*	-1	2024-07-17 12:00:00.00	AMBIGUITY	G02	A	L1C	1	0.1	0
+PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SELECTED_SUBSET family=SECOND_D2 row=3 rhs=7 float_value=7.1 float_minus_integer=0.1 formal_sigma=0.05 support=2 status=INTEGER_MAPPED terms=+1 A(A,G02,L2W) -1 A(A,G01,L2W) action=PROBE_ONLY_NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            primary_path = Path(temporary) / "primary.trace"
+            restart_path = Path(temporary) / "restart.trace"
+            primary_path.write_text(rts_payload, encoding="utf-8")
+            restart_path.write_text(rts_payload, encoding="utf-8")
+            report = compare_groups(
+                parse_candidate_groups(primary_path),
+                parse_candidate_groups(restart_path),
+            )
+        self.assertEqual(report["exact_candidate_group_count"], 1)
+        self.assertTrue(report["all_shared_integer_rows_agree"])
+
     def test_aligns_epoch_offset_and_detects_agreement(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             primary_path = Path(temporary) / "primary.trace"

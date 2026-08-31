@@ -12,11 +12,24 @@ import argparse
 import json
 import re
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 EPOCH_RE = re.compile(r"Epoch\s+(\d+)\s+=")
 FIELD_RE = re.compile(r"([A-Za-z0-9_]+)=([^\s]+)")
+RTS_STATE_TIME_RE = re.compile(r"^\*\t[^\t]*\t([^\t]+)\t")
+
+
+def absolute_half_minute_index(text: str) -> int:
+    normalized = text.strip().replace("Z", "+00:00")
+    try:
+        epoch = datetime.fromisoformat(normalized)
+    except ValueError:
+        epoch = datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S.%f")
+    if epoch.tzinfo is None:
+        epoch = epoch.replace(tzinfo=timezone.utc)
+    return round(epoch.timestamp() / 30)
 
 
 def fields(line: str) -> dict[str, str]:
@@ -59,6 +72,9 @@ def audit_trace(path: Path) -> dict[str, object]:
             if epoch_match:
                 current_epoch = int(epoch_match.group(1))
                 continue
+            rts_time_match = RTS_STATE_TIME_RE.match(line)
+            if rts_time_match:
+                current_epoch = absolute_half_minute_index(rts_time_match.group(1))
             if current_epoch is not None and "PPP_AR PSEUDOOBS_SUBMISSION" in line:
                 submission = fields(line)
                 pseudoobs_submissions.append(

@@ -8,15 +8,28 @@ import json
 import re
 import statistics
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 EPOCH_RE = re.compile(r"Epoch\s+(\d+)\s+=")
 FIELD_RE = re.compile(r"([A-Za-z0-9_]+)=([^\s]+)")
+RTS_STATE_TIME_RE = re.compile(r"^\*\t[^\t]*\t([^\t]+)\t")
 
 
 CandidateRow = tuple[str, str, float, float, float, float]
 GroupKey = tuple[int, str]
+
+
+def absolute_half_minute_index(text: str) -> int:
+    normalized = text.strip().replace("Z", "+00:00")
+    try:
+        epoch = datetime.fromisoformat(normalized)
+    except ValueError:
+        epoch = datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S.%f")
+    if epoch.tzinfo is None:
+        epoch = epoch.replace(tzinfo=timezone.utc)
+    return round(epoch.timestamp() / 30)
 
 
 def parse_candidate_groups(path: Path, epoch_offset: int = 0) -> dict[GroupKey, set[CandidateRow]]:
@@ -28,6 +41,9 @@ def parse_candidate_groups(path: Path, epoch_offset: int = 0) -> dict[GroupKey, 
             if epoch_match:
                 current_epoch = int(epoch_match.group(1)) + epoch_offset
                 continue
+            rts_time_match = RTS_STATE_TIME_RE.match(line)
+            if rts_time_match:
+                current_epoch = absolute_half_minute_index(rts_time_match.group(1))
             if (
                 current_epoch is None
                 or "PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW" not in line

@@ -8,6 +8,21 @@ from audit_pppar_dual_frequency_datum import audit_trace
 
 
 class DualFrequencyDatumAuditTest(unittest.TestCase):
+    def test_reads_rts_state_time_without_epoch_marker(self) -> None:
+        payload = """
++STATES/PPP_RTS
+*	-1	2024-07-17 12:00:00.00	AMBIGUITY	G02	A	L1C	1	0.1	0
+-STATES/PPP_RTS
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=6 status=NO_FULL_INTEGER_DATUM_CANDIDATE wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network_smoothed.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertEqual(report["audited_epoch_count"], 1)
+        self.assertEqual(report["structural_pass_epoch_count"], 1)
+
     def test_separates_structural_basis_from_integer_candidate(self) -> None:
         payload = """
 ------=============== Epoch 1 =============-----------
