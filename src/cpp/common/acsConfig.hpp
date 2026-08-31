@@ -873,6 +873,7 @@ struct AmbROptions
 
     bool once_per_epoch = true;
     bool fix_and_hold   = false;
+    bool integer_complement_diagnostics = false;
 };
 
 /** Rinex 2 conversions for individual receivers

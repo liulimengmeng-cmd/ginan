@@ -22,6 +22,10 @@ struct GinAR_mtx
     MatrixXd Ltrs;
     VectorXd Dtrs;
 
+    // Full unimodular transform produced by LAMBDA before partial ambiguity
+    // selection.  Ztrs may later contain only the accepted bottom rows.
+    MatrixXd fullDecorrelatedTransform;
+
     VectorXd zflt;
     VectorXd zfix;
 
@@ -35,6 +39,13 @@ struct GinAR_mtx
     double bestSquaredNorm = -1;
     double secondSquaredNorm = -1;
     double solutionRatio = -1;
+};
+
+struct ConditionalIntegerComplement
+{
+    GinAR_mtx ambiguityResolution;
+    MatrixXd transformToInputCoordinates;
+    string diagnosticStatus = "NOT_RUN";
 };
 
 struct GinAR_opt
@@ -88,6 +99,11 @@ bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
     const map<int, KFKey>&            originalAmbiguityMap
+);
+
+ConditionalIntegerComplement buildConditionalIntegerComplement(
+    const GinAR_mtx& inputAmbiguities,
+    const GinAR_mtx& acceptedPartialResolution
 );
 
 int GNSS_AR(Trace& trace, GinAR_mtx& mtrx, GinAR_opt opt);

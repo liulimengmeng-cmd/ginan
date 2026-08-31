@@ -411,6 +411,7 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     integerARmtx.aflt = integerTransform.matrix * ARmtx.aflt;
     integerARmtx.Paflt =
         integerTransform.matrix * ARmtx.Paflt * integerTransform.matrix.transpose();
+    const GinAR_mtx integerARInput = integerARmtx;
 
     GinAR_opt ARopt;
     ARopt.mode   = acsConfig.ambrOpts.mode;
@@ -433,6 +434,48 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     result.bestSquaredNorm = integerARmtx.bestSquaredNorm;
     result.secondSquaredNorm = integerARmtx.secondSquaredNorm;
     result.solutionRatio = integerARmtx.solutionRatio;
+    if (acsConfig.ambrOpts.integer_complement_diagnostics && nfix > 0 &&
+        nfix < result.integerAmbiguityCoordinateCount)
+    {
+        const ConditionalIntegerComplement complement =
+            buildConditionalIntegerComplement(integerARInput, integerARmtx);
+        if (complement.diagnosticStatus == "CONDITIONAL_INTEGER_COMPLEMENT_READY")
+        {
+            GinAR_mtx complementProbe = complement.ambiguityResolution;
+            const int complementFixCount = GNSS_AR(trace, complementProbe, ARopt);
+            tracepdeex(
+                2,
+                trace,
+                "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
+                "remaining_coordinates=%d stage2_probe_rows=%d combined_independent_rows=%d "
+                "target_integer_rank=%d stage2_status=%s stage2_success_rate=%.17g "
+                "stage2_ratio=%.17g action=PROBE_ONLY_NOT_SUBMITTED",
+                nfix,
+                static_cast<int>(complement.ambiguityResolution.aflt.size()),
+                complementFixCount,
+                nfix + complementFixCount,
+                result.integerAmbiguityCoordinateCount,
+                complementProbe.diagnosticStatus.c_str(),
+                complementProbe.bootstrappedSuccessRate,
+                complementProbe.solutionRatio
+            );
+        }
+        else
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
+                "remaining_coordinates=%d stage2_probe_rows=0 combined_independent_rows=%d "
+                "target_integer_rank=%d stage2_status=%s action=PROBE_ONLY_NOT_SUBMITTED",
+                nfix,
+                result.integerAmbiguityCoordinateCount - nfix,
+                nfix,
+                result.integerAmbiguityCoordinateCount,
+                complement.diagnosticStatus.c_str()
+            );
+        }
+    }
     if (nfix > 0)
     {
         const int integerCoordinateCount = integerARmtx.Ztrs.cols();

@@ -349,6 +349,60 @@ int main()
         "singleton datum is reported"
     );
 
+    GinAR_mtx complementInput;
+    complementInput.aflt.resize(3);
+    complementInput.aflt << 10.2, 20.3, 30.4;
+    complementInput.Paflt = MatrixXd::Identity(3, 3);
+    GinAR_mtx acceptedPartial;
+    acceptedPartial.fullDecorrelatedTransform.resize(3, 3);
+    acceptedPartial.fullDecorrelatedTransform << 1, 0, 0, -1, 1, 0, 0, -1, 1;
+    acceptedPartial.Ztrs = acceptedPartial.fullDecorrelatedTransform.bottomRows(1);
+    acceptedPartial.zfix = VectorXd::Constant(1, 10);
+    const auto complement =
+        buildConditionalIntegerComplement(complementInput, acceptedPartial);
+    passed &= check(
+        complement.diagnosticStatus == "CONDITIONAL_INTEGER_COMPLEMENT_READY",
+        "partial integer solution exposes a conditional integer complement"
+    );
+    VectorXd expectedConditionalFloat(2);
+    expectedConditionalFloat << 10.2, 10.15;
+    passed &= check(
+        complement.ambiguityResolution.aflt.isApprox(expectedConditionalFloat, 1e-12),
+        "conditional complement mean uses the accepted integer innovation"
+    );
+    MatrixXd expectedConditionalCovariance(2, 2);
+    expectedConditionalCovariance << 1, -1, -1, 1.5;
+    passed &= check(
+        complement.ambiguityResolution.Paflt.isApprox(
+            expectedConditionalCovariance,
+            1e-12
+        ),
+        "conditional complement covariance uses the Schur complement"
+    );
+    passed &= check(
+        complement.transformToInputCoordinates.isApprox(
+            acceptedPartial.fullDecorrelatedTransform.topRows(2),
+            1e-12
+        ),
+        "conditional complement preserves the unused unimodular rows"
+    );
+    MatrixXd stackedIntegerBasis(3, 3);
+    stackedIntegerBasis << acceptedPartial.Ztrs,
+                           complement.transformToInputCoordinates;
+    passed &= check(
+        std::abs(stackedIntegerBasis.determinant()) == 1,
+        "accepted rows and complement rows retain a full unimodular integer basis"
+    );
+
+    GinAR_mtx invalidPartial = acceptedPartial;
+    invalidPartial.Ztrs = acceptedPartial.fullDecorrelatedTransform.middleRows(1, 1);
+    const auto invalidComplement =
+        buildConditionalIntegerComplement(complementInput, invalidPartial);
+    passed &= check(
+        invalidComplement.diagnosticStatus == "FIXED_ROWS_NOT_DECORRELATED_TAIL",
+        "conditional complement rejects an unsupported non-tail fixed-row subset"
+    );
+
     if (passed)
     {
         std::cout << "PASS: gnss_ambiguity_diagnostics_tests\n";

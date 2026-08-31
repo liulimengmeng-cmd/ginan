@@ -231,6 +231,7 @@ processing_options:
         mode:                      OFF    #  {off,round,iter_rnd,bootst,lambda,lambda_alt,lambda_al2,lambda_bie}
         # elevation_mask:            15
         # fix_and_hold:              false  # Perform ambiguity resolution and commit results to the main processing filter
+        # integer_complement_diagnostics: false # Probe, but do not apply, the integer complement after partial LAMBDA
         # lambda_set_size:           2      # Maximum numer of candidate sets to be used in lambda_alt2 and lambda_bie modes
         # max_rounding_iterations:   1      # Maximum number of rounding iterations performed in iter_rnd and bootst modes
         # once_per_epoch:            true   # Perform ambiguity resolution on a temporary filter and output results once per epoch

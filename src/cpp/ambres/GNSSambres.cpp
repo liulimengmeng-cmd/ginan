@@ -168,6 +168,91 @@ bool mapIntegerAmbiguityConstraintsToOriginalState(
     return true;
 }
 
+ConditionalIntegerComplement buildConditionalIntegerComplement(
+    const GinAR_mtx& inputAmbiguities,
+    const GinAR_mtx& acceptedPartialResolution
+)
+{
+    ConditionalIntegerComplement result;
+    const int inputCount = inputAmbiguities.aflt.size();
+    const int fixedCount = acceptedPartialResolution.zfix.size();
+    const int complementCount = inputCount - fixedCount;
+
+    if (inputCount <= 0 || inputAmbiguities.Paflt.rows() != inputCount ||
+        inputAmbiguities.Paflt.cols() != inputCount)
+    {
+        result.diagnosticStatus = "INVALID_INPUT_DIMENSIONS";
+        return result;
+    }
+    if (fixedCount <= 0 || complementCount <= 0 ||
+        acceptedPartialResolution.Ztrs.rows() != fixedCount ||
+        acceptedPartialResolution.Ztrs.cols() != inputCount ||
+        acceptedPartialResolution.fullDecorrelatedTransform.rows() != inputCount ||
+        acceptedPartialResolution.fullDecorrelatedTransform.cols() != inputCount)
+    {
+        result.diagnosticStatus = "INVALID_PARTIAL_RESOLUTION_DIMENSIONS";
+        return result;
+    }
+
+    const MatrixXd& fullTransform =
+        acceptedPartialResolution.fullDecorrelatedTransform;
+    const MatrixXd expectedFixedTransform = fullTransform.bottomRows(fixedCount);
+    if (!acceptedPartialResolution.Ztrs.isApprox(expectedFixedTransform, 1e-12))
+    {
+        // Common-set LAMBDA may select a non-contiguous row subset.  It needs
+        // a separate integer-complement construction and is not silently
+        // treated as the standard partial-LAMBDA tail.
+        result.diagnosticStatus = "FIXED_ROWS_NOT_DECORRELATED_TAIL";
+        return result;
+    }
+
+    const VectorXd transformedFloat = fullTransform * inputAmbiguities.aflt;
+    const MatrixXd transformedCovariance =
+        fullTransform * inputAmbiguities.Paflt * fullTransform.transpose();
+    const MatrixXd complementFixedCovariance = transformedCovariance.block(
+        0,
+        complementCount,
+        complementCount,
+        fixedCount
+    );
+    const MatrixXd fixedCovariance = transformedCovariance.bottomRightCorner(
+        fixedCount,
+        fixedCount
+    );
+    const LDLT<MatrixXd> fixedSolver(fixedCovariance);
+    if (fixedSolver.info() != Eigen::Success || !fixedSolver.isPositive())
+    {
+        result.diagnosticStatus = "FIXED_COVARIANCE_NOT_POSITIVE_DEFINITE";
+        return result;
+    }
+
+    const VectorXd fixedInnovation =
+        acceptedPartialResolution.zfix - transformedFloat.tail(fixedCount);
+    result.ambiguityResolution.aflt =
+        transformedFloat.head(complementCount) +
+        complementFixedCovariance * fixedSolver.solve(fixedInnovation);
+    result.ambiguityResolution.Paflt =
+        transformedCovariance.topLeftCorner(complementCount, complementCount) -
+        complementFixedCovariance *
+            fixedSolver.solve(complementFixedCovariance.transpose());
+    result.ambiguityResolution.Paflt =
+        0.5 * (result.ambiguityResolution.Paflt +
+               result.ambiguityResolution.Paflt.transpose()).eval();
+    result.transformToInputCoordinates = fullTransform.topRows(complementCount);
+
+    if (!result.ambiguityResolution.aflt.allFinite() ||
+        !result.ambiguityResolution.Paflt.allFinite())
+    {
+        result.ambiguityResolution = {};
+        result.transformToInputCoordinates.resize(0, 0);
+        result.diagnosticStatus = "NONFINITE_CONDITIONAL_SOLUTION";
+        return result;
+    }
+
+    result.diagnosticStatus = "CONDITIONAL_INTEGER_COMPLEMENT_READY";
+    return result;
+}
+
 /** Probability of error (assuming normal distribution) */
 double round_perr(
     double dx,  ///< Distance between value and mean
@@ -594,6 +679,7 @@ int lambda_search(
     }
 
     int nmax = mtrx.Dtrs.size();
+    mtrx.fullDecorrelatedTransform = mtrx.Ztrs;
     int k    = nmax - 1;
     int kmax = k;
 
@@ -886,6 +972,7 @@ int GNSS_AR(
     mtrx.bestSquaredNorm = -1;
     mtrx.secondSquaredNorm = -1;
     mtrx.solutionRatio = -1;
+    mtrx.fullDecorrelatedTransform.resize(0, 0);
 
     switch (opt.mode)
     {

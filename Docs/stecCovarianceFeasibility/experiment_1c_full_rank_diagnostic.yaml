@@ -1,0 +1,11 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1c_2024_integer_complement_probe_<HASH>
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true

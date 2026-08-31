@@ -8215,6 +8215,13 @@ bool ACSConfig::parse(
                     {"@ fix_and_hold"},
                     "Perform ambiguity resolution and commit results to the main processing filter"
                 );
+                tryGetFromYaml(
+                    ambrOpts.integer_complement_diagnostics,
+                    ambiguity_resolution,
+                    {"@ integer_complement_diagnostics"},
+                    "Probe the conditional integer complement after an accepted partial LAMBDA "
+                    "solution without applying the probe rows"
+                );
             }
 
             // 			predictions
