@@ -683,7 +683,15 @@ def _git_command(repository: Path, arguments: Sequence[str]) -> list[str]:
         prefix = "gitdir:"
         if not pointer.lower().startswith(prefix):
             raise DriverError(f"invalid git worktree pointer: {dot_git}")
-        git_dir = _normalise_gitdir_path(pointer[len(prefix) :], repository)
+        raw_git_dir = pointer[len(prefix) :].strip()
+        if os.name != "nt" and re.fullmatch(r"[A-Za-z]:[\\/].*", raw_git_dir):
+            # This checkout is shared with Windows Git.  WSL otherwise reports
+            # the Windows CRLF worktree and DrvFS mode projection as a full-tree
+            # modification even though Windows Git reports no tracked change.
+            command.extend(
+                ["-c", "core.filemode=false", "-c", "core.autocrlf=true"]
+            )
+        git_dir = _normalise_gitdir_path(raw_git_dir, repository)
         command.extend(["--git-dir", str(git_dir), "--work-tree", str(repository)])
     command.extend(arguments)
     return command
