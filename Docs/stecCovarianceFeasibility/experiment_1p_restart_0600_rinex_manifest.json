@@ -1,0 +1,61 @@
+{
+  "file_count": 6,
+  "files": [
+    {
+      "copied_data_line_count": 80554,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "8edaf0cba2c3dcff47b62cbbe68079d75d3847575896ac49e40734d497e7559b",
+      "size_bytes": 17535662,
+      "source": "/home/rx/GINAN/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx"
+    },
+    {
+      "copied_data_line_count": 97281,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/GRAZ00AUT_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "77d99617b9284c6c8b42edbe5f17beda234621b4ba3818a4447df7c6fc68f37d",
+      "size_bytes": 23630687,
+      "source": "/home/rx/GINAN/inputData/data/GRAZ00AUT_R_20241990000_01D_30S_MO.rnx"
+    },
+    {
+      "copied_data_line_count": 97347,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/MATE00ITA_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "9607727f9243c11876c6d65b20691f92e1dc011f5f8eec30effd07d051460a0e",
+      "size_bytes": 19087926,
+      "source": "/home/rx/GINAN/inputData/data/MATE00ITA_R_20241990000_01D_30S_MO.rnx"
+    },
+    {
+      "copied_data_line_count": 125943,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "60a2ccd50500b0da50d59f3222bd23c37091ef0e95d97f9b9510cc51a505beb3",
+      "size_bytes": 32661919,
+      "source": "/home/rx/GINAN/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx"
+    },
+    {
+      "copied_data_line_count": 99232,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/SOFI00BGR_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "b571b626edcc065b04473053f91c2f940667bbd4a417ffff1e1dd25ff0292805",
+      "size_bytes": 23627356,
+      "source": "/home/rx/GINAN/inputData/data/SOFI00BGR_R_20241990000_01D_30S_MO.rnx"
+    },
+    {
+      "copied_data_line_count": 101380,
+      "destination": "/home/rx/GINAN/inputData/data_restart_2024199_0600/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "first_epoch": "2024-07-17T06:00:00",
+      "requested_start": "2024-07-17T06:00:00",
+      "sha256": "74af187e20bf25a05d82918799706703a16f439539574542bb5f57ec512fedef",
+      "size_bytes": 27544126,
+      "source": "/home/rx/GINAN/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx"
+    }
+  ],
+  "schema": "RINEX3_OBSERVATION_TRIM_MANIFEST_V1",
+  "start": "2024-07-17T06:00:00"
+}
