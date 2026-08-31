@@ -375,6 +375,210 @@ int main()
         "singleton datum is reported"
     );
 
+    GinAR_mtx dualFrequencyMatrix;
+    dualFrequencyMatrix.aflt.resize(6);
+    dualFrequencyMatrix.aflt << 10, 15, 22, 4, 7, 13;
+    dualFrequencyMatrix.Paflt = MatrixXd::Identity(6, 6);
+    dualFrequencyMatrix.Paflt.diagonal() << 4, 1, 3, 0.5, 4, 2;
+    auto addDualAmbiguity = [&](int index, const char* receiver, E_Sys system, int prn, E_ObsCode code)
+    {
+        KFKey key;
+        key.type = KF::AMBIGUITY;
+        key.str = receiver;
+        key.Sat = SatSys(system, prn);
+        key.num = static_cast<int>(code);
+        dualFrequencyMatrix.ambmap[index] = key;
+    };
+    addDualAmbiguity(0, "A", E_Sys::GPS, 1, E_ObsCode::L1C);
+    addDualAmbiguity(1, "A", E_Sys::GPS, 3, E_ObsCode::L1C);
+    addDualAmbiguity(2, "A", E_Sys::GPS, 5, E_ObsCode::L1C);
+    addDualAmbiguity(3, "A", E_Sys::GPS, 1, E_ObsCode::L2W);
+    addDualAmbiguity(4, "A", E_Sys::GPS, 3, E_ObsCode::L2W);
+    addDualAmbiguity(5, "A", E_Sys::GPS, 5, E_ObsCode::L2W);
+
+    const auto dualFrequencyTransform =
+        buildDualFrequencyAmbiguityIntegerTransform(
+            dualFrequencyMatrix,
+            receiverPivot
+        );
+    passed &= check(
+        dualFrequencyTransform.diagnosticStatus ==
+            "FULL_DUAL_FREQUENCY_INTEGER_BASIS",
+        "dual-frequency transform reports a complete signal graph"
+    );
+    passed &= check(
+        dualFrequencyTransform.matrix.rows() == 4 &&
+            dualFrequencyTransform.matrix.cols() == 6,
+        "dual-frequency transform has 2(m-1) integer rows"
+    );
+    passed &= check(
+        dualFrequencyTransform.completeGroupCount == 1 &&
+            dualFrequencyTransform.incompleteGroupCount == 0 &&
+            dualFrequencyTransform.unmatchedAmbiguityCount == 0,
+        "dual-frequency transform covers every eligible ambiguity"
+    );
+    passed &= check(
+        dualFrequencyTransform.integerValued &&
+            dualFrequencyTransform.fullRowRank &&
+            dualFrequencyTransform.actualIntegerRank == 4,
+        "dual-frequency transform is integer-valued and full row rank"
+    );
+    passed &= check(
+        dualFrequencyTransform.groups.front().pivot == SatSys(E_Sys::GPS, 1),
+        "dual-frequency transform selects one covariance-scored common pivot"
+    );
+
+    MatrixXd expectedDualFrequencyTransform(4, 6);
+    expectedDualFrequencyTransform <<
+        -1, +1,  0, +1, -1,  0,
+        -1,  0, +1, +1,  0, -1,
+         0,  0,  0, -1, +1,  0,
+         0,  0,  0, -1,  0, +1;
+    passed &= check(
+        dualFrequencyTransform.matrix.isApprox(
+            expectedDualFrequencyTransform,
+            1e-12
+        ),
+        "dual-frequency transform explicitly stacks wide lane then d2"
+    );
+    VectorXd expectedDualFrequencyCoordinates(4);
+    expectedDualFrequencyCoordinates << 2, 3, 3, 9;
+    const VectorXd dualFrequencyCoordinates =
+        dualFrequencyTransform.matrix * dualFrequencyMatrix.aflt;
+    passed &= check(
+        dualFrequencyCoordinates.isApprox(
+            expectedDualFrequencyCoordinates,
+            1e-12
+        ),
+        "dual-frequency transform produces [wide-lane, d2] coordinates"
+    );
+    VectorXd dualDatumShift(6);
+    dualDatumShift << 0.37, 0.37, 0.37, -0.22, -0.22, -0.22;
+    passed &= check(
+        (dualFrequencyTransform.matrix *
+         (dualFrequencyMatrix.aflt + dualDatumShift))
+            .isApprox(dualFrequencyCoordinates, 1e-12),
+        "dual-frequency transform removes both receiver signal datums"
+    );
+    passed &= check(
+        std::abs((dualFrequencyCoordinates(0) + dualFrequencyCoordinates(2)) - 5) <
+                1e-12 &&
+            std::abs((dualFrequencyCoordinates(1) + dualFrequencyCoordinates(3)) -
+                     12) < 1e-12,
+        "d1 is exactly reconstructed from wide lane plus d2"
+    );
+    MatrixXd alignedSingleDifferenceTransform = MatrixXd::Zero(4, 4);
+    alignedSingleDifferenceTransform.topLeftCorner(2, 2).setIdentity();
+    alignedSingleDifferenceTransform.topRightCorner(2, 2) =
+        -MatrixXd::Identity(2, 2);
+    alignedSingleDifferenceTransform.bottomRightCorner(2, 2).setIdentity();
+    passed &= check(
+        std::abs(alignedSingleDifferenceTransform.determinant() - 1) < 1e-12,
+        "[d1,d2] to [wide-lane,d2] is unimodular"
+    );
+
+    GinAR_mtx incompleteDualFrequencyMatrix = dualFrequencyMatrix;
+    incompleteDualFrequencyMatrix.aflt.conservativeResize(5);
+    incompleteDualFrequencyMatrix.Paflt =
+        dualFrequencyMatrix.Paflt.topLeftCorner(5, 5);
+    incompleteDualFrequencyMatrix.ambmap.erase(5);
+    const auto incompleteDualFrequencyTransform =
+        buildDualFrequencyAmbiguityIntegerTransform(
+            incompleteDualFrequencyMatrix,
+            receiverPivot
+        );
+    passed &= check(
+        incompleteDualFrequencyTransform.diagnosticStatus ==
+            "INCOMPLETE_DUAL_FREQUENCY_SIGNAL_GRAPH" &&
+            incompleteDualFrequencyTransform.unmatchedAmbiguityCount == 1 &&
+            !incompleteDualFrequencyTransform.coversEligibleAmbiguities,
+        "dual-frequency transform rejects unequal satellite sets as incomplete"
+    );
+
+    GinAR_mtx jointIntegerFamilies;
+    jointIntegerFamilies.aflt.resize(4);
+    jointIntegerFamilies.aflt << 2.2, 3.1, 4.2, 5.3;
+    jointIntegerFamilies.Paflt.resize(4, 4);
+    jointIntegerFamilies.Paflt <<
+        2, 0, 1, 0,
+        0, 2, 0, 1,
+        1, 0, 2, 0,
+        0, 1, 0, 2;
+    GinAR_mtx fixedWideLaneFamily;
+    fixedWideLaneFamily.Ztrs.resize(2, 2);
+    fixedWideLaneFamily.Ztrs << 1, 0, 1, 1;
+    fixedWideLaneFamily.zfix.resize(2);
+    fixedWideLaneFamily.zfix << 2, 5;
+    const auto conditionedSecondFamily =
+        conditionSecondIntegerFamilyOnFixedFirst(
+            jointIntegerFamilies,
+            2,
+            fixedWideLaneFamily
+        );
+    passed &= check(
+        conditionedSecondFamily.diagnosticStatus ==
+            "SECOND_INTEGER_FAMILY_CONDITIONED",
+        "full-rank wide-lane integers condition the second integer family"
+    );
+    VectorXd expectedConditionedMean(2);
+    expectedConditionedMean << 4.1, 5.25;
+    passed &= check(
+        conditionedSecondFamily.ambiguityResolution.aflt.isApprox(
+            expectedConditionedMean,
+            1e-12
+        ),
+        "second-family conditional mean uses fixed wide-lane innovation"
+    );
+    passed &= check(
+        conditionedSecondFamily.ambiguityResolution.Paflt.isApprox(
+            1.5 * MatrixXd::Identity(2, 2),
+            1e-12
+        ),
+        "second-family conditional covariance uses the Schur complement"
+    );
+    MatrixXd expectedFixedFamilyTransform = MatrixXd::Zero(2, 4);
+    expectedFixedFamilyTransform.leftCols(2) = fixedWideLaneFamily.Ztrs;
+    MatrixXd expectedSecondFamilyTransform = MatrixXd::Zero(2, 4);
+    expectedSecondFamilyTransform.rightCols(2).setIdentity();
+    passed &= check(
+        conditionedSecondFamily.fixedFirstFamilyTransform.isApprox(
+            expectedFixedFamilyTransform,
+            1e-12
+        ) &&
+            conditionedSecondFamily.secondFamilyTransform.isApprox(
+                expectedSecondFamilyTransform,
+                1e-12
+            ),
+        "conditioned families retain explicit coordinates in the joint basis"
+    );
+    GinAR_mtx partialWideLaneFamily = fixedWideLaneFamily;
+    partialWideLaneFamily.Ztrs = fixedWideLaneFamily.Ztrs.topRows(1);
+    partialWideLaneFamily.zfix = fixedWideLaneFamily.zfix.head(1);
+    const auto rejectedPartialWideLane =
+        conditionSecondIntegerFamilyOnFixedFirst(
+            jointIntegerFamilies,
+            2,
+            partialWideLaneFamily
+        );
+    passed &= check(
+        rejectedPartialWideLane.diagnosticStatus ==
+            "FIRST_INTEGER_FAMILY_NOT_FULL_RANK",
+        "partial wide-lane candidates cannot certify the second integer family"
+    );
+    GinAR_mtx nonUnimodularWideLaneFamily = fixedWideLaneFamily;
+    nonUnimodularWideLaneFamily.Ztrs << 2, 0, 0, 1;
+    const auto rejectedNonUnimodularWideLane =
+        conditionSecondIntegerFamilyOnFixedFirst(
+            jointIntegerFamilies,
+            2,
+            nonUnimodularWideLaneFamily
+        );
+    passed &= check(
+        rejectedNonUnimodularWideLane.diagnosticStatus ==
+            "FIRST_INTEGER_FAMILY_NOT_UNIMODULAR",
+        "full-rank but non-unimodular wide-lane coordinates are rejected"
+    );
+
     GinAR_mtx complementInput;
     complementInput.aflt.resize(3);
     complementInput.aflt << 10.2, 20.3, 30.4;

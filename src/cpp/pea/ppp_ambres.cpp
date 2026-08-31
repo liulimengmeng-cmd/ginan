@@ -93,6 +93,321 @@ static void traceIntegerComplementRows(
     }
 }
 
+static void traceDualFrequencyCandidateRows(
+    Trace&                              trace,
+    const DualFrequencyAmbiguityDatum&  datum,
+    const MatrixXd&                     rowsInOriginalAmbiguities,
+    const VectorXd&                     fixedIntegers,
+    int                                 wideLaneCandidateCount,
+    const map<int, KFKey>&              originalAmbiguityMap
+)
+{
+    if (rowsInOriginalAmbiguities.rows() != fixedIntegers.size() ||
+        rowsInOriginalAmbiguities.cols() !=
+            static_cast<int>(originalAmbiguityMap.size()))
+    {
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
+            "status=INVALID_DIMENSIONS action=PROBE_ONLY_NOT_SUBMITTED",
+            datum.receiver.c_str(),
+            enum_to_string(datum.system).c_str()
+        );
+        return;
+    }
+
+    for (int row = 0; row < rowsInOriginalAmbiguities.rows(); row++)
+    {
+        int support = 0;
+        bool integerCoefficients = true;
+        std::ostringstream terms;
+        for (int column = 0; column < rowsInOriginalAmbiguities.cols(); column++)
+        {
+            const double coefficient = rowsInOriginalAmbiguities(row, column);
+            const long long roundedCoefficient = std::llround(coefficient);
+            if (std::abs(coefficient - roundedCoefficient) > 1e-9)
+            {
+                integerCoefficients = false;
+            }
+            if (roundedCoefficient == 0)
+            {
+                continue;
+            }
+            const auto ambiguity = originalAmbiguityMap.find(column);
+            if (ambiguity == originalAmbiguityMap.end())
+            {
+                integerCoefficients = false;
+                continue;
+            }
+            const KFKey& key = ambiguity->second;
+            terms << (roundedCoefficient >= 0 ? "+" : "")
+                  << roundedCoefficient << " A(" << key.str << ","
+                  << key.Sat.id() << "," << key.code() << ") ";
+            support++;
+        }
+
+        const int traceOutputLevel = integerCoefficients && support > 0 ? 2 : 1;
+        tracepdeex(
+            traceOutputLevel,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
+            "reference=%s family=%s row=%d rhs=%.17g support=%d status=%s "
+            "terms=%saction=PROBE_ONLY_NOT_SUBMITTED",
+            datum.receiver.c_str(),
+            enum_to_string(datum.system).c_str(),
+            datum.pivot.id().c_str(),
+            row < wideLaneCandidateCount ? "WIDE_LANE" : "SECOND_D2",
+            row,
+            fixedIntegers(row),
+            support,
+            integerCoefficients && support > 0 ? "INTEGER_MAPPED" : "INVALID_MAPPING",
+            terms.str().c_str()
+        );
+    }
+}
+
+static void traceDualFrequencyDatumDiagnostic(
+    Trace&                                  trace,
+    const GinAR_mtx&                        originalAmbiguities,
+    const DualFrequencyAmbiguityTransform&  transform,
+    const GinAR_opt&                        options
+)
+{
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR DUAL_FREQUENCY_BASIS original=%d rows=%d expected_rank=%d "
+        "actual_rank=%d complete_groups=%d incomplete_groups=%d paired_ambiguities=%d "
+        "unmatched_ambiguities=%d integer_valued=%d full_row_rank=%d covers_all=%d "
+        "status=%s action=PROBE_ONLY_NOT_SUBMITTED",
+        static_cast<int>(originalAmbiguities.aflt.size()),
+        static_cast<int>(transform.matrix.rows()),
+        transform.expectedIntegerRank,
+        transform.actualIntegerRank,
+        transform.completeGroupCount,
+        transform.incompleteGroupCount,
+        transform.pairedAmbiguityCount,
+        transform.unmatchedAmbiguityCount,
+        transform.integerValued,
+        transform.fullRowRank,
+        transform.coversEligibleAmbiguities,
+        transform.diagnosticStatus.c_str()
+    );
+
+    int fullCandidateGroupCount = 0;
+    int fullCandidateRowCount = 0;
+    for (const auto& datum : transform.groups)
+    {
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_GROUP receiver=%s system=%s first_signal=%s "
+            "second_signal=%s reference=%s common_satellites=%d unmatched_ambiguities=%d "
+            "wide_lane_rows=%d second_d2_rows=%d complete_graph=%d "
+            "action=%s",
+            datum.receiver.c_str(),
+            enum_to_string(datum.system).c_str(),
+            enum_to_string(int_to_enum<E_ObsCode>(datum.firstObservation)).c_str(),
+            enum_to_string(int_to_enum<E_ObsCode>(datum.secondObservation)).c_str(),
+            datum.pivot.id().c_str(),
+            datum.commonSatelliteCount,
+            datum.unmatchedAmbiguityCount,
+            datum.wideLaneRowCount,
+            datum.complementRowCount,
+            datum.completeSignalGraph,
+            datum.completeSignalGraph ?
+                "PROBE_ONLY_NOT_SUBMITTED" : "INCOMPLETE_GRAPH_NOT_PROBED"
+        );
+        if (!datum.completeSignalGraph || datum.wideLaneRowCount <= 0)
+        {
+            continue;
+        }
+
+        const int familyCount = datum.wideLaneRowCount;
+        const MatrixXd groupTransform = transform.matrix.middleRows(
+            datum.wideLaneRowOffset,
+            familyCount + datum.complementRowCount
+        );
+        GinAR_mtx jointFamilies;
+        jointFamilies.aflt = groupTransform * originalAmbiguities.aflt;
+        jointFamilies.Paflt =
+            groupTransform * originalAmbiguities.Paflt * groupTransform.transpose();
+
+        GinAR_mtx wideLaneProbe;
+        wideLaneProbe.aflt = jointFamilies.aflt.head(familyCount);
+        wideLaneProbe.Paflt = jointFamilies.Paflt.topLeftCorner(
+            familyCount,
+            familyCount
+        );
+        const int wideLaneFixedCount = GNSS_AR(trace, wideLaneProbe, options);
+        if (wideLaneFixedCount != familyCount)
+        {
+            tracepdeex(
+                2,
+                trace,
+                "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
+                "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
+                "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
+                "second_d2_target=%d second_d2_fixed=0 second_d2_status=NOT_RUN "
+                "combined_rank=%d target_rank=%d status=WIDE_LANE_FAMILY_NOT_FULL "
+                "action=PROBE_ONLY_NOT_SUBMITTED",
+                datum.receiver.c_str(),
+                enum_to_string(datum.system).c_str(),
+                datum.pivot.id().c_str(),
+                familyCount,
+                wideLaneFixedCount,
+                wideLaneProbe.diagnosticStatus.c_str(),
+                wideLaneProbe.bootstrappedSuccessRate,
+                wideLaneProbe.solutionRatio,
+                familyCount,
+                wideLaneFixedCount,
+                2 * familyCount
+            );
+            continue;
+        }
+
+        const ConditionedIntegerFamily conditionedSecondFamily =
+            conditionSecondIntegerFamilyOnFixedFirst(
+                jointFamilies,
+                familyCount,
+                wideLaneProbe
+            );
+        if (conditionedSecondFamily.diagnosticStatus !=
+            "SECOND_INTEGER_FAMILY_CONDITIONED")
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
+                "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
+                "second_d2_target=%d second_d2_fixed=0 second_d2_status=%s "
+                "combined_rank=%d target_rank=%d status=CONDITIONING_REJECTED "
+                "action=PROBE_ONLY_NOT_SUBMITTED",
+                datum.receiver.c_str(),
+                enum_to_string(datum.system).c_str(),
+                datum.pivot.id().c_str(),
+                familyCount,
+                wideLaneFixedCount,
+                wideLaneProbe.diagnosticStatus.c_str(),
+                familyCount,
+                conditionedSecondFamily.diagnosticStatus.c_str(),
+                wideLaneFixedCount,
+                2 * familyCount
+            );
+            continue;
+        }
+
+        GinAR_mtx secondFamilyProbe =
+            conditionedSecondFamily.ambiguityResolution;
+        const int secondFamilyFixedCount = GNSS_AR(
+            trace,
+            secondFamilyProbe,
+            options
+        );
+        const bool secondFamilyIntegerValued = secondFamilyFixedCount == familyCount &&
+            (secondFamilyProbe.Ztrs.array() -
+             secondFamilyProbe.Ztrs.array().round()).abs().maxCoeff() <= 1e-12;
+        const double secondFamilyDeterminant = secondFamilyFixedCount == familyCount
+            ? secondFamilyProbe.Ztrs.determinant()
+            : 0;
+        const bool secondFamilyUnimodular =
+            secondFamilyIntegerValued && std::isfinite(secondFamilyDeterminant) &&
+            std::abs(std::abs(secondFamilyDeterminant) - 1) <= 1e-8;
+        MatrixXd combinedTransform = MatrixXd::Zero(
+            wideLaneFixedCount + secondFamilyFixedCount,
+            2 * familyCount
+        );
+        combinedTransform.topRows(wideLaneFixedCount) =
+            conditionedSecondFamily.fixedFirstFamilyTransform;
+        if (secondFamilyFixedCount > 0)
+        {
+            combinedTransform.bottomRows(secondFamilyFixedCount) =
+                secondFamilyProbe.Ztrs *
+                conditionedSecondFamily.secondFamilyTransform;
+        }
+        const int combinedRank = combinedTransform.rows() > 0
+            ? combinedTransform.fullPivLu().rank()
+            : 0;
+        const bool combinedIntegerValued = combinedTransform.rows() > 0 &&
+            (combinedTransform.array() - combinedTransform.array().round())
+                    .abs()
+                    .maxCoeff() <= 1e-12;
+        const bool fullGroupCandidate =
+            secondFamilyFixedCount == familyCount &&
+            secondFamilyUnimodular &&
+            combinedIntegerValued &&
+            combinedRank == 2 * familyCount;
+        if (fullGroupCandidate)
+        {
+            fullCandidateGroupCount++;
+            fullCandidateRowCount += combinedRank;
+            VectorXd combinedFixedIntegers(2 * familyCount);
+            combinedFixedIntegers << wideLaneProbe.zfix, secondFamilyProbe.zfix;
+            traceDualFrequencyCandidateRows(
+                trace,
+                datum,
+                combinedTransform * groupTransform,
+                combinedFixedIntegers,
+                familyCount,
+                originalAmbiguities.ambmap
+            );
+        }
+
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
+            "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
+            "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
+            "second_d2_target=%d second_d2_fixed=%d second_d2_status=%s "
+            "second_d2_success_rate=%.17g second_d2_ratio=%.17g "
+            "second_d2_unimodular=%d combined_integer_valued=%d "
+            "combined_rank=%d target_rank=%d status=%s "
+            "action=PROBE_ONLY_NOT_SUBMITTED",
+            datum.receiver.c_str(),
+            enum_to_string(datum.system).c_str(),
+            datum.pivot.id().c_str(),
+            familyCount,
+            wideLaneFixedCount,
+            wideLaneProbe.diagnosticStatus.c_str(),
+            wideLaneProbe.bootstrappedSuccessRate,
+            wideLaneProbe.solutionRatio,
+            familyCount,
+            secondFamilyFixedCount,
+            secondFamilyProbe.diagnosticStatus.c_str(),
+            secondFamilyProbe.bootstrappedSuccessRate,
+            secondFamilyProbe.solutionRatio,
+            secondFamilyUnimodular,
+            combinedIntegerValued,
+            combinedRank,
+            2 * familyCount,
+            fullGroupCandidate ?
+                "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
+                "SECOND_D2_FAMILY_NOT_FULL"
+        );
+    }
+
+    const bool fullEpochCandidate =
+        transform.diagnosticStatus == "FULL_DUAL_FREQUENCY_INTEGER_BASIS" &&
+        fullCandidateGroupCount == transform.completeGroupCount &&
+        fullCandidateRowCount == transform.expectedIntegerRank;
+    tracepdeex(
+        2,
+        trace,
+        "\nPPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=%d "
+        "target_groups=%d full_candidate_rows=%d target_rank=%d status=%s "
+        "wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED",
+        fullCandidateGroupCount,
+        transform.completeGroupCount,
+        fullCandidateRowCount,
+        transform.expectedIntegerRank,
+        fullEpochCandidate ?
+            "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
+            "NO_FULL_INTEGER_DATUM_CANDIDATE"
+    );
+}
+
 bool recordFilterError(RejectCallbackDetails rejectDetails)
 {
     filterError = true;
@@ -494,6 +809,21 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
 
     if (traceLevel > 4)
         AR_VERBO = true;
+
+    if (acsConfig.ambrOpts.integer_complement_diagnostics)
+    {
+        const DualFrequencyAmbiguityTransform dualFrequencyTransform =
+            buildDualFrequencyAmbiguityIntegerTransform(
+                ARmtx,
+                acsConfig.receiver_amb_pivot
+            );
+        traceDualFrequencyDatumDiagnostic(
+            trace,
+            ARmtx,
+            dualFrequencyTransform,
+            ARopt
+        );
+    }
 
     // Resolve and apply ambiguities
     int nfix = GNSS_AR(trace, integerARmtx, ARopt);

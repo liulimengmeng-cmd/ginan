@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Audit explicit dual-frequency PPP-AR datum diagnostics in a PEA trace.
+
+This audit deliberately separates a structurally complete integer basis from a
+full integer candidate.  A full [wide-lane, d2] basis is necessary but does not
+certify integer truth, filter acceptance, fixed STEC, or PPP-AR accuracy.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from collections import Counter, defaultdict
+from pathlib import Path
+
+
+EPOCH_RE = re.compile(r"Epoch\s+(\d+)\s+=")
+FIELD_RE = re.compile(r"([A-Za-z0-9_]+)=([^\s]+)")
+
+
+def fields(line: str) -> dict[str, str]:
+    return dict(FIELD_RE.findall(line))
+
+
+def as_int(record: dict[str, str], key: str) -> int:
+    return int(record[key])
+
+
+def audit_trace(path: Path) -> dict[str, object]:
+    current_epoch: int | None = None
+    basis_by_epoch: dict[int, dict[str, str]] = {}
+    summary_by_epoch: dict[int, dict[str, str]] = {}
+    group_records: dict[int, list[dict[str, str]]] = defaultdict(list)
+    stage_records: dict[int, list[dict[str, str]]] = defaultdict(list)
+    candidate_row_count = 0
+    action_violations: list[dict[str, object]] = []
+
+    with path.open("r", encoding="utf-8", errors="replace") as stream:
+        for line_number, line in enumerate(stream, 1):
+            epoch_match = EPOCH_RE.search(line)
+            if epoch_match:
+                current_epoch = int(epoch_match.group(1))
+                continue
+            if "PPP_AR DUAL_FREQUENCY_" not in line or current_epoch is None:
+                continue
+            record = fields(line)
+            if record.get("action") not in {
+                "PROBE_ONLY_NOT_SUBMITTED",
+                "INCOMPLETE_GRAPH_NOT_PROBED",
+            }:
+                action_violations.append(
+                    {
+                        "epoch": current_epoch,
+                        "line": line_number,
+                        "action": record.get("action"),
+                    }
+                )
+            if "DUAL_FREQUENCY_BASIS" in line:
+                basis_by_epoch[current_epoch] = record
+            elif "DUAL_FREQUENCY_GROUP" in line:
+                group_records[current_epoch].append(record)
+            elif "DUAL_FREQUENCY_STAGE" in line:
+                stage_records[current_epoch].append(record)
+            elif "DUAL_FREQUENCY_CANDIDATE_ROW" in line:
+                candidate_row_count += 1
+            elif "DUAL_FREQUENCY_DATUM_SUMMARY" in line:
+                summary_by_epoch[current_epoch] = record
+
+    audited_epochs = sorted(set(basis_by_epoch) | set(summary_by_epoch))
+    structural_pass_epochs: list[int] = []
+    target_ranks: list[int] = []
+    for epoch in audited_epochs:
+        basis = basis_by_epoch.get(epoch)
+        if not basis:
+            continue
+        expected_rank = as_int(basis, "expected_rank")
+        actual_rank = as_int(basis, "actual_rank")
+        target_ranks.append(expected_rank)
+        if (
+            basis.get("status") == "FULL_DUAL_FREQUENCY_INTEGER_BASIS"
+            and actual_rank == expected_rank
+            and basis.get("integer_valued") == "1"
+            and basis.get("full_row_rank") == "1"
+            and basis.get("covers_all") == "1"
+            and as_int(basis, "unmatched_ambiguities") == 0
+            and as_int(basis, "incomplete_groups") == 0
+        ):
+            structural_pass_epochs.append(epoch)
+
+    full_candidate_epochs = [
+        epoch
+        for epoch, record in summary_by_epoch.items()
+        if record.get("status") == "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+        and as_int(record, "full_candidate_rows") == as_int(record, "target_rank")
+        and as_int(record, "full_candidate_groups") == as_int(record, "target_groups")
+    ]
+    second_family_reached = [
+        (epoch, record)
+        for epoch, records in stage_records.items()
+        for record in records
+        if record.get("second_d2_status") not in {None, "NOT_RUN"}
+    ]
+    full_group_candidates = [
+        (epoch, record)
+        for epoch, records in stage_records.items()
+        for record in records
+        if record.get("status") == "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+    ]
+    stage_status_counts = Counter(
+        record.get("status", "MISSING")
+        for records in stage_records.values()
+        for record in records
+    )
+    wide_lane_status_counts = Counter(
+        record.get("wide_lane_status", "MISSING")
+        for records in stage_records.values()
+        for record in records
+    )
+    second_family_status_counts = Counter(
+        record.get("second_d2_status", "MISSING")
+        for records in stage_records.values()
+        for record in records
+    )
+
+    all_epochs_have_records = bool(audited_epochs) and all(
+        epoch in basis_by_epoch and epoch in summary_by_epoch
+        for epoch in audited_epochs
+    )
+    structural_basis_pass = (
+        all_epochs_have_records
+        and len(structural_pass_epochs) == len(audited_epochs)
+        and not action_violations
+    )
+
+    return {
+        "schema": "GINAN_PPPAR_DUAL_FREQUENCY_DATUM_AUDIT_V1",
+        "trace": str(path),
+        "audited_epoch_count": len(audited_epochs),
+        "basis_record_count": len(basis_by_epoch),
+        "summary_record_count": len(summary_by_epoch),
+        "group_record_count": sum(map(len, group_records.values())),
+        "stage_record_count": sum(map(len, stage_records.values())),
+        "structural_basis_pass": structural_basis_pass,
+        "structural_pass_epoch_count": len(structural_pass_epochs),
+        "structural_pass_epochs": structural_pass_epochs,
+        "target_rank_min": min(target_ranks) if target_ranks else None,
+        "target_rank_max": max(target_ranks) if target_ranks else None,
+        "second_family_reached_group_count": len(second_family_reached),
+        "full_group_candidate_count": len(full_group_candidates),
+        "full_epoch_candidate_count": len(full_candidate_epochs),
+        "full_epoch_candidate_epochs": sorted(full_candidate_epochs),
+        "candidate_row_count": candidate_row_count,
+        "stage_status_counts": dict(sorted(stage_status_counts.items())),
+        "wide_lane_status_counts": dict(sorted(wide_lane_status_counts.items())),
+        "second_family_status_counts": dict(
+            sorted(second_family_status_counts.items())
+        ),
+        "action_violations": action_violations,
+        "safety": {
+            "diagnostic_only": not action_violations,
+            "filter_feedback_certified": False,
+            "wrong_fix_certified": False,
+        },
+        "claim_limits": [
+            "structural_basis_pass proves only an explicit integer-valued full-row-rank [wide-lane,d2] basis over the eligible dual-frequency graph",
+            "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED does not prove integer truth or filter acceptance",
+            "this audit does not certify wrong-fix rejection, fixed STEC, coordinate accuracy, or scientific PPP-AR acceptance",
+        ],
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("trace", type=Path)
+    parser.add_argument("--output", type=Path)
+    arguments = parser.parse_args()
+    report = audit_trace(arguments.trace)
+    payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
+    if arguments.output:
+        arguments.output.write_text(payload, encoding="utf-8")
+    else:
+        print(payload, end="")
+    return 0 if report["structural_basis_pass"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

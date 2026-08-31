@@ -91,6 +91,56 @@ struct ReceiverAmbiguityTransform
     int droppedSingletonGroupCount = 0;
 };
 
+struct DualFrequencyAmbiguityDatum
+{
+    string receiver;
+    E_Sys  system = E_Sys::NONE;
+    int    firstObservation = 0;
+    int    secondObservation = 0;
+    SatSys pivot;
+    int    commonSatelliteCount = 0;
+    int    unmatchedAmbiguityCount = 0;
+    int    wideLaneRowOffset = 0;
+    int    wideLaneRowCount = 0;
+    int    complementRowOffset = 0;
+    int    complementRowCount = 0;
+    bool   completeSignalGraph = false;
+};
+
+/**
+ * Integer transform from undifferenced dual-frequency ambiguity states to an
+ * explicit receiver single-difference basis [w, b], where
+ *
+ *   w = (N1_s - N1_q) - (N2_s - N2_q)
+ *   b =  N2_s - N2_q.
+ *
+ * A receiver/system group is complete only when it contains exactly two
+ * signals with identical satellite sets.  Both signals use the same pivot q.
+ */
+struct DualFrequencyAmbiguityTransform
+{
+    MatrixXd matrix;
+    vector<DualFrequencyAmbiguityDatum> groups;
+    int completeGroupCount = 0;
+    int incompleteGroupCount = 0;
+    int pairedAmbiguityCount = 0;
+    int unmatchedAmbiguityCount = 0;
+    int expectedIntegerRank = 0;
+    int actualIntegerRank = 0;
+    bool integerValued = false;
+    bool fullRowRank = false;
+    bool coversEligibleAmbiguities = false;
+    string diagnosticStatus = "NOT_RUN";
+};
+
+struct ConditionedIntegerFamily
+{
+    GinAR_mtx ambiguityResolution;
+    MatrixXd fixedFirstFamilyTransform;
+    MatrixXd secondFamilyTransform;
+    string diagnosticStatus = "NOT_RUN";
+};
+
 ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
     const GinAR_mtx&        ambiguityResolution,
     const map<E_Sys, bool>& receiverAmbiguityPivot
@@ -100,6 +150,17 @@ bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
     const map<int, KFKey>&            originalAmbiguityMap
+);
+
+DualFrequencyAmbiguityTransform buildDualFrequencyAmbiguityIntegerTransform(
+    const GinAR_mtx&        ambiguityResolution,
+    const map<E_Sys, bool>& receiverAmbiguityPivot
+);
+
+ConditionedIntegerFamily conditionSecondIntegerFamilyOnFixedFirst(
+    const GinAR_mtx& jointIntegerFamilies,
+    int              firstFamilyCount,
+    const GinAR_mtx& fixedFirstFamily
 );
 
 ConditionalIntegerComplement buildConditionalIntegerComplement(

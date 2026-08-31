@@ -136,6 +136,289 @@ ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
     return result;
 }
 
+DualFrequencyAmbiguityTransform buildDualFrequencyAmbiguityIntegerTransform(
+    const GinAR_mtx&        ambiguityResolution,
+    const map<E_Sys, bool>& receiverAmbiguityPivot
+)
+{
+    using GroupKey = std::tuple<string, E_Sys>;
+    using SignalMembers = map<int, map<SatSys, int>>;
+
+    DualFrequencyAmbiguityTransform result;
+    const int columnCount = ambiguityResolution.aflt.size();
+    if (columnCount <= 0 || ambiguityResolution.Paflt.rows() != columnCount ||
+        ambiguityResolution.Paflt.cols() != columnCount)
+    {
+        result.matrix.resize(0, std::max(0, columnCount));
+        result.diagnosticStatus = "INVALID_INPUT_DIMENSIONS";
+        return result;
+    }
+
+    map<GroupKey, SignalMembers> groupedMembers;
+    int invalidMappedAmbiguities = 0;
+    for (const auto& [localIndex, key] : ambiguityResolution.ambmap)
+    {
+        if (localIndex < 0 || localIndex >= columnCount)
+        {
+            invalidMappedAmbiguities++;
+            continue;
+        }
+        groupedMembers[{key.str, key.Sat.sys}][key.num][key.Sat] = localIndex;
+    }
+
+    int rowCount = 0;
+    for (const auto& [groupKey, signals] : groupedMembers)
+    {
+        const auto& [receiver, system] = groupKey;
+        DualFrequencyAmbiguityDatum datum;
+        datum.receiver = receiver;
+        datum.system = system;
+
+        int groupAmbiguityCount = 0;
+        for (const auto& [observation, members] : signals)
+        {
+            groupAmbiguityCount += members.size();
+        }
+
+        const auto enabled = receiverAmbiguityPivot.find(system);
+        const bool receiverSingleDifferenceEnabled =
+            enabled != receiverAmbiguityPivot.end() && enabled->second;
+        if (!receiverSingleDifferenceEnabled || signals.size() != 2)
+        {
+            datum.unmatchedAmbiguityCount = groupAmbiguityCount;
+            result.unmatchedAmbiguityCount += groupAmbiguityCount;
+            result.incompleteGroupCount++;
+            result.groups.push_back(datum);
+            continue;
+        }
+
+        auto firstSignal = signals.begin();
+        auto secondSignal = std::next(firstSignal);
+        datum.firstObservation = firstSignal->first;
+        datum.secondObservation = secondSignal->first;
+
+        vector<SatSys> commonSatellites;
+        for (const auto& [satellite, index] : firstSignal->second)
+        {
+            if (secondSignal->second.find(satellite) != secondSignal->second.end())
+            {
+                commonSatellites.push_back(satellite);
+            }
+        }
+        datum.commonSatelliteCount = commonSatellites.size();
+        datum.unmatchedAmbiguityCount =
+            groupAmbiguityCount - 2 * datum.commonSatelliteCount;
+        result.pairedAmbiguityCount += 2 * datum.commonSatelliteCount;
+        result.unmatchedAmbiguityCount += datum.unmatchedAmbiguityCount;
+        datum.completeSignalGraph =
+            datum.unmatchedAmbiguityCount == 0 && datum.commonSatelliteCount >= 2;
+
+        if (commonSatellites.size() >= 2)
+        {
+            const SatSys pivot = *std::min_element(
+                commonSatellites.begin(),
+                commonSatellites.end(),
+                [&](const SatSys& left, const SatSys& right)
+                {
+                    const int leftFirst = firstSignal->second.at(left);
+                    const int leftSecond = secondSignal->second.at(left);
+                    const int rightFirst = firstSignal->second.at(right);
+                    const int rightSecond = secondSignal->second.at(right);
+                    const double leftScore =
+                        ambiguityResolution.Paflt(leftFirst, leftFirst) +
+                        ambiguityResolution.Paflt(leftSecond, leftSecond);
+                    const double rightScore =
+                        ambiguityResolution.Paflt(rightFirst, rightFirst) +
+                        ambiguityResolution.Paflt(rightSecond, rightSecond);
+                    const bool leftFinite = std::isfinite(leftScore);
+                    const bool rightFinite = std::isfinite(rightScore);
+                    if (leftFinite != rightFinite)
+                    {
+                        return leftFinite;
+                    }
+                    if (leftFinite && leftScore != rightScore)
+                    {
+                        return leftScore < rightScore;
+                    }
+                    return left < right;
+                }
+            );
+            datum.pivot = pivot;
+            datum.wideLaneRowOffset = rowCount;
+            datum.wideLaneRowCount = commonSatellites.size() - 1;
+            datum.complementRowOffset = rowCount + datum.wideLaneRowCount;
+            datum.complementRowCount = datum.wideLaneRowCount;
+            rowCount += datum.wideLaneRowCount + datum.complementRowCount;
+        }
+
+        if (datum.completeSignalGraph)
+        {
+            result.completeGroupCount++;
+        }
+        else
+        {
+            result.incompleteGroupCount++;
+        }
+        result.groups.push_back(datum);
+    }
+
+    result.matrix = MatrixXd::Zero(rowCount, columnCount);
+    for (const auto& datum : result.groups)
+    {
+        if (datum.wideLaneRowCount <= 0)
+        {
+            continue;
+        }
+        const auto& signals = groupedMembers.at({datum.receiver, datum.system});
+        const auto& firstMembers = signals.at(datum.firstObservation);
+        const auto& secondMembers = signals.at(datum.secondObservation);
+        const int pivotFirst = firstMembers.at(datum.pivot);
+        const int pivotSecond = secondMembers.at(datum.pivot);
+
+        int memberOffset = 0;
+        for (const auto& [satellite, firstIndex] : firstMembers)
+        {
+            const auto second = secondMembers.find(satellite);
+            if (second == secondMembers.end() || satellite == datum.pivot)
+            {
+                continue;
+            }
+            const int secondIndex = second->second;
+            const int wideLaneRow = datum.wideLaneRowOffset + memberOffset;
+            const int complementRow = datum.complementRowOffset + memberOffset;
+            result.matrix(wideLaneRow, firstIndex) = +1;
+            result.matrix(wideLaneRow, pivotFirst) = -1;
+            result.matrix(wideLaneRow, secondIndex) = -1;
+            result.matrix(wideLaneRow, pivotSecond) = +1;
+            result.matrix(complementRow, secondIndex) = +1;
+            result.matrix(complementRow, pivotSecond) = -1;
+            memberOffset++;
+        }
+    }
+
+    result.expectedIntegerRank = rowCount;
+    result.actualIntegerRank = rowCount > 0
+        ? result.matrix.fullPivLu().rank()
+        : 0;
+    result.integerValued = rowCount == 0 ||
+        (result.matrix.array() - result.matrix.array().round()).abs().maxCoeff() <= 1e-12;
+    result.fullRowRank = result.actualIntegerRank == result.expectedIntegerRank;
+    result.coversEligibleAmbiguities =
+        invalidMappedAmbiguities == 0 &&
+        static_cast<int>(ambiguityResolution.ambmap.size()) == columnCount &&
+        result.pairedAmbiguityCount == columnCount &&
+        result.unmatchedAmbiguityCount == 0;
+
+    if (rowCount == 0)
+    {
+        result.diagnosticStatus = "NO_DUAL_FREQUENCY_INTEGER_COORDINATES";
+    }
+    else if (!result.integerValued || !result.fullRowRank)
+    {
+        result.diagnosticStatus = "INVALID_DUAL_FREQUENCY_INTEGER_BASIS";
+    }
+    else if (!result.coversEligibleAmbiguities || result.incompleteGroupCount > 0)
+    {
+        result.diagnosticStatus = "INCOMPLETE_DUAL_FREQUENCY_SIGNAL_GRAPH";
+    }
+    else
+    {
+        result.diagnosticStatus = "FULL_DUAL_FREQUENCY_INTEGER_BASIS";
+    }
+
+    return result;
+}
+
+ConditionedIntegerFamily conditionSecondIntegerFamilyOnFixedFirst(
+    const GinAR_mtx& jointIntegerFamilies,
+    int              firstFamilyCount,
+    const GinAR_mtx& fixedFirstFamily
+)
+{
+    ConditionedIntegerFamily result;
+    const int totalCount = jointIntegerFamilies.aflt.size();
+    const int secondFamilyCount = totalCount - firstFamilyCount;
+    if (firstFamilyCount <= 0 || secondFamilyCount <= 0 ||
+        jointIntegerFamilies.Paflt.rows() != totalCount ||
+        jointIntegerFamilies.Paflt.cols() != totalCount)
+    {
+        result.diagnosticStatus = "INVALID_JOINT_FAMILY_DIMENSIONS";
+        return result;
+    }
+    if (fixedFirstFamily.Ztrs.rows() != firstFamilyCount ||
+        fixedFirstFamily.Ztrs.cols() != firstFamilyCount ||
+        fixedFirstFamily.zfix.size() != firstFamilyCount ||
+        fixedFirstFamily.Ztrs.fullPivLu().rank() != firstFamilyCount)
+    {
+        result.diagnosticStatus = "FIRST_INTEGER_FAMILY_NOT_FULL_RANK";
+        return result;
+    }
+    const bool firstFamilyIntegerValued =
+        (fixedFirstFamily.Ztrs.array() - fixedFirstFamily.Ztrs.array().round())
+                .abs()
+                .maxCoeff() <= 1e-12;
+    const double firstFamilyDeterminant = fixedFirstFamily.Ztrs.determinant();
+    if (!firstFamilyIntegerValued || !std::isfinite(firstFamilyDeterminant) ||
+        std::abs(std::abs(firstFamilyDeterminant) - 1) > 1e-8)
+    {
+        result.diagnosticStatus = "FIRST_INTEGER_FAMILY_NOT_UNIMODULAR";
+        return result;
+    }
+
+    const VectorXd firstFloat = jointIntegerFamilies.aflt.head(firstFamilyCount);
+    const VectorXd secondFloat = jointIntegerFamilies.aflt.tail(secondFamilyCount);
+    const MatrixXd firstCovariance = jointIntegerFamilies.Paflt.topLeftCorner(
+        firstFamilyCount,
+        firstFamilyCount
+    );
+    const MatrixXd secondFirstCovariance = jointIntegerFamilies.Paflt.bottomLeftCorner(
+        secondFamilyCount,
+        firstFamilyCount
+    );
+    const MatrixXd transformedFirstCovariance =
+        fixedFirstFamily.Ztrs * firstCovariance * fixedFirstFamily.Ztrs.transpose();
+    const MatrixXd secondTransformedFirstCovariance =
+        secondFirstCovariance * fixedFirstFamily.Ztrs.transpose();
+    const LDLT<MatrixXd> firstSolver(transformedFirstCovariance);
+    if (firstSolver.info() != Eigen::Success || !firstSolver.isPositive())
+    {
+        result.diagnosticStatus = "FIRST_INTEGER_FAMILY_COVARIANCE_NOT_POSITIVE_DEFINITE";
+        return result;
+    }
+
+    const VectorXd firstInnovation =
+        fixedFirstFamily.zfix - fixedFirstFamily.Ztrs * firstFloat;
+    result.ambiguityResolution.aflt =
+        secondFloat +
+        secondTransformedFirstCovariance * firstSolver.solve(firstInnovation);
+    result.ambiguityResolution.Paflt =
+        jointIntegerFamilies.Paflt.bottomRightCorner(
+            secondFamilyCount,
+            secondFamilyCount
+        ) -
+        secondTransformedFirstCovariance *
+            firstSolver.solve(secondTransformedFirstCovariance.transpose());
+    result.ambiguityResolution.Paflt =
+        0.5 * (result.ambiguityResolution.Paflt +
+               result.ambiguityResolution.Paflt.transpose()).eval();
+
+    result.fixedFirstFamilyTransform = MatrixXd::Zero(firstFamilyCount, totalCount);
+    result.fixedFirstFamilyTransform.leftCols(firstFamilyCount) = fixedFirstFamily.Ztrs;
+    result.secondFamilyTransform = MatrixXd::Zero(secondFamilyCount, totalCount);
+    result.secondFamilyTransform.rightCols(secondFamilyCount).setIdentity();
+
+    if (!result.ambiguityResolution.aflt.allFinite() ||
+        !result.ambiguityResolution.Paflt.allFinite())
+    {
+        result = {};
+        result.diagnosticStatus = "NONFINITE_CONDITIONED_INTEGER_FAMILY";
+        return result;
+    }
+
+    result.diagnosticStatus = "SECOND_INTEGER_FAMILY_CONDITIONED";
+    return result;
+}
+
 bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
