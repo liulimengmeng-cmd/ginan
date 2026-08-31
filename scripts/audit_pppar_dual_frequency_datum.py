@@ -119,13 +119,28 @@ def audit_trace(path: Path) -> dict[str, object]:
                 }
             )
 
-    full_candidate_epochs = [
+    full_visible_candidate_epochs = [
         epoch
         for epoch, record in summary_by_epoch.items()
-        if record.get("status") == "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+        if record.get("status") in {
+            "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+            "FULL_VISIBLE_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+        }
         and as_int(record, "full_candidate_rows") == as_int(record, "target_rank")
         and as_int(record, "full_candidate_groups") == as_int(record, "target_groups")
     ]
+    full_selected_candidate_epochs = [
+        epoch
+        for epoch, record in summary_by_epoch.items()
+        if record.get("status")
+        == "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+        and int(record.get("selected_candidate_groups", "-1"))
+        == as_int(record, "target_groups")
+        and int(record.get("selected_candidate_rows", "0")) > 0
+    ]
+    full_candidate_epochs = sorted(
+        set(full_visible_candidate_epochs) | set(full_selected_candidate_epochs)
+    )
     second_family_reached = [
         (epoch, record)
         for epoch, records in stage_records.items()
@@ -136,7 +151,18 @@ def audit_trace(path: Path) -> dict[str, object]:
         (epoch, record)
         for epoch, records in stage_records.items()
         for record in records
-        if record.get("status") == "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+        if record.get("status") in {
+            "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+            "FULL_VISIBLE_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+            "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+        }
+    ]
+    selected_subset_candidates = [
+        (epoch, record)
+        for epoch, records in stage_records.items()
+        for record in records
+        if record.get("status")
+        == "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
     ]
     wide_lane_full_groups = [
         (epoch, record)
@@ -210,6 +236,17 @@ def audit_trace(path: Path) -> dict[str, object]:
         "second_family_fixed_group_count": len(second_family_fixed_groups),
         "second_family_fixed_row_count": second_family_fixed_row_count,
         "full_group_candidate_count": len(full_group_candidates),
+        "selected_subset_group_candidate_count": len(selected_subset_candidates),
+        "full_visible_epoch_candidate_count": len(full_visible_candidate_epochs),
+        "full_visible_epoch_candidate_epochs": sorted(
+            full_visible_candidate_epochs
+        ),
+        "full_selected_epoch_candidate_count": len(
+            full_selected_candidate_epochs
+        ),
+        "full_selected_epoch_candidate_epochs": sorted(
+            full_selected_candidate_epochs
+        ),
         "full_epoch_candidate_count": len(full_candidate_epochs),
         "full_epoch_candidate_epochs": sorted(full_candidate_epochs),
         "candidate_row_count": len(candidate_records),
@@ -230,7 +267,7 @@ def audit_trace(path: Path) -> dict[str, object]:
         },
         "claim_limits": [
             "structural_basis_pass proves only an explicit integer-valued full-row-rank [wide-lane,d2] basis over the eligible dual-frequency graph",
-            "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED does not prove integer truth or filter acceptance",
+            "a full visible or selected-subset integer datum candidate does not prove integer truth or filter acceptance",
             "this audit does not certify wrong-fix rejection, fixed STEC, coordinate accuracy, or scientific PPP-AR acceptance",
         ],
     }

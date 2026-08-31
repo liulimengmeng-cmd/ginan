@@ -61,6 +61,25 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
         )
         self.assertEqual(report["invalid_candidate_row_count"], 0)
 
+    def test_distinguishes_full_selected_subset_from_full_visible_group(self) -> None:
+        payload = """
+------=============== Epoch 1 =============-----------
+PPP_AR DUAL_FREQUENCY_BASIS original=12 rows=10 expected_rank=10 actual_rank=10 complete_groups=1 incomplete_groups=0 paired_ambiguities=12 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_STAGE receiver=A system=GPS reference=G01 visible_family_count=5 selected_family_count=3 excluded_satellites=2 wide_lane_target=3 wide_lane_fixed=3 wide_lane_status=RESOLVED_RATIO_TEST second_d2_target=3 second_d2_fixed=3 second_d2_status=FULL_INTEGER_FAMILY_RESOLVED combined_rank=6 target_rank=6 status=FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SELECTED_SUBSET family=WIDE_LANE row=0 rhs=1 support=4 status=INTEGER_MAPPED terms=example action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=10 selected_candidate_groups=1 selected_candidate_rows=6 status=FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertTrue(report["structural_basis_pass"])
+        self.assertEqual(report["selected_subset_group_candidate_count"], 1)
+        self.assertEqual(report["full_selected_epoch_candidate_count"], 1)
+        self.assertEqual(report["full_visible_epoch_candidate_count"], 0)
+        self.assertEqual(report["full_epoch_candidate_count"], 1)
+        self.assertEqual(report["candidate_scope_counts"], {"SELECTED_SUBSET": 1})
+
 
 if __name__ == "__main__":
     unittest.main()

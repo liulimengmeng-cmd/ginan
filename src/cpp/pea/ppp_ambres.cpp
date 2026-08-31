@@ -8,6 +8,7 @@
  *         integer least-squares estimation, J.Geodesy, Vol.79, 552-565, 2005
  *-----------------------------------------------------------------------------*/
 
+#include <algorithm>
 #include <iostream>
 #include <math.h>
 #include <sstream>
@@ -172,6 +173,143 @@ static void traceDualFrequencyCandidateRows(
     }
 }
 
+struct DualFrequencySubsetProbe
+{
+    vector<int> selectedEdgeIndices;
+    MatrixXd groupTransform;
+    MatrixXd combinedTransform;
+    GinAR_mtx wideLaneAttempt;
+    int wideLaneFixedCount = 0;
+    ConditionedIntegerFamily conditionedSecondFamily;
+    IterativeIntegerFamilyResolution secondFamilyResolution;
+    int combinedRank = 0;
+    bool combinedIntegerValued = false;
+    bool secondFamilyUnimodular = false;
+    bool fullCandidate = false;
+    string diagnosticStatus = "NOT_RUN";
+};
+
+static DualFrequencySubsetProbe probeDualFrequencySubset(
+    Trace&             trace,
+    const GinAR_mtx&   originalAmbiguities,
+    const MatrixXd&    fullGroupTransform,
+    const vector<int>& selectedEdgeIndices,
+    const GinAR_opt&   options
+)
+{
+    DualFrequencySubsetProbe result;
+    result.selectedEdgeIndices = selectedEdgeIndices;
+    const int fullFamilyCount = fullGroupTransform.rows() / 2;
+    const int familyCount = selectedEdgeIndices.size();
+    if (familyCount <= 0 || fullGroupTransform.rows() != 2 * fullFamilyCount ||
+        fullGroupTransform.cols() != originalAmbiguities.aflt.size())
+    {
+        result.diagnosticStatus = "INVALID_SUBSET_DIMENSIONS";
+        return result;
+    }
+
+    result.groupTransform = MatrixXd::Zero(
+        2 * familyCount,
+        originalAmbiguities.aflt.size()
+    );
+    for (int row = 0; row < familyCount; row++)
+    {
+        const int edge = selectedEdgeIndices[row];
+        if (edge < 0 || edge >= fullFamilyCount)
+        {
+            result = {};
+            result.diagnosticStatus = "INVALID_SUBSET_EDGE_INDEX";
+            return result;
+        }
+        result.groupTransform.row(row) = fullGroupTransform.row(edge);
+        result.groupTransform.row(familyCount + row) =
+            fullGroupTransform.row(fullFamilyCount + edge);
+    }
+
+    GinAR_mtx jointFamilies;
+    jointFamilies.aflt = result.groupTransform * originalAmbiguities.aflt;
+    jointFamilies.Paflt =
+        result.groupTransform * originalAmbiguities.Paflt *
+        result.groupTransform.transpose();
+    result.wideLaneAttempt.aflt = jointFamilies.aflt.head(familyCount);
+    result.wideLaneAttempt.Paflt = jointFamilies.Paflt.topLeftCorner(
+        familyCount,
+        familyCount
+    );
+    result.wideLaneFixedCount = GNSS_AR(
+        trace,
+        result.wideLaneAttempt,
+        options
+    );
+    if (result.wideLaneFixedCount != familyCount)
+    {
+        result.diagnosticStatus = "WIDE_LANE_FAMILY_NOT_FULL";
+        return result;
+    }
+
+    result.conditionedSecondFamily = conditionSecondIntegerFamilyOnFixedFirst(
+        jointFamilies,
+        familyCount,
+        result.wideLaneAttempt
+    );
+    if (result.conditionedSecondFamily.diagnosticStatus !=
+        "SECOND_INTEGER_FAMILY_CONDITIONED")
+    {
+        result.diagnosticStatus = "SECOND_FAMILY_CONDITIONING_REJECTED";
+        return result;
+    }
+
+    GinAR_opt secondFamilyOptions = options;
+    secondFamilyOptions.minimumDecorrelatedAmbiguityCount = 1;
+    result.secondFamilyResolution = resolveIntegerFamilyIteratively(
+        trace,
+        result.conditionedSecondFamily.ambiguityResolution,
+        secondFamilyOptions
+    );
+    const int secondFamilyFixedCount =
+        result.secondFamilyResolution.fixedIntegers.size();
+    result.combinedTransform = MatrixXd::Zero(
+        result.wideLaneFixedCount + secondFamilyFixedCount,
+        2 * familyCount
+    );
+    result.combinedTransform.topRows(result.wideLaneFixedCount) =
+        result.conditionedSecondFamily.fixedFirstFamilyTransform;
+    if (secondFamilyFixedCount > 0)
+    {
+        result.combinedTransform.bottomRows(secondFamilyFixedCount) =
+            result.secondFamilyResolution.transformToInputCoordinates *
+            result.conditionedSecondFamily.secondFamilyTransform;
+    }
+    result.combinedRank = result.combinedTransform.rows() > 0
+        ? result.combinedTransform.fullPivLu().rank()
+        : 0;
+    result.combinedIntegerValued = result.combinedTransform.rows() > 0 &&
+        (result.combinedTransform.array() -
+         result.combinedTransform.array().round()).abs().maxCoeff() <= 1e-12;
+
+    if (secondFamilyFixedCount == familyCount)
+    {
+        const MatrixXd& secondTransform =
+            result.secondFamilyResolution.transformToInputCoordinates;
+        const double determinant = secondTransform.determinant();
+        result.secondFamilyUnimodular =
+            (secondTransform.array() - secondTransform.array().round())
+                    .abs()
+                    .maxCoeff() <= 1e-12 &&
+            std::isfinite(determinant) &&
+            std::abs(std::abs(determinant) - 1) <= 1e-8;
+    }
+    result.fullCandidate =
+        secondFamilyFixedCount == familyCount &&
+        result.secondFamilyUnimodular &&
+        result.combinedIntegerValued &&
+        result.combinedRank == 2 * familyCount;
+    result.diagnosticStatus = result.fullCandidate
+        ? "FULL_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
+        : "SECOND_D2_FAMILY_NOT_FULL";
+    return result;
+}
+
 static void traceDualFrequencyDatumDiagnostic(
     Trace&                                  trace,
     const GinAR_mtx&                        originalAmbiguities,
@@ -200,8 +338,10 @@ static void traceDualFrequencyDatumDiagnostic(
         transform.diagnosticStatus.c_str()
     );
 
-    int fullCandidateGroupCount = 0;
-    int fullCandidateRowCount = 0;
+    int fullVisibleCandidateGroupCount = 0;
+    int fullVisibleCandidateRowCount = 0;
+    int selectedCandidateGroupCount = 0;
+    int selectedCandidateRowCount = 0;
     for (const auto& datum : transform.groups)
     {
         tracepdeex(
@@ -229,175 +369,153 @@ static void traceDualFrequencyDatumDiagnostic(
             continue;
         }
 
-        const int familyCount = datum.wideLaneRowCount;
-        const MatrixXd groupTransform = transform.matrix.middleRows(
+        const int visibleFamilyCount = datum.wideLaneRowCount;
+        const MatrixXd fullGroupTransform = transform.matrix.middleRows(
             datum.wideLaneRowOffset,
-            familyCount + datum.complementRowCount
+            visibleFamilyCount + datum.complementRowCount
         );
-        GinAR_mtx jointFamilies;
-        jointFamilies.aflt = groupTransform * originalAmbiguities.aflt;
-        jointFamilies.Paflt =
-            groupTransform * originalAmbiguities.Paflt * groupTransform.transpose();
-
-        GinAR_mtx wideLaneProbe;
-        wideLaneProbe.aflt = jointFamilies.aflt.head(familyCount);
-        wideLaneProbe.Paflt = jointFamilies.Paflt.topLeftCorner(
-            familyCount,
-            familyCount
-        );
-        const int wideLaneFixedCount = GNSS_AR(trace, wideLaneProbe, options);
-        if (wideLaneFixedCount != familyCount)
+        vector<int> allVisibleEdges(visibleFamilyCount);
+        for (int edge = 0; edge < visibleFamilyCount; edge++)
         {
-            tracepdeex(
-                2,
-                trace,
-                "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
-                "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
-                "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
-                "second_d2_target=%d second_d2_fixed=0 second_d2_status=NOT_RUN "
-                "combined_rank=%d target_rank=%d status=WIDE_LANE_FAMILY_NOT_FULL "
-                "action=PROBE_ONLY_NOT_SUBMITTED",
-                datum.receiver.c_str(),
-                enum_to_string(datum.system).c_str(),
-                datum.pivot.id().c_str(),
-                familyCount,
-                wideLaneFixedCount,
-                wideLaneProbe.diagnosticStatus.c_str(),
-                wideLaneProbe.bootstrappedSuccessRate,
-                wideLaneProbe.solutionRatio,
-                familyCount,
-                wideLaneFixedCount,
-                2 * familyCount
+            allVisibleEdges[edge] = edge;
+        }
+        DualFrequencySubsetProbe visibleProbe = probeDualFrequencySubset(
+            trace,
+            originalAmbiguities,
+            fullGroupTransform,
+            allVisibleEdges,
+            options
+        );
+        DualFrequencySubsetProbe selectedProbe = visibleProbe;
+
+        // Conventional partial ambiguity resolution is applied to an explicit
+        // common-satellite subset.  Rows are ordered by the joint WL+d2 float
+        // variance and the largest nested subset passing every integer/rank
+        // gate is retained.  Arbitrary isolated rows are never called a datum.
+        const int minimumSelectedFamilyCount =
+            options.minimumDecorrelatedAmbiguityCount;
+        if (!visibleProbe.fullCandidate &&
+            visibleFamilyCount > minimumSelectedFamilyCount)
+        {
+            const MatrixXd jointCovariance =
+                fullGroupTransform * originalAmbiguities.Paflt *
+                fullGroupTransform.transpose();
+            vector<pair<double, int>> rankedEdges;
+            rankedEdges.reserve(visibleFamilyCount);
+            for (int edge = 0; edge < visibleFamilyCount; edge++)
+            {
+                double quality =
+                    jointCovariance(edge, edge) +
+                    jointCovariance(visibleFamilyCount + edge,
+                                    visibleFamilyCount + edge);
+                if (!std::isfinite(quality))
+                {
+                    quality = HUGE_VAL;
+                }
+                rankedEdges.push_back({quality, edge});
+            }
+            std::stable_sort(
+                rankedEdges.begin(),
+                rankedEdges.end(),
+                [](const auto& left, const auto& right)
+                {
+                    if (left.first != right.first)
+                    {
+                        return left.first < right.first;
+                    }
+                    return left.second < right.second;
+                }
             );
-            continue;
+
+            for (int subsetFamilyCount = visibleFamilyCount - 1;
+                 subsetFamilyCount >= minimumSelectedFamilyCount;
+                 subsetFamilyCount--)
+            {
+                vector<int> subsetEdges;
+                subsetEdges.reserve(subsetFamilyCount);
+                for (int rank = 0; rank < subsetFamilyCount; rank++)
+                {
+                    subsetEdges.push_back(rankedEdges[rank].second);
+                }
+                std::sort(subsetEdges.begin(), subsetEdges.end());
+                DualFrequencySubsetProbe subsetProbe = probeDualFrequencySubset(
+                    trace,
+                    originalAmbiguities,
+                    fullGroupTransform,
+                    subsetEdges,
+                    options
+                );
+                if (subsetProbe.fullCandidate)
+                {
+                    selectedProbe = std::move(subsetProbe);
+                    break;
+                }
+            }
         }
 
-        const ConditionedIntegerFamily conditionedSecondFamily =
-            conditionSecondIntegerFamilyOnFixedFirst(
-                jointFamilies,
-                familyCount,
-                wideLaneProbe
-            );
-        if (conditionedSecondFamily.diagnosticStatus !=
-            "SECOND_INTEGER_FAMILY_CONDITIONED")
-        {
-            tracepdeex(
-                1,
-                trace,
-                "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
-                "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
-                "second_d2_target=%d second_d2_fixed=0 second_d2_status=%s "
-                "combined_rank=%d target_rank=%d status=CONDITIONING_REJECTED "
-                "action=PROBE_ONLY_NOT_SUBMITTED",
-                datum.receiver.c_str(),
-                enum_to_string(datum.system).c_str(),
-                datum.pivot.id().c_str(),
-                familyCount,
-                wideLaneFixedCount,
-                wideLaneProbe.diagnosticStatus.c_str(),
-                familyCount,
-                conditionedSecondFamily.diagnosticStatus.c_str(),
-                wideLaneFixedCount,
-                2 * familyCount
-            );
-            continue;
-        }
-
-        GinAR_opt secondFamilyOptions = options;
-        // A one- or two-dimensional d2 remainder is scientifically useful as
-        // a diagnostic direction.  The success-rate and ratio thresholds are
-        // unchanged, no row is submitted, and a full datum still requires all
-        // d2 rows in the group.
-        secondFamilyOptions.minimumDecorrelatedAmbiguityCount = 1;
-        const IterativeIntegerFamilyResolution secondFamilyResolution =
-            resolveIntegerFamilyIteratively(
-                trace,
-                conditionedSecondFamily.ambiguityResolution,
-                secondFamilyOptions
-            );
+        const int selectedFamilyCount = selectedProbe.selectedEdgeIndices.size();
         const int secondFamilyFixedCount =
-            secondFamilyResolution.fixedIntegers.size();
+            selectedProbe.secondFamilyResolution.fixedIntegers.size();
         const bool secondFamilyRowsIntegerValued = secondFamilyFixedCount == 0 ||
-            (secondFamilyResolution.transformToInputCoordinates.array() -
-             secondFamilyResolution.transformToInputCoordinates.array().round())
+            (selectedProbe.secondFamilyResolution.transformToInputCoordinates.array() -
+             selectedProbe.secondFamilyResolution.transformToInputCoordinates.array().round())
                     .abs()
                     .maxCoeff() <= 1e-12;
         const int secondFamilyRowRank = secondFamilyFixedCount > 0
-            ? secondFamilyResolution.transformToInputCoordinates.fullPivLu().rank()
+            ? selectedProbe.secondFamilyResolution.transformToInputCoordinates
+                  .fullPivLu().rank()
             : 0;
-        const bool secondFamilyIntegerValued =
-            secondFamilyFixedCount == familyCount && secondFamilyRowsIntegerValued;
-        const double secondFamilyDeterminant = secondFamilyFixedCount == familyCount
-            ? secondFamilyResolution.transformToInputCoordinates.determinant()
-            : 0;
-        const bool secondFamilyUnimodular =
-            secondFamilyIntegerValued && std::isfinite(secondFamilyDeterminant) &&
-            std::abs(std::abs(secondFamilyDeterminant) - 1) <= 1e-8;
-        MatrixXd combinedTransform = MatrixXd::Zero(
-            wideLaneFixedCount + secondFamilyFixedCount,
-            2 * familyCount
-        );
-        combinedTransform.topRows(wideLaneFixedCount) =
-            conditionedSecondFamily.fixedFirstFamilyTransform;
-        if (secondFamilyFixedCount > 0)
+        const bool fullVisibleCandidate =
+            visibleProbe.fullCandidate &&
+            selectedFamilyCount == visibleFamilyCount;
+        if (selectedProbe.fullCandidate)
         {
-            combinedTransform.bottomRows(secondFamilyFixedCount) =
-                secondFamilyResolution.transformToInputCoordinates *
-                conditionedSecondFamily.secondFamilyTransform;
-        }
-        const int combinedRank = combinedTransform.rows() > 0
-            ? combinedTransform.fullPivLu().rank()
-            : 0;
-        const bool combinedIntegerValued = combinedTransform.rows() > 0 &&
-            (combinedTransform.array() - combinedTransform.array().round())
-                    .abs()
-                    .maxCoeff() <= 1e-12;
-        const bool fullGroupCandidate =
-            secondFamilyFixedCount == familyCount &&
-            secondFamilyUnimodular &&
-            combinedIntegerValued &&
-            combinedRank == 2 * familyCount;
-        if (fullGroupCandidate)
-        {
-            fullCandidateGroupCount++;
-            fullCandidateRowCount += combinedRank;
-            VectorXd combinedFixedIntegers(2 * familyCount);
+            selectedCandidateGroupCount++;
+            selectedCandidateRowCount += selectedProbe.combinedRank;
+            if (fullVisibleCandidate)
+            {
+                fullVisibleCandidateGroupCount++;
+                fullVisibleCandidateRowCount += selectedProbe.combinedRank;
+            }
+            VectorXd combinedFixedIntegers(2 * selectedFamilyCount);
             combinedFixedIntegers <<
-                wideLaneProbe.zfix,
-                secondFamilyResolution.fixedIntegers;
+                selectedProbe.wideLaneAttempt.zfix,
+                selectedProbe.secondFamilyResolution.fixedIntegers;
             traceDualFrequencyCandidateRows(
                 trace,
                 datum,
-                combinedTransform * groupTransform,
+                selectedProbe.combinedTransform * selectedProbe.groupTransform,
                 combinedFixedIntegers,
-                familyCount,
-                "FULL_GROUP",
+                selectedFamilyCount,
+                fullVisibleCandidate ? "FULL_VISIBLE_GROUP" : "SELECTED_SUBSET",
                 originalAmbiguities.ambmap
             );
         }
-        else if (secondFamilyFixedCount > 0)
+        else if (visibleProbe.secondFamilyResolution.fixedIntegers.size() > 0)
         {
             const MatrixXd acceptedSecondRows =
-                secondFamilyResolution.transformToInputCoordinates *
-                conditionedSecondFamily.secondFamilyTransform *
-                groupTransform;
+                visibleProbe.secondFamilyResolution.transformToInputCoordinates *
+                visibleProbe.conditionedSecondFamily.secondFamilyTransform *
+                visibleProbe.groupTransform;
             traceDualFrequencyCandidateRows(
                 trace,
                 datum,
                 acceptedSecondRows,
-                secondFamilyResolution.fixedIntegers,
+                visibleProbe.secondFamilyResolution.fixedIntegers,
                 0,
                 "SECOND_D2_PARTIAL",
                 originalAmbiguities.ambmap
             );
         }
 
-        const GinAR_mtx& lastSecondAttempt = secondFamilyResolution.lastAttempt;
+        const GinAR_mtx& lastSecondAttempt =
+            selectedProbe.secondFamilyResolution.lastAttempt;
 
         tracepdeex(
             2,
             trace,
             "\nPPP_AR DUAL_FREQUENCY_STAGE receiver=%s system=%s reference=%s "
+            "visible_family_count=%d selected_family_count=%d excluded_satellites=%d "
             "wide_lane_target=%d wide_lane_fixed=%d wide_lane_status=%s "
             "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
             "second_d2_target=%d second_d2_fixed=%d second_d2_status=%s "
@@ -412,49 +530,62 @@ static void traceDualFrequencyDatumDiagnostic(
             datum.receiver.c_str(),
             enum_to_string(datum.system).c_str(),
             datum.pivot.id().c_str(),
-            familyCount,
-            wideLaneFixedCount,
-            wideLaneProbe.diagnosticStatus.c_str(),
-            wideLaneProbe.bootstrappedSuccessRate,
-            wideLaneProbe.solutionRatio,
-            familyCount,
+            visibleFamilyCount,
+            selectedFamilyCount,
+            visibleFamilyCount - selectedFamilyCount,
+            selectedFamilyCount,
+            selectedProbe.wideLaneFixedCount,
+            selectedProbe.wideLaneAttempt.diagnosticStatus.c_str(),
+            selectedProbe.wideLaneAttempt.bootstrappedSuccessRate,
+            selectedProbe.wideLaneAttempt.solutionRatio,
+            selectedFamilyCount,
             secondFamilyFixedCount,
-            secondFamilyResolution.diagnosticStatus.c_str(),
-            secondFamilyOptions.minimumDecorrelatedAmbiguityCount,
-            secondFamilyResolution.attemptedStageCount,
-            secondFamilyResolution.acceptedStageCount,
+            selectedProbe.secondFamilyResolution.diagnosticStatus.c_str(),
+            1,
+            selectedProbe.secondFamilyResolution.attemptedStageCount,
+            selectedProbe.secondFamilyResolution.acceptedStageCount,
             lastSecondAttempt.diagnosticStatus.c_str(),
             lastSecondAttempt.bootstrappedSuccessRate,
             lastSecondAttempt.solutionRatio,
             secondFamilyRowsIntegerValued,
             secondFamilyRowRank,
-            secondFamilyUnimodular,
-            combinedIntegerValued,
-            combinedRank,
-            2 * familyCount,
-            fullGroupCandidate ?
-                "FULL_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
-                "SECOND_D2_FAMILY_NOT_FULL"
+            selectedProbe.secondFamilyUnimodular,
+            selectedProbe.combinedIntegerValued,
+            selectedProbe.combinedRank,
+            2 * selectedFamilyCount,
+            selectedProbe.fullCandidate ?
+                (fullVisibleCandidate ?
+                    "FULL_VISIBLE_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
+                    "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED") :
+                selectedProbe.diagnosticStatus.c_str()
         );
     }
 
-    const bool fullEpochCandidate =
+    const bool fullVisibleEpochCandidate =
         transform.diagnosticStatus == "FULL_DUAL_FREQUENCY_INTEGER_BASIS" &&
-        fullCandidateGroupCount == transform.completeGroupCount &&
-        fullCandidateRowCount == transform.expectedIntegerRank;
+        fullVisibleCandidateGroupCount == transform.completeGroupCount &&
+        fullVisibleCandidateRowCount == transform.expectedIntegerRank;
+    const bool fullSelectedEpochCandidate =
+        transform.incompleteGroupCount == 0 &&
+        selectedCandidateGroupCount == transform.completeGroupCount;
     tracepdeex(
         2,
         trace,
         "\nPPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=%d "
-        "target_groups=%d full_candidate_rows=%d target_rank=%d status=%s "
+        "target_groups=%d full_candidate_rows=%d target_rank=%d "
+        "selected_candidate_groups=%d selected_candidate_rows=%d status=%s "
         "wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED",
-        fullCandidateGroupCount,
+        fullVisibleCandidateGroupCount,
         transform.completeGroupCount,
-        fullCandidateRowCount,
+        fullVisibleCandidateRowCount,
         transform.expectedIntegerRank,
-        fullEpochCandidate ?
-            "FULL_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
-            "NO_FULL_INTEGER_DATUM_CANDIDATE"
+        selectedCandidateGroupCount,
+        selectedCandidateRowCount,
+        fullVisibleEpochCandidate ?
+            "FULL_VISIBLE_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
+            (fullSelectedEpochCandidate ?
+                "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
+                "NO_FULL_INTEGER_DATUM_CANDIDATE")
     );
 }
 
