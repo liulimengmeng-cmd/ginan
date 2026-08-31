@@ -99,6 +99,7 @@ static void traceDualFrequencyCandidateRows(
     const MatrixXd&                     rowsInOriginalAmbiguities,
     const VectorXd&                     fixedIntegers,
     int                                 wideLaneCandidateCount,
+    const char*                         candidateScope,
     const map<int, KFKey>&              originalAmbiguityMap
 )
 {
@@ -110,9 +111,11 @@ static void traceDualFrequencyCandidateRows(
             1,
             trace,
             "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
-            "status=INVALID_DIMENSIONS action=PROBE_ONLY_NOT_SUBMITTED",
+            "candidate_scope=%s status=INVALID_DIMENSIONS "
+            "action=PROBE_ONLY_NOT_SUBMITTED",
             datum.receiver.c_str(),
-            enum_to_string(datum.system).c_str()
+            enum_to_string(datum.system).c_str(),
+            candidateScope
         );
         return;
     }
@@ -152,11 +155,13 @@ static void traceDualFrequencyCandidateRows(
             traceOutputLevel,
             trace,
             "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
-            "reference=%s family=%s row=%d rhs=%.17g support=%d status=%s "
+            "reference=%s candidate_scope=%s family=%s row=%d rhs=%.17g "
+            "support=%d status=%s "
             "terms=%saction=PROBE_ONLY_NOT_SUBMITTED",
             datum.receiver.c_str(),
             enum_to_string(datum.system).c_str(),
             datum.pivot.id().c_str(),
+            candidateScope,
             row < wideLaneCandidateCount ? "WIDE_LANE" : "SECOND_D2",
             row,
             fixedIntegers(row),
@@ -298,24 +303,32 @@ static void traceDualFrequencyDatumDiagnostic(
             continue;
         }
 
-        GinAR_mtx secondFamilyProbe =
-            conditionedSecondFamily.ambiguityResolution;
         GinAR_opt secondFamilyOptions = options;
         // A one- or two-dimensional d2 remainder is scientifically useful as
         // a diagnostic direction.  The success-rate and ratio thresholds are
         // unchanged, no row is submitted, and a full datum still requires all
         // d2 rows in the group.
         secondFamilyOptions.minimumDecorrelatedAmbiguityCount = 1;
-        const int secondFamilyFixedCount = GNSS_AR(
-            trace,
-            secondFamilyProbe,
-            secondFamilyOptions
-        );
-        const bool secondFamilyIntegerValued = secondFamilyFixedCount == familyCount &&
-            (secondFamilyProbe.Ztrs.array() -
-             secondFamilyProbe.Ztrs.array().round()).abs().maxCoeff() <= 1e-12;
+        const IterativeIntegerFamilyResolution secondFamilyResolution =
+            resolveIntegerFamilyIteratively(
+                trace,
+                conditionedSecondFamily.ambiguityResolution,
+                secondFamilyOptions
+            );
+        const int secondFamilyFixedCount =
+            secondFamilyResolution.fixedIntegers.size();
+        const bool secondFamilyRowsIntegerValued = secondFamilyFixedCount == 0 ||
+            (secondFamilyResolution.transformToInputCoordinates.array() -
+             secondFamilyResolution.transformToInputCoordinates.array().round())
+                    .abs()
+                    .maxCoeff() <= 1e-12;
+        const int secondFamilyRowRank = secondFamilyFixedCount > 0
+            ? secondFamilyResolution.transformToInputCoordinates.fullPivLu().rank()
+            : 0;
+        const bool secondFamilyIntegerValued =
+            secondFamilyFixedCount == familyCount && secondFamilyRowsIntegerValued;
         const double secondFamilyDeterminant = secondFamilyFixedCount == familyCount
-            ? secondFamilyProbe.Ztrs.determinant()
+            ? secondFamilyResolution.transformToInputCoordinates.determinant()
             : 0;
         const bool secondFamilyUnimodular =
             secondFamilyIntegerValued && std::isfinite(secondFamilyDeterminant) &&
@@ -329,7 +342,7 @@ static void traceDualFrequencyDatumDiagnostic(
         if (secondFamilyFixedCount > 0)
         {
             combinedTransform.bottomRows(secondFamilyFixedCount) =
-                secondFamilyProbe.Ztrs *
+                secondFamilyResolution.transformToInputCoordinates *
                 conditionedSecondFamily.secondFamilyTransform;
         }
         const int combinedRank = combinedTransform.rows() > 0
@@ -349,16 +362,37 @@ static void traceDualFrequencyDatumDiagnostic(
             fullCandidateGroupCount++;
             fullCandidateRowCount += combinedRank;
             VectorXd combinedFixedIntegers(2 * familyCount);
-            combinedFixedIntegers << wideLaneProbe.zfix, secondFamilyProbe.zfix;
+            combinedFixedIntegers <<
+                wideLaneProbe.zfix,
+                secondFamilyResolution.fixedIntegers;
             traceDualFrequencyCandidateRows(
                 trace,
                 datum,
                 combinedTransform * groupTransform,
                 combinedFixedIntegers,
                 familyCount,
+                "FULL_GROUP",
                 originalAmbiguities.ambmap
             );
         }
+        else if (secondFamilyFixedCount > 0)
+        {
+            const MatrixXd acceptedSecondRows =
+                secondFamilyResolution.transformToInputCoordinates *
+                conditionedSecondFamily.secondFamilyTransform *
+                groupTransform;
+            traceDualFrequencyCandidateRows(
+                trace,
+                datum,
+                acceptedSecondRows,
+                secondFamilyResolution.fixedIntegers,
+                0,
+                "SECOND_D2_PARTIAL",
+                originalAmbiguities.ambmap
+            );
+        }
+
+        const GinAR_mtx& lastSecondAttempt = secondFamilyResolution.lastAttempt;
 
         tracepdeex(
             2,
@@ -368,8 +402,11 @@ static void traceDualFrequencyDatumDiagnostic(
             "wide_lane_success_rate=%.17g wide_lane_ratio=%.17g "
             "second_d2_target=%d second_d2_fixed=%d second_d2_status=%s "
             "second_d2_minimum_decorrelated=%d "
-            "second_d2_success_rate=%.17g second_d2_ratio=%.17g "
-            "second_d2_unimodular=%d combined_integer_valued=%d "
+            "second_d2_attempted_stages=%d second_d2_accepted_stages=%d "
+            "second_d2_last_attempt_status=%s second_d2_success_rate=%.17g "
+            "second_d2_ratio=%.17g second_d2_integer_valued=%d "
+            "second_d2_row_rank=%d second_d2_unimodular=%d "
+            "combined_integer_valued=%d "
             "combined_rank=%d target_rank=%d status=%s "
             "action=PROBE_ONLY_NOT_SUBMITTED",
             datum.receiver.c_str(),
@@ -382,10 +419,15 @@ static void traceDualFrequencyDatumDiagnostic(
             wideLaneProbe.solutionRatio,
             familyCount,
             secondFamilyFixedCount,
-            secondFamilyProbe.diagnosticStatus.c_str(),
+            secondFamilyResolution.diagnosticStatus.c_str(),
             secondFamilyOptions.minimumDecorrelatedAmbiguityCount,
-            secondFamilyProbe.bootstrappedSuccessRate,
-            secondFamilyProbe.solutionRatio,
+            secondFamilyResolution.attemptedStageCount,
+            secondFamilyResolution.acceptedStageCount,
+            lastSecondAttempt.diagnosticStatus.c_str(),
+            lastSecondAttempt.bootstrappedSuccessRate,
+            lastSecondAttempt.solutionRatio,
+            secondFamilyRowsIntegerValued,
+            secondFamilyRowRank,
             secondFamilyUnimodular,
             combinedIntegerValued,
             combinedRank,

@@ -579,6 +579,50 @@ int main()
         "full-rank but non-unimodular wide-lane coordinates are rejected"
     );
 
+    GinAR_mtx iterativeFamilyInput;
+    iterativeFamilyInput.aflt.resize(2);
+    iterativeFamilyInput.aflt << 10.1, 20.2;
+    iterativeFamilyInput.Paflt = 0.016 * MatrixXd::Identity(2, 2);
+    GinAR_opt iterativeFamilyOptions;
+    iterativeFamilyOptions.mode = E_ARmode::LAMBDA_ALT;
+    iterativeFamilyOptions.sucthr = 0.9999;
+    iterativeFamilyOptions.ratthr = 3;
+    iterativeFamilyOptions.minimumDecorrelatedAmbiguityCount = 1;
+    const auto iterativeFamilyResolution = resolveIntegerFamilyIteratively(
+        trace,
+        iterativeFamilyInput,
+        iterativeFamilyOptions
+    );
+    passed &= check(
+        iterativeFamilyResolution.diagnosticStatus ==
+            "FULL_INTEGER_FAMILY_RESOLVED",
+        "iterative integer-family resolution completes a partially selectable family"
+    );
+    passed &= check(
+        iterativeFamilyResolution.attemptedStageCount == 2 &&
+            iterativeFamilyResolution.acceptedStageCount == 2,
+        "iterative integer-family resolution conditions and retries the remainder"
+    );
+    passed &= check(
+        iterativeFamilyResolution.transformToInputCoordinates.rows() == 2 &&
+            iterativeFamilyResolution.transformToInputCoordinates.cols() == 2 &&
+            iterativeFamilyResolution.transformToInputCoordinates.fullPivLu().rank() == 2 &&
+            std::abs(
+                std::abs(
+                    iterativeFamilyResolution.transformToInputCoordinates.determinant()
+                ) - 1
+            ) < 1e-12,
+        "iterative accepted rows retain a full unimodular basis"
+    );
+    passed &= check(
+        iterativeFamilyResolution.fixedIntegers.isApprox(
+            (iterativeFamilyResolution.transformToInputCoordinates *
+             iterativeFamilyInput.aflt).array().round().matrix(),
+            1e-12
+        ),
+        "iterative fixed integers correspond to the accumulated integer transform"
+    );
+
     GinAR_mtx complementInput;
     complementInput.aflt.resize(3);
     complementInput.aflt << 10.2, 20.3, 30.4;

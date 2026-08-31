@@ -33,7 +33,7 @@ def audit_trace(path: Path) -> dict[str, object]:
     summary_by_epoch: dict[int, dict[str, str]] = {}
     group_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     stage_records: dict[int, list[dict[str, str]]] = defaultdict(list)
-    candidate_row_count = 0
+    candidate_records: list[dict[str, str]] = []
     action_violations: list[dict[str, object]] = []
     safety_field_violations: list[dict[str, object]] = []
 
@@ -64,7 +64,7 @@ def audit_trace(path: Path) -> dict[str, object]:
             elif "DUAL_FREQUENCY_STAGE" in line:
                 stage_records[current_epoch].append(record)
             elif "DUAL_FREQUENCY_CANDIDATE_ROW" in line:
-                candidate_row_count += 1
+                candidate_records.append(record)
             elif "DUAL_FREQUENCY_DATUM_SUMMARY" in line:
                 summary_by_epoch[current_epoch] = record
                 if (
@@ -170,6 +170,15 @@ def audit_trace(path: Path) -> dict[str, object]:
         for records in stage_records.values()
         for record in records
     )
+    candidate_family_counts = Counter(
+        record.get("family", "MISSING") for record in candidate_records
+    )
+    candidate_scope_counts = Counter(
+        record.get("candidate_scope", "MISSING") for record in candidate_records
+    )
+    invalid_candidate_row_count = sum(
+        record.get("status") != "INTEGER_MAPPED" for record in candidate_records
+    )
 
     all_epochs_have_records = bool(audited_epochs) and all(
         epoch in basis_by_epoch and epoch in summary_by_epoch
@@ -203,7 +212,10 @@ def audit_trace(path: Path) -> dict[str, object]:
         "full_group_candidate_count": len(full_group_candidates),
         "full_epoch_candidate_count": len(full_candidate_epochs),
         "full_epoch_candidate_epochs": sorted(full_candidate_epochs),
-        "candidate_row_count": candidate_row_count,
+        "candidate_row_count": len(candidate_records),
+        "candidate_family_counts": dict(sorted(candidate_family_counts.items())),
+        "candidate_scope_counts": dict(sorted(candidate_scope_counts.items())),
+        "invalid_candidate_row_count": invalid_candidate_row_count,
         "stage_status_counts": dict(sorted(stage_status_counts.items())),
         "wide_lane_status_counts": dict(sorted(wide_lane_status_counts.items())),
         "second_family_status_counts": dict(

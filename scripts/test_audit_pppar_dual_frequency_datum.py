@@ -42,6 +42,25 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
         self.assertEqual(len(report["action_violations"]), 2)
         self.assertEqual(len(report["structural_failures"]), 1)
 
+    def test_counts_mapped_second_family_rows(self) -> None:
+        payload = """
+------=============== Epoch 1 =============-----------
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SECOND_D2_PARTIAL family=SECOND_D2 row=0 rhs=4 support=2 status=INTEGER_MAPPED terms=example action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=6 status=NO_FULL_INTEGER_DATUM_CANDIDATE wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertEqual(report["candidate_row_count"], 1)
+        self.assertEqual(report["candidate_family_counts"], {"SECOND_D2": 1})
+        self.assertEqual(
+            report["candidate_scope_counts"],
+            {"SECOND_D2_PARTIAL": 1},
+        )
+        self.assertEqual(report["invalid_candidate_row_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

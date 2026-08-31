@@ -141,6 +141,17 @@ struct ConditionedIntegerFamily
     string diagnosticStatus = "NOT_RUN";
 };
 
+struct IterativeIntegerFamilyResolution
+{
+    MatrixXd transformToInputCoordinates;
+    VectorXd fixedIntegers;
+    GinAR_mtx lastAttempt;
+    vector<string> stageStatuses;
+    int attemptedStageCount = 0;
+    int acceptedStageCount = 0;
+    string diagnosticStatus = "NOT_RUN";
+};
+
 ReceiverAmbiguityTransform buildReceiverAmbiguityIntegerTransform(
     const GinAR_mtx&        ambiguityResolution,
     const map<E_Sys, bool>& receiverAmbiguityPivot
@@ -161,6 +172,12 @@ ConditionedIntegerFamily conditionSecondIntegerFamilyOnFixedFirst(
     const GinAR_mtx& jointIntegerFamilies,
     int              firstFamilyCount,
     const GinAR_mtx& fixedFirstFamily
+);
+
+IterativeIntegerFamilyResolution resolveIntegerFamilyIteratively(
+    Trace&            trace,
+    const GinAR_mtx&  inputIntegerFamily,
+    GinAR_opt         options
 );
 
 ConditionalIntegerComplement buildConditionalIntegerComplement(

@@ -419,6 +419,113 @@ ConditionedIntegerFamily conditionSecondIntegerFamilyOnFixedFirst(
     return result;
 }
 
+IterativeIntegerFamilyResolution resolveIntegerFamilyIteratively(
+    Trace&            trace,
+    const GinAR_mtx&  inputIntegerFamily,
+    GinAR_opt         options
+)
+{
+    IterativeIntegerFamilyResolution result;
+    const int inputCount = inputIntegerFamily.aflt.size();
+    if (inputCount <= 0 || inputIntegerFamily.Paflt.rows() != inputCount ||
+        inputIntegerFamily.Paflt.cols() != inputCount)
+    {
+        result.diagnosticStatus = "INVALID_INTEGER_FAMILY_DIMENSIONS";
+        return result;
+    }
+
+    GinAR_mtx currentFamily = inputIntegerFamily;
+    MatrixXd currentToInput = MatrixXd::Identity(inputCount, inputCount);
+    result.transformToInputCoordinates.resize(0, inputCount);
+    result.fixedIntegers.resize(0);
+
+    for (int stage = 0; stage < inputCount; stage++)
+    {
+        GinAR_mtx attempt = currentFamily;
+        result.attemptedStageCount++;
+        const int fixedCount = GNSS_AR(trace, attempt, options);
+        result.lastAttempt = attempt;
+        result.stageStatuses.push_back(attempt.diagnosticStatus);
+        if (fixedCount <= 0)
+        {
+            result.diagnosticStatus = result.fixedIntegers.size() > 0
+                ? "PARTIAL_INTEGER_FAMILY_RESOLVED"
+                : "NO_INTEGER_FAMILY_ROWS_RESOLVED";
+            return result;
+        }
+        if (attempt.Ztrs.rows() != fixedCount ||
+            attempt.Ztrs.cols() != currentFamily.aflt.size() ||
+            attempt.zfix.size() != fixedCount)
+        {
+            result.diagnosticStatus = "INVALID_ITERATIVE_RESOLUTION_DIMENSIONS";
+            return result;
+        }
+
+        const MatrixXd acceptedRows = attempt.Ztrs * currentToInput;
+        const bool acceptedRowsIntegerValued =
+            (acceptedRows.array() - acceptedRows.array().round())
+                    .abs()
+                    .maxCoeff() <= 1e-12;
+        if (!acceptedRowsIntegerValued ||
+            acceptedRows.fullPivLu().rank() != fixedCount)
+        {
+            result.diagnosticStatus = "INVALID_ITERATIVE_INTEGER_ROWS";
+            return result;
+        }
+
+        const int previousAcceptedCount = result.fixedIntegers.size();
+        MatrixXd accumulatedRows(previousAcceptedCount + fixedCount, inputCount);
+        VectorXd accumulatedIntegers(previousAcceptedCount + fixedCount);
+        if (previousAcceptedCount > 0)
+        {
+            accumulatedRows.topRows(previousAcceptedCount) =
+                result.transformToInputCoordinates;
+            accumulatedIntegers.head(previousAcceptedCount) = result.fixedIntegers;
+        }
+        accumulatedRows.bottomRows(fixedCount) = acceptedRows;
+        accumulatedIntegers.tail(fixedCount) = attempt.zfix;
+        if (accumulatedRows.fullPivLu().rank() != accumulatedRows.rows())
+        {
+            result.diagnosticStatus = "ITERATIVE_INTEGER_ROWS_NOT_INDEPENDENT";
+            return result;
+        }
+        result.transformToInputCoordinates = accumulatedRows;
+        result.fixedIntegers = accumulatedIntegers;
+        result.acceptedStageCount++;
+
+        if (result.fixedIntegers.size() == inputCount)
+        {
+            const double determinant =
+                result.transformToInputCoordinates.determinant();
+            if (!std::isfinite(determinant) ||
+                std::abs(std::abs(determinant) - 1) > 1e-8)
+            {
+                result.diagnosticStatus =
+                    "FULL_INTEGER_FAMILY_NOT_UNIMODULAR";
+                return result;
+            }
+            result.diagnosticStatus = "FULL_INTEGER_FAMILY_RESOLVED";
+            return result;
+        }
+
+        const ConditionalIntegerComplement complement =
+            buildConditionalIntegerComplement(currentFamily, attempt);
+        if (complement.diagnosticStatus !=
+            "CONDITIONAL_INTEGER_COMPLEMENT_READY")
+        {
+            result.diagnosticStatus =
+                "ITERATIVE_COMPLEMENT_" + complement.diagnosticStatus;
+            return result;
+        }
+        currentToInput =
+            complement.transformToInputCoordinates * currentToInput;
+        currentFamily = complement.ambiguityResolution;
+    }
+
+    result.diagnosticStatus = "ITERATIVE_STAGE_LIMIT_REACHED";
+    return result;
+}
+
 bool mapIntegerAmbiguityConstraintsToOriginalState(
     GinAR_mtx&                        integerAmbiguityResolution,
     const ReceiverAmbiguityTransform& integerTransform,
