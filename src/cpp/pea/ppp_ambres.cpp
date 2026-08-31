@@ -101,12 +101,15 @@ static void traceDualFrequencyCandidateRows(
     const VectorXd&                     fixedIntegers,
     int                                 wideLaneCandidateCount,
     const char*                         candidateScope,
-    const map<int, KFKey>&              originalAmbiguityMap
+    const GinAR_mtx&                    originalAmbiguities
 )
 {
     if (rowsInOriginalAmbiguities.rows() != fixedIntegers.size() ||
+        rowsInOriginalAmbiguities.cols() != originalAmbiguities.aflt.size() ||
+        originalAmbiguities.Paflt.rows() != originalAmbiguities.aflt.size() ||
+        originalAmbiguities.Paflt.cols() != originalAmbiguities.aflt.size() ||
         rowsInOriginalAmbiguities.cols() !=
-            static_cast<int>(originalAmbiguityMap.size()))
+            static_cast<int>(originalAmbiguities.ambmap.size()))
     {
         tracepdeex(
             1,
@@ -138,8 +141,8 @@ static void traceDualFrequencyCandidateRows(
             {
                 continue;
             }
-            const auto ambiguity = originalAmbiguityMap.find(column);
-            if (ambiguity == originalAmbiguityMap.end())
+            const auto ambiguity = originalAmbiguities.ambmap.find(column);
+            if (ambiguity == originalAmbiguities.ambmap.end())
             {
                 integerCoefficients = false;
                 continue;
@@ -152,11 +155,21 @@ static void traceDualFrequencyCandidateRows(
         }
 
         const int traceOutputLevel = integerCoefficients && support > 0 ? 2 : 1;
+        const VectorXd candidateRow = rowsInOriginalAmbiguities.row(row);
+        const double floatValue = candidateRow.dot(originalAmbiguities.aflt);
+        const double variance = (
+            candidateRow.transpose() * originalAmbiguities.Paflt * candidateRow
+        )(0, 0);
+        const double formalSigma = variance >= 0 && std::isfinite(variance)
+            ? std::sqrt(variance)
+            : -1;
+        const double floatMinusInteger = floatValue - fixedIntegers(row);
         tracepdeex(
             traceOutputLevel,
             trace,
             "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
             "reference=%s candidate_scope=%s family=%s row=%d rhs=%.17g "
+            "float_value=%.17g float_minus_integer=%.17g formal_sigma=%.17g "
             "support=%d status=%s "
             "terms=%saction=PROBE_ONLY_NOT_SUBMITTED",
             datum.receiver.c_str(),
@@ -166,6 +179,9 @@ static void traceDualFrequencyCandidateRows(
             row < wideLaneCandidateCount ? "WIDE_LANE" : "SECOND_D2",
             row,
             fixedIntegers(row),
+            floatValue,
+            floatMinusInteger,
+            formalSigma,
             support,
             integerCoefficients && support > 0 ? "INTEGER_MAPPED" : "INVALID_MAPPING",
             terms.str().c_str()
@@ -488,7 +504,7 @@ static void traceDualFrequencyDatumDiagnostic(
                 combinedFixedIntegers,
                 selectedFamilyCount,
                 fullVisibleCandidate ? "FULL_VISIBLE_GROUP" : "SELECTED_SUBSET",
-                originalAmbiguities.ambmap
+                originalAmbiguities
             );
         }
         else if (visibleProbe.secondFamilyResolution.fixedIntegers.size() > 0)
@@ -504,7 +520,7 @@ static void traceDualFrequencyDatumDiagnostic(
                 visibleProbe.secondFamilyResolution.fixedIntegers,
                 0,
                 "SECOND_D2_PARTIAL",
-                originalAmbiguities.ambmap
+                originalAmbiguities
             );
         }
 
