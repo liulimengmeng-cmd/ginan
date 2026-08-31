@@ -12,6 +12,9 @@ Examples (from the repository root under WSL)::
     python3 scripts/experiment1_2024_corrected_driver.py run
     python3 scripts/experiment1_2024_corrected_driver.py audit \
         --batch-root /home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v1_...
+    python3 scripts/experiment1_2024_corrected_driver.py audit \
+        --batch-root /home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v1_... \
+        --write-audit
 
 ``--dry-run`` verifies inputs and constructs the complete plan, but creates no
 directory and never starts PEA.  By default any live process whose ``comm`` is
@@ -21,6 +24,10 @@ MemAvailable must be at least 3 GiB, SwapFree at least 8 GiB, and new PEA runs
 are wrapped in a recorded nice value (19 by default) plus idle-class ionice.
 The resource snapshot and the concurrency exception are recorded in every
 receipt.
+
+The ``audit`` subcommand is read-only by default and prints its report to
+standard output.  It writes a no-replace JSON artifact only when
+``--write-audit`` is supplied; ``--output`` may then select a non-default path.
 """
 
 from __future__ import annotations
@@ -2095,11 +2102,23 @@ def audit_batch(args: argparse.Namespace) -> dict[str, object]:
         "scientific_assessment_matches_receipt": scientific_assessment_matches_receipt,
         "claim_limit": receipt.get("claim_limit"),
     }
-    if args.dry_run:
-        return {"status": "DRY_RUN", "audit_written": False, "report": report}
-    output = args.output or (batch_root / "audit" / "batch.audit.json")
+    write_audit = bool(getattr(args, "write_audit", False))
+    dry_run = bool(getattr(args, "dry_run", False))
+    output_arg = getattr(args, "output", None)
+    if output_arg is not None and not write_audit:
+        raise DriverError("--output requires --write-audit")
+    if dry_run and write_audit:
+        raise DriverError("--dry-run cannot be combined with --write-audit")
+    if not write_audit:
+        return {"status": report["status"], "audit_written": False, "report": report}
+    output = output_arg or (batch_root / "audit" / "batch.audit.json")
     output_record = atomic_write_json_no_replace(output, report)
-    return {"status": report["status"], "audit": output_record, "report": report}
+    return {
+        "status": report["status"],
+        "audit_written": True,
+        "audit": output_record,
+        "report": report,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2139,10 +2158,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="nice value for this batch when --allow-existing-pea-pid is used",
     )
     run_parser.add_argument("--dry-run", action="store_true")
-    audit_parser = subparsers.add_parser("audit", help="rehash and audit an existing batch")
+    audit_parser = subparsers.add_parser(
+        "audit", help="read-only rehash and audit of an existing batch"
+    )
     audit_parser.add_argument("--batch-root", type=Path, required=True)
-    audit_parser.add_argument("--output", type=Path)
-    audit_parser.add_argument("--dry-run", action="store_true")
+    audit_parser.add_argument(
+        "--write-audit",
+        action="store_true",
+        help="publish a no-replace JSON audit artifact (default: read-only stdout)",
+    )
+    audit_parser.add_argument(
+        "--output", type=Path, help="output path used only with --write-audit"
+    )
+    audit_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="deprecated read-only spelling retained for compatibility",
+    )
     return parser
 
 

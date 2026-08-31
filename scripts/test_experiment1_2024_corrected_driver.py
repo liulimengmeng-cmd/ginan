@@ -578,7 +578,10 @@ class DriverTests(unittest.TestCase):
                 batch_root / "batch.receipt.json", batch_receipt
             )
             audit_args = argparse.Namespace(
-                batch_root=batch_root, output=None, dry_run=True
+                batch_root=batch_root,
+                output=None,
+                dry_run=False,
+                write_audit=False,
             )
             with patch.object(
                 driver,
@@ -586,12 +589,35 @@ class DriverTests(unittest.TestCase):
                 side_effect=AssertionError("audit consulted live PEA state"),
             ):
                 audited = driver.audit_batch(audit_args)
-            self.assertEqual(audited["status"], "DRY_RUN")
+            self.assertEqual(audited["status"], "PASS")
+            self.assertFalse(audited["audit_written"])
             self.assertEqual(audited["report"]["status"], "PASS")
             self.assertEqual(
                 audited["report"]["scientific_status"],
                 "DEFECT_FIX_RUNTIME_EVIDENCE_COMPLETE",
             )
+            self.assertFalse((batch_root / "audit/batch.audit.json").exists())
+
+            output = batch_root / "audit/explicit.audit.json"
+            write_args = argparse.Namespace(
+                batch_root=batch_root,
+                output=output,
+                dry_run=False,
+                write_audit=True,
+            )
+            written = driver.audit_batch(write_args)
+            self.assertEqual(written["status"], "PASS")
+            self.assertTrue(written["audit_written"])
+            self.assertTrue(output.is_file())
+
+            invalid_args = argparse.Namespace(
+                batch_root=batch_root,
+                output=batch_root / "audit/implicit.audit.json",
+                dry_run=False,
+                write_audit=False,
+            )
+            with self.assertRaises(driver.DriverError):
+                driver.audit_batch(invalid_args)
 
     def test_output_discovery_uses_actual_smoothed_sd_suffix(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
