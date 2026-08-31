@@ -58,6 +58,7 @@ struct GinAR_opt
 
     int nset = 0;                   /* candidate set size for lambda */
     int nitr = 3;                   /* number of iterations for iter_rnd */
+    int minimumDecorrelatedAmbiguityCount = 3;
 
     double MIN_Elev_prc = D2R * 10; /* min elevation for processing */
     double MIN_Elev_AR  = D2R * 15; /* min elevation for AR */

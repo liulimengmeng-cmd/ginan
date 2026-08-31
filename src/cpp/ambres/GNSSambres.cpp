@@ -705,7 +705,7 @@ int lambda_search(
     }
     mtrx.bootstrappedSuccessRate = succ;
     mtrx.selectedDecorrelatedAmbiguityCount = zsiz;
-    if (zsiz < 3)
+    if (zsiz < opt.minimumDecorrelatedAmbiguityCount)
     {
         mtrx.diagnosticStatus = "INSUFFICIENT_DECORRELATED_AMBIGUITIES";
         return 0;

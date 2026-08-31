@@ -514,14 +514,20 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
         if (complement.diagnosticStatus == "CONDITIONAL_INTEGER_COMPLEMENT_READY")
         {
             GinAR_mtx complementProbe = complement.ambiguityResolution;
-            const int complementFixCount = GNSS_AR(trace, complementProbe, ARopt);
+            GinAR_opt complementProbeOptions = ARopt;
+            // Probe the one- and two-dimensional remainder without weakening
+            // the production stage-one minimum or submitting the result.
+            complementProbeOptions.minimumDecorrelatedAmbiguityCount = 1;
+            const int complementFixCount =
+                GNSS_AR(trace, complementProbe, complementProbeOptions);
             tracepdeex(
                 2,
                 trace,
                 "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
                 "remaining_coordinates=%d stage2_probe_rows=%d combined_independent_rows=%d "
                 "target_integer_rank=%d stage2_status=%s stage2_success_rate=%.17g "
-                "stage2_selected_decorrelated=%d stage2_integer_candidates=%d "
+                "stage2_minimum_decorrelated=%d stage2_selected_decorrelated=%d "
+                "stage2_integer_candidates=%d "
                 "stage2_best_squared_norm=%.17g stage2_second_squared_norm=%.17g "
                 "stage2_ratio=%.17g action=PROBE_ONLY_NOT_SUBMITTED",
                 nfix,
@@ -531,6 +537,7 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
                 result.integerAmbiguityCoordinateCount,
                 complementProbe.diagnosticStatus.c_str(),
                 complementProbe.bootstrappedSuccessRate,
+                complementProbeOptions.minimumDecorrelatedAmbiguityCount,
                 complementProbe.selectedDecorrelatedAmbiguityCount,
                 complementProbe.integerCandidateCount,
                 complementProbe.bestSquaredNorm,
@@ -559,7 +566,8 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
                 "\nPPP_AR INTEGER_COMPLEMENT_DIAGNOSTIC stage1_rows=%d "
                 "remaining_coordinates=%d stage2_probe_rows=0 combined_independent_rows=%d "
                 "target_integer_rank=%d stage2_status=%s stage2_success_rate=-1 "
-                "stage2_selected_decorrelated=0 stage2_integer_candidates=0 "
+                "stage2_minimum_decorrelated=1 stage2_selected_decorrelated=0 "
+                "stage2_integer_candidates=0 "
                 "stage2_best_squared_norm=-1 stage2_second_squared_norm=-1 "
                 "stage2_ratio=-1 action=PROBE_ONLY_NOT_SUBMITTED",
                 nfix,

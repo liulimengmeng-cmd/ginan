@@ -80,6 +80,32 @@ int main()
         "weak lambda selected ambiguity count"
     );
 
+    GinAR_mtx oneDimensionalMatrix;
+    oneDimensionalMatrix.aflt = VectorXd::Constant(1, 0.1);
+    oneDimensionalMatrix.Paflt = MatrixXd::Identity(1, 1) * 1e-4;
+    GinAR_opt oneDimensionalOptions;
+    oneDimensionalOptions.mode = E_ARmode::LAMBDA_ALT;
+    oneDimensionalOptions.sucthr = 0.9999;
+    oneDimensionalOptions.ratthr = 3;
+    passed &= check(
+        GNSS_AR(trace, oneDimensionalMatrix, oneDimensionalOptions) == 0,
+        "production lambda retains the three-dimension minimum"
+    );
+    passed &= check(
+        oneDimensionalMatrix.diagnosticStatus ==
+            "INSUFFICIENT_DECORRELATED_AMBIGUITIES",
+        "production minimum reports insufficient dimension"
+    );
+    oneDimensionalOptions.minimumDecorrelatedAmbiguityCount = 1;
+    passed &= check(
+        GNSS_AR(trace, oneDimensionalMatrix, oneDimensionalOptions) == 1,
+        "diagnostic lambda can search a one-dimensional remainder"
+    );
+    passed &= check(
+        oneDimensionalMatrix.diagnosticStatus == "RESOLVED_RATIO_ACCEPTED",
+        "one-dimensional diagnostic remainder passes the ratio test"
+    );
+
     GinAR_mtx roundMatrix;
     roundMatrix.aflt = VectorXd::Constant(2, 0.01);
     roundMatrix.Paflt = MatrixXd::Identity(2, 2) * 1e-4;

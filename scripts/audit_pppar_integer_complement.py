@@ -32,7 +32,8 @@ DIAGNOSTIC_RE = re.compile(
     r"stage1_rows=(\d+)\s+remaining_coordinates=(\d+)\s+"
     r"stage2_probe_rows=(\d+)\s+combined_independent_rows=(\d+)\s+"
     r"target_integer_rank=(\d+)\s+stage2_status=(\S+)\s+"
-    r"stage2_success_rate=(\S+)\s+stage2_selected_decorrelated=(\d+)\s+"
+    r"stage2_success_rate=(\S+)\s+stage2_minimum_decorrelated=(\d+)\s+"
+    r"stage2_selected_decorrelated=(\d+)\s+"
     r"stage2_integer_candidates=(\d+)\s+stage2_best_squared_norm=(\S+)\s+"
     r"stage2_second_squared_norm=(\S+)\s+stage2_ratio=(\S+)\s+"
     r"action=(\S+)"
@@ -54,6 +55,7 @@ class ComplementDiagnostic:
     target_integer_rank: int
     stage2_status: str
     stage2_success_rate: float
+    stage2_minimum_decorrelated: int
     stage2_selected_decorrelated: int
     stage2_integer_candidates: int
     stage2_best_squared_norm: float
@@ -112,12 +114,13 @@ def parse_trace(path: Path) -> list[ComplementDiagnostic]:
                     target_integer_rank=int(values[4]),
                     stage2_status=values[5],
                     stage2_success_rate=float(values[6]),
-                    stage2_selected_decorrelated=int(values[7]),
-                    stage2_integer_candidates=int(values[8]),
-                    stage2_best_squared_norm=float(values[9]),
-                    stage2_second_squared_norm=float(values[10]),
-                    stage2_ratio=float(values[11]),
-                    action=values[12],
+                    stage2_minimum_decorrelated=int(values[7]),
+                    stage2_selected_decorrelated=int(values[8]),
+                    stage2_integer_candidates=int(values[9]),
+                    stage2_best_squared_norm=float(values[10]),
+                    stage2_second_squared_norm=float(values[11]),
+                    stage2_ratio=float(values[12]),
+                    action=values[13],
                 )
                 diagnostics.append(diagnostic)
                 by_epoch[epoch] = diagnostic
@@ -193,7 +196,11 @@ def audit_trace(
                 raise ValueError(f"{path}: accepted stage two is below ratio requirements at {item.epoch}")
         elif item.stage2_status == "INSUFFICIENT_DECORRELATED_AMBIGUITIES":
             insufficient += 1
-            if item.stage2_probe_rows != 0 or item.stage2_selected_decorrelated >= 3:
+            if (
+                item.stage2_probe_rows != 0
+                or item.stage2_selected_decorrelated
+                >= item.stage2_minimum_decorrelated
+            ):
                 raise ValueError(f"{path}: inconsistent insufficient-dimension result at {item.epoch}")
         elif item.stage2_probe_rows != 0:
             raise ValueError(f"{path}: rejected stage two reports fixed rows at {item.epoch}")
@@ -217,6 +224,7 @@ def audit_trace(
                 "target_integer_rank": item.target_integer_rank,
                 "stage2_status": item.stage2_status,
                 "stage2_success_rate": item.stage2_success_rate,
+                "stage2_minimum_decorrelated": item.stage2_minimum_decorrelated,
                 "stage2_selected_decorrelated": item.stage2_selected_decorrelated,
                 "stage2_integer_candidates": item.stage2_integer_candidates,
                 "stage2_best_squared_norm": item.stage2_best_squared_norm,
