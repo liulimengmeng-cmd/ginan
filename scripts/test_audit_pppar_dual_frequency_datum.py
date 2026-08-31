@@ -68,6 +68,7 @@ PPP_AR DUAL_FREQUENCY_BASIS original=12 rows=10 expected_rank=10 actual_rank=10 
 PPP_AR DUAL_FREQUENCY_STAGE receiver=A system=GPS reference=G01 visible_family_count=5 selected_family_count=3 excluded_satellites=2 wide_lane_target=3 wide_lane_fixed=3 wide_lane_status=RESOLVED_RATIO_TEST second_d2_target=3 second_d2_fixed=3 second_d2_status=FULL_INTEGER_FAMILY_RESOLVED combined_rank=6 target_rank=6 status=FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED action=PROBE_ONLY_NOT_SUBMITTED
 PPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=A system=GPS reference=G01 candidate_scope=SELECTED_SUBSET family=WIDE_LANE row=0 rhs=1 support=4 status=INTEGER_MAPPED terms=example action=PROBE_ONLY_NOT_SUBMITTED
 PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=10 selected_candidate_groups=1 selected_candidate_rows=6 status=FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_CONTROL legacy_feedback=0 new_subset_feedback=0 status=FLOAT_STATE_PROBE_ONLY action=PROBE_ONLY_NOT_SUBMITTED
 """
         with tempfile.TemporaryDirectory() as temporary:
             trace = Path(temporary) / "Network.trace"
@@ -79,6 +80,37 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
         self.assertEqual(report["full_visible_epoch_candidate_count"], 0)
         self.assertEqual(report["full_epoch_candidate_count"], 1)
         self.assertEqual(report["candidate_scope_counts"], {"SELECTED_SUBSET": 1})
+        self.assertTrue(report["probe_isolated_from_filter_feedback"])
+        self.assertEqual(report["pseudoobs_submission_count"], 0)
+        self.assertEqual(
+            report["selected_subset_by_receiver"]["A"],
+            {
+                "candidate_epoch_count": 1,
+                "first_candidate_epoch": 1,
+                "last_candidate_epoch": 1,
+                "longest_consecutive_epoch_run": 1,
+                "selected_family_count_min": 3,
+                "selected_family_count_max": 3,
+                "excluded_satellite_count_min": 2,
+                "excluded_satellite_count_max": 2,
+            },
+        )
+
+    def test_detects_legacy_filter_feedback_in_same_run(self) -> None:
+        payload = """
+------=============== Epoch 1 =============-----------
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=6 status=NO_FULL_INTEGER_DATUM_CANDIDATE wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR PSEUDOOBS_SUBMISSION rows=2 status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertFalse(report["probe_isolated_from_filter_feedback"])
+        self.assertFalse(report["safety"]["diagnostic_only"])
+        self.assertEqual(report["pseudoobs_submission_count"], 1)
+        self.assertEqual(report["pseudoobs_submitted_row_count"], 2)
 
 
 if __name__ == "__main__":

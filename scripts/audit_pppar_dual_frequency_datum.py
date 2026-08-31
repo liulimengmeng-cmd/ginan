@@ -27,15 +27,31 @@ def as_int(record: dict[str, str], key: str) -> int:
     return int(record[key])
 
 
+def longest_consecutive_epoch_run(epochs: list[int]) -> int:
+    if not epochs:
+        return 0
+    longest = 1
+    current = 1
+    for previous, epoch in zip(epochs, epochs[1:]):
+        if epoch == previous + 1:
+            current += 1
+            longest = max(longest, current)
+        elif epoch != previous:
+            current = 1
+    return longest
+
+
 def audit_trace(path: Path) -> dict[str, object]:
     current_epoch: int | None = None
     basis_by_epoch: dict[int, dict[str, str]] = {}
     summary_by_epoch: dict[int, dict[str, str]] = {}
+    control_by_epoch: dict[int, dict[str, str]] = {}
     group_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     stage_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     candidate_records: list[dict[str, str]] = []
     action_violations: list[dict[str, object]] = []
     safety_field_violations: list[dict[str, object]] = []
+    pseudoobs_submissions: list[dict[str, object]] = []
 
     with path.open("r", encoding="utf-8", errors="replace") as stream:
         for line_number, line in enumerate(stream, 1):
@@ -43,6 +59,16 @@ def audit_trace(path: Path) -> dict[str, object]:
             if epoch_match:
                 current_epoch = int(epoch_match.group(1))
                 continue
+            if current_epoch is not None and "PPP_AR PSEUDOOBS_SUBMISSION" in line:
+                submission = fields(line)
+                pseudoobs_submissions.append(
+                    {
+                        "epoch": current_epoch,
+                        "line": line_number,
+                        "rows": int(submission.get("rows", "0")),
+                        "status": submission.get("status"),
+                    }
+                )
             if "PPP_AR DUAL_FREQUENCY_" not in line or current_epoch is None:
                 continue
             record = fields(line)
@@ -57,7 +83,9 @@ def audit_trace(path: Path) -> dict[str, object]:
                         "action": record.get("action"),
                     }
                 )
-            if "DUAL_FREQUENCY_BASIS" in line:
+            if "DUAL_FREQUENCY_CONTROL" in line:
+                control_by_epoch[current_epoch] = record
+            elif "DUAL_FREQUENCY_BASIS" in line:
                 basis_by_epoch[current_epoch] = record
             elif "DUAL_FREQUENCY_GROUP" in line:
                 group_records[current_epoch].append(record)
@@ -164,6 +192,34 @@ def audit_trace(path: Path) -> dict[str, object]:
         if record.get("status")
         == "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED"
     ]
+    selected_subset_by_receiver: dict[str, dict[str, object]] = {}
+    selected_candidates_by_receiver: dict[str, list[tuple[int, dict[str, str]]]] = (
+        defaultdict(list)
+    )
+    for epoch, record in selected_subset_candidates:
+        selected_candidates_by_receiver[record.get("receiver", "MISSING")].append(
+            (epoch, record)
+        )
+    for receiver, candidates in sorted(selected_candidates_by_receiver.items()):
+        epochs = sorted({epoch for epoch, _ in candidates})
+        selected_counts = [
+            int(record.get("selected_family_count", "0"))
+            for _, record in candidates
+        ]
+        excluded_counts = [
+            int(record.get("excluded_satellites", "0"))
+            for _, record in candidates
+        ]
+        selected_subset_by_receiver[receiver] = {
+            "candidate_epoch_count": len(epochs),
+            "first_candidate_epoch": epochs[0],
+            "last_candidate_epoch": epochs[-1],
+            "longest_consecutive_epoch_run": longest_consecutive_epoch_run(epochs),
+            "selected_family_count_min": min(selected_counts),
+            "selected_family_count_max": max(selected_counts),
+            "excluded_satellite_count_min": min(excluded_counts),
+            "excluded_satellite_count_max": max(excluded_counts),
+        }
     wide_lane_full_groups = [
         (epoch, record)
         for epoch, records in stage_records.items()
@@ -216,6 +272,18 @@ def audit_trace(path: Path) -> dict[str, object]:
         and not action_violations
         and not safety_field_violations
     )
+    float_probe_control_epochs = [
+        epoch
+        for epoch, record in control_by_epoch.items()
+        if record.get("legacy_feedback") == "0"
+        and record.get("new_subset_feedback") == "0"
+        and record.get("status") == "FLOAT_STATE_PROBE_ONLY"
+    ]
+    probe_isolated_from_filter_feedback = (
+        bool(audited_epochs)
+        and sorted(float_probe_control_epochs) == audited_epochs
+        and not pseudoobs_submissions
+    )
 
     return {
         "schema": "GINAN_PPPAR_DUAL_FREQUENCY_DATUM_AUDIT_V1",
@@ -223,6 +291,7 @@ def audit_trace(path: Path) -> dict[str, object]:
         "audited_epoch_count": len(audited_epochs),
         "basis_record_count": len(basis_by_epoch),
         "summary_record_count": len(summary_by_epoch),
+        "control_record_count": len(control_by_epoch),
         "group_record_count": sum(map(len, group_records.values())),
         "stage_record_count": sum(map(len, stage_records.values())),
         "structural_basis_pass": structural_basis_pass,
@@ -237,6 +306,7 @@ def audit_trace(path: Path) -> dict[str, object]:
         "second_family_fixed_row_count": second_family_fixed_row_count,
         "full_group_candidate_count": len(full_group_candidates),
         "selected_subset_group_candidate_count": len(selected_subset_candidates),
+        "selected_subset_by_receiver": selected_subset_by_receiver,
         "full_visible_epoch_candidate_count": len(full_visible_candidate_epochs),
         "full_visible_epoch_candidate_epochs": sorted(
             full_visible_candidate_epochs
@@ -260,8 +330,18 @@ def audit_trace(path: Path) -> dict[str, object]:
         ),
         "action_violations": action_violations,
         "safety_field_violations": safety_field_violations,
+        "pseudoobs_submission_count": len(pseudoobs_submissions),
+        "pseudoobs_submitted_row_count": sum(
+            int(record["rows"]) for record in pseudoobs_submissions
+        ),
+        "float_probe_control_epoch_count": len(float_probe_control_epochs),
+        "probe_isolated_from_filter_feedback": probe_isolated_from_filter_feedback,
         "safety": {
-            "diagnostic_only": not action_violations and not safety_field_violations,
+            "diagnostic_only": (
+                not action_violations
+                and not safety_field_violations
+                and not pseudoobs_submissions
+            ),
             "filter_feedback_certified": False,
             "wrong_fix_certified": False,
         },

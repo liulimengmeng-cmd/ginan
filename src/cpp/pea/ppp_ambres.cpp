@@ -991,7 +991,8 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     if (traceLevel > 4)
         AR_VERBO = true;
 
-    if (acsConfig.ambrOpts.integer_complement_diagnostics)
+    if (acsConfig.ambrOpts.integer_complement_diagnostics ||
+        acsConfig.ambrOpts.dual_frequency_subset_probe_only)
     {
         const DualFrequencyAmbiguityTransform dualFrequencyTransform =
             buildDualFrequencyAmbiguityIntegerTransform(
@@ -1004,6 +1005,19 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
             dualFrequencyTransform,
             ARopt
         );
+    }
+
+    if (acsConfig.ambrOpts.dual_frequency_subset_probe_only)
+    {
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_CONTROL legacy_feedback=0 "
+            "new_subset_feedback=0 status=FLOAT_STATE_PROBE_ONLY "
+            "action=PROBE_ONLY_NOT_SUBMITTED"
+        );
+        result.diagnosticStatus = "DUAL_FREQUENCY_SUBSET_FLOAT_PROBE_ONLY";
+        return result;
     }
 
     // Resolve and apply ambiguities

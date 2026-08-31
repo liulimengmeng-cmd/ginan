@@ -8222,6 +8222,13 @@ bool ACSConfig::parse(
                     "Probe the conditional integer complement after an accepted partial LAMBDA "
                     "solution without applying the probe rows"
                 );
+                tryGetFromYaml(
+                    ambrOpts.dual_frequency_subset_probe_only,
+                    ambiguity_resolution,
+                    {"@ dual_frequency_subset_probe_only"},
+                    "Probe covariance-ranked full-rank dual-frequency satellite subsets and "
+                    "skip the legacy ambiguity-resolution feedback path"
+                );
             }
 
             // 			predictions
