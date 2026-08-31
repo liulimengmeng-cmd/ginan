@@ -1,0 +1,15 @@
+# Independent 12:00 cold restart of the fixed-SINEX diagnostic control.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1m_restart_1200_float_probe.yaml
+
+outputs:
+  metadata:
+    config_description: exp1r_2024_restart_1200_fixed_sinex_float_probe
+
+estimation_parameters:
+  receivers:
+    global:
+      pos:
+        estimated: [false]
+

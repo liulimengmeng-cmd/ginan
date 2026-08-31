@@ -1,0 +1,25 @@
+# Diagnostic control only: hold station positions at the IGS weekly CRD SINEX
+# coordinates to isolate position/ionosphere/narrow-lane coupling.  This is not
+# a generic-user PPP-AR configuration and must not be used for performance claims.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1q_2024_fixed_sinex_float_probe
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+
+  epoch_control:
+    max_epochs: 2880
+
+estimation_parameters:
+  receivers:
+    global:
+      pos:
+        estimated: [false]
+
