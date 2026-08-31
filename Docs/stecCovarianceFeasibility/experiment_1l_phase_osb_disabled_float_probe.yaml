@@ -1,0 +1,21 @@
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1l_2024_phase_osb_disabled_float_probe
+
+satellite_options:
+  global:
+    models:
+      phase_bias:
+        enable: false
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+
+  epoch_control:
+    max_epochs: 2880
