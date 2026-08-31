@@ -1,0 +1,18 @@
+{
+  "schema": "GINAN_EXPERIMENT_1C_BASELINE_CONSTRAINT_COMPARISON_V1",
+  "baseline_trace": "/home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v2_noconcurrent_20260831_headf6c316d_bin6aa8f383/02_primary/Network-2024-07-17_00:00.trace",
+  "probe_trace": "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2/Network-2024-07-17_00:00.trace",
+  "baseline_constraint_rows": 4193,
+  "probe_constraint_rows": 4193,
+  "baseline_accepted_epochs": 199,
+  "probe_accepted_epochs": 199,
+  "overlapping_accepted_epochs": 199,
+  "overlapping_epoch_receiver_coordinate_groups": 997,
+  "shared_implied_pair_comparisons": 11223,
+  "shared_implied_wide_lane_pair_comparisons": 11223,
+  "shared_implied_single_signal_pair_comparisons": 0,
+  "integer_difference_mismatch_count": 0,
+  "internal_graph_conflict_count": 0,
+  "integer_differences_consistent_on_shared_pairs": true,
+  "claim_limit": "Agreement is limited to shared implied L1C/L2W wide-lane constraints. It proves the diagnostic probe did not change stage-one submissions; it is not an independent correct-integer certificate."
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "GINAN_EXPERIMENT_1C_EVIDENCE_MANIFEST_V1",
+  "hash_algorithm": "SHA-256",
+  "files": {
+    "EXPERIMENT_1C_CONDITIONAL_INTEGER_COMPLEMENT_RESULTS_20260831.md": "acf3a131875c492b65ff72c59d81e28b8c3f18112e1a3414672e930505683b75",
+    "experiment_1c_480e_run_receipt.json": "103851a35b3f832f551ce64b2090ffdc399ef46ba0fb57f3cdd6b512e19e2262",
+    "experiment_1c_480e_integer_complement_summary.json": "8b6f8391d0ecebb6fda4e070c6bebd15215ceffaa29ad664a1dae9a8721e883c",
+    "experiment_1c_480e_submitted_integer_rank_summary.json": "278de11fdd48896d48aa33a493fa93b602505f314c6153e1ef08dc63b7e6a5c5",
+    "experiment_1c_480e_baseline_constraint_comparison.json": "8ce6506c18f8c3b4339efa2bde68f508b2c7445e4c4d3759d74d4017db14b334",
+    "experiment_1c_480e_coordinate_integrity_summary.json": "edad3a8c5cc6f47fa0e376911634b44840a25b3b001608f1a00e7a0e5604bb67",
+    "experiment_1c_480e_forward_covariance_validation.json": "8718e3d8f54deba987b77b7fc86994ff52302766a355f003aea62dee7c6aa6c2",
+    "experiment_1c_480e_forward_sd_covariance_validation.json": "79b37771a5a3ed16954977331a659a44904b5a984de3677260454f093e81c993",
+    "experiment_1c_480e_smoothed_covariance_validation.json": "3743d7b5adf8e47ecf6f8ae83d6fe50bb339f370b31835ae6f87524b3822f671",
+    "experiment_1c_480e_smoothed_sd_covariance_validation.json": "cca99dea945534878cfa4cc373015aecaa7d3675458ca0ab731b4fffb4ddc57f"
+  },
+  "external_outputs": {
+    "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2/Network-2024-07-17_00:00.trace": "8631d142abc6891bdb32294e50ea5b7d2e5374328e9d74e59dbe4cf325237588",
+    "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2/Network-2024-07-17_00:00_smoothed.trace": "7e5f720db152e701ecaf2838641654da54ae19a40b8035b026fcd15f5f9514aa"
+  }
+}

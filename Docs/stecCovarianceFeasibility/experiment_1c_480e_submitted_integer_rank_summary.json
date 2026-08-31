@@ -1,0 +1,20 @@
+{
+  "schema": "GINAN_EXPERIMENT_1C_SUBMITTED_INTEGER_RANK_AUDIT_V1",
+  "scope": "forward_trace_per_epoch_exact_integer_row_rank_no_cross_epoch_accumulation",
+  "trace": "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2/Network-2024-07-17_00:00.trace",
+  "trace_sha256": "8631d142abc6891bdb32294e50ea5b7d2e5374328e9d74e59dbe4cf325237588",
+  "ar_attempt_epoch_count": 480,
+  "submitted_unverified_epoch_count": 199,
+  "submitted_row_count": 4193,
+  "submitted_exact_rank_sum": 4193,
+  "duplicate_or_dependent_row_count": 0,
+  "wide_lane_row_count": 4193,
+  "single_signal_row_count": 0,
+  "other_row_count": 0,
+  "complete_rank_epoch_count": 0,
+  "rank_deficit_min": 38,
+  "rank_deficit_median": 60,
+  "rank_deficit_max": 77,
+  "submission_status": "FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED",
+  "scientific_status": "NOT_FULL_RANK_NOT_PPP_AR_ACCEPTED"
+}

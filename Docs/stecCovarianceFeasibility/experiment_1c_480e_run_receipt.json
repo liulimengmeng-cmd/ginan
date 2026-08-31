@@ -1,0 +1,55 @@
+{
+  "schema": "GINAN_EXPERIMENT_1C_RUN_RECEIPT_V1",
+  "status": "COMPLETED_DIAGNOSTIC_ONLY_NOT_PPP_AR_ACCEPTED",
+  "repository": {
+    "origin": "https://github.com/GeoscienceAustralia/ginan.git",
+    "origin_main": "7baa32a70f819c475b03d0c6834d9a6c90a67c1b",
+    "branch": "codex/full-rank-pppar-datum",
+    "source_commit": "f9826eddbc8e3c99bd71b2d2bf121d32235208f2",
+    "modified_from_origin_main": true,
+    "worktree": "D:/tec/ginan-main-full-rank-ar"
+  },
+  "binary": {
+    "path": "/mnt/d/tec/ginan-main-full-rank-ar/bin/pea",
+    "sha256": "3c815eb2a05ce0a71c646ef5022b8357c9079828a9cf11aac03aa5130c3effe9",
+    "embedded_version_warning": "Windows worktree gitdir is not resolved by the WSL CMake version script; PEA prints untagged--git-error. Source commit and binary SHA-256 are authoritative."
+  },
+  "run": {
+    "observation_date": "2024-07-17",
+    "epoch_count": 480,
+    "interval_seconds": 30,
+    "window": "00:00:00-03:59:30",
+    "exit_code": 0,
+    "output_root": "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2",
+    "command": "OPENBLAS_NUM_THREADS=1 LD_LIBRARY_PATH=/home/rx/.local/boost-1.82/lib nice -n 10 ionice -c 2 -n 7 /mnt/d/tec/ginan-main-full-rank-ar/bin/pea -q -y /mnt/d/tec/ginan-main-full-rank-ar/Docs/stecCovarianceFeasibility/experiment_1c_full_rank_diagnostic.yaml -n 480 -a EXP1_DATA_ROOT:/home/rx/GINAN/inputData -a EXP1_OUTPUT_ROOT:/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2"
+  },
+  "inputs": {
+    "manifest": "Docs/stecCovarianceFeasibility/experiment_1_2024_input_manifest.json",
+    "manifest_sha256": "28a3d3531869625ef5b858b338721866e12a6b6ca5f37a1deee87e1d946dad88",
+    "file_count": 23,
+    "stations": ["MARS", "GRAZ", "MATE", "DYNG", "SOFI", "NICO"],
+    "signals": ["GPS L1C", "GPS L2W"]
+  },
+  "output_hashes": {
+    "Network-2024-07-17_00:00.trace": "8631d142abc6891bdb32294e50ea5b7d2e5374328e9d74e59dbe4cf325237588",
+    "Network-2024-07-17_00:00_smoothed.trace": "7e5f720db152e701ecaf2838641654da54ae19a40b8035b026fcd15f5f9514aa",
+    "forward_raw_stec_covariance": "a3681c0b013558175926d355629002943d9dcb01bc264b7aa823e0cae61990f1",
+    "forward_satellite_difference_stec_covariance": "3286b66685e554ff4748b70f4b54b2971bac688d08700dbae064aedb4abf6b94",
+    "smoothed_raw_stec_covariance": "f699ef0e6d1a5aa13af82b9268a1591310ba7c1ac2b795af18470248e505df9b",
+    "smoothed_satellite_difference_stec_covariance": "5665d8390545491ab20496d4ccddbae264eb5c2452b2eb8faac362168a3da91b"
+  },
+  "tests": {
+    "cpp_gnss_ambiguity_diagnostics_tests": "PASS",
+    "python_unit_tests": "7_PASS",
+    "forward_raw_covariance_epochs": "480/480_VALID",
+    "forward_satellite_difference_covariance_epochs": "480/480_VALID",
+    "smoothed_raw_covariance_epochs": "480/480_VALID",
+    "smoothed_satellite_difference_covariance_epochs": "480/480_VALID"
+  },
+  "claim_limits": [
+    "Every stage-two row is PROBE_ONLY_NOT_SUBMITTED and is not applied to the Kalman filter.",
+    "All observed stage-one and stage-two accepted rows are wide-lane-like; no single-signal or narrow-lane integer direction was demonstrated.",
+    "No epoch reached the full target integer rank.",
+    "SUBMITTED_UNVERIFIED, coordinate screening, covariance validation and ratio acceptance are not a PPP-AR scientific acceptance test."
+  ]
+}

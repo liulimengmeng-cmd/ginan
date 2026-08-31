@@ -1,0 +1,33 @@
+{
+  "schema": "GINAN_EXPERIMENT_1C_COORDINATE_INTEGRITY_SUMMARY_V1",
+  "primary_trace": "/home/rx/GINAN/inputData/outputs/exp1c_lowdim_probe_480e_20260831_f9826ed_bin3c815eb2/Network-2024-07-17_00:00.trace",
+  "float_trace": "/home/rx/GINAN/inputData/outputs/exp1_2024_arfix_v2_noconcurrent_20260831_headf6c316d_bin6aa8f383/01_float/Network-2024-07-17_00:00.trace",
+  "igs_crd_sinex": "/home/rx/GINAN/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+  "primary_state_block": "STATES/AR",
+  "float_state_block": "STATES/PPP",
+  "common_trace_epoch_receiver_count": 2880,
+  "primary_float_exact_epoch_coverage_fraction": 1.0,
+  "data_quality_issues": [],
+  "ar_vs_float_3d": {
+    "count": 2880,
+    "maximum_m": 0.0116763833325715,
+    "rms_m": 0.0027452140261976883
+  },
+  "float_vs_sinex_3d": {
+    "count": 2880,
+    "maximum_m": 2.612112555025677,
+    "rms_m": 0.45340697696129756
+  },
+  "primary_epoch_jump_3d": {
+    "count": 2874,
+    "maximum_m": 1.5011611472521784,
+    "rms_m": 0.052456766740723706
+  },
+  "primary_vs_sinex_3d": {
+    "count": 2880,
+    "maximum_m": 2.612112555025677,
+    "rms_m": 0.4532337248902931
+  },
+  "configured_thresholds_m": null,
+  "scientific_status": "SCREENING_ONLY_NO_PREREGISTERED_THRESHOLDS"
+}
