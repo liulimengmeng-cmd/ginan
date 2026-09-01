@@ -96,7 +96,11 @@ def sustained_epoch(binary: list[int], window: int = 120, duration: int = 240) -
     return None
 
 
-def audit_trace(path: Path) -> dict[str, object]:
+def audit_trace(
+    path: Path,
+    epoch_start: int | None = None,
+    epoch_end: int | None = None,
+) -> dict[str, object]:
     current_epoch: int | None = None
     all_epochs: set[int] = set()
     groups: dict[int, list[dict[str, str]]] = defaultdict(list)
@@ -113,9 +117,13 @@ def audit_trace(path: Path) -> dict[str, object]:
             match = EPOCH_RE.search(line)
             if match:
                 current_epoch = int(match.group(1))
-                all_epochs.add(current_epoch)
+                if (
+                    (epoch_start is None or current_epoch >= epoch_start)
+                    and (epoch_end is None or current_epoch <= epoch_end)
+                ):
+                    all_epochs.add(current_epoch)
                 continue
-            if current_epoch is None:
+            if current_epoch is None or current_epoch not in all_epochs:
                 continue
             record = fields(line)
             if "PPP_AR DUAL_FREQUENCY_GROUP" in line:
@@ -225,12 +233,18 @@ def audit_trace(path: Path) -> dict[str, object]:
     )
 
     receiver_summary: dict[str, object] = {}
+    sorted_epochs = sorted(all_epochs)
     for receiver in sorted(receivers):
         sequence = [
             int((receiver, epoch) in submitted_receiver_epochs)
-            for epoch in sorted(all_epochs)
+            for epoch in sorted_epochs
         ]
-        sustained = sustained_epoch(sequence)
+        sustained_offset = sustained_epoch(sequence)
+        sustained = (
+            sorted_epochs[sustained_offset - 1]
+            if sustained_offset is not None and sustained_offset <= len(sorted_epochs)
+            else None
+        )
         fractions = per_receiver_rank_fraction[receiver]
         receiver_summary[receiver] = {
             "first_feedback_epoch": per_receiver_first.get(receiver),
@@ -242,11 +256,11 @@ def audit_trace(path: Path) -> dict[str, object]:
             "feedback_epoch_incidence": sum(sequence) / total_epochs if total_epochs else 0,
             "first_sustained_feedback_epoch": sustained,
             "first_rank_coverage_25_percent_epoch": next(
-                (epoch for epoch, value in zip(sorted(all_epochs), fractions) if value >= 0.25),
+                (epoch for epoch, value in zip(sorted_epochs, fractions) if value >= 0.25),
                 None,
             ),
             "first_rank_coverage_50_percent_epoch": next(
-                (epoch for epoch, value in zip(sorted(all_epochs), fractions) if value >= 0.50),
+                (epoch for epoch, value in zip(sorted_epochs, fractions) if value >= 0.50),
                 None,
             ),
         }
@@ -298,6 +312,12 @@ def audit_trace(path: Path) -> dict[str, object]:
     return {
         "schema": "GINAN_PPPAR_FEEDBACK_INFORMATION_AUDIT_V1",
         "trace": str(path),
+        "epoch_window": {
+            "requested_start": epoch_start,
+            "requested_end": epoch_end,
+            "observed_start": min(all_epochs) if all_epochs else None,
+            "observed_end": max(all_epochs) if all_epochs else None,
+        },
         "epoch_count": total_epochs,
         "receiver_count": len(receivers),
         "receivers": sorted(receivers),
@@ -343,8 +363,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("trace", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--epoch-start", type=int)
+    parser.add_argument("--epoch-end", type=int)
     args = parser.parse_args()
-    report = audit_trace(args.trace)
+    report = audit_trace(args.trace, args.epoch_start, args.epoch_end)
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(payload, encoding="utf-8")

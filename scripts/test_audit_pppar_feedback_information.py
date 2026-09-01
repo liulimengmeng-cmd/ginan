@@ -49,6 +49,43 @@ PPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=0 legacy_feedback=0 new_subset_feed
             0.5,
         )
 
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            sliced = audit_trace(trace, epoch_start=2, epoch_end=2)
+        self.assertEqual(sliced["epoch_count"], 1)
+        self.assertEqual(sliced["feedback_epoch_count"], 0)
+        self.assertEqual(
+            sliced["epoch_window"],
+            {
+                "requested_start": 2,
+                "requested_end": 2,
+                "observed_start": 2,
+                "observed_end": 2,
+            },
+        )
+        self.assertNotIn("STEC", sliced["state_block_information"])
+
+    def test_sustained_epoch_is_reported_in_absolute_epoch_numbers(self) -> None:
+        lines = []
+        for epoch in range(1001, 1360):
+            lines.extend(
+                [
+                    f"------=============== Epoch {epoch} =============-----------",
+                    "PPP_AR DUAL_FREQUENCY_GROUP receiver=MATE system=GPS reference=G02 wide_lane_rows=1 complete_graph=1",
+                    "PPP_AR DUAL_FREQUENCY_STAGE receiver=MATE system=GPS reference=G02 wide_lane_target=1 wide_lane_fixed=1 second_d2_target=1 second_d2_fixed=1 combined_rank=2 status=FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED",
+                    "PPP_AR PSEUDOOBS_SUBMISSION rows=2 status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED",
+                ]
+            )
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text("\n".join(lines), encoding="utf-8")
+            report = audit_trace(trace, epoch_start=1001, epoch_end=1359)
+        self.assertEqual(
+            report["receiver_summary"]["MATE"]["first_sustained_feedback_epoch"],
+            1120,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
