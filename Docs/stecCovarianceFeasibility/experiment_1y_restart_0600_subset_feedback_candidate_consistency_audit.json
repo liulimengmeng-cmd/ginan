@@ -1,0 +1,90 @@
+{
+  "agreed_integer_rhs_count": 12134,
+  "all_shared_integer_rows_agree": true,
+  "by_family": {
+    "SECOND_D2": {
+      "agreed_rhs_count": 5653,
+      "shared_row_count": 5653
+    },
+    "WIDE_LANE": {
+      "agreed_rhs_count": 6481,
+      "shared_row_count": 6481
+    }
+  },
+  "by_receiver": {
+    "DYNG": {
+      "agreed_rhs_count": 5426,
+      "differing_group_count": 302,
+      "exact_group_count": 464,
+      "primary_only_group_count": 413,
+      "shared_row_count": 5426
+    },
+    "GRAZ": {
+      "agreed_rhs_count": 2054,
+      "differing_group_count": 199,
+      "exact_group_count": 139,
+      "primary_only_group_count": 419,
+      "restart_only_group_count": 269,
+      "shared_row_count": 2054
+    },
+    "MARS": {
+      "agreed_rhs_count": 1373,
+      "differing_group_count": 180,
+      "exact_group_count": 44,
+      "primary_only_group_count": 129,
+      "restart_only_group_count": 251,
+      "shared_row_count": 1373
+    },
+    "MATE": {
+      "agreed_rhs_count": 1172,
+      "differing_group_count": 53,
+      "exact_group_count": 118,
+      "primary_only_group_count": 223,
+      "restart_only_group_count": 134,
+      "shared_row_count": 1172
+    },
+    "NICO": {
+      "agreed_rhs_count": 647,
+      "differing_group_count": 153,
+      "exact_group_count": 19,
+      "primary_only_group_count": 15,
+      "restart_only_group_count": 98,
+      "shared_row_count": 647
+    },
+    "SOFI": {
+      "agreed_rhs_count": 1462,
+      "differing_group_count": 56,
+      "exact_group_count": 145,
+      "primary_only_group_count": 188,
+      "restart_only_group_count": 56,
+      "shared_row_count": 1462
+    }
+  },
+  "claim_limits": [
+    "agreement is conditional on candidate rows shared by both independent runs",
+    "restart consistency does not prove that the shared integer is true",
+    "this comparison does not certify filter feedback or coordinate accuracy"
+  ],
+  "differing_candidate_group_count": 943,
+  "disagreed_integer_rhs_count": 0,
+  "disagreement_epoch_count": 0,
+  "disagreement_samples": [],
+  "exact_candidate_group_count": 929,
+  "first_disagreement_epoch": null,
+  "last_disagreement_epoch": null,
+  "maximum_integer_rhs_difference": 0.0,
+  "primary_candidate_group_count": 3259,
+  "primary_disagreement_abs_residual_median": null,
+  "primary_disagreement_formal_sigma_median": null,
+  "primary_only_candidate_group_count": 1387,
+  "primary_trace": "/home/rx/GINAN/inputData/outputs/exp1w_subset_feedback_2880e_20260901_433b054_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "restart_candidate_group_count": 2680,
+  "restart_disagreement_abs_residual_median": null,
+  "restart_disagreement_formal_sigma_median": null,
+  "restart_epoch_offset": 720,
+  "restart_only_candidate_group_count": 808,
+  "restart_trace": "/home/rx/GINAN/inputData/outputs/exp1y_restart_0600_subset_feedback_2160e_20260901_433b054_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "schema": "GINAN_PPPAR_CANDIDATE_RESTART_CONSISTENCY_V2",
+  "shared_candidate_group_count": 1872,
+  "shared_candidate_row_count": 12134
+}

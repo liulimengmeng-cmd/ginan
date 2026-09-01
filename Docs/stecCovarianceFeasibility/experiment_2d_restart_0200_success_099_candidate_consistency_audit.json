@@ -1,0 +1,77 @@
+{
+  "agreed_integer_rhs_count": 784,
+  "all_shared_integer_rows_agree": true,
+  "by_family": {
+    "SECOND_D2": {
+      "agreed_rhs_count": 432,
+      "shared_row_count": 432
+    },
+    "WIDE_LANE": {
+      "agreed_rhs_count": 352,
+      "shared_row_count": 352
+    }
+  },
+  "by_receiver": {
+    "DYNG": {
+      "agreed_rhs_count": 107,
+      "differing_group_count": 91,
+      "primary_only_group_count": 232,
+      "restart_only_group_count": 173,
+      "shared_row_count": 107
+    },
+    "GRAZ": {
+      "agreed_rhs_count": 328,
+      "differing_group_count": 71,
+      "primary_only_group_count": 237,
+      "restart_only_group_count": 155,
+      "shared_row_count": 328
+    },
+    "MARS": {
+      "agreed_rhs_count": 328,
+      "differing_group_count": 56,
+      "primary_only_group_count": 45,
+      "restart_only_group_count": 41,
+      "shared_row_count": 328
+    },
+    "MATE": {
+      "primary_only_group_count": 6,
+      "restart_only_group_count": 91
+    },
+    "NICO": {
+      "agreed_rhs_count": 21,
+      "differing_group_count": 7,
+      "primary_only_group_count": 46,
+      "shared_row_count": 21
+    },
+    "SOFI": {
+      "primary_only_group_count": 91
+    }
+  },
+  "claim_limits": [
+    "agreement is conditional on candidate rows shared by both independent runs",
+    "restart consistency does not prove that the shared integer is true",
+    "this comparison does not certify filter feedback or coordinate accuracy"
+  ],
+  "differing_candidate_group_count": 225,
+  "disagreed_integer_rhs_count": 0,
+  "disagreement_epoch_count": 0,
+  "disagreement_samples": [],
+  "exact_candidate_group_count": 0,
+  "first_disagreement_epoch": null,
+  "last_disagreement_epoch": null,
+  "maximum_integer_rhs_difference": 0.0,
+  "primary_candidate_group_count": 882,
+  "primary_disagreement_abs_residual_median": null,
+  "primary_disagreement_formal_sigma_median": null,
+  "primary_only_candidate_group_count": 657,
+  "primary_trace": "/home/rx/GINAN/inputData/outputs/exp2b_success_099_probe_650e_20260901_e1c2541_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "restart_candidate_group_count": 685,
+  "restart_disagreement_abs_residual_median": null,
+  "restart_disagreement_formal_sigma_median": null,
+  "restart_epoch_offset": 240,
+  "restart_only_candidate_group_count": 460,
+  "restart_trace": "/home/rx/GINAN/inputData/outputs/exp2d_restart_0200_success_099_probe_650e_20260901_e1c2541_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "schema": "GINAN_PPPAR_CANDIDATE_RESTART_CONSISTENCY_V2",
+  "shared_candidate_group_count": 225,
+  "shared_candidate_row_count": 784
+}

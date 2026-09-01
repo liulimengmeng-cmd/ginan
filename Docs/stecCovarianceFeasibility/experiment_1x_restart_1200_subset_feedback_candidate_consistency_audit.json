@@ -1,0 +1,83 @@
+{
+  "agreed_integer_rhs_count": 5506,
+  "all_shared_integer_rows_agree": true,
+  "by_family": {
+    "SECOND_D2": {
+      "agreed_rhs_count": 2348,
+      "shared_row_count": 2348
+    },
+    "WIDE_LANE": {
+      "agreed_rhs_count": 3158,
+      "shared_row_count": 3158
+    }
+  },
+  "by_receiver": {
+    "DYNG": {
+      "agreed_rhs_count": 3087,
+      "differing_group_count": 337,
+      "exact_group_count": 114,
+      "primary_only_group_count": 728,
+      "shared_row_count": 3087
+    },
+    "GRAZ": {
+      "agreed_rhs_count": 366,
+      "differing_group_count": 52,
+      "primary_only_group_count": 705,
+      "restart_only_group_count": 67,
+      "shared_row_count": 366
+    },
+    "MARS": {
+      "agreed_rhs_count": 1111,
+      "differing_group_count": 207,
+      "primary_only_group_count": 146,
+      "shared_row_count": 1111
+    },
+    "MATE": {
+      "agreed_rhs_count": 426,
+      "differing_group_count": 68,
+      "exact_group_count": 3,
+      "primary_only_group_count": 323,
+      "shared_row_count": 426
+    },
+    "NICO": {
+      "agreed_rhs_count": 66,
+      "differing_group_count": 27,
+      "primary_only_group_count": 160,
+      "restart_only_group_count": 79,
+      "shared_row_count": 66
+    },
+    "SOFI": {
+      "agreed_rhs_count": 450,
+      "differing_group_count": 73,
+      "primary_only_group_count": 316,
+      "shared_row_count": 450
+    }
+  },
+  "claim_limits": [
+    "agreement is conditional on candidate rows shared by both independent runs",
+    "restart consistency does not prove that the shared integer is true",
+    "this comparison does not certify filter feedback or coordinate accuracy"
+  ],
+  "differing_candidate_group_count": 764,
+  "disagreed_integer_rhs_count": 0,
+  "disagreement_epoch_count": 0,
+  "disagreement_samples": [],
+  "exact_candidate_group_count": 117,
+  "first_disagreement_epoch": null,
+  "last_disagreement_epoch": null,
+  "maximum_integer_rhs_difference": 0.0,
+  "primary_candidate_group_count": 3259,
+  "primary_disagreement_abs_residual_median": null,
+  "primary_disagreement_formal_sigma_median": null,
+  "primary_only_candidate_group_count": 2378,
+  "primary_trace": "/home/rx/GINAN/inputData/outputs/exp1w_subset_feedback_2880e_20260901_433b054_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "restart_candidate_group_count": 1027,
+  "restart_disagreement_abs_residual_median": null,
+  "restart_disagreement_formal_sigma_median": null,
+  "restart_epoch_offset": 1440,
+  "restart_only_candidate_group_count": 146,
+  "restart_trace": "/home/rx/GINAN/inputData/outputs/exp1x_restart_1200_subset_feedback_1440e_20260901_433b054_bin42d93afb/Network-2024-07-17_00:00.trace",
+  "schema": "GINAN_PPPAR_CANDIDATE_RESTART_CONSISTENCY_V2",
+  "shared_candidate_group_count": 881,
+  "shared_candidate_row_count": 5506
+}

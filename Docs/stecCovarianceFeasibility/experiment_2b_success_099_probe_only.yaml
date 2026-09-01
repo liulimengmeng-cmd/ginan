@@ -1,0 +1,20 @@
+# Diagnostic-only sensitivity run: lower only the bootstrap success threshold.
+# Candidate integers are traced but never submitted to the filter.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp2b_2024_success_099_probe_only
+
+processing_options:
+  ambiguity_resolution:
+    success_rate_threshold: 0.99
+    solution_ratio_threshold: 3
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 650

@@ -1,0 +1,20 @@
+# Independent 02:00 cold-start control for the 0.99 probe-only sensitivity run.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp2d_2024_restart_0200_success_099_probe_only
+
+processing_options:
+  ambiguity_resolution:
+    success_rate_threshold: 0.99
+    solution_ratio_threshold: 3
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    start_epoch: 2024-07-17 02:00:00
+    max_epochs: 650
