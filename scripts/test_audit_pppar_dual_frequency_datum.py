@@ -164,6 +164,23 @@ PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full
             report = audit_trace(trace)
         self.assertEqual(report["structural_pass_epochs"], [7])
 
+    def test_certifies_phase_bias_disabled_negative_control_protocol(self) -> None:
+        payload = """
+------=============== Epoch 1 =============-----------
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=CANDIDATE_PENDING_SAFETY_GATES
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=1 target_groups=1 full_candidate_rows=6 target_rank=6 selected_candidate_groups=1 selected_candidate_rows=6 status=FULL_VISIBLE_INTEGER_DATUM_CANDIDATE_UNVERIFIED feedback_requested=1 wrong_fix_certified=0 filter_feedback=0 action=CANDIDATE_PENDING_SAFETY_GATES
+PPP_AR DUAL_FREQUENCY_PHASE_BIAS_GATE used_ambiguities=8 phase_bias_model_disabled=8 missing_phase_bias=0 invalid_map=0 status=REJECTED_INCOMPLETE_PRODUCT_COVERAGE
+PPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=6 legacy_feedback=0 new_subset_feedback=0 status=REJECTED_PHASE_BIAS_GATE action=NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertTrue(report["feedback_negative_control_pass"])
+        self.assertEqual(report["candidate_epoch_count"], 1)
+        self.assertEqual(report["rejected_product_gate_epoch_count"], 1)
+        self.assertEqual(report["pseudoobs_submission_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

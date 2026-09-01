@@ -339,6 +339,11 @@ def audit_trace(path: Path) -> dict[str, object]:
         for epoch, record in phase_bias_gate_by_epoch.items()
         if record.get("status") == "COMPLETE_PRODUCT_COVERAGE"
     )
+    rejected_product_gate_epochs = sorted(
+        epoch
+        for epoch, record in phase_bias_gate_by_epoch.items()
+        if record.get("status") == "REJECTED_INCOMPLETE_PRODUCT_COVERAGE"
+    )
     canonical_feedback_map_epochs = sorted(
         epoch
         for epoch, record in feedback_map_by_epoch.items()
@@ -367,6 +372,28 @@ def audit_trace(path: Path) -> dict[str, object]:
             int(control_by_epoch[epoch].get("candidate_rows", "0")) > 0
             for epoch in feedback_submitted_epochs
         )
+    )
+    candidate_epochs = sorted(
+        epoch
+        for epoch, record in summary_by_epoch.items()
+        if int(record.get("selected_candidate_rows", "0")) > 0
+    )
+    phase_bias_rejected_control_epochs = sorted(
+        epoch
+        for epoch, record in control_by_epoch.items()
+        if record.get("status") == "REJECTED_PHASE_BIAS_GATE"
+        and record.get("new_subset_feedback") == "0"
+        and record.get("action") == "NOT_SUBMITTED"
+    )
+    feedback_negative_control_pass = (
+        bool(candidate_epochs)
+        and candidate_epochs == rejected_product_gate_epochs
+        and candidate_epochs == phase_bias_rejected_control_epochs
+        and not feedback_map_by_epoch
+        and not pseudoobs_submissions
+        and not feedback_submitted_epochs
+        and not action_violations
+        and not safety_field_violations
     )
 
     return {
@@ -426,9 +453,15 @@ def audit_trace(path: Path) -> dict[str, object]:
         "feedback_submitted_epochs": feedback_submitted_epochs,
         "feedback_path_exercised": bool(feedback_submitted_epochs),
         "complete_product_gate_epoch_count": len(complete_product_gate_epochs),
+        "rejected_product_gate_epoch_count": len(rejected_product_gate_epochs),
         "canonical_feedback_map_epoch_count": len(canonical_feedback_map_epochs),
         "feedback_submission_consistent": feedback_submission_consistent,
         "feedback_safety_protocol_pass": feedback_safety_protocol_pass,
+        "candidate_epoch_count": len(candidate_epochs),
+        "phase_bias_rejected_control_epoch_count": len(
+            phase_bias_rejected_control_epochs
+        ),
+        "feedback_negative_control_pass": feedback_negative_control_pass,
         "safety": {
             "diagnostic_only": (
                 not action_violations
@@ -455,6 +488,7 @@ def main() -> int:
     parser.add_argument("trace", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--require-feedback-submission", action="store_true")
+    parser.add_argument("--require-no-feedback-submission", action="store_true")
     arguments = parser.parse_args()
     report = audit_trace(arguments.trace)
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
@@ -464,6 +498,8 @@ def main() -> int:
         print(payload, end="")
     if arguments.require_feedback_submission:
         return 0 if report["feedback_safety_protocol_pass"] else 1
+    if arguments.require_no_feedback_submission:
+        return 0 if report["feedback_negative_control_pass"] else 1
     return 0 if report["structural_basis_pass"] else 1
 
 
