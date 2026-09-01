@@ -262,6 +262,45 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
             "configured_threshold_exceedance_observed",
         )
 
+    def test_reports_post_burn_in_statistics_without_dropping_full_period(self) -> None:
+        epoch_0 = "2024-07-17 00:00:00.00"
+        epoch_1 = "2024-07-17 02:00:00.00"
+        reference = (6378137.0, 0.0, 0.0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            primary = root / "primary.trace"
+            floating = root / "float.trace"
+            crd = root / "reference.snx"
+            primary.write_text(
+                state_block(
+                    "AR",
+                    rec_pos(epoch_0, "DYNG", 6378147.0, 0.0, 0.0)
+                    + rec_pos(epoch_1, "DYNG", 6378138.0, 0.0, 0.0),
+                )
+            )
+            floating.write_text(
+                state_block(
+                    "PPP",
+                    rec_pos(epoch_0, "DYNG", *reference)
+                    + rec_pos(epoch_1, "DYNG", *reference),
+                )
+            )
+            crd.write_text(sinex({"DYNG": reference}), encoding="ascii")
+            report = audit_coordinate_integrity(
+                primary,
+                floating,
+                crd,
+                comparison_burn_in_minutes=60,
+            )
+
+        self.assertEqual(
+            report["statistics"]["overall"]["ar_vs_float_3d"]["count"], 2
+        )
+        self.assertEqual(
+            report["post_burn_in_statistics"]["overall"]["ar_vs_float_3d"],
+            {"count": 1, "maximum_m": 1.0, "rms_m": 1.0},
+        )
+
     def test_reports_missing_trace_and_sinex_data(self) -> None:
         epoch_0 = "2024-07-17 00:00:00.00"
         epoch_1 = "2024-07-17 00:00:30.00"

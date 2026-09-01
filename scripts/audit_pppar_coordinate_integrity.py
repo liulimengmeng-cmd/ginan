@@ -659,6 +659,7 @@ def audit_coordinate_integrity(
     primary_state_block: str | None = None,
     float_state_block: str | None = None,
     max_sinex_reference_age_days: float | None = None,
+    comparison_burn_in_minutes: float | None = None,
 ) -> dict[str, object]:
     thresholds = thresholds or Thresholds()
     primary = parse_trace(primary_trace, "primary", primary_state_block)
@@ -939,6 +940,38 @@ def audit_coordinate_integrity(
         "primary_epoch_jump_3d",
     )
     receivers = sorted({key[1] for key in all_keys})
+    common_epochs = sorted(epoch for epoch, _ in (set(primary.samples) & set(floating.samples)))
+    post_burn_in_start = None
+    post_burn_in_metric_values: dict[str, list[float]] = defaultdict(list)
+    post_burn_in_receiver_values: dict[str, dict[str, list[float]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
+    if comparison_burn_in_minutes is not None and common_epochs:
+        post_burn_in_start = common_epochs[0] + timedelta(
+            minutes=comparison_burn_in_minutes
+        )
+        for row in comparisons:
+            if parse_trace_epoch(str(row["epoch"])) < post_burn_in_start:
+                continue
+            receiver = str(row["receiver"])
+            for metric, key in (
+                ("ar_vs_float_3d", "ar_vs_float"),
+                ("primary_vs_sinex_3d", "primary_vs_sinex"),
+                ("float_vs_sinex_3d", "float_vs_sinex"),
+            ):
+                value = _metric_value(row[key])
+                if value is not None:
+                    post_burn_in_metric_values[metric].append(value)
+                    post_burn_in_receiver_values[receiver][metric].append(value)
+        for jump in jumps:
+            if parse_trace_epoch(str(jump["current_epoch"])) < post_burn_in_start:
+                continue
+            receiver = str(jump["receiver"])
+            value = float(jump["distance_3d_m"])
+            post_burn_in_metric_values["primary_epoch_jump_3d"].append(value)
+            post_burn_in_receiver_values[receiver]["primary_epoch_jump_3d"].append(
+                value
+            )
     configured = any(
         threshold is not None
         for threshold in (thresholds.ar_float_m, thresholds.sinex_m, thresholds.jump_m)
@@ -1065,6 +1098,7 @@ def audit_coordinate_integrity(
             "primary_state_block": primary.metadata["selected_state_block"],
             "float_state_block": floating.metadata["selected_state_block"],
             "maximum_sinex_reference_age_days": max_sinex_reference_age_days,
+            "comparison_burn_in_minutes": comparison_burn_in_minutes,
         },
         "definitions": {
             "ar_vs_float_delta": "primary ECEF minus FLOAT ECEF",
@@ -1162,6 +1196,29 @@ def audit_coordinate_integrity(
                 for receiver in receivers
             },
         },
+        "post_burn_in_statistics": {
+            "configured": comparison_burn_in_minutes is not None,
+            "start_epoch": (
+                epoch_text(post_burn_in_start) if post_burn_in_start else None
+            ),
+            "overall": {
+                metric: statistics(post_burn_in_metric_values[metric])
+                for metric in metrics
+            },
+            "by_receiver": {
+                receiver: {
+                    metric: statistics(
+                        post_burn_in_receiver_values[receiver][metric]
+                    )
+                    for metric in metrics
+                }
+                for receiver in receivers
+            },
+            "interpretation": (
+                "the burn-in window is an explicit convergence screen; full-period "
+                "statistics remain authoritative evidence of cold-start transients"
+            ),
+        },
         "missing_data": {
             "missing_from_primary_trace": [
                 _key_json(key) for key in sorted(float_keys - primary_keys)
@@ -1242,6 +1299,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sinex-threshold-m", type=nonnegative_threshold)
     parser.add_argument("--jump-threshold-m", type=nonnegative_threshold)
     parser.add_argument(
+        "--comparison-burn-in-minutes",
+        type=nonnegative_threshold,
+        help="also report statistics after this many minutes from the first common epoch",
+    )
+    parser.add_argument(
         "--summary-only",
         action="store_true",
         help="retain computed statistics but omit bulky per-epoch detail rows",
@@ -1279,6 +1341,7 @@ def main(argv: list[str] | None = None) -> int:
         primary_state_block=args.primary_state_block,
         float_state_block=args.float_state_block,
         max_sinex_reference_age_days=args.max_sinex_reference_age_days,
+        comparison_burn_in_minutes=args.comparison_burn_in_minutes,
     )
     if args.summary_only:
         payload = compact_report(payload)
