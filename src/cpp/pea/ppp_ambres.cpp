@@ -23,6 +23,67 @@
 
 static bool filterError = false;
 
+static const char* ambiguityFeedbackStateBlock(KF type)
+{
+    if (type == KF::REC_POS || type == KF::REC_POS_RATE)
+    {
+        return "COORDINATE";
+    }
+    if (type == KF::IONO_STEC)
+    {
+        return "STEC";
+    }
+    if (type == KF::AMBIGUITY)
+    {
+        return "AMBIGUITY";
+    }
+    if (type == KF::TROP || type == KF::TROP_GRAD || type == KF::TROP_MODEL)
+    {
+        return "TROPOSPHERE";
+    }
+    if (type > KF::BEGIN_CLOCK_STATES && type < KF::END_CLOCK_STATES)
+    {
+        return "CLOCK";
+    }
+    return "OTHER";
+}
+
+static map<string, vector<int>> ambiguityFeedbackStateBlocks(const KFState& kfState)
+{
+    map<string, vector<int>> blocks;
+    vector<bool> assigned(kfState.x.size(), false);
+    for (const auto& [key, index] : kfState.kfIndexMap)
+    {
+        if (index < 0 || index >= kfState.x.size() || assigned[index])
+        {
+            continue;
+        }
+        assigned[index] = true;
+        blocks[ambiguityFeedbackStateBlock(key.type)].push_back(index);
+    }
+    return blocks;
+}
+
+static double indexedTrace(const MatrixXd& matrix, const vector<int>& indices)
+{
+    double result = 0;
+    for (int index : indices)
+    {
+        result += matrix(index, index);
+    }
+    return result;
+}
+
+static double indexedSquaredNorm(const VectorXd& values, const vector<int>& indices)
+{
+    double result = 0;
+    for (int index : indices)
+    {
+        result += values(index) * values(index);
+    }
+    return result;
+}
+
 struct PhaseWindupIntegerCanonicalization
 {
     VectorXd integerOffsets;
@@ -1077,7 +1138,174 @@ bool applyUCAmbiguities(
         FIXED_AMB_VAR
     );
 
+    const bool traceFeedbackDiagnostics =
+        acsConfig.ambrOpts.dual_frequency_feedback_diagnostics;
+    const VectorXd stateBefore = traceFeedbackDiagnostics
+        ? kfState.x
+        : VectorXd();
+    const MatrixXd covarianceBefore = traceFeedbackDiagnostics
+        ? kfState.P
+        : MatrixXd();
+    VectorXd shadowStateUpdate;
+    MatrixXd shadowCovarianceReduction;
+    map<string, vector<int>> stateBlocks;
+    map<string, vector<int>> coupledStateBlocks;
+    bool shadowValid = false;
+    double jointNis = -1;
+
+    if (traceFeedbackDiagnostics)
+    {
+        const MatrixXd innovationCovariance =
+            kfMeas.H * covarianceBefore * kfMeas.H.transpose() + kfMeas.R;
+        const LDLT<MatrixXd> innovationSolver(innovationCovariance);
+        shadowValid =
+            innovationSolver.info() == Eigen::Success &&
+            innovationSolver.isPositive() &&
+            innovationCovariance.allFinite() &&
+            kfMeas.V.allFinite();
+        if (shadowValid)
+        {
+            const MatrixXd stateMeasurementCovariance =
+                covarianceBefore * kfMeas.H.transpose();
+            const VectorXd solvedInnovation = innovationSolver.solve(kfMeas.V);
+            const MatrixXd solvedCrossCovariance = innovationSolver.solve(
+                stateMeasurementCovariance.transpose()
+            );
+            shadowStateUpdate = stateMeasurementCovariance * solvedInnovation;
+            shadowCovarianceReduction =
+                stateMeasurementCovariance * solvedCrossCovariance;
+            shadowValid =
+                shadowStateUpdate.allFinite() &&
+                shadowCovarianceReduction.allFinite();
+            jointNis = shadowValid ? kfMeas.V.dot(solvedInnovation) : -1;
+        }
+
+        const int shadowTraceLevel = shadowValid ? 2 : 1;
+        tracepdeex(
+            shadowTraceLevel,
+            trace,
+            "\nPPP_AR FEEDBACK_SHADOW_SUMMARY rows=%d innovation_norm=%.17g "
+            "joint_nis=%.17g nis_per_row=%.17g nis_gate_configured=0 "
+            "status=%s action=ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+            nz,
+            kfMeas.V.norm(),
+            jointNis,
+            shadowValid && nz > 0 ? jointNis / nz : -1,
+            shadowValid ? "VALID_LINEAR_SHADOW" : "INVALID_INNOVATION_COVARIANCE"
+        );
+
+        if (shadowValid)
+        {
+            stateBlocks = ambiguityFeedbackStateBlocks(kfState);
+            for (const auto& [block, indices] : stateBlocks)
+            {
+                const double priorTrace = indexedTrace(covarianceBefore, indices);
+                const double predictedReduction =
+                    indexedTrace(shadowCovarianceReduction, indices);
+                auto& coupledIndices = coupledStateBlocks[block];
+                for (int index : indices)
+                {
+                    const double scale = std::max(
+                        1e-18,
+                        std::abs(covarianceBefore(index, index)) * 1e-12
+                    );
+                    if (std::abs(shadowCovarianceReduction(index, index)) > scale)
+                    {
+                        coupledIndices.push_back(index);
+                    }
+                }
+                const double coupledPriorTrace =
+                    indexedTrace(covarianceBefore, coupledIndices);
+                const double coupledPredictedReduction =
+                    indexedTrace(shadowCovarianceReduction, coupledIndices);
+                tracepdeex(
+                    2,
+                    trace,
+                    "\nPPP_AR FEEDBACK_SHADOW_BLOCK block=%s states=%d "
+                    "prior_trace=%.17g predicted_trace_reduction=%.17g "
+                    "relative_trace_gain=%.17g predicted_shift_norm=%.17g "
+                    "coupled_states=%d coupled_prior_trace=%.17g "
+                    "coupled_predicted_trace_reduction=%.17g "
+                    "coupled_relative_trace_gain=%.17g "
+                    "status=VALID_LINEAR_SHADOW action=DIAGNOSTIC_ONLY",
+                    block.c_str(),
+                    static_cast<int>(indices.size()),
+                    priorTrace,
+                    predictedReduction,
+                    priorTrace > 0 ? predictedReduction / priorTrace : -1,
+                    std::sqrt(indexedSquaredNorm(shadowStateUpdate, indices)),
+                    static_cast<int>(coupledIndices.size()),
+                    coupledPriorTrace,
+                    coupledPredictedReduction,
+                    coupledPriorTrace > 0
+                        ? coupledPredictedReduction / coupledPriorTrace
+                        : -1
+                );
+            }
+        }
+    }
+
     kfState.filterKalman(trace, kfMeas, "/AR", true);
+
+    if (traceFeedbackDiagnostics && shadowValid &&
+        kfState.x.size() == stateBefore.size() &&
+        kfState.P.rows() == covarianceBefore.rows() &&
+        kfState.P.cols() == covarianceBefore.cols())
+    {
+        const VectorXd realisedStateUpdate = kfState.x - stateBefore;
+        const MatrixXd realisedCovarianceReduction = covarianceBefore - kfState.P;
+        for (const auto& [block, indices] : stateBlocks)
+        {
+            const double priorTrace = indexedTrace(covarianceBefore, indices);
+            const double realisedReduction =
+                indexedTrace(realisedCovarianceReduction, indices);
+            const auto& coupledIndices = coupledStateBlocks[block];
+            const double coupledPriorTrace =
+                indexedTrace(covarianceBefore, coupledIndices);
+            const double coupledRealisedReduction =
+                indexedTrace(realisedCovarianceReduction, coupledIndices);
+            tracepdeex(
+                2,
+                trace,
+                "\nPPP_AR FEEDBACK_REALISED_BLOCK block=%s states=%d "
+                "realised_trace_reduction=%.17g relative_trace_gain=%.17g "
+                "realised_shift_norm=%.17g coupled_states=%d "
+                "coupled_realised_trace_reduction=%.17g "
+                "coupled_relative_trace_gain=%.17g status=FILTER_CALL_RETURNED "
+                "action=DIAGNOSTIC_ONLY",
+                block.c_str(),
+                static_cast<int>(indices.size()),
+                realisedReduction,
+                priorTrace > 0 ? realisedReduction / priorTrace : -1,
+                std::sqrt(indexedSquaredNorm(realisedStateUpdate, indices)),
+                static_cast<int>(coupledIndices.size()),
+                coupledRealisedReduction,
+                coupledPriorTrace > 0
+                    ? coupledRealisedReduction / coupledPriorTrace
+                    : -1
+            );
+        }
+        const MatrixXd shadowPosteriorCovariance =
+            covarianceBefore - shadowCovarianceReduction;
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR FEEDBACK_SHADOW_REALISATION state_update_error_norm=%.17g "
+            "covariance_error_norm=%.17g status=COMPARED_WITH_FILTER_RESULT "
+            "action=DIAGNOSTIC_ONLY",
+            (realisedStateUpdate - shadowStateUpdate).norm(),
+            (kfState.P - shadowPosteriorCovariance).norm()
+        );
+    }
+    else if (traceFeedbackDiagnostics)
+    {
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR FEEDBACK_SHADOW_REALISATION status=NOT_COMPARABLE "
+            "action=DIAGNOSTIC_ONLY"
+        );
+    }
 
     // filterKalman() has no acceptance return value.  This event therefore
     // records only that the checked pseudo-observation block was submitted and

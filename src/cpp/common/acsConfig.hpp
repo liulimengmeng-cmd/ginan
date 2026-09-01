@@ -876,6 +876,7 @@ struct AmbROptions
     bool integer_complement_diagnostics = false;
     bool dual_frequency_subset_probe_only = false;
     bool dual_frequency_subset_feedback = false;
+    bool dual_frequency_feedback_diagnostics = false;
     bool canonicalize_phase_windup_integer = false;
 };
 

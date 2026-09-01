@@ -8237,6 +8237,13 @@ bool ACSConfig::parse(
                     "after the phase-bias and canonical-windup safety gates pass"
                 );
                 tryGetFromYaml(
+                    ambrOpts.dual_frequency_feedback_diagnostics,
+                    ambiguity_resolution,
+                    {"@ dual_frequency_feedback_diagnostics"},
+                    "Trace analytic one-step shadow and realised state-block information gains "
+                    "for guarded dual-frequency subset feedback"
+                );
+                tryGetFromYaml(
                     ambrOpts.canonicalize_phase_windup_integer,
                     ambiguity_resolution,
                     {"@ canonicalize_phase_windup_integer"},
