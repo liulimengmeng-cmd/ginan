@@ -127,6 +127,43 @@ PPP_AR PSEUDOOBS_SUBMISSION rows=2 status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIF
         self.assertEqual(report["pseudoobs_submission_count"], 1)
         self.assertEqual(report["pseudoobs_submitted_row_count"], 2)
 
+    def test_tracks_guarded_subset_feedback_without_calling_it_certified(self) -> None:
+        payload = """
+------=============== Epoch 1 =============-----------
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=CANDIDATE_PENDING_SAFETY_GATES
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=1 target_groups=1 full_candidate_rows=6 target_rank=6 selected_candidate_groups=1 selected_candidate_rows=6 status=FULL_VISIBLE_INTEGER_DATUM_CANDIDATE_UNVERIFIED feedback_requested=1 wrong_fix_certified=0 filter_feedback=0 action=CANDIDATE_PENDING_SAFETY_GATES
+PPP_AR DUAL_FREQUENCY_PHASE_BIAS_GATE used_ambiguities=8 phase_bias_model_disabled=0 missing_phase_bias=0 invalid_map=0 status=COMPLETE_PRODUCT_COVERAGE
+PPP_AR DUAL_FREQUENCY_FEEDBACK_MAP rows=6 ambiguities=8 status=CANONICAL_TO_FILTER_GAUGE
+PPP_AR PSEUDOOBS_SUBMISSION rows=6 status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED
+PPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=6 legacy_feedback=0 new_subset_feedback=1 status=SUBMITTED_UNVERIFIED action=FILTER_CALL_RETURNED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertTrue(report["structural_basis_pass"])
+        self.assertTrue(report["feedback_path_exercised"])
+        self.assertTrue(report["feedback_submission_consistent"])
+        self.assertTrue(report["feedback_safety_protocol_pass"])
+        self.assertEqual(report["feedback_submitted_epoch_count"], 1)
+        self.assertFalse(report["safety"]["filter_feedback_certified"])
+        self.assertTrue(
+            report["safety"]["filter_call_returned_submitted_unverified"]
+        )
+
+    def test_forward_state_rows_do_not_replace_epoch_number(self) -> None:
+        payload = """
+------=============== Epoch 7 =============-----------
+*\t-1\t2024-07-17 00:03:00.00\tREC_POS\tA\tX\t1\t0.1\t0
+PPP_AR DUAL_FREQUENCY_BASIS original=8 rows=6 expected_rank=6 actual_rank=6 complete_groups=1 incomplete_groups=0 paired_ambiguities=8 unmatched_ambiguities=0 integer_valued=1 full_row_rank=1 covers_all=1 status=FULL_DUAL_FREQUENCY_INTEGER_BASIS action=PROBE_ONLY_NOT_SUBMITTED
+PPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=0 target_groups=1 full_candidate_rows=0 target_rank=6 status=NO_FULL_INTEGER_DATUM_CANDIDATE wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED
+"""
+        with tempfile.TemporaryDirectory() as temporary:
+            trace = Path(temporary) / "Network.trace"
+            trace.write_text(payload, encoding="utf-8")
+            report = audit_trace(trace)
+        self.assertEqual(report["structural_pass_epochs"], [7])
+
 
 if __name__ == "__main__":
     unittest.main()

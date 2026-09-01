@@ -1,0 +1,18 @@
+# Experimental forward-only PPP-AR: submit only full-rank selected dual-
+# frequency subsets after canonical windup and phase-OSB coverage gates.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp1w_2024_windup_canonical_subset_feedback
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880

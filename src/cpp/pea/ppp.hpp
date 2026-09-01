@@ -180,7 +180,11 @@ struct AmbiguityResolutionAttempt
     double solutionRatio = -1;
 };
 
-AmbiguityResolutionAttempt fixAndHoldAmbiguities(Trace& trace, KFState& kfState);
+AmbiguityResolutionAttempt fixAndHoldAmbiguities(
+    Trace&   trace,
+    KFState& kfState,
+    bool     inRts = false
+);
 
 bool queryBiasUC(
     Trace&     trace,

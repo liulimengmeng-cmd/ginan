@@ -1157,7 +1157,7 @@ void perEpochPostProcessingAndOutputs(
             auto& arState = *arState_ptr;
             epochArState_ptr = arState_ptr;
 
-            epochArAttempt = fixAndHoldAmbiguities(pppTrace, arState);
+            epochArAttempt = fixAndHoldAmbiguities(pppTrace, arState, inRts);
 
             arState.outputStates(pppTrace, "/AR" + _RTS);
 

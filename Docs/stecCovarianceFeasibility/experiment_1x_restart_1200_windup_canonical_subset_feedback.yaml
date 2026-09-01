@@ -1,0 +1,20 @@
+# Independent 12:00 cold restart of the experimental subset-feedback run.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+  gnss_observations:
+    gnss_observations_root: ../data_restart_2024199_1200
+
+outputs:
+  metadata:
+    config_description: exp1x_2024_restart_1200_windup_canonical_subset_feedback
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    start_epoch: 2024-07-17 12:00:00
+    max_epochs: 1440

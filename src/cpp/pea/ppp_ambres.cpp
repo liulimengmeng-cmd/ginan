@@ -196,7 +196,8 @@ static void traceDualFrequencyCandidateRows(
     const VectorXd&                     fixedIntegers,
     int                                 wideLaneCandidateCount,
     const char*                         candidateScope,
-    const GinAR_mtx&                    originalAmbiguities
+    const GinAR_mtx&                    originalAmbiguities,
+    const char*                         candidateAction
 )
 {
     if (rowsInOriginalAmbiguities.rows() != fixedIntegers.size() ||
@@ -210,11 +211,11 @@ static void traceDualFrequencyCandidateRows(
             1,
             trace,
             "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
-            "candidate_scope=%s status=INVALID_DIMENSIONS "
-            "action=PROBE_ONLY_NOT_SUBMITTED",
+            "candidate_scope=%s status=INVALID_DIMENSIONS action=%s",
             datum.receiver.c_str(),
             enum_to_string(datum.system).c_str(),
-            candidateScope
+            candidateScope,
+            candidateAction
         );
         return;
     }
@@ -265,8 +266,7 @@ static void traceDualFrequencyCandidateRows(
             "\nPPP_AR DUAL_FREQUENCY_CANDIDATE_ROW receiver=%s system=%s "
             "reference=%s candidate_scope=%s family=%s row=%d rhs=%.17g "
             "float_value=%.17g float_minus_integer=%.17g formal_sigma=%.17g "
-            "support=%d status=%s "
-            "terms=%saction=PROBE_ONLY_NOT_SUBMITTED",
+            "support=%d status=%s terms=%saction=%s",
             datum.receiver.c_str(),
             enum_to_string(datum.system).c_str(),
             datum.pivot.id().c_str(),
@@ -279,7 +279,8 @@ static void traceDualFrequencyCandidateRows(
             formalSigma,
             support,
             integerCoefficients && support > 0 ? "INTEGER_MAPPED" : "INVALID_MAPPING",
-            terms.str().c_str()
+            terms.str().c_str(),
+            candidateAction
         );
     }
 }
@@ -421,20 +422,30 @@ static DualFrequencySubsetProbe probeDualFrequencySubset(
     return result;
 }
 
-static void traceDualFrequencyDatumDiagnostic(
+static GinAR_mtx buildAndTraceDualFrequencyDatumCandidate(
     Trace&                                  trace,
     const GinAR_mtx&                        originalAmbiguities,
     const DualFrequencyAmbiguityTransform&  transform,
     const GinAR_opt&                        options
 )
 {
+    GinAR_mtx selectedConstraints;
+    selectedConstraints.Ztrs.resize(0, originalAmbiguities.aflt.size());
+    selectedConstraints.zfix.resize(0);
+    selectedConstraints.ambmap = originalAmbiguities.ambmap;
+    const bool feedbackRequested =
+        acsConfig.ambrOpts.dual_frequency_subset_feedback;
+    const char* candidateAction = feedbackRequested
+        ? "CANDIDATE_PENDING_SAFETY_GATES"
+        : "PROBE_ONLY_NOT_SUBMITTED";
+
     tracepdeex(
         2,
         trace,
         "\nPPP_AR DUAL_FREQUENCY_BASIS original=%d rows=%d expected_rank=%d "
         "actual_rank=%d complete_groups=%d incomplete_groups=%d paired_ambiguities=%d "
         "unmatched_ambiguities=%d integer_valued=%d full_row_rank=%d covers_all=%d "
-        "status=%s action=PROBE_ONLY_NOT_SUBMITTED",
+        "status=%s action=%s",
         static_cast<int>(originalAmbiguities.aflt.size()),
         static_cast<int>(transform.matrix.rows()),
         transform.expectedIntegerRank,
@@ -446,7 +457,8 @@ static void traceDualFrequencyDatumDiagnostic(
         transform.integerValued,
         transform.fullRowRank,
         transform.coversEligibleAmbiguities,
-        transform.diagnosticStatus.c_str()
+        transform.diagnosticStatus.c_str(),
+        candidateAction
     );
 
     int fullVisibleCandidateGroupCount = 0;
@@ -472,8 +484,7 @@ static void traceDualFrequencyDatumDiagnostic(
             datum.wideLaneRowCount,
             datum.complementRowCount,
             datum.completeSignalGraph,
-            datum.completeSignalGraph ?
-                "PROBE_ONLY_NOT_SUBMITTED" : "INCOMPLETE_GRAPH_NOT_PROBED"
+            datum.completeSignalGraph ? candidateAction : "INCOMPLETE_GRAPH_NOT_PROBED"
         );
         if (!datum.completeSignalGraph || datum.wideLaneRowCount <= 0)
         {
@@ -592,14 +603,28 @@ static void traceDualFrequencyDatumDiagnostic(
             combinedFixedIntegers <<
                 selectedProbe.wideLaneAttempt.zfix,
                 selectedProbe.secondFamilyResolution.fixedIntegers;
+            const MatrixXd candidateRows =
+                selectedProbe.combinedTransform * selectedProbe.groupTransform;
+            const int previousConstraintCount = selectedConstraints.Ztrs.rows();
+            const int addedConstraintCount = candidateRows.rows();
+            selectedConstraints.Ztrs.conservativeResize(
+                previousConstraintCount + addedConstraintCount,
+                originalAmbiguities.aflt.size()
+            );
+            selectedConstraints.Ztrs.bottomRows(addedConstraintCount) = candidateRows;
+            selectedConstraints.zfix.conservativeResize(
+                previousConstraintCount + addedConstraintCount
+            );
+            selectedConstraints.zfix.tail(addedConstraintCount) = combinedFixedIntegers;
             traceDualFrequencyCandidateRows(
                 trace,
                 datum,
-                selectedProbe.combinedTransform * selectedProbe.groupTransform,
+                candidateRows,
                 combinedFixedIntegers,
                 selectedFamilyCount,
                 fullVisibleCandidate ? "FULL_VISIBLE_GROUP" : "SELECTED_SUBSET",
-                originalAmbiguities
+                originalAmbiguities,
+                candidateAction
             );
         }
         else if (visibleProbe.secondFamilyResolution.fixedIntegers.size() > 0)
@@ -615,7 +640,8 @@ static void traceDualFrequencyDatumDiagnostic(
                 visibleProbe.secondFamilyResolution.fixedIntegers,
                 0,
                 "SECOND_D2_PARTIAL",
-                originalAmbiguities
+                originalAmbiguities,
+                candidateAction
             );
         }
 
@@ -636,8 +662,7 @@ static void traceDualFrequencyDatumDiagnostic(
             "second_d2_ratio=%.17g second_d2_integer_valued=%d "
             "second_d2_row_rank=%d second_d2_unimodular=%d "
             "combined_integer_valued=%d "
-            "combined_rank=%d target_rank=%d status=%s "
-            "action=PROBE_ONLY_NOT_SUBMITTED",
+            "combined_rank=%d target_rank=%d status=%s action=%s",
             datum.receiver.c_str(),
             enum_to_string(datum.system).c_str(),
             datum.pivot.id().c_str(),
@@ -668,7 +693,8 @@ static void traceDualFrequencyDatumDiagnostic(
                 (fullVisibleCandidate ?
                     "FULL_VISIBLE_GROUP_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
                     "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED") :
-                selectedProbe.diagnosticStatus.c_str()
+                selectedProbe.diagnosticStatus.c_str(),
+            candidateAction
         );
     }
 
@@ -685,7 +711,7 @@ static void traceDualFrequencyDatumDiagnostic(
         "\nPPP_AR DUAL_FREQUENCY_DATUM_SUMMARY full_candidate_groups=%d "
         "target_groups=%d full_candidate_rows=%d target_rank=%d "
         "selected_candidate_groups=%d selected_candidate_rows=%d status=%s "
-        "wrong_fix_certified=0 filter_feedback=0 action=PROBE_ONLY_NOT_SUBMITTED",
+        "feedback_requested=%d wrong_fix_certified=0 filter_feedback=0 action=%s",
         fullVisibleCandidateGroupCount,
         transform.completeGroupCount,
         fullVisibleCandidateRowCount,
@@ -696,8 +722,84 @@ static void traceDualFrequencyDatumDiagnostic(
             "FULL_VISIBLE_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
             (fullSelectedEpochCandidate ?
                 "FULL_SELECTED_SUBSET_INTEGER_DATUM_CANDIDATE_UNVERIFIED" :
-                "NO_FULL_INTEGER_DATUM_CANDIDATE")
+                "NO_FULL_INTEGER_DATUM_CANDIDATE"),
+        feedbackRequested,
+        candidateAction
     );
+    return selectedConstraints;
+}
+
+static bool validateDualFrequencyFeedbackPhaseBiasCoverage(
+    Trace&          trace,
+    const KFState&  kfState,
+    const GinAR_mtx& constraints
+)
+{
+    const int columnCount = constraints.Ztrs.cols();
+    int usedAmbiguityCount = 0;
+    int phaseBiasModelDisabledCount = 0;
+    int missingPhaseBiasCount = 0;
+    int invalidMapCount = 0;
+
+    for (int column = 0; column < columnCount; column++)
+    {
+        if (constraints.Ztrs.rows() == 0 ||
+            constraints.Ztrs.col(column).cwiseAbs().maxCoeff() <= 1e-12)
+        {
+            continue;
+        }
+        usedAmbiguityCount++;
+        const auto ambiguity = constraints.ambmap.find(column);
+        if (ambiguity == constraints.ambmap.end())
+        {
+            invalidMapCount++;
+            continue;
+        }
+        const KFKey& key = ambiguity->second;
+        auto& satOpts = acsConfig.getSatOpts(key.Sat, {key.code()});
+        if (!satOpts.phaseBiasModel.enable)
+        {
+            phaseBiasModelDisabledCount++;
+            continue;
+        }
+
+        double bias = 0;
+        double variance = 0;
+        const E_ObsCode code = int_to_enum<E_ObsCode>(key.num);
+        const bool found = getBias(
+            trace,
+            kfState.time,
+            key.Sat.id(),
+            key.Sat,
+            code,
+            PHAS,
+            bias,
+            variance
+        );
+        if (!found || !std::isfinite(bias) || !std::isfinite(variance))
+        {
+            missingPhaseBiasCount++;
+        }
+    }
+
+    const bool valid =
+        usedAmbiguityCount > 0 &&
+        invalidMapCount == 0 &&
+        phaseBiasModelDisabledCount == 0 &&
+        missingPhaseBiasCount == 0;
+    const int gateTraceLevel = valid ? 2 : 1;
+    tracepdeex(
+        gateTraceLevel,
+        trace,
+        "\nPPP_AR DUAL_FREQUENCY_PHASE_BIAS_GATE used_ambiguities=%d "
+        "phase_bias_model_disabled=%d missing_phase_bias=%d invalid_map=%d status=%s",
+        usedAmbiguityCount,
+        phaseBiasModelDisabledCount,
+        missingPhaseBiasCount,
+        invalidMapCount,
+        valid ? "COMPLETE_PRODUCT_COVERAGE" : "REJECTED_INCOMPLETE_PRODUCT_COVERAGE"
+    );
+    return valid;
 }
 
 bool recordFilterError(RejectCallbackDetails rejectDetails)
@@ -993,7 +1095,8 @@ bool applyUCAmbiguities(
 
 AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     Trace&   trace,   ///< Debug trace
-    KFState& kfState  ///< Filter state
+    KFState& kfState, ///< Filter state
+    bool     inRts    ///< True when called for a smoothed state
 )
 {
     AmbiguityResolutionAttempt result;
@@ -1006,6 +1109,18 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     }
 
     result.routineInvoked = true;
+
+    if (inRts && acsConfig.ambrOpts.canonicalize_phase_windup_integer)
+    {
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR PHASE_WINDUP_CANONICALIZATION status="
+            "RTS_EPOCH_WINDING_UNAVAILABLE action=AR_SKIPPED"
+        );
+        result.diagnosticStatus = "RTS_PHASE_WINDUP_CANONICALIZATION_UNAVAILABLE";
+        return result;
+    }
 
     GinAR_mtx        ARmtx;
     map<string, int> nsat;  // number of satellites visible by station
@@ -1119,15 +1234,30 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
     if (traceLevel > 4)
         AR_VERBO = true;
 
+    if (acsConfig.ambrOpts.dual_frequency_subset_probe_only &&
+        acsConfig.ambrOpts.dual_frequency_subset_feedback)
+    {
+        tracepdeex(
+            1,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_CONTROL status=INVALID_PROBE_AND_FEEDBACK_BOTH_ENABLED "
+            "legacy_feedback=0 new_subset_feedback=0 action=NOT_SUBMITTED"
+        );
+        result.diagnosticStatus = "DUAL_FREQUENCY_PROBE_FEEDBACK_CONFIG_CONFLICT";
+        return result;
+    }
+
+    GinAR_mtx dualFrequencySubsetCandidate;
     if (acsConfig.ambrOpts.integer_complement_diagnostics ||
-        acsConfig.ambrOpts.dual_frequency_subset_probe_only)
+        acsConfig.ambrOpts.dual_frequency_subset_probe_only ||
+        acsConfig.ambrOpts.dual_frequency_subset_feedback)
     {
         const DualFrequencyAmbiguityTransform dualFrequencyTransform =
             buildDualFrequencyAmbiguityIntegerTransform(
                 ARmtx,
                 acsConfig.receiver_amb_pivot
             );
-        traceDualFrequencyDatumDiagnostic(
+        dualFrequencySubsetCandidate = buildAndTraceDualFrequencyDatumCandidate(
             trace,
             ARmtx,
             dualFrequencyTransform,
@@ -1145,6 +1275,111 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
             "action=PROBE_ONLY_NOT_SUBMITTED"
         );
         result.diagnosticStatus = "DUAL_FREQUENCY_SUBSET_FLOAT_PROBE_ONLY";
+        return result;
+    }
+
+    if (acsConfig.ambrOpts.dual_frequency_subset_feedback)
+    {
+        const int candidateRowCount = dualFrequencySubsetCandidate.Ztrs.rows();
+        const int ambiguityCount = ARmtx.aflt.size();
+        const bool validDimensions =
+            candidateRowCount > 0 &&
+            dualFrequencySubsetCandidate.Ztrs.cols() == ambiguityCount &&
+            dualFrequencySubsetCandidate.zfix.size() == candidateRowCount &&
+            static_cast<int>(dualFrequencySubsetCandidate.ambmap.size()) == ambiguityCount;
+        const bool integerDesign = validDimensions &&
+            (dualFrequencySubsetCandidate.Ztrs.array() -
+             dualFrequencySubsetCandidate.Ztrs.array().round()).abs().maxCoeff() <= 1e-12;
+        const bool fullRowRank = validDimensions &&
+            dualFrequencySubsetCandidate.Ztrs.fullPivLu().rank() == candidateRowCount;
+
+        if (!acsConfig.ambrOpts.canonicalize_phase_windup_integer ||
+            phaseWindupIntegerOffsets.size() != ambiguityCount)
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=%d legacy_feedback=0 "
+                "new_subset_feedback=0 status=REJECTED_CANONICAL_WINDUP_REQUIRED "
+                "action=NOT_SUBMITTED",
+                candidateRowCount
+            );
+            result.diagnosticStatus = "DUAL_FREQUENCY_CANONICAL_WINDUP_REQUIRED";
+            return result;
+        }
+        if (!validDimensions || !integerDesign || !fullRowRank)
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=%d ambiguities=%d "
+                "valid_dimensions=%d integer_design=%d full_row_rank=%d "
+                "legacy_feedback=0 new_subset_feedback=0 status=REJECTED_INVALID_CANDIDATE_BLOCK "
+                "action=NOT_SUBMITTED",
+                candidateRowCount,
+                ambiguityCount,
+                validDimensions,
+                integerDesign,
+                fullRowRank
+            );
+            result.diagnosticStatus = candidateRowCount == 0
+                ? "NO_DUAL_FREQUENCY_SUBSET_CANDIDATE"
+                : "DUAL_FREQUENCY_SUBSET_CANDIDATE_INVALID";
+            return result;
+        }
+        if (!validateDualFrequencyFeedbackPhaseBiasCoverage(
+                trace,
+                kfState,
+                dualFrequencySubsetCandidate
+            ))
+        {
+            tracepdeex(
+                1,
+                trace,
+                "\nPPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=%d legacy_feedback=0 "
+                "new_subset_feedback=0 status=REJECTED_PHASE_BIAS_GATE "
+                "action=NOT_SUBMITTED",
+                candidateRowCount
+            );
+            result.diagnosticStatus = "DUAL_FREQUENCY_PHASE_BIAS_GATE_REJECTED";
+            return result;
+        }
+
+        // Candidate integers were searched in Nc = Nraw + k.  Convert the
+        // right-hand sides back to the filter's continuous-windup state gauge.
+        dualFrequencySubsetCandidate.zfix -=
+            dualFrequencySubsetCandidate.Ztrs * phaseWindupIntegerOffsets;
+        tracepdeex(
+            2,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_FEEDBACK_MAP rows=%d ambiguities=%d "
+            "status=CANONICAL_TO_FILTER_GAUGE",
+            candidateRowCount,
+            ambiguityCount
+        );
+        result.resolvedCombinationCount = candidateRowCount;
+        result.diagnosticStatus = "DUAL_FREQUENCY_SUBSET_FEEDBACK_READY";
+        result.pseudoObservationsSubmitted =
+            applyUCAmbiguities(trace, kfState, dualFrequencySubsetCandidate);
+        const int feedbackTraceLevel = result.pseudoObservationsSubmitted ? 2 : 1;
+        tracepdeex(
+            feedbackTraceLevel,
+            trace,
+            "\nPPP_AR DUAL_FREQUENCY_CONTROL candidate_rows=%d legacy_feedback=0 "
+            "new_subset_feedback=%d status=%s action=%s",
+            candidateRowCount,
+            result.pseudoObservationsSubmitted,
+            result.pseudoObservationsSubmitted
+                ? "SUBMITTED_UNVERIFIED"
+                : "PSEUDOOBS_MODEL_REJECTED",
+            result.pseudoObservationsSubmitted
+                ? "FILTER_CALL_RETURNED"
+                : "NOT_SUBMITTED"
+        );
+        if (!result.pseudoObservationsSubmitted)
+        {
+            result.diagnosticStatus = "DUAL_FREQUENCY_PSEUDOOBS_MODEL_INVALID";
+        }
         return result;
     }
 

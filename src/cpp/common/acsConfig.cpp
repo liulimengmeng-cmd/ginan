@@ -8230,6 +8230,13 @@ bool ACSConfig::parse(
                     "skip the legacy ambiguity-resolution feedback path"
                 );
                 tryGetFromYaml(
+                    ambrOpts.dual_frequency_subset_feedback,
+                    ambiguity_resolution,
+                    {"@ dual_frequency_subset_feedback"},
+                    "Submit only covariance-ranked, full-rank dual-frequency subset constraints "
+                    "after the phase-bias and canonical-windup safety gates pass"
+                );
+                tryGetFromYaml(
                     ambrOpts.canonicalize_phase_windup_integer,
                     ambiguity_resolution,
                     {"@ canonicalize_phase_windup_integer"},

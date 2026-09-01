@@ -59,21 +59,25 @@ def audit_trace(path: Path) -> dict[str, object]:
     basis_by_epoch: dict[int, dict[str, str]] = {}
     summary_by_epoch: dict[int, dict[str, str]] = {}
     control_by_epoch: dict[int, dict[str, str]] = {}
+    phase_bias_gate_by_epoch: dict[int, dict[str, str]] = {}
+    feedback_map_by_epoch: dict[int, dict[str, str]] = {}
     group_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     stage_records: dict[int, list[dict[str, str]]] = defaultdict(list)
     candidate_records: list[dict[str, str]] = []
     action_violations: list[dict[str, object]] = []
     safety_field_violations: list[dict[str, object]] = []
     pseudoobs_submissions: list[dict[str, object]] = []
+    saw_forward_epoch_marker = False
 
     with path.open("r", encoding="utf-8", errors="replace") as stream:
         for line_number, line in enumerate(stream, 1):
             epoch_match = EPOCH_RE.search(line)
             if epoch_match:
+                saw_forward_epoch_marker = True
                 current_epoch = int(epoch_match.group(1))
                 continue
             rts_time_match = RTS_STATE_TIME_RE.match(line)
-            if rts_time_match:
+            if rts_time_match and not saw_forward_epoch_marker:
                 current_epoch = absolute_half_minute_index(rts_time_match.group(1))
             if current_epoch is not None and "PPP_AR PSEUDOOBS_SUBMISSION" in line:
                 submission = fields(line)
@@ -88,9 +92,16 @@ def audit_trace(path: Path) -> dict[str, object]:
             if "PPP_AR DUAL_FREQUENCY_" not in line or current_epoch is None:
                 continue
             record = fields(line)
-            if record.get("action") not in {
+            action_optional = (
+                "DUAL_FREQUENCY_PHASE_BIAS_GATE" in line
+                or "DUAL_FREQUENCY_FEEDBACK_MAP" in line
+            )
+            if not action_optional and record.get("action") not in {
                 "PROBE_ONLY_NOT_SUBMITTED",
                 "INCOMPLETE_GRAPH_NOT_PROBED",
+                "CANDIDATE_PENDING_SAFETY_GATES",
+                "FILTER_CALL_RETURNED",
+                "NOT_SUBMITTED",
             }:
                 action_violations.append(
                     {
@@ -101,6 +112,10 @@ def audit_trace(path: Path) -> dict[str, object]:
                 )
             if "DUAL_FREQUENCY_CONTROL" in line:
                 control_by_epoch[current_epoch] = record
+            elif "DUAL_FREQUENCY_PHASE_BIAS_GATE" in line:
+                phase_bias_gate_by_epoch[current_epoch] = record
+            elif "DUAL_FREQUENCY_FEEDBACK_MAP" in line:
+                feedback_map_by_epoch[current_epoch] = record
             elif "DUAL_FREQUENCY_BASIS" in line:
                 basis_by_epoch[current_epoch] = record
             elif "DUAL_FREQUENCY_GROUP" in line:
@@ -114,6 +129,7 @@ def audit_trace(path: Path) -> dict[str, object]:
                 if (
                     record.get("wrong_fix_certified") != "0"
                     or record.get("filter_feedback") != "0"
+                    or record.get("feedback_requested", "0") not in {"0", "1"}
                 ):
                     safety_field_violations.append(
                         {
@@ -123,6 +139,9 @@ def audit_trace(path: Path) -> dict[str, object]:
                                 "wrong_fix_certified"
                             ),
                             "filter_feedback": record.get("filter_feedback"),
+                            "feedback_requested": record.get(
+                                "feedback_requested"
+                            ),
                         }
                     )
 
@@ -300,9 +319,58 @@ def audit_trace(path: Path) -> dict[str, object]:
         and sorted(float_probe_control_epochs) == audited_epochs
         and not pseudoobs_submissions
     )
+    feedback_requested_epochs = sorted(
+        epoch
+        for epoch, record in summary_by_epoch.items()
+        if record.get("feedback_requested") == "1"
+    )
+    feedback_submitted_epochs = sorted(
+        epoch
+        for epoch, record in control_by_epoch.items()
+        if record.get("new_subset_feedback") == "1"
+        and record.get("status") == "SUBMITTED_UNVERIFIED"
+        and record.get("action") == "FILTER_CALL_RETURNED"
+    )
+    pseudoobs_submission_epochs = sorted(
+        {int(record["epoch"]) for record in pseudoobs_submissions}
+    )
+    complete_product_gate_epochs = sorted(
+        epoch
+        for epoch, record in phase_bias_gate_by_epoch.items()
+        if record.get("status") == "COMPLETE_PRODUCT_COVERAGE"
+    )
+    canonical_feedback_map_epochs = sorted(
+        epoch
+        for epoch, record in feedback_map_by_epoch.items()
+        if record.get("status") == "CANONICAL_TO_FILTER_GAUGE"
+    )
+    submitted_rows_by_epoch = {
+        int(record["epoch"]): int(record["rows"])
+        for record in pseudoobs_submissions
+    }
+    feedback_submission_consistent = all(
+        epoch in complete_product_gate_epochs
+        and epoch in canonical_feedback_map_epochs
+        and epoch in submitted_rows_by_epoch
+        and int(control_by_epoch[epoch].get("candidate_rows", "-1"))
+        == submitted_rows_by_epoch[epoch]
+        and int(feedback_map_by_epoch[epoch].get("rows", "-2"))
+        == submitted_rows_by_epoch[epoch]
+        for epoch in feedback_submitted_epochs
+    ) and feedback_submitted_epochs == pseudoobs_submission_epochs
+    feedback_safety_protocol_pass = (
+        bool(feedback_submitted_epochs)
+        and feedback_submission_consistent
+        and not action_violations
+        and not safety_field_violations
+        and all(
+            int(control_by_epoch[epoch].get("candidate_rows", "0")) > 0
+            for epoch in feedback_submitted_epochs
+        )
+    )
 
     return {
-        "schema": "GINAN_PPPAR_DUAL_FREQUENCY_DATUM_AUDIT_V1",
+        "schema": "GINAN_PPPAR_DUAL_FREQUENCY_DATUM_AUDIT_V2",
         "trace": str(path),
         "audited_epoch_count": len(audited_epochs),
         "basis_record_count": len(basis_by_epoch),
@@ -352,6 +420,15 @@ def audit_trace(path: Path) -> dict[str, object]:
         ),
         "float_probe_control_epoch_count": len(float_probe_control_epochs),
         "probe_isolated_from_filter_feedback": probe_isolated_from_filter_feedback,
+        "feedback_requested_epoch_count": len(feedback_requested_epochs),
+        "feedback_requested_epochs": feedback_requested_epochs,
+        "feedback_submitted_epoch_count": len(feedback_submitted_epochs),
+        "feedback_submitted_epochs": feedback_submitted_epochs,
+        "feedback_path_exercised": bool(feedback_submitted_epochs),
+        "complete_product_gate_epoch_count": len(complete_product_gate_epochs),
+        "canonical_feedback_map_epoch_count": len(canonical_feedback_map_epochs),
+        "feedback_submission_consistent": feedback_submission_consistent,
+        "feedback_safety_protocol_pass": feedback_safety_protocol_pass,
         "safety": {
             "diagnostic_only": (
                 not action_violations
@@ -359,12 +436,16 @@ def audit_trace(path: Path) -> dict[str, object]:
                 and not pseudoobs_submissions
             ),
             "filter_feedback_certified": False,
+            "filter_call_returned_submitted_unverified": bool(
+                feedback_submitted_epochs
+            ),
             "wrong_fix_certified": False,
         },
         "claim_limits": [
             "structural_basis_pass proves only an explicit integer-valued full-row-rank [wide-lane,d2] basis over the eligible dual-frequency graph",
             "a full visible or selected-subset integer datum candidate does not prove integer truth or filter acceptance",
             "this audit does not certify wrong-fix rejection, fixed STEC, coordinate accuracy, or scientific PPP-AR acceptance",
+            "SUBMITTED_UNVERIFIED proves only that the guarded pseudo-observation path returned; restart and coordinate controls remain mandatory",
         ],
     }
 
@@ -373,6 +454,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("trace", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--require-feedback-submission", action="store_true")
     arguments = parser.parse_args()
     report = audit_trace(arguments.trace)
     payload = json.dumps(report, indent=2, sort_keys=True) + "\n"
@@ -380,6 +462,8 @@ def main() -> int:
         arguments.output.write_text(payload, encoding="utf-8")
     else:
         print(payload, end="")
+    if arguments.require_feedback_submission:
+        return 0 if report["feedback_safety_protocol_pass"] else 1
     return 0 if report["structural_basis_pass"] else 1
 
 
