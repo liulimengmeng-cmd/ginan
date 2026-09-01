@@ -1197,6 +1197,41 @@ def nonnegative_threshold(text: str) -> float:
     return value
 
 
+def compact_report(payload: dict[str, object]) -> dict[str, object]:
+    """Drop bulky per-epoch rows after all statistics have been computed."""
+
+    omitted: dict[str, int] = {}
+    for key in (
+        "integer_pseudoobservation_events",
+        "station_epoch_comparisons",
+        "primary_coordinate_jumps",
+    ):
+        records = payload.pop(key, [])
+        omitted[key] = len(records) if isinstance(records, list) else 0
+
+    missing_data = payload.get("missing_data")
+    if isinstance(missing_data, dict):
+        compact_missing: dict[str, object] = {}
+        for key, value in missing_data.items():
+            if isinstance(value, list):
+                compact_missing[f"{key}_count"] = len(value)
+                compact_missing[f"{key}_samples"] = value[:10]
+            else:
+                compact_missing[key] = value
+        payload["missing_data"] = compact_missing
+
+    payload["schema"] = f"{payload['schema']}_SUMMARY"
+    payload["summary_only"] = {
+        "enabled": True,
+        "omitted_record_counts": omitted,
+        "interpretation": (
+            "all statistics were computed from the complete in-memory epoch records; "
+            "only bulky detail rows were omitted from this JSON"
+        ),
+    }
+    return payload
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("primary_trace", type=Path, help="candidate PPP-AR trace")
@@ -1206,6 +1241,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ar-float-threshold-m", type=nonnegative_threshold)
     parser.add_argument("--sinex-threshold-m", type=nonnegative_threshold)
     parser.add_argument("--jump-threshold-m", type=nonnegative_threshold)
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="retain computed statistics but omit bulky per-epoch detail rows",
+    )
     parser.add_argument(
         "--primary-state-block",
         help="explicit state block, for example AR or AR_RTS; default requires a unique AR block",
@@ -1240,6 +1280,8 @@ def main(argv: list[str] | None = None) -> int:
         float_state_block=args.float_state_block,
         max_sinex_reference_age_days=args.max_sinex_reference_age_days,
     )
+    if args.summary_only:
+        payload = compact_report(payload)
     serialized = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
     if args.output is None:
         print(serialized, end="")

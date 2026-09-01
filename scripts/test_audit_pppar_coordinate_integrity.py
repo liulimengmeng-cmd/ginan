@@ -295,6 +295,7 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
             floating = root / "float.trace"
             crd = root / "reference.snx"
             output = root / "audit.json"
+            summary_output = root / "audit-summary.json"
             primary.write_text(state_block("AR", rec_pos(epoch, "DYNG", *reference)))
             floating.write_text(state_block("PPP", rec_pos(epoch, "DYNG", *reference)))
             crd.write_text(sinex({"DYNG": reference}), encoding="ascii")
@@ -303,6 +304,19 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
                 [str(primary), str(floating), str(crd), "--output", str(output)]
             )
             payload = json.loads(output.read_text(encoding="utf-8"))
+            summary_return_code = main(
+                [
+                    str(primary),
+                    str(floating),
+                    str(crd),
+                    "--output",
+                    str(summary_output),
+                    "--summary-only",
+                ]
+            )
+            summary_payload = json.loads(
+                summary_output.read_text(encoding="utf-8")
+            )
 
         self.assertEqual(return_code, 0)
         self.assertEqual(payload["schema"], "GINAN_PPPAR_COORDINATE_INTEGRITY_AUDIT_V1")
@@ -310,6 +324,15 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
             payload["screening"]["status"], "not_evaluated_no_thresholds_configured"
         )
         self.assertIn("not PPP-AR acceptance", payload["screening"]["scientific_interpretation"])
+        self.assertEqual(summary_return_code, 0)
+        self.assertTrue(summary_payload["schema"].endswith("_SUMMARY"))
+        self.assertNotIn("station_epoch_comparisons", summary_payload)
+        self.assertEqual(
+            summary_payload["summary_only"]["omitted_record_counts"][
+                "station_epoch_comparisons"
+            ],
+            1,
+        )
 
 
 if __name__ == "__main__":
