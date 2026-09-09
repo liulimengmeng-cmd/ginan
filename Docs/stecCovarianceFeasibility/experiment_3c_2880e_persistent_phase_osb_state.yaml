@@ -1,0 +1,46 @@
+# M2 experiment: model the daily WUM phase OSB uncertainty as one persistent
+# satellite/signal state prior over this single Bias-SINEX product interval.
+# Code-OSB handling remains at the original per-epoch setting so the comparison
+# with experiment 2g changes only the phase-OSB temporal uncertainty model.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp3c_2024_persistent_phase_osb_state_full_day
+  trace:
+    output_receivers: true
+
+satellite_options:
+  global:
+    models:
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+        use_formal_sigma_as_state_prior: true
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    dual_frequency_feedback_diagnostics: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880
+
+  ppp_filter:
+    # Satellite phase-bias states are shared by all receivers.  Receiver
+    # chunking would discard their cross-receiver covariance blocks.
+    chunking:
+      by_receiver: false
+      size: 0
+
+estimation_parameters:
+  satellites:
+    global:
+      phase_bias:
+        estimated: [true]
+        sigma: [1]
+        process_noise: [0]
+        outage_limit: [0]

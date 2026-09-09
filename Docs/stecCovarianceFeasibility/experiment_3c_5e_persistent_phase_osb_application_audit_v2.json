@@ -1,0 +1,58 @@
+{
+  "claim_limits": [
+    "zero duplicate keys checks exact-once source application, not product datum compatibility",
+    "CONDITIONED suppresses per-epoch product variance and reports conditional precision only",
+    "this audit does not certify integer truth or PPP-AR scientific benefit"
+  ],
+  "counts_by_type_signal_mode": {
+    "CODE/L1C/PER_EPOCH": 185,
+    "CODE/L2W/PER_EPOCH": 185,
+    "PHASE/L1C/PERSISTENT_STATE": 185,
+    "PHASE/L2W/PERSISTENT_STATE": 185
+  },
+  "duplicate_application_key_count": 0,
+  "duplicate_application_key_samples": [],
+  "malformed_marker_count": 0,
+  "marker_count": 740,
+  "missing_external_bias_count": 0,
+  "nonzero_applied_variance_count": 370,
+  "nonzero_state_prior_variance_count": 370,
+  "product_variance_m2_by_type_signal": {
+    "CODE/L1C": {
+      "count": 185,
+      "max": 0.0017364848808374053,
+      "mean": 0.0007895996084920978,
+      "min": 0.0003213984469370009
+    },
+    "CODE/L2W": {
+      "count": 185,
+      "max": 1.6617983254843755e-06,
+      "mean": 7.515196479153209e-07,
+      "min": 3.244506195239911e-07
+    },
+    "PHASE/L1C": {
+      "count": 185,
+      "max": 0.040683642225349065,
+      "mean": 0.04068049988921077,
+      "min": 0.04067904673409629
+    },
+    "PHASE/L2W": {
+      "count": 185,
+      "max": 0.025082437814261983,
+      "mean": 0.025073901143181546,
+      "min": 0.025069904808467276
+    }
+  },
+  "schema": "GINAN_EXTERNAL_BIAS_APPLICATION_AUDIT_V1",
+  "state_prior_initialisation_count": 16,
+  "trace": "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7",
+  "trace_files": [
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/DYNG-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/GRAZ-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/MARS-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/MATE-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/NICO-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_smoke_5e_v2_20260909_bin3ab177d7/SOFI-2024-07-17_00:00.trace"
+  ],
+  "unique_application_key_count": 740
+}

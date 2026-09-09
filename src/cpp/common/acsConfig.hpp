@@ -1163,6 +1163,7 @@ struct CommonOptions
     {
         bool   enable                                  = false;
         bool   use_formal_sigma_as_observation_noise   = true;
+        bool   use_formal_sigma_as_state_prior         = false;
         double default_bias                            = 0;
         double undefined_sigma                         = 0;
     } phaseBiasModel;

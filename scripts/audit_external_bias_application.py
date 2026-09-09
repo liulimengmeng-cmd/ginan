@@ -25,6 +25,8 @@ MARKER_RE = re.compile(
     r"product_variance_m2=(?P<product_variance_m2>\S+) "
     r"applied_variance_m2=(?P<applied_variance_m2>\S+) "
     r"variance_mode=(?P<variance_mode>\S+)"
+    r"(?: state_prior_variance_m2=(?P<state_prior_variance_m2>\S+)"
+    r" state_prior_initialised=(?P<state_prior_initialised>[01]))?"
 )
 
 
@@ -57,6 +59,8 @@ def audit_trace(trace: Path) -> dict[str, object]:
     malformed_marker_count = 0
     duplicate_count = 0
     nonzero_applied_variance_count = 0
+    nonzero_state_prior_variance_count = 0
+    state_prior_initialisation_count = 0
     missing_bias_count = 0
 
     for trace_path in trace_paths:
@@ -104,6 +108,12 @@ def audit_trace(trace: Path) -> dict[str, object]:
                 if math.isfinite(applied_variance) and applied_variance > 0:
                     nonzero_applied_variance_count += 1
 
+                state_prior_variance = _float(record["state_prior_variance_m2"] or "nan")
+                if math.isfinite(state_prior_variance) and state_prior_variance > 0:
+                    nonzero_state_prior_variance_count += 1
+                if record["state_prior_initialised"] == "1":
+                    state_prior_initialisation_count += 1
+
                 product_variance = _float(record["product_variance_m2"])
                 if math.isfinite(product_variance):
                     stat = product_stats[f'{record["type"]}/{record["signal"]}']
@@ -141,6 +151,8 @@ def audit_trace(trace: Path) -> dict[str, object]:
         "malformed_marker_count": malformed_marker_count,
         "missing_external_bias_count": missing_bias_count,
         "nonzero_applied_variance_count": nonzero_applied_variance_count,
+        "nonzero_state_prior_variance_count": nonzero_state_prior_variance_count,
+        "state_prior_initialisation_count": state_prior_initialisation_count,
         "counts_by_type_signal_mode": dict(sorted(counts.items())),
         "product_variance_m2_by_type_signal": formatted_stats,
         "claim_limits": [

@@ -1417,6 +1417,12 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
     E_Source found = kfState.getKFValue(kfKey, satPhasBias, &satPhasBiasVar);
 
     InitialState init = initialStateFromConfig(satOpts.phase_bias);
+    bool persistentExternalBias =
+        biasFound
+        && init.estimate
+        && init.Q >= 0
+        && satOpts.phaseBiasModel.use_formal_sigma_as_state_prior;
+    bool statePriorInitialised = false;
 
     if (init.estimate)
     {
@@ -1427,7 +1433,14 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
 
         init.x = satPhasBias;
 
-        if (init.Q < 0)
+        if (persistentExternalBias)
+        {
+            // The Bias-SINEX interval sigma is used once as the prior covariance of a
+            // satellite/signal bias state.  With Q=0 the uncertainty is persistent rather
+            // than being re-created independently at every observation epoch.
+            init.P = productBiasVar;
+        }
+        else if (init.Q < 0)
         {
             init.P = satPhasBiasVar;
         }
@@ -1435,6 +1448,13 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
         satPhasBiasVar = -1;
 
         satPhasBias = init.x;
+
+        if (persistentExternalBias)
+        {
+            // Capture the exact once-only creation result.  addDsgnEntry calls addKFState
+            // again, which is intentionally idempotent for an already-created key.
+            statePriorInitialised = kfState.addKFState(kfKey, init);
+        }
 
         measEntry.addDsgnEntry(kfKey, 1, init);
     }
@@ -1464,7 +1484,7 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
         trace,
         "\nPPP_EXTERNAL_BIAS_APPLICATION type=PHASE time=%s receiver=%s satellite=%s signal=%s "
         "bias_found=%d bias_m=%.17g product_variance_m2=%.17g applied_variance_m2=%.17g "
-        "variance_mode=%s",
+        "variance_mode=%s state_prior_variance_m2=%.17g state_prior_initialised=%d",
         time.to_string().c_str(),
         rec.id.c_str(),
         Sat.id().c_str(),
@@ -1473,7 +1493,13 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
         satPhasBias,
         productBiasVar,
         satPhasBiasVar > 0 ? satPhasBiasVar : 0,
-        conditionOnExternalBias ? "CONDITIONED" : "PER_EPOCH"
+        persistentExternalBias
+            ? "PERSISTENT_STATE"
+            : conditionOnExternalBias
+                ? "CONDITIONED"
+                : init.estimate ? "ESTIMATED_STATE" : "PER_EPOCH",
+        persistentExternalBias ? productBiasVar : 0,
+        statePriorInitialised
     );
 
     measEntry.addNoiseEntry(kfKey, 1, satPhasBiasVar);
@@ -1691,7 +1717,7 @@ inline static void pppSatCodeBias(COMMON_PPP_ARGS)
         trace,
         "\nPPP_EXTERNAL_BIAS_APPLICATION type=CODE time=%s receiver=%s satellite=%s signal=%s "
         "bias_found=%d bias_m=%.17g product_variance_m2=%.17g applied_variance_m2=%.17g "
-        "variance_mode=%s",
+        "variance_mode=%s state_prior_variance_m2=0 state_prior_initialised=0",
         time.to_string().c_str(),
         rec.id.c_str(),
         Sat.id().c_str(),

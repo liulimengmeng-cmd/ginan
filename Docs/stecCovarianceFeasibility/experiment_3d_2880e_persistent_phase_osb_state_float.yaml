@@ -1,0 +1,41 @@
+# Matched FLOAT control for experiment 3c.  Integer candidates are diagnostic
+# only; the persistent phase-OSB state model is otherwise identical.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp3d_2024_persistent_phase_osb_state_float_full_day
+  trace:
+    output_receivers: true
+
+satellite_options:
+  global:
+    models:
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+        use_formal_sigma_as_state_prior: true
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880
+
+  ppp_filter:
+    chunking:
+      by_receiver: false
+      size: 0
+
+estimation_parameters:
+  satellites:
+    global:
+      phase_bias:
+        estimated: [true]
+        sigma: [1]
+        process_noise: [0]
+        outage_limit: [0]

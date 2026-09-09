@@ -2197,6 +2197,7 @@ CommonOptions& CommonOptions::operator+=(const CommonOptions& rhs)
     initIfNeeded(*this, rhs, codeBiasModel.undefined_sigma);
     initIfNeeded(*this, rhs, phaseBiasModel.enable);
     initIfNeeded(*this, rhs, phaseBiasModel.use_formal_sigma_as_observation_noise);
+    initIfNeeded(*this, rhs, phaseBiasModel.use_formal_sigma_as_state_prior);
     initIfNeeded(*this, rhs, phaseBiasModel.default_bias);
     initIfNeeded(*this, rhs, phaseBiasModel.undefined_sigma);
 
@@ -3264,6 +3265,19 @@ void getOptionsFromYaml(
                 modelsNode,
                 {"@ phase_bias", "@ use_formal_sigma_as_observation_noise"},
                 "Add external phase-bias formal variance to every observation epoch"
+            )
+        );
+    }
+    {
+        auto& thing = comOpts.phaseBiasModel.use_formal_sigma_as_state_prior;
+        setInited(
+            comOpts,
+            thing,
+            tryGetFromYaml(
+                thing,
+                modelsNode,
+                {"@ phase_bias", "@ use_formal_sigma_as_state_prior"},
+                "Use external phase-bias formal variance once when initialising a persistent state"
             )
         );
     }
