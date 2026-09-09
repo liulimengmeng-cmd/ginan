@@ -1,0 +1,107 @@
+{
+  "schema": "GINAN_PPPAR_CODE_RAPID_CONTROL_RUN_RECEIPT_V1",
+  "created_utc": "2026-09-09",
+  "source": {
+    "upstream": "https://github.com/GeoscienceAustralia/ginan",
+    "origin_main_base": "7baa32a70f819c475b03d0c6834d9a6c90a67c1b",
+    "branch": "codex/code-products-pppar",
+    "experiment_start_commit": "57e9bfec143eca557b5d7cda53504adc151a1493",
+    "pea_sha256": "3ab177d7ee7c06936d02384368fe0f090ccee0a16d4e6b6049fadde8b486b23c"
+  },
+  "experiment": {
+    "date": "2024-07-17",
+    "doy": 199,
+    "gps_week": 2323,
+    "sampling_seconds": 30,
+    "epoch_count": 2880,
+    "systems": ["GPS"],
+    "signals": ["L1C", "L2W"],
+    "receivers": ["MARS", "GRAZ", "MATE", "DYNG", "SOFI", "NICO"],
+    "excluded_satellites": ["G01"],
+    "integer_success_rate_threshold": 0.9999,
+    "ratio_threshold": 3.0,
+    "converged_statistics_window": "2024-07-17T14:00:00Z/2024-07-18T00:00:00Z"
+  },
+  "code_products_sha256": {
+    "COD0OPSRAP_20241980000_01D_05M_ORB.SP3": "59254150598c73da61790b0da632228b82f8f835d6e55d06ebcde236ebbec51a",
+    "COD0OPSRAP_20241990000_01D_05M_ORB.SP3": "38c4d9e79b3622ba4abad4106e062318d03708685065926fc64e3f40078d28b3",
+    "COD0OPSRAP_20242000000_01D_05M_ORB.SP3": "8b774390b03a53c60551de47ed79ed656b56c12d2a0f7ae0865a62fc9ef5d072",
+    "COD0OPSRAP_20241990000_01D_30S_CLK.CLK": "bf5b06227be5e9f547f40fcac12aa83390eb15b4872f68d30a629156cd677323",
+    "COD0OPSRAP_20241990000_01D_01D_OSB.BIA": "fb99686fff296688920df31e92720d3f66b45c9991aa2ff42f74e732b1542483",
+    "COD0OPSRAP_20241990000_01D_01D_ERP.ERP": "1c11b6a64153a61e364811befa52aa70eacf575b0675b2c1cd78492fb6322885"
+  },
+  "product_audit": {
+    "full_day_complete_gps_count": 32,
+    "bias_mode": "ABSOLUTE",
+    "parameter_spacing_seconds": 86400,
+    "gps_clock_reference_observables": ["C1W", "C2W"],
+    "phase_l1c_zero_formal_sigma_count": 32,
+    "phase_l2w_zero_formal_sigma_count": 32,
+    "phase_pair_correlation": 0.9985591422864644,
+    "phase_pair_centered_slope": 1.6195589984952437
+  },
+  "runs": {
+    "4a_conditioned_ar": {
+      "output": "D:/tec/code-exp4a-full-20260909",
+      "feedback_epochs": 2809,
+      "feedback_epoch_incidence": 0.975347222222222,
+      "station_feedback_epochs": 16749,
+      "station_epoch_feedback_incidence": 0.969270833333333,
+      "submitted_rank_coverage": 0.819437587905998,
+      "nis_per_row_median": 8.23940114308487,
+      "shadow_state_update_error_max_m": 1.39872026152365,
+      "post_1400_3d_rms_m": 0.0248414671466479,
+      "post_1400_horizontal_rms_m": 0.00520976635044851,
+      "post_1400_vertical_rms_m": 0.0242890268345959,
+      "accepted_as_scientific_pppar": false
+    },
+    "4b_conditioned_float": {
+      "output": "D:/tec/code-exp4b-full-20260909",
+      "post_1400_3d_rms_m": 0.0247167480955476,
+      "post_1400_horizontal_rms_m": 0.00494092617837565,
+      "post_1400_vertical_rms_m": 0.0242178629304611
+    },
+    "4c_persistent_phase_osb_ar": {
+      "output": "D:/tec/code-exp4c-full-20260909",
+      "feedback_epochs": 2809,
+      "feedback_epoch_incidence": 0.975347222222222,
+      "station_feedback_epochs": 16749,
+      "station_epoch_feedback_incidence": 0.969270833333333,
+      "submitted_rank_coverage": 0.819446902448793,
+      "nis_per_row_median": 8.23931973272917,
+      "shadow_state_update_error_max_m": 1.39872073912756,
+      "post_1400_3d_rms_m": 0.0248414785511564,
+      "post_1400_horizontal_rms_m": 0.00520978798719338,
+      "post_1400_vertical_rms_m": 0.0242890338576086,
+      "external_bias_marker_count": 496919,
+      "external_bias_duplicate_key_count": 0,
+      "external_bias_missing_count": 0,
+      "phase_state_prior_initialisation_count": 62,
+      "accepted_as_scientific_pppar": false
+    },
+    "4d_persistent_phase_osb_float": {
+      "output": "D:/tec/code-exp4d-full-20260909",
+      "post_1400_3d_rms_m": 0.0247167636393306,
+      "post_1400_horizontal_rms_m": 0.00494097559117572,
+      "post_1400_vertical_rms_m": 0.0242178687132031,
+      "external_bias_marker_count": 496919,
+      "external_bias_duplicate_key_count": 0,
+      "external_bias_missing_count": 0,
+      "phase_state_prior_initialisation_count": 62
+    }
+  },
+  "tests": {
+    "ginan_dry_run_configurations": "4/4 PASS",
+    "conditioned_and_persistent_smoke_runs": "2/2 PASS",
+    "python_audit_tests": "22/22 PASS",
+    "coordinate_enu_tests": "10/10 PASS",
+    "gnss_ambiguity_diagnostics_tests": "PASS"
+  },
+  "claim_limits": [
+    "Feedback incidence is not an independently verified ambiguity success rate.",
+    "Zero Bias-SINEX formal sigma is not evidence of an exact bias product.",
+    "CODE rapid and WUM final are not equal-latency products.",
+    "The 14:00-24:00 window is a fixed burn-in screen, not data-selected convergence.",
+    "No result certifies fixed STEC or scientific PPP-AR benefit."
+  ]
+}

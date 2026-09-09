@@ -747,6 +747,29 @@ def audit_coordinate_integrity(
             if result is not None and result["exceeds_threshold"] is True:
                 exceedance_counts[metric] += 1
 
+        # Preserve local-frame accuracy components in the aggregate output.
+        # Horizontal is the EN plane norm; vertical is the absolute Up error,
+        # so the existing RMS/maximum summary has an unambiguous magnitude
+        # interpretation.  Signed ENU deltas remain in the detail rows.
+        for prefix, result in (
+            ("primary_vs_sinex", primary_vs_sinex),
+            ("float_vs_sinex", float_vs_sinex),
+        ):
+            if result is None or result.get("enu_delta_m") is None:
+                continue
+            enu = result["enu_delta_m"]
+            assert isinstance(enu, dict)
+            east = float(enu["east"])
+            north = float(enu["north"])
+            up = float(enu["up"])
+            local_metrics = {
+                f"{prefix}_horizontal": math.hypot(east, north),
+                f"{prefix}_vertical": abs(up),
+            }
+            for metric, value in local_metrics.items():
+                metric_values[metric].append(value)
+                receiver_metric_values[receiver][metric].append(value)
+
         attempt_index = bisect.bisect_right(attempt_epochs, epoch)
         latest_any_attempt = (
             attempt_epochs[attempt_index - 1] if attempt_index else None
@@ -936,7 +959,11 @@ def audit_coordinate_integrity(
     metrics = (
         "ar_vs_float_3d",
         "primary_vs_sinex_3d",
+        "primary_vs_sinex_horizontal",
+        "primary_vs_sinex_vertical",
         "float_vs_sinex_3d",
+        "float_vs_sinex_horizontal",
+        "float_vs_sinex_vertical",
         "primary_epoch_jump_3d",
     )
     receivers = sorted({key[1] for key in all_keys})
@@ -961,6 +988,24 @@ def audit_coordinate_integrity(
             ):
                 value = _metric_value(row[key])
                 if value is not None:
+                    post_burn_in_metric_values[metric].append(value)
+                    post_burn_in_receiver_values[receiver][metric].append(value)
+            for prefix, key in (
+                ("primary_vs_sinex", "primary_vs_sinex"),
+                ("float_vs_sinex", "float_vs_sinex"),
+            ):
+                result = row[key]
+                if not isinstance(result, dict) or result.get("enu_delta_m") is None:
+                    continue
+                enu = result["enu_delta_m"]
+                assert isinstance(enu, dict)
+                local_metrics = {
+                    f"{prefix}_horizontal": math.hypot(
+                        float(enu["east"]), float(enu["north"])
+                    ),
+                    f"{prefix}_vertical": abs(float(enu["up"])),
+                }
+                for metric, value in local_metrics.items():
                     post_burn_in_metric_values[metric].append(value)
                     post_burn_in_receiver_values[receiver][metric].append(value)
         for jump in jumps:
@@ -1105,6 +1150,8 @@ def audit_coordinate_integrity(
             "sinex_delta": "trace estimate ECEF minus selected SINEX ECEF",
             "trace_epoch_matching": "exact receiver and normalized UTC epoch",
             "local_frame": "ENU rotation at the selected SINEX ECEF using WGS-84",
+            "horizontal_accuracy": "sqrt(east^2 + north^2) relative to selected SINEX",
+            "vertical_accuracy": "absolute Up component relative to selected SINEX",
             "jump_interval": "consecutive retained primary epochs for one receiver",
             "sinex_epoch_handling": (
                 "published SINEX coordinates are used directly; no station-velocity "

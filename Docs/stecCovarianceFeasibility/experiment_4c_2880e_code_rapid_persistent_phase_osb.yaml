@@ -1,0 +1,40 @@
+# CODE rapid product-centre replacement control for experiment 3c.
+#
+# CODE publishes zero formal sigma for the GPS L1C/L2W phase OSBs on this day.
+# The persistent phase-bias states are therefore initialized with zero product
+# variance by the existing state-prior implementation.  This run checks that
+# behavior explicitly against the conditioned-product experiment 4a.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_4_code_rapid_base.yaml
+
+outputs:
+  metadata:
+    config_description: exp4c_2024_code_rapid_persistent_phase_osb_full_day
+
+satellite_options:
+  global:
+    models:
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+        use_formal_sigma_as_state_prior: true
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    dual_frequency_feedback_diagnostics: true
+    canonicalize_phase_windup_integer: true
+  ppp_filter:
+    chunking:
+      by_receiver: false
+      size: 0
+
+estimation_parameters:
+  satellites:
+    global:
+      phase_bias:
+        estimated: [true]
+        sigma: [1]
+        process_noise: [0]
+        outage_limit: [0]

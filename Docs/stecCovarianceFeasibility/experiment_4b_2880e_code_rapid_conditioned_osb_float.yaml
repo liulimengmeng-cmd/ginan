@@ -1,0 +1,23 @@
+# Matched FLOAT control for experiment 4a.  It replaces the complete WUM
+# product chain with CODE rapid products while leaving candidates probe-only.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_4_code_rapid_base.yaml
+
+outputs:
+  metadata:
+    config_description: exp4b_2024_code_rapid_conditioned_osb_float_full_day
+
+satellite_options:
+  global:
+    models:
+      code_bias:
+        use_formal_sigma_as_observation_noise: false
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true

@@ -1,0 +1,27 @@
+# CODE rapid product-centre replacement control for experiment 3a.
+#
+# Observations, stations, 30 s sampling, 24 h window, ambiguity datum and AR
+# thresholds match experiment 3a.  G01 remains excluded so the satellite policy
+# matches the WUM run.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_4_code_rapid_base.yaml
+
+outputs:
+  metadata:
+    config_description: exp4a_2024_code_rapid_conditioned_osb_full_day
+
+satellite_options:
+  global:
+    models:
+      code_bias:
+        use_formal_sigma_as_observation_noise: false
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    dual_frequency_feedback_diagnostics: true
+    canonicalize_phase_windup_integer: true

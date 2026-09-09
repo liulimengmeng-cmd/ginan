@@ -198,6 +198,14 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
         stats = report["statistics"]["by_receiver"]["DYNG"]
         self.assertEqual(stats["ar_vs_float_3d"]["count"], 1)
         self.assertAlmostEqual(stats["primary_vs_sinex_3d"]["maximum_m"], math.sqrt(14))
+        self.assertAlmostEqual(
+            stats["primary_vs_sinex_horizontal"]["rms_m"], math.sqrt(13)
+        )
+        self.assertEqual(stats["primary_vs_sinex_vertical"]["rms_m"], 1.0)
+        self.assertAlmostEqual(
+            stats["float_vs_sinex_horizontal"]["rms_m"], math.sqrt(2)
+        )
+        self.assertEqual(stats["float_vs_sinex_vertical"]["rms_m"], 0.5)
         self.assertEqual(report["screening"]["status"], "not_evaluated_no_thresholds_configured")
         self.assertNotIn("pass", report)
 
@@ -299,6 +307,18 @@ class CoordinateIntegrityAuditTests(unittest.TestCase):
         self.assertEqual(
             report["post_burn_in_statistics"]["overall"]["ar_vs_float_3d"],
             {"count": 1, "maximum_m": 1.0, "rms_m": 1.0},
+        )
+        self.assertEqual(
+            report["post_burn_in_statistics"]["overall"][
+                "primary_vs_sinex_vertical"
+            ],
+            {"count": 1, "maximum_m": 1.0, "rms_m": 1.0},
+        )
+        self.assertEqual(
+            report["post_burn_in_statistics"]["overall"][
+                "primary_vs_sinex_horizontal"
+            ],
+            {"count": 1, "maximum_m": 0.0, "rms_m": 0.0},
         )
 
     def test_reports_missing_trace_and_sinex_data(self) -> None:

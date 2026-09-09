@@ -1,0 +1,2374 @@
+{
+  "bia_complete_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "bia_metadata": {
+    "apc_model": "IGS20",
+    "bias_mode": "ABSOLUTE",
+    "determination_method": "CLOCK_ANALYSIS",
+    "observation_sampling": 300,
+    "parameter_spacing": 86400,
+    "satellite_clock_reference_observables": {
+      "E": [
+        "C1C",
+        "C5Q"
+      ],
+      "G": [
+        "C1W",
+        "C2W"
+      ]
+    },
+    "time_system": "G"
+  },
+  "bia_values": {
+    "estimate_by_observable": {
+      "C1C": {
+        "count": 32,
+        "max": 13.0207,
+        "mean": 0.010434374999999982,
+        "min": -9.4138
+      },
+      "C2W": {
+        "count": 32,
+        "max": 21.539,
+        "mean": -6.249999999936862e-06,
+        "min": -18.352
+      },
+      "L1C": {
+        "count": 32,
+        "max": 1.19765,
+        "mean": 0.0006378125000000096,
+        "min": -0.98564
+      },
+      "L2W": {
+        "count": 32,
+        "max": 1.9185,
+        "mean": 0.001132500000000002,
+        "min": -1.57112
+      }
+    },
+    "formal_sigma_by_observable": {
+      "C1C": {
+        "count": 32,
+        "max": 0.0077,
+        "mean": 0.004203125,
+        "min": 0.0039,
+        "zero_count": 0
+      },
+      "C2W": {
+        "count": 32,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "zero_count": 32
+      },
+      "L1C": {
+        "count": 32,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "zero_count": 32
+      },
+      "L2W": {
+        "count": 32,
+        "max": 0.0,
+        "mean": 0.0,
+        "min": 0.0,
+        "zero_count": 32
+      }
+    },
+    "phase_pair_relation": {
+      "centered_slope_l2w_on_l1c": 1.6195589984952437,
+      "correlation": 0.9985591422864644,
+      "pair_count": 32
+    },
+    "unit": "ns"
+  },
+  "claim_limits": [
+    "Product presence and exact temporal coverage do not prove CLK/OSB datum compatibility.",
+    "Bias-SINEX formal sigmas do not provide cross-signal or cross-satellite covariance.",
+    "A zero formal sigma is recorded as published and is not independently validated here."
+  ],
+  "clk_available_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "clk_complete_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "date": "2024-07-17",
+  "eligible_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "eligible_with_coverage_defects": [],
+  "files": {
+    "bia": {
+      "path": "\\\\wsl.localhost\\Ubuntu-22.04-G\\home\\rx\\GINAN\\inputData\\products\\code_2024199\\COD0OPSRAP_20241990000_01D_01D_OSB.BIA",
+      "sha256": "fb99686fff296688920df31e92720d3f66b45c9991aa2ff42f74e732b1542483"
+    },
+    "clk": {
+      "path": "\\\\wsl.localhost\\Ubuntu-22.04-G\\home\\rx\\GINAN\\inputData\\products\\code_2024199\\COD0OPSRAP_20241990000_01D_30S_CLK.CLK",
+      "sha256": "bf5b06227be5e9f547f40fcac12aa83390eb15b4872f68d30a629156cd677323"
+    },
+    "sp3": {
+      "path": "\\\\wsl.localhost\\Ubuntu-22.04-G\\home\\rx\\GINAN\\inputData\\products\\code_2024199\\COD0OPSRAP_20241990000_01D_05M_ORB.SP3",
+      "sha256": "38c4d9e79b3622ba4abad4106e062318d03708685065926fc64e3f40078d28b3"
+    }
+  },
+  "full_day_complete_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "required_observables": [
+    "C1C",
+    "C2W",
+    "L1C",
+    "L2W"
+  ],
+  "satellite_details": {
+    "G01": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G02": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G03": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G04": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G05": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G06": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G07": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G08": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G09": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G10": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G11": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G12": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G13": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G14": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G15": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G16": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G17": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G18": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G19": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G20": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G21": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G22": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G23": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G24": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G25": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G26": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G27": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G28": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G29": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G30": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G31": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    },
+    "G32": {
+      "bia": {
+        "complete": true,
+        "observables": {
+          "C1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "C2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L1C": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          },
+          "L2W": {
+            "coverage_gaps": [],
+            "covers_full_day": true,
+            "invalid_record_count": 0,
+            "raw_record_count": 1,
+            "valid_interval_count": 1
+          }
+        }
+      },
+      "clk": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:59:30+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 0,
+        "raw_record_count": 2880,
+        "unique_valid_epoch_count": 2880,
+        "valid_record_count": 2880
+      },
+      "sp3": {
+        "complete": true,
+        "duplicate_epoch_count": 0,
+        "first_valid_epoch": "2024-07-17T00:00:00+00:00",
+        "gaps": [],
+        "invalid_record_count": 0,
+        "last_valid_epoch": "2024-07-17T23:55:00+00:00",
+        "missing_epoch_count": 0,
+        "off_grid_record_count": 0,
+        "outside_day_record_count": 1,
+        "raw_record_count": 288,
+        "unique_valid_epoch_count": 288,
+        "valid_record_count": 288
+      }
+    }
+  },
+  "schema": "GINAN_PPPAR_PRODUCT_CHAIN_AUDIT_V1",
+  "sp3_available_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "sp3_complete_gps": [
+    "G01",
+    "G02",
+    "G03",
+    "G04",
+    "G05",
+    "G06",
+    "G07",
+    "G08",
+    "G09",
+    "G10",
+    "G11",
+    "G12",
+    "G13",
+    "G14",
+    "G15",
+    "G16",
+    "G17",
+    "G18",
+    "G19",
+    "G20",
+    "G21",
+    "G22",
+    "G23",
+    "G24",
+    "G25",
+    "G26",
+    "G27",
+    "G28",
+    "G29",
+    "G30",
+    "G31",
+    "G32"
+  ],
+  "validation": {
+    "bias_mode_is_absolute": true,
+    "eligible_are_full_day_complete": true,
+    "has_eligible_satellites": true,
+    "passed": true
+  }
+}
