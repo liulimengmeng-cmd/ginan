@@ -1,0 +1,58 @@
+{
+  "claim_limits": [
+    "zero duplicate keys checks exact-once source application, not product datum compatibility",
+    "CONDITIONED suppresses per-epoch product variance and reports conditional precision only",
+    "this audit does not certify integer truth or PPP-AR scientific benefit"
+  ],
+  "counts_by_type_signal_mode": {
+    "CODE/L1C/PER_EPOCH": 124269,
+    "CODE/L2W/PER_EPOCH": 124221,
+    "PHASE/L1C/PERSISTENT_STATE": 124228,
+    "PHASE/L2W/PERSISTENT_STATE": 124201
+  },
+  "duplicate_application_key_count": 0,
+  "duplicate_application_key_samples": [],
+  "malformed_marker_count": 0,
+  "marker_count": 496919,
+  "missing_external_bias_count": 0,
+  "nonzero_applied_variance_count": 248490,
+  "nonzero_state_prior_variance_count": 248429,
+  "product_variance_m2_by_type_signal": {
+    "CODE/L1C": {
+      "count": 124269,
+      "max": 0.0033131710908954042,
+      "mean": 0.0006733744576387075,
+      "min": 9.720936013217418e-06
+    },
+    "CODE/L2W": {
+      "count": 124221,
+      "max": 3.1285667771828618e-06,
+      "mean": 6.41591789020287e-07,
+      "min": 8.088796608631357e-09
+    },
+    "PHASE/L1C": {
+      "count": 124228,
+      "max": 0.04068872175450493,
+      "mean": 0.04068010537130607,
+      "min": 0.040677837437433174
+    },
+    "PHASE/L2W": {
+      "count": 124201,
+      "max": 0.02509639871132525,
+      "mean": 0.025072844630295913,
+      "min": 0.025066866975698925
+    }
+  },
+  "schema": "GINAN_EXTERNAL_BIAS_APPLICATION_AUDIT_V1",
+  "state_prior_initialisation_count": 62,
+  "trace": "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7",
+  "trace_files": [
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/DYNG-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/GRAZ-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/MARS-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/MATE-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/NICO-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/SOFI-2024-07-17_00:00.trace"
+  ],
+  "unique_application_key_count": 496919
+}

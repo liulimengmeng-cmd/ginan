@@ -1,0 +1,107 @@
+{
+  "schema": "GINAN_PPPAR_OSB_TEMPORAL_MODEL_RUN_RECEIPT_V1",
+  "created_utc": "2026-09-09",
+  "source": {
+    "upstream": "https://github.com/GeoscienceAustralia/ginan",
+    "origin_main_base": "7baa32a",
+    "branch": "codex/full-rank-pppar-datum",
+    "conditioned_model_commit": "f387f18",
+    "persistent_phase_osb_commit": "b13df92",
+    "no_chunk_control_commit": "24e7ed3",
+    "pea_sha256": "3AB177D7EE7C06936D02384368FE0F090CCEE0A16D4E6B6049FADDE8B486B23C"
+  },
+  "experiment": {
+    "date": "2024-07-17",
+    "doy": 199,
+    "gps_week": 2323,
+    "sampling_seconds": 30,
+    "epoch_count": 2880,
+    "systems": ["GPS"],
+    "signals": ["L1C", "L2W"],
+    "receivers": ["MARS", "GRAZ", "MATE", "DYNG", "SOFI", "NICO"],
+    "excluded_satellites": ["G01"],
+    "integer_success_rate_threshold": 0.9999,
+    "ratio_threshold": 3.0
+  },
+  "inputs_sha256": {
+    "products/igs20_2303.atx": "5bbc3979e8eae4baa7ea9193a62f979f93e4d433d312f9236a0a054e9c791593",
+    "products/WUM0MGXFIN_20241990000_01D_01D_ERP.ERP": "1ee7639f5cd6f5e00d9e8f7bbc2ea757b29b0d116bbbe170d599cd6d34862456",
+    "products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX": "3bf384a89d9589c24659b26b1ce667397ad447ad58cbe7956afbefd80f7881f3",
+    "products/BRDC00IGS_R_20241990000_01D_MN.rnx": "39f99d229163b02f7ee6f51bbe57067e8da3d9ef6c181ee6845c13a5a1495862",
+    "products/WUM0MGXFIN_20241990000_01D_30S_CLK.CLK": "e3dbb996af12276f3496f5085a517d8727bb1526fc67ea31d832ba7806b0b967",
+    "products/WUM0MGXFIN_20241990000_01D_01D_OSB.BIA": "faa8da4a6d5813c13c9272b216c8e147a069af71d8db82baefde05ce31f545fa",
+    "products/WUM0MGXFIN_20241980000_01D_05M_ORB.SP3": "c71561356851fc9ae77111edbf2c86a47147bad5b51ef5334a7cbc0cc15c6186",
+    "products/WUM0MGXFIN_20241990000_01D_05M_ORB.SP3": "84eed9d743ab585c98b8fd2e2a36effd575fb197b4a3c2e0072dc33d2a7b1779",
+    "products/WUM0MGXFIN_20242000000_01D_05M_ORB.SP3": "bc922d6f910521b2ae6e5b1b8393de43d1f0f998331c6a3ad06fb69b67de3c9e",
+    "data/MARS00FRA_R_20241990000_01D_30S_MO.rnx": "7e0af5de03234b41332ce9354b5842cdd0fea344d9591b8995ae21039cf306fb",
+    "data/GRAZ00AUT_R_20241990000_01D_30S_MO.rnx": "edf2241d25abf77476f0326807e402d1f32528f85c9e52dfa0358193c5c359d2",
+    "data/MATE00ITA_R_20241990000_01D_30S_MO.rnx": "5d706cb8145b7f48236df090fb4b693e9c6b8d7d094707fec87712b595d7d099",
+    "data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx": "87ce687d6dca3a373e71ecd58c58a37f334e795666ded8c3c68a5ae6679ef177",
+    "data/SOFI00BGR_R_20241990000_01D_30S_MO.rnx": "d1a6bfac0d88869a41cf705b90199e278ea2c999d7982447868309da33cf9680",
+    "data/NICO00CYP_R_20241990000_01D_30S_MO.rnx": "1568aac7615df081762e61f6eecd64e06c2fd87ec691d6016990448bc56e8232"
+  },
+  "runs": {
+    "M0_conditioned": {
+      "ar_output": "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_pppar_2880e_20260909_f387f18_bin8df0e9c4",
+      "float_output": "/home/rx/GINAN/inputData/outputs/exp3b_conditioned_osb_float_2880e_20260909_f387f18_bin8df0e9c4",
+      "feedback_epochs": 2808,
+      "feedback_epoch_incidence": 0.975,
+      "station_epoch_feedback_incidence": 0.9685763888888889,
+      "candidate_rank_coverage": 0.8383833679523841,
+      "post_1400_ar_3d_rms_m": 0.024890325110307678,
+      "post_1400_float_3d_rms_m": 0.025223712826851725,
+      "accepted_as_scientific_pppar": false
+    },
+    "M1_no_chunk_control": {
+      "ar_output": "/home/rx/GINAN/inputData/outputs/exp3e_per_epoch_osb_no_chunk_pppar_2880e_20260909_24e7ed3_bin3ab177d7",
+      "float_output": "/home/rx/GINAN/inputData/outputs/exp3f_per_epoch_osb_no_chunk_float_2880e_20260909_24e7ed3_bin3ab177d7",
+      "feedback_epochs": 2190,
+      "feedback_epoch_incidence": 0.7604166666666666,
+      "station_epoch_feedback_incidence": 0.3524305555555556,
+      "candidate_rank_coverage": 0.19717955644147206,
+      "nis_per_row_median": 2.383268354599571,
+      "shadow_state_update_error_max_m": 2.3765961468538768,
+      "post_1400_ar_3d_rms_m": 0.03946658414517763,
+      "post_1400_float_3d_rms_m": 0.03985353706588066,
+      "accepted_as_scientific_pppar": false
+    },
+    "M2_persistent_phase_osb": {
+      "ar_output": "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7",
+      "float_output": "/home/rx/GINAN/inputData/outputs/exp3d_persistent_phase_osb_float_2880e_20260909_b13df92_bin3ab177d7",
+      "external_bias_marker_count": 496919,
+      "external_bias_unique_key_count": 496919,
+      "external_bias_duplicate_key_count": 0,
+      "external_bias_missing_count": 0,
+      "phase_state_prior_initialisation_count": 62,
+      "feedback_epochs": 0,
+      "feedback_epoch_incidence": 0.0,
+      "station_epoch_feedback_incidence": 0.0,
+      "candidate_rank_coverage": 0.0,
+      "first_failure_gate_counts": {
+        "COMMON_DUAL_FREQUENCY_GRAPH": 33,
+        "WIDE_LANE_INCOMPLETE_SUCCESS_RATE_BELOW_THRESHOLD": 17247
+      },
+      "post_0200_ar_3d_rms_m": 0.027110659197719912,
+      "post_0200_float_3d_rms_m": 0.027110659197719912,
+      "post_1400_ar_3d_rms_m": 0.025226646503208883,
+      "post_1400_float_3d_rms_m": 0.025226646503208883,
+      "ar_float_3d_rms_m": 0.0,
+      "accepted_as_scientific_pppar": false,
+      "interpretation": "No integer feedback passed the strict gates; the reported coordinate precision is FLOAT precision."
+    }
+  },
+  "tests": {
+    "gnss_ambiguity_diagnostics_tests": "PASS",
+    "python_audit_tests": {
+      "status": "PASS",
+      "count": 13
+    }
+  },
+  "claim_limits": [
+    "Feedback incidence is not an independently verified integer success rate.",
+    "M2 currently supports one 86400-second Bias-SINEX interval and does not implement multi-day interval-boundary resets.",
+    "M2 does not model undocumented cross-satellite or cross-signal product correlations.",
+    "Code OSB formal variance remains a per-epoch term in M2.",
+    "No result in this receipt certifies fixed STEC or scientific PPP-AR benefit."
+  ]
+}

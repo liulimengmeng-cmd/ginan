@@ -1,0 +1,454 @@
+{
+  "data_quality": {
+    "common_trace_epoch_receiver_count": 17280,
+    "interpretation": "Data-quality status is not a scientific pass. Any listed issue limits or prevents interpretation of threshold screening.",
+    "issues": [],
+    "primary_float_exact_epoch_coverage_fraction": 1.0,
+    "status": "no_reported_data_quality_issues",
+    "trace_epoch_receiver_union_count": 17280
+  },
+  "definitions": {
+    "ar_vs_float_delta": "primary ECEF minus FLOAT ECEF",
+    "jump_interval": "consecutive retained primary epochs for one receiver",
+    "local_frame": "ENU rotation at the selected SINEX ECEF using WGS-84",
+    "sinex_delta": "trace estimate ECEF minus selected SINEX ECEF",
+    "sinex_epoch_handling": "published SINEX coordinates are used directly; no station-velocity propagation is inferred",
+    "trace_epoch_matching": "exact receiver and normalized UTC epoch"
+  },
+  "inputs": {
+    "comparison_burn_in_minutes": 840.0,
+    "float_state_block": "STATES/PPP",
+    "float_trace": "/home/rx/GINAN/inputData/outputs/exp3b_conditioned_osb_float_2880e_20260909_f387f18_bin8df0e9c4/Network-2024-07-17_00:00.trace",
+    "igs_crd_sinex": "/home/rx/GINAN/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+    "maximum_sinex_reference_age_days": null,
+    "primary_state_block": "STATES/AR",
+    "primary_trace": "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_pppar_2880e_20260909_f387f18_bin8df0e9c4/Network-2024-07-17_00:00.trace"
+  },
+  "integer_pseudoobservation_detection": {
+    "rule": "Applying rows are attempts only; submitted_unverified requires PSEUDOOBS_SUBMISSION status=FILTER_CALL_RETURNED_SUBMITTED_UNVERIFIED",
+    "status": "submitted_unverified_telemetry_observed",
+    "visibility_limit": "telemetry depends on trace verbosity and code version; submitted_unverified does not assert that an integer is correct or scientifically accepted"
+  },
+  "missing_data": {
+    "missing_from_float_trace_count": 0,
+    "missing_from_float_trace_samples": [],
+    "missing_from_primary_trace_count": 0,
+    "missing_from_primary_trace_samples": [],
+    "receivers_without_complete_sinex_reference_count": 0,
+    "receivers_without_complete_sinex_reference_samples": [],
+    "sinex_reference_unavailable_for_station_epoch_count": 0,
+    "sinex_reference_unavailable_for_station_epoch_samples": []
+  },
+  "parsing": {
+    "float_trace": {
+      "available_state_blocks": {
+        "STATES/AR": 17280,
+        "STATES/PPP": 17280
+      },
+      "complete_vector_occurrence_count": 17280,
+      "complete_vector_occurrence_count_all_blocks": 34560,
+      "constraint_attempt_marker_count": 2880,
+      "design_validated_pseudoobservation_row_count": 0,
+      "discarded_incomplete_fragment_count": 0,
+      "discarded_incomplete_fragments": [],
+      "discarded_incomplete_fragments_all_blocks_count": 0,
+      "duplicate_complete_vector_count": 0,
+      "duplicate_selection_rule": "within the selected state block, retain the last complete X/Y/Z group in file order for each epoch/receiver; never merge across a repeated component or across state blocks",
+      "malformed_rec_pos_row_count": 0,
+      "noise_validated_pseudoobservation_row_count": 0,
+      "path": "/home/rx/GINAN/inputData/outputs/exp3b_conditioned_osb_float_2880e_20260909_f387f18_bin8df0e9c4/Network-2024-07-17_00:00.trace",
+      "rec_pos_component_row_count": 103680,
+      "requested_state_block": "STATES/PPP",
+      "retained_epoch_receiver_vector_count": 17280,
+      "role": "float",
+      "selected_state_block": "STATES/PPP",
+      "state_block_selection_status": "selected_explicitly",
+      "submitted_unverified_pseudoobservation_row_count": 0,
+      "visible_integer_pseudoobservation_attempt_row_count": 0
+    },
+    "primary_trace": {
+      "available_state_blocks": {
+        "STATES/AR": 17280,
+        "STATES/PPP": 17280
+      },
+      "complete_vector_occurrence_count": 17280,
+      "complete_vector_occurrence_count_all_blocks": 34560,
+      "constraint_attempt_marker_count": 2880,
+      "design_validated_pseudoobservation_row_count": 180016,
+      "discarded_incomplete_fragment_count": 0,
+      "discarded_incomplete_fragments": [],
+      "discarded_incomplete_fragments_all_blocks_count": 0,
+      "duplicate_complete_vector_count": 0,
+      "duplicate_selection_rule": "within the selected state block, retain the last complete X/Y/Z group in file order for each epoch/receiver; never merge across a repeated component or across state blocks",
+      "malformed_rec_pos_row_count": 0,
+      "noise_validated_pseudoobservation_row_count": 180016,
+      "path": "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_pppar_2880e_20260909_f387f18_bin8df0e9c4/Network-2024-07-17_00:00.trace",
+      "rec_pos_component_row_count": 103680,
+      "requested_state_block": "STATES/AR",
+      "retained_epoch_receiver_vector_count": 17280,
+      "role": "primary",
+      "selected_state_block": "STATES/AR",
+      "state_block_selection_status": "selected_explicitly",
+      "submitted_unverified_pseudoobservation_row_count": 180016,
+      "visible_integer_pseudoobservation_attempt_row_count": 180016
+    },
+    "sinex": {
+      "complete_reference_count": 507,
+      "duplicate_station_component_row_count": 0,
+      "incomplete_reference_count": 0,
+      "incomplete_references": [],
+      "malformed_solution_epoch_row_count": 0,
+      "malformed_station_coordinate_row_count": 0,
+      "path": "/home/rx/GINAN/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+      "reference_selection_rule": "require exactly one SOLUTION/EPOCHS validity interval containing the trace epoch, then use that solution's coordinate reference epoch",
+      "solution_epoch_record_count": 507,
+      "station_coordinate_estimate_row_count": 1521
+    }
+  },
+  "post_burn_in_statistics": {
+    "by_receiver": {
+      "DYNG": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.003034507302439163,
+          "rms_m": 0.0016716349122355746
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.012642717950293182,
+          "rms_m": 0.009851258834183729
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.00411600745314275,
+          "rms_m": 0.0003230064496089647
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.01283874741169675,
+          "rms_m": 0.009494283355869737
+        }
+      },
+      "GRAZ": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.004978687387220691,
+          "rms_m": 0.002361427511720371
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.012196228217058456,
+          "rms_m": 0.010694655114273711
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.005640676078196124,
+          "rms_m": 0.0004349338766425654
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.012751676966668379,
+          "rms_m": 0.00989607513176911
+        }
+      },
+      "MARS": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.006428236142927923,
+          "rms_m": 0.0017065815183308743
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.05796915681922719,
+          "rms_m": 0.05419919355300011
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.004534874473891506,
+          "rms_m": 0.00035690515797808593
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.05770216545786952,
+          "rms_m": 0.05390520685348516
+        }
+      },
+      "MATE": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.005219063578902494,
+          "rms_m": 0.0018324572928806453
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.0149517459327606,
+          "rms_m": 0.01200989143318918
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.0038674972388106723,
+          "rms_m": 0.0003743642842292233
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.014823561036294668,
+          "rms_m": 0.011151187021119944
+        }
+      },
+      "NICO": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.006621207213914514,
+          "rms_m": 0.002604063924211906
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.01515589995679278,
+          "rms_m": 0.010635660565214606
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.005538863195982225,
+          "rms_m": 0.0004564893372456139
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.015131370095407751,
+          "rms_m": 0.010463568559523089
+        }
+      },
+      "SOFI": {
+        "ar_vs_float_3d": {
+          "count": 1200,
+          "maximum_m": 0.005224259161055253,
+          "rms_m": 0.0018939793015099087
+        },
+        "float_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.026968029791590586,
+          "rms_m": 0.020275202447978896
+        },
+        "primary_epoch_jump_3d": {
+          "count": 1200,
+          "maximum_m": 0.004368762266070976,
+          "rms_m": 0.00031650927845227407
+        },
+        "primary_vs_sinex_3d": {
+          "count": 1200,
+          "maximum_m": 0.025873658911818823,
+          "rms_m": 0.01973548631852897
+        }
+      }
+    },
+    "configured": true,
+    "interpretation": "the burn-in window is an explicit convergence screen; full-period statistics remain authoritative evidence of cold-start transients",
+    "overall": {
+      "ar_vs_float_3d": {
+        "count": 7200,
+        "maximum_m": 0.006621207213914514,
+        "rms_m": 0.002041622308271248
+      },
+      "float_vs_sinex_3d": {
+        "count": 7200,
+        "maximum_m": 0.05796915681922719,
+        "rms_m": 0.025223712826851725
+      },
+      "primary_epoch_jump_3d": {
+        "count": 7200,
+        "maximum_m": 0.005640676078196124,
+        "rms_m": 0.0003806991793624462
+      },
+      "primary_vs_sinex_3d": {
+        "count": 7200,
+        "maximum_m": 0.05770216545786952,
+        "rms_m": 0.024890325110307678
+      }
+    },
+    "start_epoch": "2024-07-17T14:00:00.000000Z"
+  },
+  "schema": "GINAN_PPPAR_COORDINATE_INTEGRITY_AUDIT_V1_SUMMARY",
+  "screening": {
+    "configured_metrics_without_evaluable_values": [],
+    "evaluated_value_counts": {
+      "ar_vs_float_3d": 17280,
+      "float_vs_sinex_3d": 17280,
+      "primary_epoch_jump_3d": 17274,
+      "primary_vs_sinex_3d": 17280
+    },
+    "exceedance_counts": {},
+    "scientific_interpretation": "Threshold exceedances are screening flags, not diagnoses. Absence of an exceedance is not PPP-AR acceptance. Independent restarts/reinitialization, FLOAT controls, and integer-datum validation remain necessary. Temporal association with a submitted-unverified event does not establish causation.",
+    "status": "not_evaluated_no_thresholds_configured"
+  },
+  "statistics": {
+    "by_receiver": {
+      "DYNG": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.08144452460200109,
+          "rms_m": 0.00995866328331132
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 0.9563662694849581,
+          "rms_m": 0.0492682271516642
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 0.6193800725169565,
+          "rms_m": 0.013501098499224881
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 0.9563662694849581,
+          "rms_m": 0.048745482167043906
+        }
+      },
+      "GRAZ": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.25281866449519286,
+          "rms_m": 0.022507950642778055
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.084993264975267,
+          "rms_m": 0.04645993980241048
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 0.9462433412590991,
+          "rms_m": 0.02342122856377516
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.084993264975267,
+          "rms_m": 0.040486458452265756
+        }
+      },
+      "MARS": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.1022744918332192,
+          "rms_m": 0.014683493656511674
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.6177627222313267,
+          "rms_m": 0.08020907748891608
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 1.3190097912777945,
+          "rms_m": 0.027169388148221722
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.6177627222313267,
+          "rms_m": 0.0798290519474864
+        }
+      },
+      "MATE": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.24158417684021083,
+          "rms_m": 0.019163761522403164
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 0.9317607527940416,
+          "rms_m": 0.09473901916700246
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 0.335550851675764,
+          "rms_m": 0.011497583003940126
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 0.9317607527940416,
+          "rms_m": 0.09287579199881241
+        }
+      },
+      "NICO": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.2359833508791753,
+          "rms_m": 0.021694207542233567
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.859434752243807,
+          "rms_m": 0.1175439245273257
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 0.9850455086560695,
+          "rms_m": 0.024294227693158005
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 1.859434752243807,
+          "rms_m": 0.11552649535359297
+        }
+      },
+      "SOFI": {
+        "ar_vs_float_3d": {
+          "count": 2880,
+          "maximum_m": 0.20295276372893656,
+          "rms_m": 0.016849418085465223
+        },
+        "float_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 2.612230815832942,
+          "rms_m": 0.12380574501879406
+        },
+        "primary_epoch_jump_3d": {
+          "count": 2879,
+          "maximum_m": 1.161622861848022,
+          "rms_m": 0.03108289998275728
+        },
+        "primary_vs_sinex_3d": {
+          "count": 2880,
+          "maximum_m": 2.612230815832942,
+          "rms_m": 0.12436796112879263
+        }
+      }
+    },
+    "overall": {
+      "ar_vs_float_3d": {
+        "count": 17280,
+        "maximum_m": 0.25281866449519286,
+        "rms_m": 0.01799619908425469
+      },
+      "float_vs_sinex_3d": {
+        "count": 17280,
+        "maximum_m": 2.612230815832942,
+        "rms_m": 0.09049797306238791
+      },
+      "primary_epoch_jump_3d": {
+        "count": 17274,
+        "maximum_m": 1.3190097912777945,
+        "rms_m": 0.02294035689183551
+      },
+      "primary_vs_sinex_3d": {
+        "count": 17280,
+        "maximum_m": 2.612230815832942,
+        "rms_m": 0.08928197513866062
+      }
+    }
+  },
+  "summary_only": {
+    "enabled": true,
+    "interpretation": "all statistics were computed from the complete in-memory epoch records; only bulky detail rows were omitted from this JSON",
+    "omitted_record_counts": {
+      "integer_pseudoobservation_events": 2808,
+      "primary_coordinate_jumps": 17274,
+      "station_epoch_comparisons": 17280
+    }
+  },
+  "thresholds_m": {
+    "ar_vs_float_3d": null,
+    "primary_epoch_jump_3d": null,
+    "trace_vs_sinex_3d": null
+  }
+}

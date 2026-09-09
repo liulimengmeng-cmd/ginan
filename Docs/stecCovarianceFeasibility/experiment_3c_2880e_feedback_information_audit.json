@@ -1,0 +1,151 @@
+{
+  "candidate_rank_coverage": 0.0,
+  "candidate_rank_epoch_sum": 0,
+  "claim_limits": [
+    "feedback incidence is not a full ambiguity fix rate",
+    "rank coverage is a per-epoch sum and does not certify independent rank accumulated across changing ambiguity arcs",
+    "analytic one-step shadow quantifies the immediate linear update, not a persistent no-feedback trajectory",
+    "joint NIS is diagnostic only because no NIS rejection gate is configured",
+    "this audit does not certify integer truth, fixed STEC, or external accuracy"
+  ],
+  "eligible_rank_epoch_sum": 214718,
+  "epoch_count": 2880,
+  "epoch_window": {
+    "observed_end": 2880,
+    "observed_start": 1,
+    "requested_end": null,
+    "requested_start": null
+  },
+  "feedback_epoch_count": 0,
+  "feedback_epoch_incidence": 0.0,
+  "first_failure_gate_counts": {
+    "COMMON_DUAL_FREQUENCY_GRAPH": 33,
+    "WIDE_LANE_INCOMPLETE_SUCCESS_RATE_BELOW_THRESHOLD": 17247
+  },
+  "joint_nis": {
+    "count": 0,
+    "max": null,
+    "mean": null,
+    "median": null,
+    "min": null,
+    "p95": null
+  },
+  "nis_gate_configured": false,
+  "nis_per_row": {
+    "count": 0,
+    "max": null,
+    "mean": null,
+    "median": null,
+    "min": null,
+    "p95": null
+  },
+  "ratio_margin": {
+    "count": 0,
+    "max": null,
+    "mean": null,
+    "median": null,
+    "min": null,
+    "p95": null
+  },
+  "receiver_count": 6,
+  "receiver_summary": {
+    "DYNG": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    },
+    "GRAZ": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    },
+    "MARS": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    },
+    "MATE": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    },
+    "NICO": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    },
+    "SOFI": {
+      "feedback_epoch_count": 0,
+      "feedback_epoch_incidence": 0.0,
+      "first_feedback_epoch": null,
+      "first_feedback_minutes_after_start": null,
+      "first_rank_coverage_25_percent_epoch": null,
+      "first_rank_coverage_50_percent_epoch": null,
+      "first_sustained_feedback_epoch": null
+    }
+  },
+  "receivers": [
+    "DYNG",
+    "GRAZ",
+    "MARS",
+    "MATE",
+    "NICO",
+    "SOFI"
+  ],
+  "schema": "GINAN_PPPAR_FEEDBACK_INFORMATION_AUDIT_V1",
+  "shadow_covariance_error_norm": {
+    "count": 0,
+    "max": null,
+    "mean": null,
+    "median": null,
+    "min": null,
+    "p95": null
+  },
+  "shadow_realisation_check_count": 0,
+  "shadow_record_count": 0,
+  "shadow_state_update_error_norm": {
+    "count": 0,
+    "max": null,
+    "mean": null,
+    "median": null,
+    "min": null,
+    "p95": null
+  },
+  "state_block_information": {},
+  "station_epoch_denominator": 17280,
+  "station_epoch_feedback_incidence": 0.0,
+  "station_feedback_epoch_count": 0,
+  "submitted_rank_coverage": 0.0,
+  "submitted_rank_epoch_integral_hours": 0.0,
+  "submitted_rank_epoch_sum": 0,
+  "success_rate_margin": {
+    "count": 17247,
+    "max": -0.7758899317468294,
+    "mean": -0.7759105027755338,
+    "median": -0.7758986580201317,
+    "min": -0.7816416898448251,
+    "p95": -0.7758913998510051
+  },
+  "trace": "/home/rx/GINAN/inputData/outputs/exp3c_persistent_phase_osb_pppar_2880e_20260909_b13df92_bin3ab177d7/Network-2024-07-17_00:00.trace",
+  "valid_shadow_record_count": 0
+}
