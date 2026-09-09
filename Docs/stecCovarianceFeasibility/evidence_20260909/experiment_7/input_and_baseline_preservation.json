@@ -1,0 +1,122 @@
+[
+  {
+    "file": "/home/rx/GINAN/inputData/products/igs20_2303.atx",
+    "sha256": "5bbc3979e8eae4baa7ea9193a62f979f93e4d433d312f9236a0a054e9c791593",
+    "expected": "5bbc3979e8eae4baa7ea9193a62f979f93e4d433d312f9236a0a054e9c791593"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/igrf14coeffs.txt",
+    "sha256": "8f8d88403028fc4ee92c4f38d97b46e0a87e2cfc496045b43c9e26c1d6b0903c",
+    "expected": "8f8d88403028fc4ee92c4f38d97b46e0a87e2cfc496045b43c9e26c1d6b0903c"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/DE436.1950.2050",
+    "sha256": "9c47f4bef43e0369518f1e0d58207aebb69eeae9401a55b6d98503987fced6c1",
+    "expected": "9c47f4bef43e0369518f1e0d58207aebb69eeae9401a55b6d98503987fced6c1"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/gpt_25.grd",
+    "sha256": "986fa67d2990befc755b94d6d966baa83b6668d07672d779ea44286e717bee35",
+    "expected": "986fa67d2990befc755b94d6d966baa83b6668d07672d779ea44286e717bee35"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/OLOAD_GO.BLQ",
+    "sha256": "2918b5f155857dd2981822c47ed24e51c30c854cca20412cb6b9ff0d0418fad1",
+    "expected": "2918b5f155857dd2981822c47ed24e51c30c854cca20412cb6b9ff0d0418fad1"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/ALOAD_GO.BLQ",
+    "sha256": "9a4f2b0a2a3d34ecb3f01e05d2461f54d2a8a65bc65f5d6b6ae42451247a89e9",
+    "expected": "9a4f2b0a2a3d34ecb3f01e05d2461f54d2a8a65bc65f5d6b6ae42451247a89e9"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/opoleloadcoefcmcor.txt",
+    "sha256": "3b1d099df46af0c4a7b5d3fd58db609e1b59579fc4329d29f1150b8cf1375e64",
+    "expected": "3b1d099df46af0c4a7b5d3fd58db609e1b59579fc4329d29f1150b8cf1375e64"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/igs_satellite_metadata_2203_plus.snx",
+    "sha256": "b8860c97037befee6002047c32133110d0669bf11686d1b60754729cfd965984",
+    "expected": "b8860c97037befee6002047c32133110d0669bf11686d1b60754729cfd965984"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/tables/sat_yaw_bias_rate.snx",
+    "sha256": "40139be7b046df6e0f8ecf9f3c83e1d9c613c61f786d3119bacf5b06ec1823fd",
+    "expected": "40139be7b046df6e0f8ecf9f3c83e1d9c613c61f786d3119bacf5b06ec1823fd"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+    "sha256": "3bf384a89d9589c24659b26b1ce667397ad447ad58cbe7956afbefd80f7881f3",
+    "expected": "3bf384a89d9589c24659b26b1ce667397ad447ad58cbe7956afbefd80f7881f3"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/BRDC00IGS_R_20241990000_01D_MN.rnx",
+    "sha256": "39f99d229163b02f7ee6f51bbe57067e8da3d9ef6c181ee6845c13a5a1495862",
+    "expected": "39f99d229163b02f7ee6f51bbe57067e8da3d9ef6c181ee6845c13a5a1495862"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "7e0af5de03234b41332ce9354b5842cdd0fea344d9591b8995ae21039cf306fb",
+    "expected": "7e0af5de03234b41332ce9354b5842cdd0fea344d9591b8995ae21039cf306fb"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/GRAZ00AUT_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "edf2241d25abf77476f0326807e402d1f32528f85c9e52dfa0358193c5c359d2",
+    "expected": "edf2241d25abf77476f0326807e402d1f32528f85c9e52dfa0358193c5c359d2"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/MATE00ITA_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "5d706cb8145b7f48236df090fb4b693e9c6b8d7d094707fec87712b595d7d099",
+    "expected": "5d706cb8145b7f48236df090fb4b693e9c6b8d7d094707fec87712b595d7d099"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "87ce687d6dca3a373e71ecd58c58a37f334e795666ded8c3c68a5ae6679ef177",
+    "expected": "87ce687d6dca3a373e71ecd58c58a37f334e795666ded8c3c68a5ae6679ef177"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/SOFI00BGR_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "d1a6bfac0d88869a41cf705b90199e278ea2c999d7982447868309da33cf9680",
+    "expected": "d1a6bfac0d88869a41cf705b90199e278ea2c999d7982447868309da33cf9680"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+    "sha256": "1568aac7615df081762e61f6eecd64e06c2fd87ec691d6016990448bc56e8232",
+    "expected": "1568aac7615df081762e61f6eecd64e06c2fd87ec691d6016990448bc56e8232"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241980000_01D_05M_ORB.SP3",
+    "sha256": "59254150598c73da61790b0da632228b82f8f835d6e55d06ebcde236ebbec51a",
+    "expected": "59254150598c73da61790b0da632228b82f8f835d6e55d06ebcde236ebbec51a"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241990000_01D_05M_ORB.SP3",
+    "sha256": "38c4d9e79b3622ba4abad4106e062318d03708685065926fc64e3f40078d28b3",
+    "expected": "38c4d9e79b3622ba4abad4106e062318d03708685065926fc64e3f40078d28b3"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20242000000_01D_05M_ORB.SP3",
+    "sha256": "8b774390b03a53c60551de47ed79ed656b56c12d2a0f7ae0865a62fc9ef5d072",
+    "expected": "8b774390b03a53c60551de47ed79ed656b56c12d2a0f7ae0865a62fc9ef5d072"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241990000_01D_30S_CLK.CLK",
+    "sha256": "bf5b06227be5e9f547f40fcac12aa83390eb15b4872f68d30a629156cd677323",
+    "expected": "bf5b06227be5e9f547f40fcac12aa83390eb15b4872f68d30a629156cd677323"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241990000_01D_01D_OSB.BIA",
+    "sha256": "fb99686fff296688920df31e92720d3f66b45c9991aa2ff42f74e732b1542483",
+    "expected": "fb99686fff296688920df31e92720d3f66b45c9991aa2ff42f74e732b1542483"
+  },
+  {
+    "file": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241990000_01D_01D_ERP.ERP",
+    "sha256": "1c11b6a64153a61e364811befa52aa70eacf575b0675b2c1cd78492fb6322885",
+    "expected": "1c11b6a64153a61e364811befa52aa70eacf575b0675b2c1cd78492fb6322885"
+  },
+  {
+    "file": "/mnt/d/tec/ginan-main-full-rank-ar/bin/pea",
+    "sha256": "3ab177d7ee7c06936d02384368fe0f090ccee0a16d4e6b6049fadde8b486b23c",
+    "expected": "3ab177d7ee7c06936d02384368fe0f090ccee0a16d4e6b6049fadde8b486b23c"
+  }
+]

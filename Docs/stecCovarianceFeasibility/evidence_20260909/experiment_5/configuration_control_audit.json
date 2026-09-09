@@ -1,0 +1,26 @@
+[
+  {
+    "mm": 3,
+    "mode": "ar",
+    "wrapper_only_include_path_changed": true,
+    "base_only_BIA_path_changed": true
+  },
+  {
+    "mm": 3,
+    "mode": "float",
+    "wrapper_only_include_path_changed": true,
+    "base_only_BIA_path_changed": true
+  },
+  {
+    "mm": 10,
+    "mode": "ar",
+    "wrapper_only_include_path_changed": true,
+    "base_only_BIA_path_changed": true
+  },
+  {
+    "mm": 10,
+    "mode": "float",
+    "wrapper_only_include_path_changed": true,
+    "base_only_BIA_path_changed": true
+  }
+]

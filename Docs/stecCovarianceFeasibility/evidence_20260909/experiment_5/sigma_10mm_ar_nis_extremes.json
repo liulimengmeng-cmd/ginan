@@ -1,0 +1,102 @@
+[
+  {
+    "rows": "20",
+    "innovation_norm": "0.88324511205113942",
+    "joint_nis": "11854.542100961975",
+    "nis_per_row": "592.72710504809879",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 2503
+  },
+  {
+    "rows": "20",
+    "innovation_norm": "0.88288360419129031",
+    "joint_nis": "11816.311243514872",
+    "nis_per_row": "590.81556217574359",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 2502
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.40982009684478027",
+    "joint_nis": "4898.5540665306426",
+    "nis_per_row": "408.21283887755357",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 628
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.40983803923748457",
+    "joint_nis": "4878.6933521881156",
+    "nis_per_row": "406.55777934900965",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 627
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.40932847359845476",
+    "joint_nis": "4856.9925434186662",
+    "nis_per_row": "404.74937861822218",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 626
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.40953516406619217",
+    "joint_nis": "4837.0632963422504",
+    "nis_per_row": "403.08860802852087",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 625
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.41100066197959551",
+    "joint_nis": "4815.0111665242339",
+    "nis_per_row": "401.25093054368614",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 624
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.41271150052982958",
+    "joint_nis": "4794.9997432515929",
+    "nis_per_row": "399.58331193763274",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 623
+  },
+  {
+    "rows": "12",
+    "innovation_norm": "0.41268631801282568",
+    "joint_nis": "4775.1266219271765",
+    "nis_per_row": "397.92721849393138",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 622
+  },
+  {
+    "rows": "14",
+    "innovation_norm": "0.73607741840613483",
+    "joint_nis": "3488.2427938916744",
+    "nis_per_row": "249.16019956369104",
+    "nis_gate_configured": "0",
+    "status": "VALID_LINEAR_SHADOW",
+    "action": "ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
+    "epoch": 578
+  }
+]

@@ -1,0 +1,2407 @@
+{
+  "identity_error_max": 1.1368683772161603e-13,
+  "S_symmetry_error_max": 1.734723475976807e-18,
+  "S_min_eigenvalue": 1.9497447803594308e-06,
+  "S_condition_number": 23665.23834203737,
+  "full_nis": 37.59399517687976,
+  "full_nis_per_row": 2.6852853697771257,
+  "rows": [
+    {
+      "row_zero_based": 0,
+      "receiver": "DYNG",
+      "rhs": 68.0,
+      "float_value": 68.02178701053094,
+      "innovation": -0.021787010531056694,
+      "marginal_sigma": 0.09974834488933093,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 79,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G15",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 80,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G15",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 94,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 1,
+      "receiver": "DYNG",
+      "rhs": 48.0,
+      "float_value": 47.98405287567198,
+      "innovation": 0.015947124328022255,
+      "marginal_sigma": 0.09644348863956541,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 73,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G13",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 74,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G13",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 94,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 2,
+      "receiver": "DYNG",
+      "rhs": -3.0,
+      "float_value": -2.9892497030105005,
+      "innovation": -0.010750296989499475,
+      "marginal_sigma": 0.09637150771078469,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 88,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G22",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 89,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G22",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 94,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 3,
+      "receiver": "DYNG",
+      "rhs": 9.0,
+      "float_value": 9.082925425778683,
+      "innovation": -0.08292542577873974,
+      "marginal_sigma": 0.09605252823607678,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 76,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G14",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 77,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 94,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 4,
+      "receiver": "DYNG",
+      "rhs": -443.0,
+      "float_value": -443.0266199757792,
+      "innovation": 0.02661997577922648,
+      "marginal_sigma": 0.15910300711438627,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 80,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G15",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 5,
+      "receiver": "DYNG",
+      "rhs": -357.0,
+      "float_value": -356.87823394696875,
+      "innovation": -0.12176605303125143,
+      "marginal_sigma": 0.1097677144272166,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 74,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G13",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 6,
+      "receiver": "DYNG",
+      "rhs": -153.0,
+      "float_value": -153.00381664811243,
+      "innovation": 0.0038166481124335405,
+      "marginal_sigma": 0.10838116265423796,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 89,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G22",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 7,
+      "receiver": "DYNG",
+      "rhs": -122.0,
+      "float_value": -122.35912210332867,
+      "innovation": 0.3591221033286729,
+      "marginal_sigma": 0.10237169141137331,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 77,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 95,
+          "type": "AMBIGUITY",
+          "receiver": "DYNG",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 8,
+      "receiver": "NICO",
+      "rhs": 38.0,
+      "float_value": 37.9012466249157,
+      "innovation": 0.09875337508429993,
+      "marginal_sigma": 0.09727347436898615,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 211,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G13",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 212,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G13",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 214,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 9,
+      "receiver": "NICO",
+      "rhs": 19.0,
+      "float_value": 18.922976557324205,
+      "innovation": 0.07702344267573835,
+      "marginal_sigma": 0.09677722351926143,
+      "terms": [
+        {
+          "coefficient": -1.0,
+          "state_index": 214,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 229,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G30",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 230,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 10,
+      "receiver": "NICO",
+      "rhs": 23.0,
+      "float_value": 22.92180057673407,
+      "innovation": 0.07819942326591445,
+      "marginal_sigma": 0.09669590945215371,
+      "terms": [
+        {
+          "coefficient": -1.0,
+          "state_index": 214,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 1
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 226,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G22",
+          "signal_number": 1
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 227,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G22",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 11,
+      "receiver": "NICO",
+      "rhs": -111.0,
+      "float_value": -110.52354151481325,
+      "innovation": -0.47645848518675393,
+      "marginal_sigma": 0.12373406842182139,
+      "terms": [
+        {
+          "coefficient": 1.0,
+          "state_index": 212,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G13",
+          "signal_number": 20
+        },
+        {
+          "coefficient": -1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 12,
+      "receiver": "NICO",
+      "rhs": 115.0,
+      "float_value": 115.32106559955486,
+      "innovation": -0.32106559955485636,
+      "marginal_sigma": 0.11541325482503056,
+      "terms": [
+        {
+          "coefficient": -1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 230,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G30",
+          "signal_number": 20
+        }
+      ]
+    },
+    {
+      "row_zero_based": 13,
+      "receiver": "NICO",
+      "rhs": -125.0,
+      "float_value": -124.63174535346565,
+      "innovation": -0.36825464653435347,
+      "marginal_sigma": 0.11400194314664219,
+      "terms": [
+        {
+          "coefficient": -1.0,
+          "state_index": 215,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G14",
+          "signal_number": 20
+        },
+        {
+          "coefficient": 1.0,
+          "state_index": 227,
+          "type": "AMBIGUITY",
+          "receiver": "NICO",
+          "satellite": "G22",
+          "signal_number": 20
+        }
+      ]
+    }
+  ],
+  "subsets": {
+    "DYNG": {
+      "rows": 8,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "nis": 22.47736347685627,
+      "nis_per_row": 2.8096704346070336,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00016191259694558195,
+        "GRAZ": 1.1772308834659944e-10,
+        "MARS": 1.8507590768222366e-10,
+        "MATE": 6.158116703656022e-11,
+        "NICO": 1.1768700338619527e-10,
+        "SOFI": 6.178182361386053e-11
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2630371915096353,
+          "max_abs_TECU": 0.20835284876597632
+        },
+        "GRAZ": {
+          "norm_TECU": 9.270875644921921e-07,
+          "max_abs_TECU": 8.196186944651908e-07
+        },
+        "MARS": {
+          "norm_TECU": 9.323780240886127e-07,
+          "max_abs_TECU": 8.472759917865947e-07
+        },
+        "MATE": {
+          "norm_TECU": 9.206798334711752e-07,
+          "max_abs_TECU": 7.910086022920598e-07
+        },
+        "NICO": {
+          "norm_TECU": 9.677657886318557e-07,
+          "max_abs_TECU": 7.412785123744142e-07
+        },
+        "SOFI": {
+          "norm_TECU": 9.293124457697761e-07,
+          "max_abs_TECU": 7.830355182511532e-07
+        }
+      }
+    },
+    "NICO": {
+      "rows": 6,
+      "row_indices": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 20.25468336766867,
+      "nis_per_row": 3.3757805612781113,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 2.00450488953717e-11,
+        "GRAZ": 1.0233451296074862e-10,
+        "MARS": 1.3274667237009066e-10,
+        "MATE": 5.2668675947670754e-11,
+        "NICO": 0.00020841367463151985,
+        "SOFI": 7.916246855725814e-11
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 9.035075571462468e-07,
+          "max_abs_TECU": 7.104277464900321e-07
+        },
+        "GRAZ": {
+          "norm_TECU": 9.041112519555454e-07,
+          "max_abs_TECU": 7.64381795606512e-07
+        },
+        "MARS": {
+          "norm_TECU": 9.054973531013672e-07,
+          "max_abs_TECU": 7.857421379810981e-07
+        },
+        "MATE": {
+          "norm_TECU": 8.985575491105952e-07,
+          "max_abs_TECU": 7.374317201473681e-07
+        },
+        "NICO": {
+          "norm_TECU": 0.2686549914287875,
+          "max_abs_TECU": 0.18096362283236556
+        },
+        "SOFI": {
+          "norm_TECU": 9.234367905323672e-07,
+          "max_abs_TECU": 7.341116729791956e-07
+        }
+      }
+    },
+    "DYNG+NICO": {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.59399517687976,
+      "nis_per_row": 2.6852853697771257,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.0001513135232033863,
+        "GRAZ": 1.8560771839402106e-10,
+        "MARS": 2.720935242375437e-10,
+        "MATE": 9.641277650590333e-11,
+        "NICO": 0.00014405383899280844,
+        "SOFI": 1.1250990928645026e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22231096489060914,
+          "max_abs_TECU": 0.17523725960532222
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5117052868316879e-06,
+          "max_abs_TECU": 1.3091411791042546e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5155460457616145e-06,
+          "max_abs_TECU": 1.3503955402883242e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5029624375793731e-06,
+          "max_abs_TECU": 1.2631517539819115e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2218707545360457,
+          "max_abs_TECU": 0.14685849080578295
+        },
+        "SOFI": {
+          "norm_TECU": 1.5302416486794044e-06,
+          "max_abs_TECU": 1.2532307163406546e-06
+        }
+      }
+    }
+  },
+  "conditional_on_other_stations": {
+    "DYNG": {
+      "conditional_nis": 17.339311809210816,
+      "conditional_nis_per_row": 2.167413976151352,
+      "other_stations_nis": 20.25468336766867,
+      "conditional_innovation": [
+        -0.012109539625948126,
+        0.02490638069405078,
+        -0.0030466324630225167,
+        -0.06087848473189578,
+        0.013861588942827211,
+        -0.10685584995317185,
+        0.010151863508168595,
+        0.2868432352553803
+      ],
+      "conditional_sigma": [
+        0.08161022447867333,
+        0.023098145725395446,
+        0.022691167398394243,
+        0.021195512168920034,
+        0.15752676528739581,
+        0.10378820488907865,
+        0.10203642629331101,
+        0.09533488920477154
+      ]
+    },
+    "NICO": {
+      "conditional_nis": 15.116631700023472,
+      "conditional_nis_per_row": 2.5194386166705787,
+      "other_stations_nis": 22.47736347685627,
+      "conditional_innovation": [
+        0.08468035835706833,
+        0.05441531516208979,
+        0.06791847348150695,
+        -0.38073726783710854,
+        -0.23520029843271542,
+        -0.29354477320068084
+      ],
+      "conditional_sigma": [
+        0.026201600510652776,
+        0.02410213602920692,
+        0.023935298272254258,
+        0.11800494737260932,
+        0.10855191800990449,
+        0.10770928374513566
+      ]
+    }
+  },
+  "cross_station_covariance_removed_nis": 42.73204684452494,
+  "dominant_covariance_modes": [
+    {
+      "eigenvalue": 0.005489671257099731,
+      "projected_innovation": -0.27347510566611255,
+      "nis_contribution": 13.623517678288678,
+      "row_loadings": [
+        0.023296327967042157,
+        0.02793867179609522,
+        -0.02557330268165865,
+        0.07311573566422984,
+        0.027133197107079135,
+        0.30265257677008345,
+        0.41956743951349196,
+        -0.7930558689795787,
+        0.18680936798652262,
+        0.09712710671009189,
+        0.192765414224858,
+        0.043799214261118685,
+        0.024027105825825186,
+        -0.10668633532525035
+      ],
+      "loading_energy_by_receiver": {
+        "DYNG": 0.9046324331239325,
+        "NICO": 0.09536756687606722
+      }
+    },
+    {
+      "eigenvalue": 0.033695822671809754,
+      "projected_innovation": -0.5396789033443887,
+      "nis_contribution": 8.643603141901249,
+      "row_loadings": [
+        -0.15752846665591938,
+        -0.1818793140113963,
+        -0.17545611914588677,
+        0.11247063460880327,
+        0.35563174892620275,
+        0.21123435285386755,
+        0.20327245053218074,
+        0.0021863019732782304,
+        -0.3455579892976543,
+        -0.17499378517393738,
+        -0.3303449990630354,
+        0.44043891613266767,
+        0.2808125014583935,
+        0.3927451784030221
+      ],
+      "loading_energy_by_receiver": {
+        "DYNG": 0.3137481577988419,
+        "NICO": 0.6862518422011578
+      }
+    },
+    {
+      "eigenvalue": 0.014262828883086935,
+      "projected_innovation": 0.22942181442457676,
+      "nis_contribution": 3.6903176337114667,
+      "row_loadings": [
+        0.12712962889190008,
+        0.230781595064799,
+        -0.3105971265255357,
+        0.19707596971456276,
+        -0.07814259528539629,
+        -0.06667140472468469,
+        0.4547202483554912,
+        0.08962953116409805,
+        0.11009598140208977,
+        -0.1760203297011928,
+        -0.4624220515730545,
+        -0.5034905628990233,
+        -0.18449666189841374,
+        0.159476960452453
+      ],
+      "loading_energy_by_receiver": {
+        "DYNG": 0.43008689853477555,
+        "NICO": 0.5699131014652247
+      }
+    },
+    {
+      "eigenvalue": 0.04614117493334923,
+      "projected_innovation": 0.3903207086523103,
+      "nis_contribution": 3.3018286990504926,
+      "row_loadings": [
+        -0.3074298939576777,
+        -0.23842554874048438,
+        -0.23859694793967956,
+        -0.3473678215047376,
+        0.43326161695325993,
+        0.2439744396457868,
+        0.24197508344539903,
+        0.29998694896673606,
+        0.13021685106950237,
+        0.3437559013939205,
+        0.12729770655298103,
+        -0.15313049417909697,
+        -0.28332373445929077,
+        -0.1421738500812967
+      ],
+      "loading_energy_by_receiver": {
+        "DYNG": 0.7247360554583153,
+        "NICO": 0.2752639445416848
+      }
+    },
+    {
+      "eigenvalue": 0.013845448949857422,
+      "projected_innovation": 0.17393680045537663,
+      "nis_contribution": 2.1851231160666016,
+      "row_loadings": [
+        0.23500094595751378,
+        -0.18484386316264673,
+        0.2171653904448103,
+        0.2796005895133321,
+        -0.08340500370046325,
+        0.49489424389242564,
+        0.09119258571400028,
+        0.1790130135797648,
+        -0.39238268625075123,
+        -0.24834628907058798,
+        0.010350448455274662,
+        -0.012122783743237551,
+        -0.31964282275616246,
+        -0.41828922005445274
+      ],
+      "loading_energy_by_receiver": {
+        "DYNG": 0.5069684488133116,
+        "NICO": 0.49303155118668807
+      }
+    }
+  ],
+  "leave_one_row_out": [
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 34.83047145624786,
+      "nis_per_row": 2.679267035095989,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 9.955007524247071e-05,
+        "GRAZ": 1.852973148684106e-10,
+        "MARS": 2.721598821201877e-10,
+        "MATE": 9.776030895801879e-11,
+        "NICO": 0.0004997320808770339,
+        "SOFI": 1.1220119956397692e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.21169666700554216,
+          "max_abs_TECU": 0.16715976607665706
+        },
+        "GRAZ": {
+          "norm_TECU": 1.4816239133546366e-06,
+          "max_abs_TECU": 1.2812586847346446e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.4850462406247802e-06,
+          "max_abs_TECU": 1.3218312795459018e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4732348936567082e-06,
+          "max_abs_TECU": 1.2359215083477763e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22454101871079138,
+          "max_abs_TECU": 0.14847032599776028
+        },
+        "SOFI": {
+          "norm_TECU": 1.5002873234715821e-06,
+          "max_abs_TECU": 1.2261525367971465e-06
+        }
+      },
+      "removed_row": 7,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.02263992526704,
+      "nis_per_row": 2.7709723019436185,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 4.329187134859683e-05,
+        "GRAZ": 1.8788681589739533e-10,
+        "MARS": 2.7662485859429957e-10,
+        "MATE": 9.901694066049473e-11,
+        "NICO": 0.00040466842806036294,
+        "SOFI": 1.133980700470379e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22165700948825443,
+          "max_abs_TECU": 0.1757397888983329
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5104295041565546e-06,
+          "max_abs_TECU": 1.3084216957757768e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5143561440271078e-06,
+          "max_abs_TECU": 1.3498882382445415e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5015948255469306e-06,
+          "max_abs_TECU": 1.2623255094523586e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22235481689530576,
+          "max_abs_TECU": 0.14750238586684516
+        },
+        "SOFI": {
+          "norm_TECU": 1.5285880237083437e-06,
+          "max_abs_TECU": 1.2522839288282752e-06
+        }
+      },
+      "removed_row": 3,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.29264373293277,
+      "nis_per_row": 2.7917418256102127,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019467435085311033,
+        "GRAZ": 1.8310451806312316e-10,
+        "MARS": 2.6753587522748187e-10,
+        "MATE": 9.192426604332786e-11,
+        "NICO": 0.0002712347563598506,
+        "SOFI": 1.1213538200346301e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22168399325905266,
+          "max_abs_TECU": 0.17384804901552414
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5037409198579148e-06,
+          "max_abs_TECU": 1.3043671148508625e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.507135074905225e-06,
+          "max_abs_TECU": 1.3454394477733075e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4953001845270808e-06,
+          "max_abs_TECU": 1.2580017444689488e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22249471117479871,
+          "max_abs_TECU": 0.14722084582182116
+        },
+        "SOFI": {
+          "norm_TECU": 1.5226645279295463e-06,
+          "max_abs_TECU": 1.2481799912801906e-06
+        }
+      },
+      "removed_row": 6,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.42709067257506,
+      "nis_per_row": 2.8020838978903893,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019044488237164836,
+        "GRAZ": 1.815200371870223e-10,
+        "MARS": 2.656723354757597e-10,
+        "MATE": 9.171056682994359e-11,
+        "NICO": 0.0002642598746338649,
+        "SOFI": 1.1118375458909596e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2224434542210373,
+          "max_abs_TECU": 0.17552253866119488
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5113307405173817e-06,
+          "max_abs_TECU": 1.3090147101596027e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5150432421357362e-06,
+          "max_abs_TECU": 1.3500625303495754e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.502604082613837e-06,
+          "max_abs_TECU": 1.2629376584921313e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22209092855137078,
+          "max_abs_TECU": 0.147529905363222
+        },
+        "SOFI": {
+          "norm_TECU": 1.530128458461357e-06,
+          "max_abs_TECU": 1.253176187446022e-06
+        }
+      },
+      "removed_row": 2,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.463693204062594,
+      "nis_per_row": 2.804899477235584,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018925344639821279,
+        "GRAZ": 1.8141682766462568e-10,
+        "MARS": 2.656818452418861e-10,
+        "MATE": 9.181626546708477e-11,
+        "NICO": 0.00026221286144369595,
+        "SOFI": 1.1101240741662758e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22247941893692144,
+          "max_abs_TECU": 0.17560780764064657
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5125740454817783e-06,
+          "max_abs_TECU": 1.3098623258143823e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5163581746097099e-06,
+          "max_abs_TECU": 1.350936144527914e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5038003070191737e-06,
+          "max_abs_TECU": 1.2638223989366224e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2221883007386579,
+          "max_abs_TECU": 0.14737387644719252
+        },
+        "SOFI": {
+          "norm_TECU": 1.5312880331305104e-06,
+          "max_abs_TECU": 1.2540536693265644e-06
+        }
+      },
+      "removed_row": 10,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "nis": 36.764775303995776,
+      "nis_per_row": 2.828059638768906,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018120788722339367,
+        "GRAZ": 1.8156047915948468e-10,
+        "MARS": 2.6725298158385294e-10,
+        "MATE": 9.321516104196479e-11,
+        "NICO": 0.0002429273565873947,
+        "SOFI": 1.0995592834335188e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22214918240869722,
+          "max_abs_TECU": 0.17520040337817172
+        },
+        "GRAZ": {
+          "norm_TECU": 1.520125671156725e-06,
+          "max_abs_TECU": 1.3154490634105138e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5244400998331074e-06,
+          "max_abs_TECU": 1.356825972406058e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5110657718298111e-06,
+          "max_abs_TECU": 1.2695951500765155e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2236682075271878,
+          "max_abs_TECU": 0.14764087424366212
+        },
+        "SOFI": {
+          "norm_TECU": 1.5380378499378053e-06,
+          "max_abs_TECU": 1.2596969978238755e-06
+        }
+      },
+      "removed_row": 13,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        12,
+        13
+      ],
+      "nis": 37.07103210602883,
+      "nis_per_row": 2.85161785430991,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00035260995600443744,
+        "GRAZ": 1.834455896506553e-10,
+        "MARS": 2.6756100048757444e-10,
+        "MATE": 9.566903773531283e-11,
+        "NICO": 0.00018707600692445965,
+        "SOFI": 1.1293806079494342e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22317487765574498,
+          "max_abs_TECU": 0.1739057473681931
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5043683324350474e-06,
+          "max_abs_TECU": 1.3048293039833033e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.508913087112379e-06,
+          "max_abs_TECU": 1.3458600896884168e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4950173344908307e-06,
+          "max_abs_TECU": 1.2592810375241064e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.21684012679317927,
+          "max_abs_TECU": 0.14695303897893786
+        },
+        "SOFI": {
+          "norm_TECU": 1.5220046776596035e-06,
+          "max_abs_TECU": 1.2494635001420136e-06
+        }
+      },
+      "removed_row": 11,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.1275614348808,
+      "nis_per_row": 2.8559662642216,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019685935594552836,
+        "GRAZ": 1.912874441025897e-10,
+        "MARS": 2.796732992595086e-10,
+        "MATE": 1.0279271588787607e-10,
+        "NICO": 0.00014061960800299515,
+        "SOFI": 1.1617445600333104e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22225251069701293,
+          "max_abs_TECU": 0.17428197835178502
+        },
+        "GRAZ": {
+          "norm_TECU": 1.512342539671759e-06,
+          "max_abs_TECU": 1.3105350538957344e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5165016272357668e-06,
+          "max_abs_TECU": 1.3521553115183902e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.503374251650251e-06,
+          "max_abs_TECU": 1.26455635750295e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22160261931848224,
+          "max_abs_TECU": 0.14857401673921272
+        },
+        "SOFI": {
+          "norm_TECU": 1.530112456995711e-06,
+          "max_abs_TECU": 1.254414214592283e-06
+        }
+      },
+      "removed_row": 9,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13
+      ],
+      "nis": 37.207504731208324,
+      "nis_per_row": 2.8621157485544866,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019183026597548956,
+        "GRAZ": 1.890465861780573e-10,
+        "MARS": 2.7562613042692925e-10,
+        "MATE": 9.974012684892113e-11,
+        "NICO": 0.00012969947886483938,
+        "SOFI": 1.16746361497606e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2220833453809421,
+          "max_abs_TECU": 0.1740099213738742
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5139779858049675e-06,
+          "max_abs_TECU": 1.3138926012354667e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5181696919164577e-06,
+          "max_abs_TECU": 1.3552932112212895e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5047105841013477e-06,
+          "max_abs_TECU": 1.267606155388003e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22170809957743623,
+          "max_abs_TECU": 0.14966372338414294
+        },
+        "SOFI": {
+          "norm_TECU": 1.5324946588689042e-06,
+          "max_abs_TECU": 1.2576878685213863e-06
+        }
+      },
+      "removed_row": 12,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.379204592873926,
+      "nis_per_row": 2.875323430221071,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00028093653008630175,
+        "GRAZ": 1.8645202524319142e-10,
+        "MARS": 2.720987039431298e-10,
+        "MATE": 9.742186049413239e-11,
+        "NICO": 0.00010222327460510229,
+        "SOFI": 1.1357563664070929e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2224605450425741,
+          "max_abs_TECU": 0.17421729498663371
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5116545196919128e-06,
+          "max_abs_TECU": 1.309458769398143e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5156482533586862e-06,
+          "max_abs_TECU": 1.3507529207193624e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5027926553294918e-06,
+          "max_abs_TECU": 1.2635557786350712e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22135318485487943,
+          "max_abs_TECU": 0.14772816759675783
+        },
+        "SOFI": {
+          "norm_TECU": 1.5298691522257612e-06,
+          "max_abs_TECU": 1.2536114272066305e-06
+        }
+      },
+      "removed_row": 8,
+      "removed_receiver": "NICO"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.41915602160809,
+      "nis_per_row": 2.878396617046776,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.0002683692008167343,
+        "GRAZ": 1.8660185969581802e-10,
+        "MARS": 2.724117411481989e-10,
+        "MATE": 9.744427918978502e-11,
+        "NICO": 9.18835367472113e-05,
+        "SOFI": 1.1354105785725415e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22257892027649698,
+          "max_abs_TECU": 0.17436063906016933
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5123321798574204e-06,
+          "max_abs_TECU": 1.3098327177177246e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.516265143389646e-06,
+          "max_abs_TECU": 1.3511447328331384e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5035217685070899e-06,
+          "max_abs_TECU": 1.2638907106040919e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2215581094325211,
+          "max_abs_TECU": 0.14768798716761372
+        },
+        "SOFI": {
+          "norm_TECU": 1.5306362964157006e-06,
+          "max_abs_TECU": 1.253938783976811e-06
+        }
+      },
+      "removed_row": 1,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.49632438663055,
+      "nis_per_row": 2.8843326451254265,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.0001384673661457504,
+        "GRAZ": 1.883039465729092e-10,
+        "MARS": 2.6853812932985904e-10,
+        "MATE": 1.0098736692209351e-10,
+        "NICO": 0.00014165709891346873,
+        "SOFI": 1.186410882808905e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.21976559440565896,
+          "max_abs_TECU": 0.17337950042427341
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5106381504039681e-06,
+          "max_abs_TECU": 1.3025756154625213e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5143009030295096e-06,
+          "max_abs_TECU": 1.3428788951240658e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5016952715337378e-06,
+          "max_abs_TECU": 1.257500608568038e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22193065795784817,
+          "max_abs_TECU": 0.14690638503551584
+        },
+        "SOFI": {
+          "norm_TECU": 1.5285296324206694e-06,
+          "max_abs_TECU": 1.2480442140648084e-06
+        }
+      },
+      "removed_row": 4,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.56161642919126,
+      "nis_per_row": 2.889355109937789,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.0001472401638237029,
+        "GRAZ": 1.8600354695461934e-10,
+        "MARS": 2.719854090719045e-10,
+        "MATE": 9.700469694348054e-11,
+        "NICO": 0.00014336365833117286,
+        "SOFI": 1.1311971891436572e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2218153846856517,
+          "max_abs_TECU": 0.17506515871895834
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5115291080948567e-06,
+          "max_abs_TECU": 1.3084869042910217e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5153632018573872e-06,
+          "max_abs_TECU": 1.3496554785928032e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.502757534600237e-06,
+          "max_abs_TECU": 1.2625880699093648e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2218734598225693,
+          "max_abs_TECU": 0.14686079669554372
+        },
+        "SOFI": {
+          "norm_TECU": 1.5299874604926187e-06,
+          "max_abs_TECU": 1.2527076389640593e-06
+        }
+      },
+      "removed_row": 0,
+      "removed_receiver": "DYNG"
+    },
+    {
+      "rows": 13,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.579720580508116,
+      "nis_per_row": 2.8907477369621626,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018486388517828368,
+        "GRAZ": 1.8621143289008803e-10,
+        "MARS": 2.726457481571513e-10,
+        "MATE": 9.680616335288176e-11,
+        "NICO": 0.000108170344302397,
+        "SOFI": 1.1287112485903889e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22298668119482568,
+          "max_abs_TECU": 0.17519323719378632
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5131835003612143e-06,
+          "max_abs_TECU": 1.3100482304080496e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.516957841180716e-06,
+          "max_abs_TECU": 1.3513539126002016e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5045001252925513e-06,
+          "max_abs_TECU": 1.2640095465402645e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22164784677425795,
+          "max_abs_TECU": 0.14705653279916647
+        },
+        "SOFI": {
+          "norm_TECU": 1.5318025132414116e-06,
+          "max_abs_TECU": 1.2540656491809417e-06
+        }
+      },
+      "removed_row": 5,
+      "removed_receiver": "DYNG"
+    }
+  ],
+  "one_row_variance_times_1e6": [
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 34.854046008752746,
+      "nis_per_row": 2.4895747149109106,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 9.75475685711704e-05,
+        "GRAZ": 1.852991572141157e-10,
+        "MARS": 2.7215886481492897e-10,
+        "MATE": 9.774738676278414e-11,
+        "NICO": 0.0004963465411082711,
+        "SOFI": 1.1220198518275108e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.21178646738770635,
+          "max_abs_TECU": 0.16722867205125683
+        },
+        "GRAZ": {
+          "norm_TECU": 1.4818803757778058e-06,
+          "max_abs_TECU": 1.2814965395149664e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.485306284571332e-06,
+          "max_abs_TECU": 1.3220749502115846e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4734883244287305e-06,
+          "max_abs_TECU": 1.2361537990462894e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22451792940013598,
+          "max_abs_TECU": 0.14845627568353037
+        },
+        "SOFI": {
+          "norm_TECU": 1.500542690516127e-06,
+          "max_abs_TECU": 1.2263835302786283e-06
+        }
+      },
+      "deweighted_row": 7,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.02330738211286,
+      "nis_per_row": 2.573093384436633,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 4.323206276674252e-05,
+        "GRAZ": 1.8788581814486273e-10,
+        "MARS": 2.7662291621766376e-10,
+        "MATE": 9.901578099033879e-11,
+        "NICO": 0.00040454271575592667,
+        "SOFI": 1.1339763201005757e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22165727598050078,
+          "max_abs_TECU": 0.17573957544143548
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5104300448189484e-06,
+          "max_abs_TECU": 1.308422001387174e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5143566482300337e-06,
+          "max_abs_TECU": 1.3498884537287375e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5015954051345473e-06,
+          "max_abs_TECU": 1.262325860412186e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22235460287152634,
+          "max_abs_TECU": 0.14750209740630715
+        },
+        "SOFI": {
+          "norm_TECU": 1.5285887243910004e-06,
+          "max_abs_TECU": 1.252284330990553e-06
+        }
+      },
+      "deweighted_row": 3,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.306473450737485,
+      "nis_per_row": 2.5933195321955345,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019398664805958898,
+        "GRAZ": 1.8312957497235114e-10,
+        "MARS": 2.6758375787732734e-10,
+        "MATE": 9.196869777552566e-11,
+        "NICO": 0.00026961251074464907,
+        "SOFI": 1.1213348638807459e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22168872110084858,
+          "max_abs_TECU": 0.17386281242975604
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5038232584682332e-06,
+          "max_abs_TECU": 1.3044178497708656e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5072221536842528e-06,
+          "max_abs_TECU": 1.3454921171434575e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4953793577689438e-06,
+          "max_abs_TECU": 1.2580564746331838e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22248785240064864,
+          "max_abs_TECU": 0.14721662080968093
+        },
+        "SOFI": {
+          "norm_TECU": 1.5227427154710574e-06,
+          "max_abs_TECU": 1.2482336663290171e-06
+        }
+      },
+      "deweighted_row": 6,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.4277098187199,
+      "nis_per_row": 2.601979272765707,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019041367453068883,
+        "GRAZ": 1.815221438389642e-10,
+        "MARS": 2.6567572121299535e-10,
+        "MATE": 9.171293916769207e-11,
+        "NICO": 0.00026418314096333744,
+        "SOFI": 1.1118424388832147e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2224433712576674,
+          "max_abs_TECU": 0.17552238729540062
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5113309382149094e-06,
+          "max_abs_TECU": 1.3090147772625732e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5150435078024338e-06,
+          "max_abs_TECU": 1.350062707040828e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.502604271794737e-06,
+          "max_abs_TECU": 1.2629377720887411e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22209080224313224,
+          "max_abs_TECU": 0.14752953043581385
+        },
+        "SOFI": {
+          "norm_TECU": 1.5301285171845439e-06,
+          "max_abs_TECU": 1.253176216378427e-06
+        }
+      },
+      "deweighted_row": 2,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.46429296351907,
+      "nis_per_row": 2.6045923545370764,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018922312886904727,
+        "GRAZ": 1.8141899412819713e-10,
+        "MARS": 2.656852279175047e-10,
+        "MATE": 9.18185934315032e-11,
+        "NICO": 0.00026213739287619806,
+        "SOFI": 1.1101300585561506e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22247931733549903,
+          "max_abs_TECU": 0.17560761102089928
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5125735839748592e-06,
+          "max_abs_TECU": 1.3098619431603934e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5163577429540249e-06,
+          "max_abs_TECU": 1.3509358576731506e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5037998619609533e-06,
+          "max_abs_TECU": 1.2638220430798128e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22218812311008249,
+          "max_abs_TECU": 0.14737358429027933
+        },
+        "SOFI": {
+          "norm_TECU": 1.5312874776218946e-06,
+          "max_abs_TECU": 1.2540532326522528e-06
+        }
+      },
+      "deweighted_row": 10,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 36.773596366304325,
+      "nis_per_row": 2.626685454736023,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018073190060916862,
+        "GRAZ": 1.8160305090540157e-10,
+        "MARS": 2.6730430607990765e-10,
+        "MATE": 9.324838160527477e-11,
+        "NICO": 0.00024165839895157583,
+        "SOFI": 1.099814585672577e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22215070821055333,
+          "max_abs_TECU": 0.17520079544677378
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5200349577711084e-06,
+          "max_abs_TECU": 1.3153819614966315e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5243443423387925e-06,
+          "max_abs_TECU": 1.3567575668549661e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5109784384170192e-06,
+          "max_abs_TECU": 1.2695266066174314e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22364803276104533,
+          "max_abs_TECU": 0.14763255141725568
+        },
+        "SOFI": {
+          "norm_TECU": 1.5379536778668096e-06,
+          "max_abs_TECU": 1.2596282109149593e-06
+        }
+      },
+      "deweighted_row": 13,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.07960192827264,
+      "nis_per_row": 2.648542994876617,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00034929991009930556,
+        "GRAZ": 1.8348086393728826e-10,
+        "MARS": 2.6763512948505033e-10,
+        "MATE": 9.56809695239889e-11,
+        "NICO": 0.00018279756308482562,
+        "SOFI": 1.1293100995589086e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2231600562712927,
+          "max_abs_TECU": 0.17392756692644404
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5044877238404701e-06,
+          "max_abs_TECU": 1.3048999628985949e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5090210165205865e-06,
+          "max_abs_TECU": 1.3459344123463683e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.4951466236191355e-06,
+          "max_abs_TECU": 1.2593444671501137e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2169206612649331,
+          "max_abs_TECU": 0.14695148961325133
+        },
+        "SOFI": {
+          "norm_TECU": 1.5221386597969777e-06,
+          "max_abs_TECU": 1.249525233704048e-06
+        }
+      },
+      "deweighted_row": 11,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.12784224771717,
+      "nis_per_row": 2.651988731979798,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019682802494918353,
+        "GRAZ": 1.9128397261873071e-10,
+        "MARS": 2.7966872320576045e-10,
+        "MATE": 1.0278877803981013e-10,
+        "NICO": 0.0001405377678862335,
+        "SOFI": 1.1617201186125305e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.222252535262485,
+          "max_abs_TECU": 0.17428255347149452
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5123421539347932e-06,
+          "max_abs_TECU": 1.3105342147241683e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5165010486955976e-06,
+          "max_abs_TECU": 1.3521542520616954e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5033740015045774e-06,
+          "max_abs_TECU": 1.264555511872235e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22160276022355996,
+          "max_abs_TECU": 0.14857298392005797
+        },
+        "SOFI": {
+          "norm_TECU": 1.530112532911142e-06,
+          "max_abs_TECU": 1.2544135020762894e-06
+        }
+      },
+      "deweighted_row": 9,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.212175035999245,
+      "nis_per_row": 2.6580125025713746,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00019127357799397885,
+        "GRAZ": 1.890044935285224e-10,
+        "MARS": 2.7558319698438153e-10,
+        "MATE": 9.969902827203565e-11,
+        "NICO": 0.0001283595805978896,
+        "SOFI": 1.1669313627890195e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2220859205033701,
+          "max_abs_TECU": 0.17402475238376608
+        },
+        "GRAZ": {
+          "norm_TECU": 1.513950176907856e-06,
+          "max_abs_TECU": 1.3138351856129275e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.518137672994046e-06,
+          "max_abs_TECU": 1.355234028345544e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5046891318982304e-06,
+          "max_abs_TECU": 1.2675523289287433e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.2217092797025468,
+          "max_abs_TECU": 0.14962982528576083
+        },
+        "SOFI": {
+          "norm_TECU": 1.5324668575199153e-06,
+          "max_abs_TECU": 1.257634008822092e-06
+        }
+      },
+      "deweighted_row": 12,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.37938082799645,
+      "nis_per_row": 2.6699557734283177,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00028082980127631496,
+        "GRAZ": 1.8645132768666277e-10,
+        "MARS": 2.720986923029188e-10,
+        "MATE": 9.742102559310395e-11,
+        "NICO": 0.00010212875160639666,
+        "SOFI": 1.1357476110509654e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22246040857561855,
+          "max_abs_TECU": 0.17421813186498322
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5116545593228975e-06,
+          "max_abs_TECU": 1.309458508816122e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5156481676381708e-06,
+          "max_abs_TECU": 1.3507526274896363e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5027927923220266e-06,
+          "max_abs_TECU": 1.2635554471338807e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22135359086202866,
+          "max_abs_TECU": 0.14772745402918475
+        },
+        "SOFI": {
+          "norm_TECU": 1.5298694553397568e-06,
+          "max_abs_TECU": 1.2536111148343432e-06
+        }
+      },
+      "deweighted_row": 8,
+      "receiver": "NICO"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.419299403864244,
+      "nis_per_row": 2.6728071002760174,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00026827287293165395,
+        "GRAZ": 1.8660104037727999e-10,
+        "MARS": 2.7241147374664306e-10,
+        "MATE": 9.744342732316634e-11,
+        "NICO": 9.181599366485678e-05,
+        "SOFI": 1.1354021123954707e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22257868934029168,
+          "max_abs_TECU": 0.17436135795995758
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5123316640430526e-06,
+          "max_abs_TECU": 1.3098321506000992e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.516264552119769e-06,
+          "max_abs_TECU": 1.3511441184346239e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5035213078858211e-06,
+          "max_abs_TECU": 1.2638901045998613e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22155835071089033,
+          "max_abs_TECU": 0.14768730691346962
+        },
+        "SOFI": {
+          "norm_TECU": 1.5306359704808416e-06,
+          "max_abs_TECU": 1.253938203304049e-06
+        }
+      },
+      "deweighted_row": 1,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.55605546477919,
+      "nis_per_row": 2.6825753903413707,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00014629587197567876,
+        "GRAZ": 1.8663519256319296e-10,
+        "MARS": 2.70692306082575e-10,
+        "MATE": 9.817494004596785e-11,
+        "NICO": 0.00014311991482714094,
+        "SOFI": 1.1488783016217936e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2207004299264265,
+          "max_abs_TECU": 0.17451562268295345
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5110435196050121e-06,
+          "max_abs_TECU": 1.3065908199466361e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5148453389495062e-06,
+          "max_abs_TECU": 1.3474757384441414e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5021854910451744e-06,
+          "max_abs_TECU": 1.2609565958441256e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22189399938200108,
+          "max_abs_TECU": 0.14686205436851862
+        },
+        "SOFI": {
+          "norm_TECU": 1.5292737676788096e-06,
+          "max_abs_TECU": 1.2512160464209033e-06
+        }
+      },
+      "deweighted_row": 4,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.571845204561,
+      "nis_per_row": 2.6837032288972145,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00014852458425711087,
+        "GRAZ": 1.8587846613008034e-10,
+        "MARS": 2.720194970603716e-10,
+        "MATE": 9.681769059729867e-11,
+        "NICO": 0.00014358142200589932,
+        "SOFI": 1.1292690319852807e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.2219663546927766,
+          "max_abs_TECU": 0.17511952713754161
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5115825675294426e-06,
+          "max_abs_TECU": 1.3086935963520908e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5154190316318508e-06,
+          "max_abs_TECU": 1.3498892716015994e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.5028197390717818e-06,
+          "max_abs_TECU": 1.2627661434350288e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22187260489089106,
+          "max_abs_TECU": 0.1468600682415399
+        },
+        "SOFI": {
+          "norm_TECU": 1.530065078554164e-06,
+          "max_abs_TECU": 1.2528728844219014e-06
+        }
+      },
+      "deweighted_row": 0,
+      "receiver": "DYNG"
+    },
+    {
+      "rows": 14,
+      "row_indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "nis": 37.57995318136272,
+      "nis_per_row": 2.684282370097337,
+      "coordinate_update_norm_m_by_receiver": {
+        "DYNG": 0.00018431607110158758,
+        "GRAZ": 1.8620159024556463e-10,
+        "MARS": 2.7263673888993913e-10,
+        "MATE": 9.679974343691298e-11,
+        "NICO": 0.00010868771657301322,
+        "SOFI": 1.1286523724812261e-10
+      },
+      "stec_update_by_receiver": {
+        "DYNG": {
+          "norm_TECU": 0.22297562282834943,
+          "max_abs_TECU": 0.17519395452759196
+        },
+        "GRAZ": {
+          "norm_TECU": 1.5131593791110186e-06,
+          "max_abs_TECU": 1.3100334502417571e-06
+        },
+        "MARS": {
+          "norm_TECU": 1.5169348047421032e-06,
+          "max_abs_TECU": 1.3513382961713625e-06
+        },
+        "MATE": {
+          "norm_TECU": 1.504475033292037e-06,
+          "max_abs_TECU": 1.2639955690324829e-06
+        },
+        "NICO": {
+          "norm_TECU": 0.22165145509901618,
+          "max_abs_TECU": 0.14705330575612763
+        },
+        "SOFI": {
+          "norm_TECU": 1.531777041231214e-06,
+          "max_abs_TECU": 1.2540520441663514e-06
+        }
+      },
+      "deweighted_row": 5,
+      "receiver": "DYNG"
+    }
+  ],
+  "claim_limits": [
+    "Diagnostic covariance ablation is not a proposed covariance model.",
+    "Predicted state updates are linear, before posterior callbacks.",
+    "Neither NIS nor lower coordinate shift certifies integer truth or STEC accuracy."
+  ],
+  "gpst": "2024-07-17 20:50:00"
+}

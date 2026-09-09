@@ -1,0 +1,25 @@
+{
+  "feedback_calls": 0,
+  "calls_with_screening_failure": 0,
+  "postfit_failure_events": 0,
+  "filter_failed_events": 0,
+  "iteration_limit_events": 0,
+  "mixed_unit_norm_with_screening": {
+    "count": 0,
+    "min": null,
+    "median": null,
+    "p95": null,
+    "max": null,
+    "mean": null
+  },
+  "mixed_unit_norm_without_screening": {
+    "count": 0,
+    "min": null,
+    "median": null,
+    "p95": null,
+    "max": null,
+    "mean": null
+  },
+  "interpretation": "Full-state norm mixes metres, cycles and TECU; it is not a coordinate error in metres.",
+  "largest_discrepancy_calls": []
+}

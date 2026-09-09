@@ -1,0 +1,21 @@
+{
+  "pid": 432925,
+  "argv": [
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/pea",
+    "-y",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float.yaml",
+    "-n",
+    "2880",
+    "-a",
+    "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+    "-a",
+    "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float"
+  ],
+  "started_utc": "2026-09-09T07:52:30.799354+00:00",
+  "environment_overrides": {
+    "LD_LIBRARY_PATH": "/home/rx/.local/boost-1.82/lib",
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  }
+}

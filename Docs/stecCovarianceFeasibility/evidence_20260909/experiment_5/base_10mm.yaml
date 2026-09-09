@@ -1,0 +1,277 @@
+# Experiment 4 base: 2024 regional GPS PPP-AR using one internally consistent
+# CODE rapid orbit/clock/ERP/Bias-SINEX product chain.
+#
+# This is intentionally standalone.  GINAN appends top-level file lists across
+# include_yamls, so inheriting experiment 1 would retain its WUM ERP alongside
+# CODE.  The remaining data, model, station, datum and AR settings are copied
+# from experiment 1 to isolate the product-centre replacement.
+
+inputs:
+  inputs_root: <EXP1_DATA_ROOT>/products
+  atx_files:
+    - igs20_2303.atx
+  igrf_files:
+    - tables/igrf14coeffs.txt
+  erp_files:
+    - code_2024199/COD0OPSRAP_20241990000_01D_01D_ERP.ERP
+  planetary_ephemeris_files:
+    - tables/DE436.1950.2050
+  troposphere:
+    gpt2grid_files:
+      - tables/gpt_25.grd
+  tides:
+    ocean_tide_loading_blq_files:
+      - tables/OLOAD_GO.BLQ
+    atmos_tide_loading_blq_files:
+      - tables/ALOAD_GO.BLQ
+    ocean_pole_tide_loading_files:
+      - tables/opoleloadcoefcmcor.txt
+  snx_files:
+    - tables/igs_satellite_metadata_2203_plus.snx
+    - tables/sat_yaw_bias_rate.snx
+    - IGS0OPSSNX_20241960000_07D_07D_CRD.SNX
+  satellite_data:
+    nav_files:
+      - BRDC00IGS_R_20241990000_01D_MN.rnx
+    clk_files:
+      - code_2024199/COD0OPSRAP_20241990000_01D_30S_CLK.CLK
+    bsx_files:
+      - /mnt/d/tec/code-exp5-sigma-20260909-v2/assumed_sigma_10mm.BIA
+    sp3_files:
+      - code_2024199/COD0OPSRAP_20241980000_01D_05M_ORB.SP3
+      - code_2024199/COD0OPSRAP_20241990000_01D_05M_ORB.SP3
+      - code_2024199/COD0OPSRAP_20242000000_01D_05M_ORB.SP3
+    # Keep the deterministic attitude model used by the WUM control.
+    obx_files: []
+  gnss_observations:
+    gnss_observations_root: ../data
+    rnx_inputs:
+      - MARS00FRA_R_20241990000_01D_30S_MO.rnx
+      - GRAZ00AUT_R_20241990000_01D_30S_MO.rnx
+      - MATE00ITA_R_20241990000_01D_30S_MO.rnx
+      - DYNG00GRC_R_20241990000_01D_30S_MO.rnx
+      - SOFI00BGR_R_20241990000_01D_30S_MO.rnx
+      - NICO00CYP_R_20241990000_01D_30S_MO.rnx
+
+outputs:
+  outputs_root: <EXP1_OUTPUT_ROOT>
+  metadata:
+    config_description: exp4_2024_code_rapid_base
+  trace:
+    level: 4
+    output_receivers: true
+    output_network: true
+    output_residuals: false
+    output_residual_chain: false
+  gpx:
+    output: false
+  pos:
+    output: false
+  ionstec:
+    output: true
+    directory: ionstec
+    filename: <CONFIG>-<LOGTIME>.STEC
+    output_covariance: true
+    covariance_filename: <CONFIG>-<LOGTIME>.STEC.COV
+    covariance_max_states: 256
+    output_satellite_difference_covariance: true
+    satellite_difference_covariance_filename: <CONFIG>-<LOGTIME>.STEC.SD.COV
+
+satellite_options:
+  global:
+    error_model: ELEVATION_DEPENDENT
+    code_sigma: 0
+    phase_sigma: 0
+    models:
+      phase_bias:
+        enable: true
+  # Retain the experiment-1 G01 exclusion for a common-satellite comparison.
+  # The CODE product itself has complete G01 coverage.
+  G01:
+    exclude: true
+
+receiver_options:
+  global:
+    elevation_mask: 15
+    error_model: ELEVATION_DEPENDENT
+    code_sigma: 0.3
+    phase_sigma: 0.003
+    clock_codes: [AUTO, AUTO]
+    zero_dcb_codes: [AUTO, AUTO]
+    rec_reference_system: GPS
+    models:
+      phase_bias:
+        enable: false
+      troposphere:
+        enable: true
+        models: [gpt2]
+      tides:
+        enable: true
+        solid: true
+        otl: true
+        atl: true
+        spole: true
+        opole: true
+      ionospheric_components:
+        use_2nd_order: true
+        use_3rd_order: true
+
+processing_options:
+  process_modes:
+    preprocessor: true
+    spp: true
+    ppp: true
+    ionosphere: false
+    slr: false
+  epoch_control:
+    start_epoch: 2024-07-17 00:00:00
+    max_epochs: 2880
+    epoch_interval: 30
+    wait_next_epoch: 3600
+  gnss_general:
+    add_eop_component: true
+    use_primary_signals: true
+    sys_options:
+      gps:
+        process: true
+        ambiguity_resolution: true
+        receiver_amb_pivot: true
+        reject_eclipse: false
+        code_priorities: [L1C, L2W]
+      gal:
+        process: false
+      glo:
+        process: false
+      bds:
+        process: false
+      qzs:
+        process: false
+      sbs:
+        process: false
+  preprocessor:
+    cycle_slips:
+      mw_process_noise: 0
+      slip_threshold: 0.05
+    preprocess_all_data: true
+  spp:
+    outlier_screening:
+      chi_square:
+        enable: true
+        sigma_threshold: 5
+      least_square:
+        max_iterations: 1
+        sigma_check: false
+        omega_test: true
+        meas_sigma_threshold: 5
+      raim:
+        enable: true
+        max_iterations: 2
+  ppp_filter:
+    outlier_screening:
+      chi_square:
+        enable: false
+        mode: innovation
+      prefit:
+        max_iterations: 3
+        omega_test: false
+        sigma_check: false
+        state_sigma_threshold: 4
+        meas_sigma_threshold: 4
+      postfit:
+        max_iterations: 10
+        omega_test: true
+        sigma_check: false
+        state_sigma_threshold: 8
+        meas_sigma_threshold: 6
+    ionospheric_components:
+      common_ionosphere: true
+      use_gf_combo: false
+      use_if_combo: false
+    chunking:
+      by_receiver: true
+      size: 0
+    rts:
+      enable: true
+      lag: -1
+      filename: <CONFIG>_<RECEIVER>.rts
+  model_error_handling:
+    meas_deweighting:
+      deweight_factor: 1000
+      enable: true
+    state_deweighting:
+      deweight_factor: 1000
+      enable: true
+    error_accumulation:
+      enable: true
+      receiver_error_count_threshold: 0
+      receiver_error_epochs_threshold: 0
+      state_error_count_threshold: 3
+    ambiguities:
+      phase_reject_limit: 2
+      reset_on:
+        gf: true
+        lli: true
+        mw: true
+        scdia: true
+        retrack: true
+  ambiguity_resolution:
+    mode: LAMBDA_ALT
+    success_rate_threshold: 0.9999
+    solution_ratio_threshold: 3
+    once_per_epoch: true
+    fix_and_hold: false
+
+estimation_parameters:
+  receivers:
+    global:
+      pos:
+        estimated: [true]
+        sigma: [100]
+      pos_rate:
+        estimated: [false]
+        sigma: [0]
+        process_noise: [0]
+      clock:
+        estimated: [true]
+        sigma: [1000]
+        process_noise: [100]
+      clock_rate:
+        estimated: [false]
+        sigma: [0.005]
+        process_noise: [1e-4]
+      ambiguities:
+        estimated: [true]
+        sigma: [1000]
+        process_noise: [0]
+        outage_limit: [120]
+      ion_stec:
+        estimated: [true]
+        sigma: [200]
+        process_noise: [10]
+        outage_limit: [120]
+        sigma_limit: [1000]
+      trop:
+        estimated: [true]
+        sigma: [0.3]
+        process_noise: [0.0001]
+      trop_grads:
+        estimated: [true]
+        sigma: [0.03]
+        process_noise: [1e-6]
+      code_bias:
+        estimated: [true]
+        sigma: [20]
+        process_noise: [0]
+      phase_bias:
+        estimated: [false]
+        sigma: [10]
+        process_noise: [0]
+
+mongo:
+  enable: none
+  output_components: none
+  output_states: none
+  output_measurements: none
+  output_test_stats: none
+  delete_history: none
+  output_trace: none

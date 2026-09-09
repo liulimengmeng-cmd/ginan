@@ -1,0 +1,95 @@
+{
+  "created_utc": "2026-09-09T07:51:40.200678+00:00",
+  "source_commit": "91c1ceae9ecf1192419d1db83841d1751ef7cb37",
+  "binary_sha256": "3ab177d7ee7c06936d02384368fe0f090ccee0a16d4e6b6049fadde8b486b23c",
+  "runs": [
+    {
+      "label": "sigma_3mm_ar",
+      "assumed_sigma_m": 0.003,
+      "mode": "ar",
+      "config": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar.yaml",
+      "config_sha256": "75dfde71093142f4bbb1e4f6bca5371b597756985057e8e508825783684d99e1",
+      "base_sha256": "da1889fc4e1b944bf526f01b3059b026c3b5fdcc6fa29dae6135054e5fbe0e04",
+      "output": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar",
+      "argv": [
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/pea",
+        "-y",
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar.yaml",
+        "-n",
+        "2880",
+        "-a",
+        "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+        "-a",
+        "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar"
+      ]
+    },
+    {
+      "label": "sigma_3mm_float",
+      "assumed_sigma_m": 0.003,
+      "mode": "float",
+      "config": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float.yaml",
+      "config_sha256": "b60add48e85eba20669b9f3e13912a08e4ff66da13e8510423ecda6fffe567bc",
+      "base_sha256": "da1889fc4e1b944bf526f01b3059b026c3b5fdcc6fa29dae6135054e5fbe0e04",
+      "output": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float",
+      "argv": [
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/pea",
+        "-y",
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float.yaml",
+        "-n",
+        "2880",
+        "-a",
+        "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+        "-a",
+        "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_float"
+      ]
+    },
+    {
+      "label": "sigma_10mm_ar",
+      "assumed_sigma_m": 0.01,
+      "mode": "ar",
+      "config": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_ar.yaml",
+      "config_sha256": "139a312e8599baa151d57044fdfec399e1698b01275e556005d6ad932ea50df6",
+      "base_sha256": "7be69e80bfccb10f2e85ccea3df58936c7d763c2e4d3fc0cb8f89fc3dc9586df",
+      "output": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_ar",
+      "argv": [
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/pea",
+        "-y",
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_ar.yaml",
+        "-n",
+        "2880",
+        "-a",
+        "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+        "-a",
+        "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_ar"
+      ]
+    },
+    {
+      "label": "sigma_10mm_float",
+      "assumed_sigma_m": 0.01,
+      "mode": "float",
+      "config": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float.yaml",
+      "config_sha256": "3e5be9b302fe0c93afe59c03ede3c67ef9f20d89cd188de0d1d0742032dfbebc",
+      "base_sha256": "7be69e80bfccb10f2e85ccea3df58936c7d763c2e4d3fc0cb8f89fc3dc9586df",
+      "output": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float",
+      "argv": [
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/pea",
+        "-y",
+        "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float.yaml",
+        "-n",
+        "2880",
+        "-a",
+        "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+        "-a",
+        "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float"
+      ]
+    }
+  ],
+  "sigma_grid_predeclared_m": [
+    0.003,
+    0.01
+  ],
+  "zero_baseline": "experiment 4c/4d",
+  "covariance": "Independent daily satellite/signal priors; shared across all receivers; Q=0.",
+  "analysis_window": "2024-07-17 14:00:00 through 23:59:30",
+  "claim": "Sensitivity experiment, not calibrated uncertainty or certified fixing."
+}

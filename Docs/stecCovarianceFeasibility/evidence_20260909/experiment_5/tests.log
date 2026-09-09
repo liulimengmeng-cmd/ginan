@@ -1,0 +1,32 @@
+test_only_phase_sigma_bytes_change (test_experiment5_code_osb_sigma.FixtureTests) ... ok
+test_rejects_missing_records (test_experiment5_code_osb_sigma.FixtureTests) ... ok
+test_rejects_nonpositive_sigma (test_experiment5_code_osb_sigma.FixtureTests) ... ok
+test_rejects_nonzero_original_sigma (test_experiment5_code_osb_sigma.FixtureTests) ... ok
+test_screening_is_scoped_to_ar_shadow_call (test_experiment5_code_osb_sigma.FixtureTests) ... ok
+test_counts_conditioning_and_duplicate_keys (test_audit_external_bias_application.ExternalBiasApplicationAuditTest) ... ok
+test_incidence_rank_gates_and_information_blocks (test_audit_pppar_feedback_information.FeedbackInformationAuditTest) ... ok
+test_sustained_epoch_is_reported_in_absolute_epoch_numbers (test_audit_pppar_feedback_information.FeedbackInformationAuditTest) ... ok
+test_cli_writes_valid_json_without_turning_screening_into_acceptance (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_constraint_attempt_marker_without_applying_row_is_not_an_event (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_flags_jump_with_submitted_unverified_event_in_interval (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_primary_selects_ar_block_and_reports_ambiguous_ar_blocks (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_reports_ecef_enu_distances_and_receiver_statistics (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_reports_missing_trace_and_sinex_data (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_reports_post_burn_in_statistics_without_dropping_full_period (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_sinex_year_pivot_and_solution_validity_selection (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_trace_epoch_accepts_ginan_two_digit_fraction_on_all_supported_pythons (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_trace_keeps_last_complete_duplicate_without_mixing_partial_group (test_audit_pppar_coordinate_integrity.CoordinateIntegrityAuditTests) ... ok
+test_certifies_phase_bias_disabled_negative_control_protocol (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_counts_mapped_second_family_rows (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_detects_legacy_filter_feedback_in_same_run (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_distinguishes_full_selected_subset_from_full_visible_group (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_forward_state_rows_do_not_replace_epoch_number (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_reads_rts_state_time_without_epoch_marker (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_rejects_rank_or_submission_violation (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_separates_structural_basis_from_integer_candidate (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+test_tracks_guarded_subset_feedback_without_calling_it_certified (test_audit_pppar_dual_frequency_datum.DualFrequencyDatumAuditTest) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.092s
+
+OK

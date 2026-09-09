@@ -1,0 +1,102 @@
+{
+  "schema": "GINAN_JOINT_GATE_V1",
+  "date": "2026-09-09",
+  "base_commit": "91c1ceae9ecf1192419d1db83841d1751ef7cb37",
+  "activation": "GINAN_AR_JOINT_NIS_GATE=1",
+  "default_enabled": false,
+  "threshold_source": "KFState.chiSquareTest.sigma_threshold",
+  "actual_sigma": 4,
+  "nominal_alpha": 6.334248366623993E-05,
+  "time_scale": "GPST",
+  "summary": [
+    {
+      "passed": 1465,
+      "candidate_epochs": 2175,
+      "mode": "10mm",
+      "first_pass_GPST": "2024-07-17 01:48:00",
+      "epochs": 2504,
+      "rejected": 710
+    },
+    {
+      "passed": 1,
+      "candidate_epochs": 2433,
+      "mode": "0mm",
+      "first_pass_GPST": "2024-07-17 00:35:30",
+      "epochs": 2504,
+      "rejected": 2432
+    }
+  ],
+  "tests": "C++ production helper, independent NumPy/SciPy, full submission accounting, output-path checks passed",
+  "scientific_status": "EXPERIMENTAL_REJECTION_SCREEN_NOT_VALIDATED_FIXED_SOLUTION",
+  "other_active_pea_pid_preserved": 522736,
+  "file_hashes": [
+    {
+      "sha256": "97bcef9d59aa317f7d565578d793fb205450a5c4bfa3efd30daed52e621743f8",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\build_receipt.json"
+    },
+    {
+      "sha256": "6fb7417e4a8588350438d632f7ec1d06ed2864ca0988b544239ba99ebcf5c33d",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\10mm.finished.json"
+    },
+    {
+      "sha256": "5d163a403ba5c453156c22e5bb5deab4b818ca68aae03027fb36af78c78a3f19",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\0mm.finished.json"
+    },
+    {
+      "sha256": "2d455ca2903b8e0c5e79907c8a4c85a684fb0eb41317efe055333d71403af8fc",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\10mm_gate_verification.json"
+    },
+    {
+      "sha256": "716483a62973d300ef2a3d2de49d32cec15d8c7ef2ad4f61be577d37a1348acc",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\0mm_gate_verification.json"
+    },
+    {
+      "sha256": "c2a1bc6ad50928d43ce6eb1f3099360635cacc07ca8b09f191ca9fb8dfdc6490",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\10mm_output_path_verification.json"
+    },
+    {
+      "sha256": "532a7bb582c8f2e8d2242de7a17f5b7924faae021ea7613609c8d4eb8c3697f6",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\0mm_output_path_verification.json"
+    },
+    {
+      "sha256": "6d89f18e93521cf016ae1480a48c4bb9f0595e31d9fe3aafd9005254ab201085",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\unit_tests.log"
+    },
+    {
+      "sha256": "c67942f570d738fe01a80e91e55bba4950b442847f97e93a8c45eb7bb10fc725",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\input_and_baseline_preservation.json"
+    },
+    {
+      "sha256": "0641c5dba3c7b9e8b71f3a5dfd7f0c88d4a0c63e86566db4797dfab3deb45057",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\build_snapshot.py"
+    },
+    {
+      "sha256": "be29ff7f7fa1c361d44347436adaee1968b0f85ea8e75fca43d61eadf9753521",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\run_replay.py"
+    },
+    {
+      "sha256": "dfbab6f483346a6a186ac4ee13c4ae0260131458e42cf761b9b8f67a4aea8969",
+      "path": "D:\\tec\\code-exp7-joint-gate-20260909\\verify_output_paths.py"
+    },
+    {
+      "sha256": "1f3ae39c6437ff21b6ce43403c78f28d1313031a21af12688c1c78d908e453d6",
+      "path": "D:\\tec\\ginan-main-code-products\\src\\cpp\\pea\\ppp_ambres.cpp"
+    },
+    {
+      "sha256": "74c0c8b5743ed2539bb1eb374d7053ddcbfcbeaff0e6af19a9f9a4b0d0419f08",
+      "path": "D:\\tec\\ginan-main-code-products\\src\\cpp\\pea\\pppArJointGate.hpp"
+    },
+    {
+      "sha256": "aee89a8dd100b9b8ab7302b6a471e8c8bbf7066da3d4d04fc5d2e805d6f19dd5",
+      "path": "D:\\tec\\ginan-main-code-products\\scripts\\test_pppar_joint_gate.cpp"
+    },
+    {
+      "sha256": "eb396412b2bb7e680a61bd0a91b24c74b0edd60e171d0bb7fe0d51203c1ec82a",
+      "path": "D:\\tec\\ginan-main-code-products\\scripts\\verify_pppar_joint_gate_replay.py"
+    },
+    {
+      "sha256": "4757b5cc0f774dc2a5239f881c9e94516dbc688b2ed13bf09a597ccbbf3fd4d3",
+      "path": "D:\\tec\\ginan-main-code-products\\Docs\\stecCovarianceFeasibility\\PPPAR_JOINT_GATE_VALIDATION_20260909.md"
+    }
+  ]
+}

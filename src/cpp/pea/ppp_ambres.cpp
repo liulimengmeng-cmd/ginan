@@ -9,6 +9,8 @@
  *-----------------------------------------------------------------------------*/
 
 #include <algorithm>
+#include <cstdlib>
+#include <cstdio>
 #include <iostream>
 #include <math.h>
 #include <sstream>
@@ -20,8 +22,59 @@
 #include "common/eigenIncluder.hpp"
 #include "common/trace.hpp"
 #include "pea/ppp.hpp"
+#include "pppArJointGate.hpp"
 
 static bool filterError = false;
+
+// Opt-in, read-only event snapshots for exact same-prior constraint diagnostics.
+// The directory must already exist. fopen("wx") refuses to overwrite evidence.
+static void dumpIntegerConstraintSnapshot(
+    Trace& trace, const KFState& state, const MatrixXd& H,
+    const VectorXd& v, const MatrixXd& R, const VectorXd& rhs)
+{
+    const char* directory = std::getenv("GINAN_AR_SNAPSHOT_DIRECTORY");
+    const char* times = std::getenv("GINAN_AR_SNAPSHOT_TIMES");
+    if (!directory || !times)
+        return;
+    const string epoch = state.time.to_string(0);
+    if (string(times).find("|" + epoch + "|") == string::npos)
+        return;
+    string name = epoch;
+    std::replace(name.begin(), name.end(), ':', '-');
+    std::replace(name.begin(), name.end(), ' ', '_');
+    const string path = string(directory) + "/" + name + ".snapshot";
+    FILE* file = std::fopen(path.c_str(), "wx");
+    if (!file)
+    {
+        tracepdeex(1, trace, "\nPPP_AR SNAPSHOT status=OPEN_FAILED path=%s", path.c_str());
+        return;
+    }
+    std::fprintf(file, "GINAN_AR_SNAPSHOT_V1\nGPST %s\n", epoch.c_str());
+    auto matrix = [&](const char* label, const MatrixXd& values)
+    {
+        std::fprintf(file, "%s %ld %ld\n", label, long(values.rows()), long(values.cols()));
+        for (int i = 0; i < values.rows(); i++)
+        {
+            for (int j = 0; j < values.cols(); j++)
+                std::fprintf(file, j ? " %.17g" : "%.17g", values(i,j));
+            std::fprintf(file, "\n");
+        }
+    };
+    matrix("x", state.x);
+    matrix("P", state.P);
+    matrix("H", H);
+    matrix("v", v);
+    matrix("R", R);
+    matrix("rhs", rhs);
+    std::fprintf(file, "KEYS %ld\n", long(state.kfIndexMap.size()));
+    for (const auto& [key, index] : state.kfIndexMap)
+        std::fprintf(file, "%d %s %s %s %d\n", index,
+            enum_to_string(key.type).c_str(), key.str.empty() ? "-" : key.str.c_str(),
+            key.Sat.id().empty() ? "-" : key.Sat.id().c_str(), key.num);
+    const bool success = std::fclose(file) == 0;
+    tracepdeex(2, trace, "\nPPP_AR SNAPSHOT status=%s path=%s",
+        success ? "WRITTEN_READ_ONLY" : "WRITE_FAILED", path.c_str());
+}
 
 static const char* ambiguityFeedbackStateBlock(KF type)
 {
@@ -940,7 +993,8 @@ bool applyBestIntegerAmbiguity(
 bool applyUCAmbiguities(
     Trace&     trace,    ///< Debug trace
     KFState&   kfState,  ///< Reference to Kalman filter containing float solutions
-    GinAR_mtx& mtrx  ///< Reference to structure containing fixed ambiguities and Z transformations
+    GinAR_mtx& mtrx, ///< Reference to structure containing fixed ambiguities and Z transformations
+    const char** rejectionReason = nullptr
 )
 {
     int nz = mtrx.zfix.size();
@@ -1140,6 +1194,33 @@ bool applyUCAmbiguities(
 
     const bool traceFeedbackDiagnostics =
         acsConfig.ambrOpts.dual_frequency_feedback_diagnostics;
+    dumpIntegerConstraintSnapshot(trace, kfState, kfMeas.H, kfMeas.V, kfMeas.R, zfix);
+    // Experimental opt-in: preserve the baseline path unless explicitly enabled.
+    // Reuse the filter's sigma convention, but screen the complete AR block before
+    // any update or posterior row deweighting. Passing does not certify an integer.
+    const char* jointGateOption = std::getenv("GINAN_AR_JOINT_NIS_GATE");
+    const bool jointGateEnabled = jointGateOption && string(jointGateOption) == "1";
+    if (jointGateEnabled)
+    {
+        const MatrixXd jointCovariance =
+            kfMeas.H * kfState.P * kfMeas.H.transpose() + kfMeas.R;
+        const auto gate = pppArJointGate(
+            jointCovariance, kfMeas.V, kfState.chiSquareTest.sigma_threshold);
+        tracepdeex(
+            1, trace,
+            "\nPPP_AR JOINT_GATE rows=%d nis=%.17g threshold=%.17g "
+            "sigma_threshold=%.17g nominal_alpha=%.17g status=%s action=%s",
+            nz, gate.nis, gate.threshold, kfState.chiSquareTest.sigma_threshold,
+            gate.alpha, gate.status,
+            gate.passed ? "CONTINUE_TO_FILTER_UNVERIFIED" : "KEEP_FLOAT_NOT_SUBMITTED"
+        );
+        if (!gate.passed)
+        {
+            if (rejectionReason)
+                *rejectionReason = "JOINT_CONSISTENCY_GATE_REJECTED";
+            return false;
+        }
+    }
     const VectorXd stateBefore = traceFeedbackDiagnostics
         ? kfState.x
         : VectorXd();
@@ -1185,12 +1266,13 @@ bool applyUCAmbiguities(
             shadowTraceLevel,
             trace,
             "\nPPP_AR FEEDBACK_SHADOW_SUMMARY rows=%d innovation_norm=%.17g "
-            "joint_nis=%.17g nis_per_row=%.17g nis_gate_configured=0 "
+            "joint_nis=%.17g nis_per_row=%.17g nis_gate_configured=%d "
             "status=%s action=ANALYTIC_ONE_STEP_DIAGNOSTIC_ONLY",
             nz,
             kfMeas.V.norm(),
             jointNis,
             shadowValid && nz > 0 ? jointNis / nz : -1,
+            jointGateEnabled,
             shadowValid ? "VALID_LINEAR_SHADOW" : "INVALID_INNOVATION_COVARIANCE"
         );
 
@@ -1587,8 +1669,9 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
         );
         result.resolvedCombinationCount = candidateRowCount;
         result.diagnosticStatus = "DUAL_FREQUENCY_SUBSET_FEEDBACK_READY";
+        const char* rejectionReason = "PSEUDOOBS_MODEL_REJECTED";
         result.pseudoObservationsSubmitted =
-            applyUCAmbiguities(trace, kfState, dualFrequencySubsetCandidate);
+            applyUCAmbiguities(trace, kfState, dualFrequencySubsetCandidate, &rejectionReason);
         const int feedbackTraceLevel = result.pseudoObservationsSubmitted ? 2 : 1;
         tracepdeex(
             feedbackTraceLevel,
@@ -1599,14 +1682,14 @@ AmbiguityResolutionAttempt fixAndHoldAmbiguities(
             result.pseudoObservationsSubmitted,
             result.pseudoObservationsSubmitted
                 ? "SUBMITTED_UNVERIFIED"
-                : "PSEUDOOBS_MODEL_REJECTED",
+                : rejectionReason,
             result.pseudoObservationsSubmitted
                 ? "FILTER_CALL_RETURNED"
                 : "NOT_SUBMITTED"
         );
         if (!result.pseudoObservationsSubmitted)
         {
-            result.diagnosticStatus = "DUAL_FREQUENCY_PSEUDOOBS_MODEL_INVALID";
+            result.diagnosticStatus = rejectionReason;
         }
         return result;
     }

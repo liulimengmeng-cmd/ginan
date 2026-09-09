@@ -1,0 +1,27 @@
+{
+  "returncode": 0,
+  "elapsed_seconds": 235.03082132339478,
+  "binary_sha256": "88711c1086fa8f7f2b665cd4473b1d792049ad10d66dc7c43f786ad46459b7d0",
+  "snapshots": [
+    {
+      "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_05-13-30.snapshot",
+      "sha256": "db21931da00c4d90a104c3dba9098521e2424f2b42eb468de012aa3908a30ce5"
+    },
+    {
+      "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-50-00.snapshot",
+      "sha256": "6a13fad39b4fe73720374211cb3fc01c0a9960946c3ed861832a72c2885b5e30"
+    },
+    {
+      "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-50-30.snapshot",
+      "sha256": "c2ff775c4fb56211f38280ba5809127c1f8a881c39909091557bea82053c7739"
+    },
+    {
+      "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-51-00.snapshot",
+      "sha256": "3842b6ce6de7ff86838abd177fe1290afef133b928d61fd9df3d3181bc98e4c5"
+    },
+    {
+      "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-51-30.snapshot",
+      "sha256": "81b0b58ba4241cca8c737792e96ea38bb96dffa7e3b844823e9f40cbd42f50f4"
+    }
+  ]
+}

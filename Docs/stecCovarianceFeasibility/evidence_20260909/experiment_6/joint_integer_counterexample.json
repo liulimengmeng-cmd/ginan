@@ -1,0 +1,20 @@
+{
+  "with_R": {
+    "original_joint_nis": 11854.542100962368,
+    "alternative_joint_nis": 106.78465101969117,
+    "original_GRAZ_nis": 30.416575026028163,
+    "alternative_GRAZ_nis": 81.95477282106877
+  },
+  "without_R": {
+    "original_joint_nis": 11902.90509341249,
+    "alternative_joint_nis": 106.81015385944536,
+    "original_GRAZ_nis": 30.416661442807047,
+    "alternative_GRAZ_nis": 81.95492233193177
+  },
+  "change": {
+    "row_zero_based": 12,
+    "raw_rhs_before": -241.0,
+    "raw_rhs_after": -240.0,
+    "physical_truth_verified": false
+  }
+}

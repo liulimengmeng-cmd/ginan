@@ -1,0 +1,67 @@
+{
+  "2024-07-17 05:13:30": {
+    "snapshot_vs_own_replay_nis_error": 9.43600753089413e-12,
+    "candidate_residual_error": 5.684341886080802e-14,
+    "candidate_sigma_error": 2.5673907444456745e-16,
+    "same_historical_integer_candidates": true,
+    "historical_nis": 514.9830357797496,
+    "replay_nis": 514.9831010985413,
+    "historical_relative_nis_difference": 1.2683678329994365e-07,
+    "historical_float_residual_difference_max": 8.970448561740341e-08,
+    "rows": 68,
+    "full_nis_per_row": 7.573280898508099,
+    "cross_station_covariance_removed_nis_per_row": 7.5733231467208855
+  },
+  "2024-07-17 20:50:00": {
+    "snapshot_vs_own_replay_nis_error": 1.0231815394945443e-11,
+    "candidate_residual_error": 5.684341886080802e-14,
+    "candidate_sigma_error": 7.632783294297951e-17,
+    "same_historical_integer_candidates": true,
+    "historical_nis": 613.0064969098602,
+    "replay_nis": 613.0063247450228,
+    "historical_relative_nis_difference": 2.808532018445943e-07,
+    "historical_float_residual_difference_max": 1.0619483248319739e-07,
+    "rows": 62,
+    "full_nis_per_row": 9.88719878620988,
+    "cross_station_covariance_removed_nis_per_row": 9.887277955932552
+  },
+  "2024-07-17 20:50:30": {
+    "snapshot_vs_own_replay_nis_error": 1.1596057447604835e-11,
+    "candidate_residual_error": 1.1368683772161603e-13,
+    "candidate_sigma_error": 6.245004513516506e-17,
+    "same_historical_integer_candidates": true,
+    "historical_nis": 614.0772397959676,
+    "replay_nis": 614.0770688649233,
+    "historical_relative_nis_difference": 2.783543066203995e-07,
+    "historical_float_residual_difference_max": 9.871803285932401e-08,
+    "rows": 62,
+    "full_nis_per_row": 9.904468852660239,
+    "cross_station_covariance_removed_nis_per_row": 9.904548520040041
+  },
+  "2024-07-17 20:51:00": {
+    "snapshot_vs_own_replay_nis_error": 2.887645678129047e-11,
+    "candidate_residual_error": 5.684341886080802e-14,
+    "candidate_sigma_error": 6.591949208711867e-17,
+    "same_historical_integer_candidates": true,
+    "historical_nis": 612.9820747896276,
+    "replay_nis": 612.9818862386451,
+    "historical_relative_nis_difference": 3.0759624189940547e-07,
+    "historical_float_residual_difference_max": 9.614251439415966e-08,
+    "rows": 60,
+    "full_nis_per_row": 10.216364770643603,
+    "cross_station_covariance_removed_nis_per_row": 10.216447567136834
+  },
+  "2024-07-17 20:51:30": {
+    "snapshot_vs_own_replay_nis_error": 1.2505552149377763e-12,
+    "candidate_residual_error": 1.1368683772161603e-13,
+    "candidate_sigma_error": 1.1796119636642288e-16,
+    "same_historical_integer_candidates": true,
+    "historical_nis": 607.9712961828479,
+    "replay_nis": 607.9711046812646,
+    "historical_relative_nis_difference": 3.149845799415741e-07,
+    "historical_float_residual_difference_max": 1.0013189921664889e-07,
+    "rows": 58,
+    "full_nis_per_row": 10.482260425539023,
+    "cross_station_covariance_removed_nis_per_row": 10.482346467446762
+  }
+}

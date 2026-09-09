@@ -1,0 +1,106 @@
+{
+  "feedback_calls": 2432,
+  "calls_with_screening_failure": 192,
+  "postfit_failure_events": 234,
+  "filter_failed_events": 0,
+  "iteration_limit_events": 0,
+  "mixed_unit_norm_with_screening": {
+    "count": 192,
+    "min": 0.058552293147488686,
+    "median": 0.19025103670771273,
+    "p95": 2.2420499839212766,
+    "max": 3.2146759998586325,
+    "mean": 0.4500949492154494
+  },
+  "mixed_unit_norm_without_screening": {
+    "count": 2240,
+    "min": 1.9118925462064978e-10,
+    "median": 6.314312988819247e-10,
+    "p95": 9.513850737895118e-10,
+    "max": 1.1246252066425473e-09,
+    "mean": 6.40582575099729e-10
+  },
+  "interpretation": "Full-state norm mixes metres, cycles and TECU; it is not a coordinate error in metres.",
+  "largest_discrepancy_calls": [
+    {
+      "epoch": 2796,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 3.2146759998586325
+    },
+    {
+      "epoch": 2726,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.3174957216180703
+    },
+    {
+      "epoch": 2724,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.2736973887733596
+    },
+    {
+      "epoch": 2723,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.270312828761181
+    },
+    {
+      "epoch": 2722,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.26688030206863
+    },
+    {
+      "epoch": 2721,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.2631492654555387
+    },
+    {
+      "epoch": 2720,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.258848176590951
+    },
+    {
+      "epoch": 2719,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.2556796860282016
+    },
+    {
+      "epoch": 2718,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.252526121626996
+    },
+    {
+      "epoch": 2717,
+      "postfit_failure_count": 1,
+      "prefit_failure_count": 0,
+      "iteration_limit_count": 0,
+      "filter_failed_count": 0,
+      "mixed_unit_shadow_norm": 2.2495330963321187
+    }
+  ]
+}

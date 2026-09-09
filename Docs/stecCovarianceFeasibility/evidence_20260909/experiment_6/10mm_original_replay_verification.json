@@ -1,0 +1,670 @@
+{
+  "2024-07-17 05:13:30": {
+    "original_joint_nis": 4898.554066530643,
+    "snapshot_joint_nis": 4898.554066532317,
+    "difference": 1.6743797459639609e-09,
+    "canonical_candidate_to_raw_filter_residual_error_max": 1.4210854715202004e-14,
+    "candidate_sigma_vs_snapshot_error_max": 4.163336342344337e-17,
+    "rows": 12,
+    "subsets": {
+      "GRAZ": {
+        "rows": 6,
+        "nis": 1.6826558975968888,
+        "nis_per_row": 0.28044264959948145
+      },
+      "MARS": {
+        "rows": 6,
+        "nis": 30.406239361016617,
+        "nis_per_row": 5.067706560169436
+      },
+      "GRAZ+MARS": {
+        "rows": 12,
+        "nis": 4898.554066532317,
+        "nis_per_row": 408.21283887769306
+      }
+    }
+  },
+  "2024-07-17 20:50:00": {
+    "original_joint_nis": 37.593995176880085,
+    "snapshot_joint_nis": 37.59399517687976,
+    "difference": 3.268496584496461e-13,
+    "canonical_candidate_to_raw_filter_residual_error_max": 5.684341886080802e-14,
+    "candidate_sigma_vs_snapshot_error_max": 1.3877787807814457e-17,
+    "rows": 14,
+    "subsets": {
+      "DYNG": {
+        "rows": 8,
+        "nis": 22.47736347685627,
+        "nis_per_row": 2.8096704346070336
+      },
+      "NICO": {
+        "rows": 6,
+        "nis": 20.25468336766867,
+        "nis_per_row": 3.3757805612781113
+      },
+      "DYNG+NICO": {
+        "rows": 14,
+        "nis": 37.59399517687976,
+        "nis_per_row": 2.6852853697771257
+      }
+    }
+  },
+  "2024-07-17 20:50:30": {
+    "original_joint_nis": 11816.311243514872,
+    "snapshot_joint_nis": 11816.311243517273,
+    "difference": 2.4010660126805305e-09,
+    "canonical_candidate_to_raw_filter_residual_error_max": 5.684341886080802e-14,
+    "candidate_sigma_vs_snapshot_error_max": 1.3877787807814457e-17,
+    "rows": 20,
+    "subsets": {
+      "DYNG": {
+        "rows": 8,
+        "nis": 22.537971343899994,
+        "nis_per_row": 2.817246417987499
+      },
+      "GRAZ": {
+        "rows": 6,
+        "nis": 30.39819837251418,
+        "nis_per_row": 5.06636639541903
+      },
+      "NICO": {
+        "rows": 6,
+        "nis": 20.273926546718254,
+        "nis_per_row": 3.378987757786376
+      },
+      "DYNG+GRAZ": {
+        "rows": 14,
+        "nis": 9276.738755186065,
+        "nis_per_row": 662.6241967990046
+      },
+      "DYNG+NICO": {
+        "rows": 14,
+        "nis": 37.65557695442254,
+        "nis_per_row": 2.689684068173039
+      },
+      "GRAZ+NICO": {
+        "rows": 12,
+        "nis": 8600.85788151721,
+        "nis_per_row": 716.7381567931008
+      },
+      "DYNG+GRAZ+NICO": {
+        "rows": 20,
+        "nis": 11816.311243517273,
+        "nis_per_row": 590.8155621758636
+      }
+    }
+  },
+  "2024-07-17 20:51:00": {
+    "original_joint_nis": 11854.542100961975,
+    "snapshot_joint_nis": 11854.542100965553,
+    "difference": 3.5779521567746997e-09,
+    "canonical_candidate_to_raw_filter_residual_error_max": 5.684341886080802e-14,
+    "candidate_sigma_vs_snapshot_error_max": 1.3877787807814457e-17,
+    "rows": 20,
+    "subsets": {
+      "DYNG": {
+        "rows": 8,
+        "nis": 22.59139418779184,
+        "nis_per_row": 2.82392427347398
+      },
+      "GRAZ": {
+        "rows": 6,
+        "nis": 30.41657502602816,
+        "nis_per_row": 5.0694291710046935
+      },
+      "NICO": {
+        "rows": 6,
+        "nis": 20.347659983639925,
+        "nis_per_row": 3.3912766639399874
+      },
+      "DYNG+GRAZ": {
+        "rows": 14,
+        "nis": 9306.01245155946,
+        "nis_per_row": 664.71517511139
+      },
+      "DYNG+NICO": {
+        "rows": 14,
+        "nis": 37.79283634945108,
+        "nis_per_row": 2.699488310675077
+      },
+      "GRAZ+NICO": {
+        "rows": 12,
+        "nis": 8631.639325484317,
+        "nis_per_row": 719.3032771236931
+      },
+      "DYNG+GRAZ+NICO": {
+        "rows": 20,
+        "nis": 11854.542100965553,
+        "nis_per_row": 592.7271050482776
+      }
+    },
+    "actual_stec_AR_vs_float": [
+      {
+        "receiver": "DYNG",
+        "satellite": "G13",
+        "state": 7.5354535,
+        "adjust": -0.12608418,
+        "prior": 7.661537710066149,
+        "observed_change": -0.126084210066149,
+        "replayed_change": -0.12608418189180085,
+        "replay_error": -2.8174348160048268e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G14",
+        "state": 9.5738228,
+        "adjust": 0.19739975,
+        "prior": 9.376423036773994,
+        "observed_change": 0.19739976322600583,
+        "replayed_change": 0.19739975263094586,
+        "replay_error": 1.0595059968254716e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G15",
+        "state": 12.4013048,
+        "adjust": -0.04094768,
+        "prior": 12.442252491978065,
+        "observed_change": -0.04094769197806514,
+        "replayed_change": -0.040947676162860686,
+        "replay_error": -1.5815204451596898e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G17",
+        "state": 24.1142759,
+        "adjust": -0.0024958,
+        "prior": 24.11677171572253,
+        "observed_change": -0.0024958157225292155,
+        "replayed_change": -0.0024958001598682925,
+        "replay_error": -1.5562660922972815e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G19",
+        "state": 40.1769273,
+        "adjust": -0.00057245,
+        "prior": 40.17749970816249,
+        "observed_change": -0.0005724081624904898,
+        "replayed_change": -0.0005724506642888823,
+        "replay_error": 4.2501798392562476e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G22",
+        "state": 7.4715125,
+        "adjust": -0.04151055,
+        "prior": 7.513023081271819,
+        "observed_change": -0.041510581271818836,
+        "replayed_change": -0.041510549692860964,
+        "replay_error": -3.157895787225806e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G24",
+        "state": 40.9383557,
+        "adjust": -0.00315816,
+        "prior": 40.94151384422715,
+        "observed_change": -0.003158144227150217,
+        "replayed_change": -0.003158163541003877,
+        "replay_error": 1.931385366004887e-08
+      },
+      {
+        "receiver": "DYNG",
+        "satellite": "G30",
+        "state": 19.7361556,
+        "adjust": -0.05875344,
+        "prior": 19.794909065170415,
+        "observed_change": -0.05875346517041535,
+        "replayed_change": -0.05875343726752326,
+        "replay_error": -2.790289209408936e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G05",
+        "state": 51.8383517,
+        "adjust": 0.19799743,
+        "prior": 51.64035431486411,
+        "observed_change": 0.19799738513588494,
+        "replayed_change": 0.19799742574136914,
+        "replay_error": -4.060548419726473e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G13",
+        "state": 14.555645,
+        "adjust": -0.02378546,
+        "prior": 14.579430496611915,
+        "observed_change": -0.023785496611914425,
+        "replayed_change": -0.02378546198275866,
+        "replay_error": -3.462915576513126e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G14",
+        "state": 16.1596281,
+        "adjust": -0.21104546,
+        "prior": 16.3706735124914,
+        "observed_change": -0.2110454124914014,
+        "replayed_change": -0.2110454601118963,
+        "replay_error": 4.7620494880717956e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G15",
+        "state": 16.2707213,
+        "adjust": 0.0146894,
+        "prior": 16.2560318979655,
+        "observed_change": 0.014689402034502308,
+        "replayed_change": 0.014689396394741398,
+        "replay_error": 5.6397609100172774e-09
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G17",
+        "state": 34.4218457,
+        "adjust": 0.00013605,
+        "prior": 34.42170962079687,
+        "observed_change": 0.0001360792031306346,
+        "replayed_change": 0.00013605001658076224,
+        "replay_error": 2.9186549872360808e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G22",
+        "state": 14.4706501,
+        "adjust": 0.00952527,
+        "prior": 14.461124808082749,
+        "observed_change": 0.009525291917251266,
+        "replayed_change": 0.009525271067959444,
+        "replay_error": 2.0849291822513938e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G23",
+        "state": 38.7865017,
+        "adjust": 0.00903104,
+        "prior": 38.77747063465176,
+        "observed_change": 0.009031065348239053,
+        "replayed_change": 0.009031037125788711,
+        "replay_error": 2.82224503420081e-08
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G24",
+        "state": 35.2423662,
+        "adjust": 0.01185803,
+        "prior": 35.23050817926322,
+        "observed_change": 0.011858020736781327,
+        "replayed_change": 0.011858030514544465,
+        "replay_error": -9.777763137347462e-09
+      },
+      {
+        "receiver": "GRAZ",
+        "satellite": "G30",
+        "state": 30.6814125,
+        "adjust": 0.05672993,
+        "prior": 30.624682599984173,
+        "observed_change": 0.056729900015827894,
+        "replayed_change": 0.05672993496733636,
+        "replay_error": -3.495150846521966e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G05",
+        "state": 33.3455539,
+        "adjust": 4.6935e-07,
+        "prior": 33.345553428045285,
+        "observed_change": 4.71954713532341e-07,
+        "replayed_change": 4.6935017550053184e-07,
+        "replay_error": 2.6045380318091386e-09
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G13",
+        "state": 0.3581424,
+        "adjust": -6.9993e-07,
+        "prior": 0.35814305360902676,
+        "observed_change": -6.53609026735058e-07,
+        "replayed_change": -6.999314831570694e-07,
+        "replay_error": 4.632245642201132e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G14",
+        "state": 5.0260278,
+        "adjust": 8.1767e-07,
+        "prior": 5.026026939446471,
+        "observed_change": 8.605535288808142e-07,
+        "replayed_change": 8.176666424921216e-07,
+        "replay_error": 4.288688638869253e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G15",
+        "state": 0.903606,
+        "adjust": -1.7833e-08,
+        "prior": 0.9036059792595487,
+        "observed_change": 2.0740451356360268e-08,
+        "replayed_change": -1.7833044636710867e-08,
+        "replay_error": 3.8573495993071135e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G17",
+        "state": 30.1428962,
+        "adjust": 3.9289e-08,
+        "prior": 30.142896123692253,
+        "observed_change": 7.630774589983957e-08,
+        "replayed_change": 3.9288886889743206e-08,
+        "replay_error": 3.701885901009637e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G22",
+        "state": 1.3605972,
+        "adjust": -4.0947e-07,
+        "prior": 1.3605976281884957,
+        "observed_change": -4.281884957713089e-07,
+        "replayed_change": -4.0946518844880696e-07,
+        "replay_error": -1.872330732250195e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G23",
+        "state": 21.9105552,
+        "adjust": 3.3655e-08,
+        "prior": 21.910555179901273,
+        "observed_change": 2.0098728015227607e-08,
+        "replayed_change": 3.3655411047369287e-08,
+        "replay_error": -1.355668303214168e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G24",
+        "state": 14.4484159,
+        "adjust": 3.3681e-08,
+        "prior": 14.44841584727764,
+        "observed_change": 5.2722359811241404e-08,
+        "replayed_change": 3.368104230550937e-08,
+        "replay_error": 1.9041317505732036e-08
+      },
+      {
+        "receiver": "MARS",
+        "satellite": "G30",
+        "state": 25.2081898,
+        "adjust": -4.462e-08,
+        "prior": 25.20818986956917,
+        "observed_change": -6.956917175671151e-08,
+        "replayed_change": -4.461967612355138e-08,
+        "replay_error": -2.4949495633160135e-08
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G13",
+        "state": 5.2868049,
+        "adjust": -7.9704e-07,
+        "prior": 5.286805694641736,
+        "observed_change": -7.946417364124159e-07,
+        "replayed_change": -7.970422869439904e-07,
+        "replay_error": 2.4005505315745363e-09
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G14",
+        "state": 7.7175909,
+        "adjust": 7.9312e-07,
+        "prior": 7.7175900593092805,
+        "observed_change": 8.406907197056057e-07,
+        "replayed_change": 7.931180445018754e-07,
+        "replay_error": 4.7572675203730334e-08
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G15",
+        "state": 7.1123961,
+        "adjust": -3.285e-08,
+        "prior": 7.112396169770099,
+        "observed_change": -6.977009903152975e-08,
+        "replayed_change": -3.284988086152412e-08,
+        "replay_error": -3.692021817000563e-08
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G17",
+        "state": 23.7631772,
+        "adjust": 3.2276e-08,
+        "prior": 23.76317715944994,
+        "observed_change": 4.0550062863076164e-08,
+        "replayed_change": 3.227636737182789e-08,
+        "replay_error": 8.273695491248276e-09
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G19",
+        "state": 41.6172747,
+        "adjust": 2.8345e-08,
+        "prior": 41.61727467564863,
+        "observed_change": 2.435137247402963e-08,
+        "replayed_change": 2.834501464431427e-08,
+        "replay_error": -3.993642170284639e-09
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G22",
+        "state": 5.5378019,
+        "adjust": -4.0618e-07,
+        "prior": 5.537802261903313,
+        "observed_change": -3.619033135393579e-07,
+        "replayed_change": -4.0617728629710634e-07,
+        "replay_error": 4.427397275774844e-08
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G24",
+        "state": 27.5255365,
+        "adjust": 2.2992e-08,
+        "prior": 27.525536488571106,
+        "observed_change": 1.1428895163589914e-08,
+        "replayed_change": 2.2991610599621882e-08,
+        "replay_error": -1.1562715436031969e-08
+      },
+      {
+        "receiver": "MATE",
+        "satellite": "G30",
+        "state": 20.1103738,
+        "adjust": -5.9442e-08,
+        "prior": 20.110373844774596,
+        "observed_change": -4.477459469853784e-08,
+        "replayed_change": -5.944175845134392e-08,
+        "replay_error": 1.4667163752806081e-08
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G13",
+        "state": 8.6144729,
+        "adjust": -0.15366221,
+        "prior": 8.768135083293343,
+        "observed_change": -0.15366218329334203,
+        "replayed_change": -0.15366221147940018,
+        "replay_error": 2.8186058154133775e-08
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G14",
+        "state": 10.1138889,
+        "adjust": 0.16498626,
+        "prior": 9.948902648481683,
+        "observed_change": 0.16498625151831625,
+        "replayed_change": 0.16498625739355133,
+        "replay_error": -5.875235076224783e-09
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G15",
+        "state": 14.9924394,
+        "adjust": -0.00918786,
+        "prior": 15.001627276028348,
+        "observed_change": -0.009187876028347475,
+        "replayed_change": -0.009187855665362434,
+        "replay_error": -2.0362985041211257e-08
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G17",
+        "state": 21.7363217,
+        "adjust": -0.00474998,
+        "prior": 21.74107172280405,
+        "observed_change": -0.004750022804049792,
+        "replayed_change": -0.004749982108993586,
+        "replay_error": -4.0695056205929114e-08
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G19",
+        "state": 38.807558,
+        "adjust": -0.00492242,
+        "prior": 38.81248039668942,
+        "observed_change": -0.004922396689423181,
+        "replayed_change": -0.004922418077312865,
+        "replay_error": 2.1387889684136574e-08
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G22",
+        "state": 8.3054607,
+        "adjust": -0.08471673,
+        "prior": 8.390177439933789,
+        "observed_change": -0.08471673993378914,
+        "replayed_change": -0.08471673198038582,
+        "replay_error": -7.953403324822972e-09
+      },
+      {
+        "receiver": "NICO",
+        "satellite": "G30",
+        "state": 19.1493042,
+        "adjust": -0.05421681,
+        "prior": 19.20352097292523,
+        "observed_change": -0.05421677292522986,
+        "replayed_change": -0.05421680871803425,
+        "replay_error": 3.5792804387035915e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G05",
+        "state": 50.150349,
+        "adjust": 1.2826e-07,
+        "prior": 50.150348868510264,
+        "observed_change": 1.3148973465604286e-07,
+        "replayed_change": 1.2826483534870295e-07,
+        "replay_error": 3.2248993073399045e-09
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G13",
+        "state": 5.4147383,
+        "adjust": -8.2555e-07,
+        "prior": 5.414739117018089,
+        "observed_change": -8.170180896271972e-07,
+        "replayed_change": -8.255487007637838e-07,
+        "replay_error": 8.530611136586581e-09
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G14",
+        "state": 5.7939142,
+        "adjust": 7.9523e-07,
+        "prior": 5.793913422796353,
+        "observed_change": 7.77203646329383e-07,
+        "replayed_change": 7.952326351542146e-07,
+        "replay_error": -1.802898882483157e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G15",
+        "state": 9.6661949,
+        "adjust": -3.2022e-08,
+        "prior": 9.666194972584913,
+        "observed_change": -7.258491230288655e-08,
+        "replayed_change": -3.2021504464443313e-08,
+        "replay_error": -4.056340783844324e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G17",
+        "state": 19.5614198,
+        "adjust": 3.6363e-08,
+        "prior": 19.561419719891195,
+        "observed_change": 8.010880492292927e-08,
+        "replayed_change": 3.6362734440694885e-08,
+        "replay_error": 4.374607048223438e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G19",
+        "state": 37.9118813,
+        "adjust": 3.416e-08,
+        "prior": 37.91188129873714,
+        "observed_change": 1.2628547096937837e-09,
+        "replayed_change": 3.416045494093404e-08,
+        "replay_error": -3.289760023124026e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G22",
+        "state": 4.5633836,
+        "adjust": -4.1265e-07,
+        "prior": 4.563384034661338,
+        "observed_change": -4.3466133803349294e-07,
+        "replayed_change": -4.126525408624175e-07,
+        "replay_error": -2.2008797171075456e-08
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G24",
+        "state": 33.1670851,
+        "adjust": 2.5104e-08,
+        "prior": 33.16708507250802,
+        "observed_change": 2.749197847151663e-08,
+        "replayed_change": 2.510412171557399e-08,
+        "replay_error": 2.387856755942642e-09
+      },
+      {
+        "receiver": "SOFI",
+        "satellite": "G30",
+        "state": 16.0347545,
+        "adjust": -1.4844e-07,
+        "prior": 16.034754641479683,
+        "observed_change": -1.4147968485644924e-07,
+        "replayed_change": -1.4844350176844382e-07,
+        "replay_error": 6.96381691199458e-09
+      }
+    ],
+    "stec_replay_error_max": 4.7620494880717956e-08
+  },
+  "2024-07-17 20:51:30": {
+    "original_joint_nis": 37.982510694119675,
+    "snapshot_joint_nis": 37.98251069411911,
+    "difference": 5.684341886080801e-13,
+    "canonical_candidate_to_raw_filter_residual_error_max": 5.684341886080802e-14,
+    "candidate_sigma_vs_snapshot_error_max": 1.3877787807814457e-17,
+    "rows": 14,
+    "subsets": {
+      "DYNG": {
+        "rows": 8,
+        "nis": 22.703616378052914,
+        "nis_per_row": 2.837952047256614
+      },
+      "NICO": {
+        "rows": 6,
+        "nis": 20.43865687929598,
+        "nis_per_row": 3.4064428132159965
+      },
+      "DYNG+NICO": {
+        "rows": 14,
+        "nis": 37.98251069411911,
+        "nis_per_row": 2.713036478151365
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "passed_vs_original_AR": {
+    "epochs": 1465,
+    "states": 64295,
+    "max_STEC_error_TECU": 0.0,
+    "max_variance_error_TECU2": 0.0
+  },
+  "rejected_vs_independent_FLOAT": {
+    "epochs": 710,
+    "states": 30400,
+    "max_STEC_error_TECU": 0.0,
+    "max_variance_error_TECU2": 0.0
+  }
+}

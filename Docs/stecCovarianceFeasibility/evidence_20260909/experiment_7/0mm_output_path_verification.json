@@ -1,0 +1,8 @@
+{
+  "passed_vs_original_AR": {
+    "epochs": 1,
+    "states": 44,
+    "max_STEC_error_TECU": 0.0,
+    "max_variance_error_TECU2": 0.0
+  }
+}

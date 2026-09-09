@@ -1,0 +1,459 @@
+{
+  "original_path": "/home/rx/GINAN/inputData/products/code_2024199/COD0OPSRAP_20241990000_01D_01D_OSB.BIA",
+  "original_sha256": "fb99686fff296688920df31e92720d3f66b45c9991aa2ff42f74e732b1542483",
+  "fixture_path": "/mnt/d/tec/code-exp5-sigma-20260909-v2/assumed_sigma_3mm.BIA",
+  "fixture_sha256": "61dd174b21f91823608634a05dc9184dd1c68840d49d5ac539c0be1d7e05778c",
+  "assumed_sigma_m": 0.003,
+  "changed_fields": [
+    {
+      "line": 8697,
+      "satellite": "G01",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8704,
+      "satellite": "G01",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8705,
+      "satellite": "G02",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8712,
+      "satellite": "G02",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8713,
+      "satellite": "G03",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8720,
+      "satellite": "G03",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8721,
+      "satellite": "G04",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8728,
+      "satellite": "G04",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8729,
+      "satellite": "G05",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8736,
+      "satellite": "G05",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8737,
+      "satellite": "G06",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8744,
+      "satellite": "G06",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8745,
+      "satellite": "G07",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8752,
+      "satellite": "G07",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8753,
+      "satellite": "G08",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8760,
+      "satellite": "G08",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8761,
+      "satellite": "G09",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8768,
+      "satellite": "G09",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8769,
+      "satellite": "G10",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8776,
+      "satellite": "G10",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8777,
+      "satellite": "G11",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8784,
+      "satellite": "G11",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8785,
+      "satellite": "G12",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8792,
+      "satellite": "G12",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8793,
+      "satellite": "G13",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8800,
+      "satellite": "G13",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8801,
+      "satellite": "G14",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8808,
+      "satellite": "G14",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8809,
+      "satellite": "G15",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8816,
+      "satellite": "G15",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8817,
+      "satellite": "G16",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8824,
+      "satellite": "G16",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8825,
+      "satellite": "G17",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8832,
+      "satellite": "G17",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8833,
+      "satellite": "G18",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8840,
+      "satellite": "G18",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8841,
+      "satellite": "G19",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8848,
+      "satellite": "G19",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8849,
+      "satellite": "G20",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8856,
+      "satellite": "G20",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8857,
+      "satellite": "G21",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8864,
+      "satellite": "G21",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8865,
+      "satellite": "G22",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8872,
+      "satellite": "G22",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8873,
+      "satellite": "G23",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8880,
+      "satellite": "G23",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8881,
+      "satellite": "G24",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8888,
+      "satellite": "G24",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8889,
+      "satellite": "G25",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8896,
+      "satellite": "G25",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8897,
+      "satellite": "G26",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8904,
+      "satellite": "G26",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8905,
+      "satellite": "G27",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8912,
+      "satellite": "G27",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8913,
+      "satellite": "G28",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8920,
+      "satellite": "G28",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8921,
+      "satellite": "G29",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8928,
+      "satellite": "G29",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8929,
+      "satellite": "G30",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8936,
+      "satellite": "G30",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8937,
+      "satellite": "G31",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8944,
+      "satellite": "G31",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8945,
+      "satellite": "G32",
+      "signal": "L1C",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    },
+    {
+      "line": 8952,
+      "satellite": "G32",
+      "signal": "L2W",
+      "sigma_ns": 0.0100069,
+      "effective_sigma_m": 0.0029999931479602004
+    }
+  ],
+  "only_bytes_92_103_of_64_GPS_phase_OSB_lines_changed": true,
+  "published_CODE_product": false
+}

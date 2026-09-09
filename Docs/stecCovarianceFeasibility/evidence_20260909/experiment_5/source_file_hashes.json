@@ -1,0 +1,50 @@
+[
+  {
+    "file": "src/cpp/common/biasSINEXread.cpp",
+    "sha256": "03d8705a30938706c9d4f7fd43285d5fb566ed2c0c113ddff4b7a685cb00804c"
+  },
+  {
+    "file": "src/cpp/pea/ppp_obs.cpp",
+    "sha256": "4c82eadea74b9f7dc09bd1c8f3e542849faa906ac8278f27bb6a059088066c5a"
+  },
+  {
+    "file": "src/cpp/pea/ppp_ambres.cpp",
+    "sha256": "51d527a1f989e47e91804cf42c6682d8a2765aa1290f45c55995928768c9a01d"
+  },
+  {
+    "file": "src/cpp/common/algebra.cpp",
+    "sha256": "ebb1383e0998a56364ad503126afe055321e4566378ce82e694e1960420ea2ef"
+  },
+  {
+    "file": "src/cpp/pea/ppp_callbacks.cpp",
+    "sha256": "178775891dbfc0b68d88181d56b7b6117aeb43d9b0f06bb93793189c93013e5a"
+  },
+  {
+    "file": "scripts/experiment5_code_osb_sigma.py",
+    "sha256": "085506ca28df0f92a8169374b765ea2e23d1bf2e4cc58c81c6486b1c6dd6262f"
+  },
+  {
+    "file": "scripts/audit_experiment5_code_osb_sigma.py",
+    "sha256": "630d5136a342f81ff47667e48f4b0124c3d6119f3c75d57a0d0402e0c37b5da1"
+  },
+  {
+    "file": "scripts/test_experiment5_code_osb_sigma.py",
+    "sha256": "5718b000d761d43e0e6f2fa02ea94d38c55e0407b92afd46a89c6c03d663ad46"
+  },
+  {
+    "file": "scripts/audit_external_bias_application.py",
+    "sha256": "de8ab9aaf1e259940251e0ee7464556f9b50ba6ef3e4ee5861aa52c79eaba3f4"
+  },
+  {
+    "file": "scripts/audit_pppar_feedback_information.py",
+    "sha256": "e8d2b5ba78407dbfb23b6b767d329645b91108fba61e35476f5a9c0a80790b5d"
+  },
+  {
+    "file": "scripts/audit_pppar_dual_frequency_datum.py",
+    "sha256": "61b168ff00c391c9cc66e097160dcf4b2bb5dc53ff496e0e21de8975bbc4417b"
+  },
+  {
+    "file": "scripts/audit_pppar_coordinate_integrity.py",
+    "sha256": "d6934486f91cd16d987a7b0d4508efc006183fbd4d8c37c1171375dd55ce2bba"
+  }
+]

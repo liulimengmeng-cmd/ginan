@@ -1,0 +1,29 @@
+{
+  "pid": 526700,
+  "argv": [
+    "/mnt/d/tec/code-exp6-joint-nis-20260909/pea_snapshot",
+    "-y",
+    "/mnt/d/tec/code-exp6-joint-nis-20260909/replay_10mm.yaml",
+    "-n",
+    "2504",
+    "-a",
+    "EXP1_DATA_ROOT:/home/rx/GINAN/inputData",
+    "-a",
+    "EXP1_OUTPUT_ROOT:/mnt/d/tec/code-exp6-joint-nis-20260909/replay_10mm"
+  ],
+  "epoch_time_system": "GPST",
+  "snapshot_times": [
+    "2024-07-17 05:13:30",
+    "2024-07-17 20:50:00",
+    "2024-07-17 20:50:30",
+    "2024-07-17 20:51:00",
+    "2024-07-17 20:51:30"
+  ],
+  "changes_from_exp5": "read-only snapshots, RTS output disabled, stop at 2504 epochs",
+  "binary_sha256": "88711c1086fa8f7f2b665cd4473b1d792049ad10d66dc7c43f786ad46459b7d0",
+  "config_sha256": "9a2a27d380ffbe709f09480875b866e96b8311fa95ec34836992cc8e904043f4",
+  "nice": 19,
+  "address_space_limit_MiB": 2200,
+  "existing_other_pea_pid": 522736,
+  "started_unix": 1788956789.1819127
+}

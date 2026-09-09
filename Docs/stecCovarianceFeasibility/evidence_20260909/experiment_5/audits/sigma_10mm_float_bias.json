@@ -1,0 +1,58 @@
+{
+  "schema": "GINAN_EXTERNAL_BIAS_APPLICATION_AUDIT_V1",
+  "trace": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float",
+  "trace_files": [
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/DYNG-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/GRAZ-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/MARS-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/MATE-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/NICO-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_10mm_float/SOFI-2024-07-17_00:00.trace"
+  ],
+  "marker_count": 496919,
+  "unique_application_key_count": 496919,
+  "duplicate_application_key_count": 0,
+  "duplicate_application_key_samples": [],
+  "malformed_marker_count": 0,
+  "missing_external_bias_count": 0,
+  "nonzero_applied_variance_count": 124269,
+  "nonzero_state_prior_variance_count": 248429,
+  "state_prior_initialisation_count": 62,
+  "counts_by_type_signal_mode": {
+    "CODE/L1C/PER_EPOCH": 124269,
+    "CODE/L2W/PER_EPOCH": 124221,
+    "PHASE/L1C/PERSISTENT_STATE": 124228,
+    "PHASE/L2W/PERSISTENT_STATE": 124201
+  },
+  "product_variance_m2_by_type_signal": {
+    "CODE/L1C": {
+      "count": 124269,
+      "min": 1.3670066268586992e-06,
+      "max": 1.585404135291746e-06,
+      "mean": 1.5064039318830546e-06
+    },
+    "CODE/L2W": {
+      "count": 124221,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0
+    },
+    "PHASE/L1C": {
+      "count": 124228,
+      "min": 9.999994292063213e-05,
+      "max": 9.999994292063213e-05,
+      "mean": 9.999994292053012e-05
+    },
+    "PHASE/L2W": {
+      "count": 124201,
+      "min": 9.999994292063213e-05,
+      "max": 9.999994292063213e-05,
+      "mean": 9.999994292053022e-05
+    }
+  },
+  "claim_limits": [
+    "zero duplicate keys checks exact-once source application, not product datum compatibility",
+    "CONDITIONED suppresses per-epoch product variance and reports conditional precision only",
+    "this audit does not certify integer truth or PPP-AR scientific benefit"
+  ]
+}

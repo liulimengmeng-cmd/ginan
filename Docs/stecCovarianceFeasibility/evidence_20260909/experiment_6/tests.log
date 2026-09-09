@@ -1,0 +1,9 @@
+test_compatible_common_residual_is_not_flagged_by_correlation (test_audit_pppar_same_epoch_joint_nis.SamePriorTests) ... ok
+test_opposed_marginally_small_residuals_conflict_jointly (test_audit_pppar_same_epoch_joint_nis.SamePriorTests) ... ok
+test_rejects_asymmetric_covariance (test_audit_pppar_same_epoch_joint_nis.SamePriorTests) ... ok
+test_rejects_mismatched_constraint_residual (test_audit_pppar_same_epoch_joint_nis.SamePriorTests) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.005s
+
+OK

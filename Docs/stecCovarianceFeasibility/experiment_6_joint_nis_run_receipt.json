@@ -1,0 +1,131 @@
+{
+  "schema": "GINAN_SAME_EPOCH_JOINT_NIS_RECEIPT_V1",
+  "date": "2026-09-09",
+  "base_commit": "91c1ceae9ecf1192419d1db83841d1751ef7cb37",
+  "time_scale": "GPST",
+  "evidence_root": "D:\\tec\\code-exp6-joint-nis-20260909",
+  "scope": "Read-only pre-AR snapshots and offline diagnosis; no estimator fix",
+  "runs": [
+    {
+      "returncode": 0,
+      "elapsed_seconds": 235.03082132339478,
+      "binary_sha256": "88711c1086fa8f7f2b665cd4473b1d792049ad10d66dc7c43f786ad46459b7d0",
+      "snapshots": [
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_05-13-30.snapshot",
+          "sha256": "db21931da00c4d90a104c3dba9098521e2424f2b42eb468de012aa3908a30ce5"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-50-00.snapshot",
+          "sha256": "6a13fad39b4fe73720374211cb3fc01c0a9960946c3ed861832a72c2885b5e30"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-50-30.snapshot",
+          "sha256": "c2ff775c4fb56211f38280ba5809127c1f8a881c39909091557bea82053c7739"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-51-00.snapshot",
+          "sha256": "3842b6ce6de7ff86838abd177fe1290afef133b928d61fd9df3d3181bc98e4c5"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_10mm/2024-07-17_20-51-30.snapshot",
+          "sha256": "81b0b58ba4241cca8c737792e96ea38bb96dffa7e3b844823e9f40cbd42f50f4"
+        }
+      ]
+    },
+    {
+      "returncode": 0,
+      "elapsed_seconds": 243.9436604976654,
+      "binary_sha256": "88711c1086fa8f7f2b665cd4473b1d792049ad10d66dc7c43f786ad46459b7d0",
+      "snapshots": [
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_0mm/2024-07-17_05-13-30.snapshot",
+          "sha256": "cd3ca29eaf87386fa46db4eb62aa19bf3051a031b2710cdf9b29e521ae58cf60"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_0mm/2024-07-17_20-50-00.snapshot",
+          "sha256": "1bb519e9ac15ea8c42cd0e719e6617fbb53cb847ab685043c0ff306fe8d918f5"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_0mm/2024-07-17_20-50-30.snapshot",
+          "sha256": "ee556d14895bd047430455dbce04ce165ff9258beb3afbf6d9da4c4bc1a5f22b"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_0mm/2024-07-17_20-51-00.snapshot",
+          "sha256": "f10f135261d48e0366fe0d92a45c8ac10ba91af462a76fae089ef90d63353226"
+        },
+        {
+          "path": "/mnt/d/tec/code-exp6-joint-nis-20260909/snapshots_0mm/2024-07-17_20-51-30.snapshot",
+          "sha256": "7479cebeb87bd7854e8b920210004471ee344061f543d2731ac34f69c41f8c22"
+        }
+      ]
+    }
+  ],
+  "tests": {
+    "passed": 4,
+    "failed": 0,
+    "git_diff_check_exit_code": 0
+  },
+  "source_files": [
+    "src/cpp/pea/ppp_ambres.cpp",
+    "scripts/audit_pppar_same_epoch_joint_nis.py",
+    "scripts/test_audit_pppar_same_epoch_joint_nis.py"
+  ],
+  "evidence_hashes": [
+    {
+      "sha256": "3695ebc926297b025353d6e2e415f45d9ce80b1c284dfbd9e090a099f280f274",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\build_receipt.json"
+    },
+    {
+      "sha256": "83fcb5390c325636bd2586ee37bb2ae2bbc86c103f87a8115dad6ff093f02ad1",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\10mm.finished.json"
+    },
+    {
+      "sha256": "3d224294dedf6c2703add1a6ed04298f66a56459b8bb4ae7d5da60f576483db3",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\0mm.finished.json"
+    },
+    {
+      "sha256": "0a261f07a568c067de3a460d244fbfbc04d3e9d445a1a7eb6fa2be7e624a9227",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\10mm_original_replay_verification.json"
+    },
+    {
+      "sha256": "1ab4b84cfb9beeff51302af84248166ce2c634df30b931e736149b6d72c2970c",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\0mm_original_replay_verification.json"
+    },
+    {
+      "sha256": "6e9969fc9fac2e2b8b2b792090e1b3fd770bf6d7531512847f6c13e7ba37a0f4",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\joint_integer_counterexample.json"
+    },
+    {
+      "sha256": "10ba4469ef65a15fc2b4e8286fcbf9e098031f4ddf3f9bbbd007495990f5dfde",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\input_and_baseline_preservation.json"
+    },
+    {
+      "sha256": "b439173953fc78dbd8a472f8ba9195301c566f655e6d4a473e606523b8ce07f2",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\tests.log"
+    },
+    {
+      "sha256": "9da6c1fe16a759b59674f4997808360008bb74fe28cc4d74dcad8d059874848a",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\build_snapshot.py"
+    },
+    {
+      "sha256": "894b5dcc55e7a050de72faa8ee5fa71fcd22acc6a238228d0c615651c675111d",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\run_replay.py"
+    },
+    {
+      "sha256": "fd159639524445d22dcf778c966b7e5aa0fa5acb4c5c333d8fd2638b5c0a8d80",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\verify_replays.py"
+    },
+    {
+      "sha256": "ad1a99ebfd041a1e1d1fc05f0e21d089232753ff2a9dfd65bc70ff4f60e7326c",
+      "path": "D:\\tec\\code-exp6-joint-nis-20260909\\verify_zero_replay.py"
+    }
+  ],
+  "limits": [
+    "10 mm phase sigma is an artificial sensitivity experiment",
+    "Counterexample integer is not verified truth or a global optimum",
+    "STEC change is not an accuracy measurement",
+    "Historical 0 mm replay is close but not bitwise identical"
+  ],
+  "preservation": "23 original inputs and original baseline binary verified unchanged"
+}

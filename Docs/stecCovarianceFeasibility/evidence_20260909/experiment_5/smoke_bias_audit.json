@@ -1,0 +1,58 @@
+{
+  "claim_limits": [
+    "zero duplicate keys checks exact-once source application, not product datum compatibility",
+    "CONDITIONED suppresses per-epoch product variance and reports conditional precision only",
+    "this audit does not certify integer truth or PPP-AR scientific benefit"
+  ],
+  "counts_by_type_signal_mode": {
+    "CODE/L1C/PER_EPOCH": 185,
+    "CODE/L2W/PER_EPOCH": 185,
+    "PHASE/L1C/PERSISTENT_STATE": 185,
+    "PHASE/L2W/PERSISTENT_STATE": 185
+  },
+  "duplicate_application_key_count": 0,
+  "duplicate_application_key_samples": [],
+  "malformed_marker_count": 0,
+  "marker_count": 740,
+  "missing_external_bias_count": 0,
+  "nonzero_applied_variance_count": 185,
+  "nonzero_state_prior_variance_count": 370,
+  "product_variance_m2_by_type_signal": {
+    "CODE/L1C": {
+      "count": 185,
+      "max": 1.585404135291746e-06,
+      "mean": 1.5040109230508993e-06,
+      "min": 1.4380082859789078e-06
+    },
+    "CODE/L2W": {
+      "count": 185,
+      "max": 0.0,
+      "mean": 0.0,
+      "min": 0.0
+    },
+    "PHASE/L1C": {
+      "count": 185,
+      "max": 8.99995888780815e-06,
+      "mean": 8.999958887808131e-06,
+      "min": 8.99995888780815e-06
+    },
+    "PHASE/L2W": {
+      "count": 185,
+      "max": 8.99995888780815e-06,
+      "mean": 8.999958887808131e-06,
+      "min": 8.99995888780815e-06
+    }
+  },
+  "schema": "GINAN_EXTERNAL_BIAS_APPLICATION_AUDIT_V1",
+  "state_prior_initialisation_count": 16,
+  "trace": "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5",
+  "trace_files": [
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/DYNG-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/GRAZ-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/MARS-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/MATE-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/NICO-2024-07-17_00:00.trace",
+    "/mnt/d/tec/code-exp5-sigma-20260909-v2/sigma_3mm_ar_smoke_5/SOFI-2024-07-17_00:00.trace"
+  ],
+  "unique_application_key_count": 740
+}
