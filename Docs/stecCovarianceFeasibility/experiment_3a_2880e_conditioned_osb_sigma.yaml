@@ -1,0 +1,37 @@
+# Controlled M0 diagnostic: condition on the daily external OSB corrections.
+#
+# This inherits the same 2024 data, 30 s sampling, 24 h window, ambiguity datum,
+# feedback mode, 0.9999 success-rate threshold and ratio threshold 3 used by
+# experiment 2g.  The only estimator change is that Bias-SINEX formal variances
+# are no longer re-added as independent white observation noise at every epoch.
+# The run therefore measures precision conditional on the selected OSB product;
+# it is not a total-uncertainty solution.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp3a_2024_conditioned_osb_sigma_full_day
+  trace:
+    # Bias application happens while receiver measurements are assembled.
+    # Keep receiver traces for exact-once and variance-mode auditing.
+    output_receivers: true
+
+satellite_options:
+  global:
+    models:
+      code_bias:
+        use_formal_sigma_as_observation_noise: false
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    dual_frequency_feedback_diagnostics: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880

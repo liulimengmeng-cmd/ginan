@@ -2192,9 +2192,11 @@ CommonOptions& CommonOptions::operator+=(const CommonOptions& rhs)
     initIfNeeded(*this, rhs, attitudeModel.model_dt);
 
     initIfNeeded(*this, rhs, codeBiasModel.enable);
+    initIfNeeded(*this, rhs, codeBiasModel.use_formal_sigma_as_observation_noise);
     initIfNeeded(*this, rhs, codeBiasModel.default_bias);
     initIfNeeded(*this, rhs, codeBiasModel.undefined_sigma);
     initIfNeeded(*this, rhs, phaseBiasModel.enable);
+    initIfNeeded(*this, rhs, phaseBiasModel.use_formal_sigma_as_observation_noise);
     initIfNeeded(*this, rhs, phaseBiasModel.default_bias);
     initIfNeeded(*this, rhs, phaseBiasModel.undefined_sigma);
 
@@ -3201,6 +3203,19 @@ void getOptionsFromYaml(
         );
     }
     {
+        auto& thing = comOpts.codeBiasModel.use_formal_sigma_as_observation_noise;
+        setInited(
+            comOpts,
+            thing,
+            tryGetFromYaml(
+                thing,
+                modelsNode,
+                {"@ code_bias", "@ use_formal_sigma_as_observation_noise"},
+                "Add external code-bias formal variance to every observation epoch"
+            )
+        );
+    }
+    {
         auto& thing = comOpts.codeBiasModel.default_bias;
         setInited(
             comOpts,
@@ -3236,6 +3251,19 @@ void getOptionsFromYaml(
                 modelsNode,
                 {"@ phase_bias", "@ enable"},
                 "Enable modelling of phase biases. Required for AR"
+            )
+        );
+    }
+    {
+        auto& thing = comOpts.phaseBiasModel.use_formal_sigma_as_observation_noise;
+        setInited(
+            comOpts,
+            thing,
+            tryGetFromYaml(
+                thing,
+                modelsNode,
+                {"@ phase_bias", "@ use_formal_sigma_as_observation_noise"},
+                "Add external phase-bias formal variance to every observation epoch"
             )
         );
     }

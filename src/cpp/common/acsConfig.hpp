@@ -1153,16 +1153,18 @@ struct CommonOptions
 
     struct
     {
-        bool   enable          = true;
-        double default_bias    = 0;
-        double undefined_sigma = 1;
+        bool   enable                                  = true;
+        bool   use_formal_sigma_as_observation_noise   = true;
+        double default_bias                            = 0;
+        double undefined_sigma                         = 1;
     } codeBiasModel;
 
     struct
     {
-        bool   enable          = false;
-        double default_bias    = 0;
-        double undefined_sigma = 0;
+        bool   enable                                  = false;
+        bool   use_formal_sigma_as_observation_noise   = true;
+        double default_bias                            = 0;
+        double undefined_sigma                         = 0;
     } phaseBiasModel;
 
     struct

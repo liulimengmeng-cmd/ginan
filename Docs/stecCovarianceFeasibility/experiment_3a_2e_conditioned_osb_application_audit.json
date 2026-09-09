@@ -1,0 +1,56 @@
+{
+  "claim_limits": [
+    "zero duplicate keys checks exact-once source application, not product datum compatibility",
+    "CONDITIONED suppresses per-epoch product variance and reports conditional precision only",
+    "this audit does not certify integer truth or PPP-AR scientific benefit"
+  ],
+  "counts_by_type_signal_mode": {
+    "CODE/L1C/CONDITIONED": 74,
+    "CODE/L2W/CONDITIONED": 74,
+    "PHASE/L1C/CONDITIONED": 74,
+    "PHASE/L2W/CONDITIONED": 74
+  },
+  "duplicate_application_key_count": 0,
+  "duplicate_application_key_samples": [],
+  "malformed_marker_count": 0,
+  "marker_count": 296,
+  "missing_external_bias_count": 0,
+  "nonzero_applied_variance_count": 0,
+  "product_variance_m2_by_type_signal": {
+    "CODE/L1C": {
+      "count": 74,
+      "max": 0.0017364848808374053,
+      "mean": 0.0008008417532301651,
+      "min": 0.0003213984469370009
+    },
+    "CODE/L2W": {
+      "count": 74,
+      "max": 1.6617983254843755e-06,
+      "mean": 7.623630076933789e-07,
+      "min": 3.244506195239911e-07
+    },
+    "PHASE/L1C": {
+      "count": 74,
+      "max": 0.040683642225349065,
+      "mean": 0.040680537149950555,
+      "min": 0.04067904673409629
+    },
+    "PHASE/L2W": {
+      "count": 74,
+      "max": 0.025082437814261983,
+      "mean": 0.02507400276214739,
+      "min": 0.025069904808467276
+    }
+  },
+  "schema": "GINAN_EXTERNAL_BIAS_APPLICATION_AUDIT_V1",
+  "trace": "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4",
+  "trace_files": [
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/DYNG-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/GRAZ-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/MARS-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/MATE-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/NICO-2024-07-17_00:00.trace",
+    "/home/rx/GINAN/inputData/outputs/exp3a_conditioned_osb_smoke_2e_v3_20260909_bin8df0e9c4/SOFI-2024-07-17_00:00.trace"
+  ],
+  "unique_application_key_count": 296
+}

@@ -1406,6 +1406,7 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
     double satPhasBias    = satOpts.phaseBiasModel.default_bias;
     double satPhasBiasVar = SQR(satOpts.phaseBiasModel.undefined_sigma);
     bool   biasFound = getBias(trace, time, Sat, Sat, sig.code, PHAS, satPhasBias, satPhasBiasVar);
+    double productBiasVar = satPhasBiasVar;
 
     KFKey kfKey;
     kfKey.type    = KF::PHASE_BIAS;
@@ -1444,6 +1445,36 @@ inline static void pppSatPhasBias(COMMON_PPP_ARGS)
             << enum_to_string(sig.code)
             << ". Using undefined_sigma: " << satOpts.phaseBiasModel.undefined_sigma;
     }
+
+    bool conditionOnExternalBias =
+        biasFound
+        && !init.estimate
+        && !satOpts.phaseBiasModel.use_formal_sigma_as_observation_noise;
+
+    if (conditionOnExternalBias)
+    {
+        // A Bias-SINEX interval sigma is not an independent draw at every observation epoch.
+        // Product-conditioned diagnostic runs retain the external correction but do not
+        // repeatedly add its formal variance as white measurement noise.
+        satPhasBiasVar = -1;
+    }
+
+    tracepdeex(
+        4,
+        trace,
+        "\nPPP_EXTERNAL_BIAS_APPLICATION type=PHASE time=%s receiver=%s satellite=%s signal=%s "
+        "bias_found=%d bias_m=%.17g product_variance_m2=%.17g applied_variance_m2=%.17g "
+        "variance_mode=%s",
+        time.to_string().c_str(),
+        rec.id.c_str(),
+        Sat.id().c_str(),
+        enum_to_string(sig.code).c_str(),
+        biasFound,
+        satPhasBias,
+        productBiasVar,
+        satPhasBiasVar > 0 ? satPhasBiasVar : 0,
+        conditionOnExternalBias ? "CONDITIONED" : "PER_EPOCH"
+    );
 
     measEntry.addNoiseEntry(kfKey, 1, satPhasBiasVar);
 
@@ -1565,6 +1596,7 @@ inline static void pppSatCodeBias(COMMON_PPP_ARGS)
     double satCodeBias    = satOpts.codeBiasModel.default_bias;
     double satCodeBiasVar = SQR(satOpts.codeBiasModel.undefined_sigma);
     bool   biasFound = getBias(trace, time, Sat, Sat, sig.code, CODE, satCodeBias, satCodeBiasVar);
+    double productBiasVar = satCodeBiasVar;
 
     KFKey kfKey;
     kfKey.type    = KF::CODE_BIAS;
@@ -1641,6 +1673,35 @@ inline static void pppSatCodeBias(COMMON_PPP_ARGS)
             << "Satellite code bias not found for " << Sat.id() << " : " << enum_to_string(sig.code)
             << ". Using undefined_sigma: " << satOpts.codeBiasModel.undefined_sigma;
     }
+
+    bool conditionOnExternalBias =
+        biasFound
+        && !init.estimate
+        && !satOpts.codeBiasModel.use_formal_sigma_as_observation_noise;
+
+    if (conditionOnExternalBias)
+    {
+        // See the phase-bias case above: retain the external correction while avoiding an
+        // unsupported per-epoch white-noise interpretation of an interval product sigma.
+        satCodeBiasVar = -1;
+    }
+
+    tracepdeex(
+        4,
+        trace,
+        "\nPPP_EXTERNAL_BIAS_APPLICATION type=CODE time=%s receiver=%s satellite=%s signal=%s "
+        "bias_found=%d bias_m=%.17g product_variance_m2=%.17g applied_variance_m2=%.17g "
+        "variance_mode=%s",
+        time.to_string().c_str(),
+        rec.id.c_str(),
+        Sat.id().c_str(),
+        enum_to_string(sig.code).c_str(),
+        biasFound,
+        satCodeBias,
+        productBiasVar,
+        satCodeBiasVar > 0 ? satCodeBiasVar : 0,
+        conditionOnExternalBias ? "CONDITIONED" : "PER_EPOCH"
+    );
 
     measEntry.addNoiseEntry(kfKey, 1, satCodeBiasVar);
 

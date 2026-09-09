@@ -1,0 +1,29 @@
+# Matched FLOAT control for experiment 3a.  It uses the same 2024 observations,
+# products, product-conditioned OSB variance model and 24 h window, but keeps
+# integer candidates probe-only and never feeds them back to the filter.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp3b_2024_conditioned_osb_sigma_float_full_day
+  trace:
+    output_receivers: true
+
+satellite_options:
+  global:
+    models:
+      code_bias:
+        use_formal_sigma_as_observation_noise: false
+      phase_bias:
+        use_formal_sigma_as_observation_noise: false
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_probe_only: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880
