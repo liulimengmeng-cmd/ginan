@@ -1,0 +1,25 @@
+# Chunking control for the original M1 product-variance model.  Relative to
+# experiment 2g, only receiver chunking is disabled.  Relative to experiment
+# 3c, the phase OSB returns to the original per-epoch observation-noise model.
+inputs:
+  include_yamls:
+    - Docs/stecCovarianceFeasibility/experiment_1_receiver_sd_ar.yaml
+
+outputs:
+  metadata:
+    config_description: exp3e_2024_per_epoch_osb_no_chunk_full_day
+
+processing_options:
+  ambiguity_resolution:
+    integer_complement_diagnostics: true
+    dual_frequency_subset_feedback: true
+    dual_frequency_feedback_diagnostics: true
+    canonicalize_phase_windup_integer: true
+
+  epoch_control:
+    max_epochs: 2880
+
+  ppp_filter:
+    chunking:
+      by_receiver: false
+      size: 0
