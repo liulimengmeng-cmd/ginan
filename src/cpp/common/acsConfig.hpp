@@ -1,0 +1,1829 @@
+#pragma once
+
+#include <array>
+#include <boost/program_options.hpp>
+#include <chrono>
+#include <filesystem>
+#include <limits>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
+#include <yaml-cpp/yaml.h>
+#include "common/eigenIncluder.hpp"
+#include "common/enums.h"
+#include "common/satSys.hpp"
+#include "common/trace.hpp"
+
+using std::array;
+using std::map;
+using std::mutex;
+using std::set;
+using std::string;
+using std::tuple;
+using std::unordered_map;
+using std::vector;
+
+template <typename BASE, typename COMP>
+bool isInited(const BASE& base, const COMP& comp)
+{
+    int offset = (char*)(&comp) - (char*)(&base);
+
+    auto it = base.initialisedMap.find(offset);
+    if (it == base.initialisedMap.end())
+    {
+        return false;
+    }
+
+    auto [dummy, inited] = *it;
+
+    return inited;
+}
+
+/** Use pointer arithmetic to keep track of variables that have been initialised
+ */
+template <typename BASE, typename COMP>
+void setInited(BASE& base, COMP& comp, bool init = true)
+{
+    if (init == false)
+    {
+        return;
+    }
+
+    int offset = (char*)(&comp) - (char*)(&base);
+
+    base.initialisedMap[offset] = true;
+}
+
+/** Set an option manually
+ */
+template <typename BASE, typename COMP, typename VALUE>
+void setOption(BASE& base, COMP& comp, VALUE value)
+{
+    comp = value;
+    setInited(base, comp);
+}
+
+/** Copy one parameter to another, if it has been initialised.
+ *
+ * Use pointer arithmetic to determine the offset of another parameter within its parent structure,
+ * assuming it has the same layout as this parameter in its parent.
+ */
+template <typename CONTAINER, typename ELEMENT>
+bool initIfNeeded(CONTAINER& thisContainer, const CONTAINER& thatContainer, ELEMENT& thisElement)
+{
+    CONTAINER*       thisContainer_ptr = &thisContainer;
+    const CONTAINER* thatContainer_ptr = &thatContainer;
+    ELEMENT*         thisElement_ptr   = &thisElement;
+    ELEMENT* thatElement_ptr = (ELEMENT*)(((char*)thisElement_ptr) +
+                                          ((char*)thatContainer_ptr - (char*)thisContainer_ptr));
+
+    auto& thatElement = *thatElement_ptr;
+
+    if (isInited(thatContainer, thatElement))
+    {
+        thisElement = thatElement;
+
+        setInited(thisContainer, thisElement);
+
+        return true;
+    }
+
+    return false;
+}
+
+struct SsrInputOptions
+{
+    double code_bias_valid_time   = 3600;  ///< Valid time period of SSR code biases
+    double phase_bias_valid_time  = 300;   ///< Valid time period of SSR phase biases
+    double global_vtec_valid_time = 300;   ///< Valid time period of SSR global Ionospheres
+    double local_stec_valid_time  = 120;   ///< Valid time period of SSR local Ionospheres
+    double local_trop_valid_time  = 120;   ///< Valid time period of SSR local Tropospheres
+    bool   one_freq_phase_bias    = false;
+};
+
+struct SbasInputOptions
+{
+    string host;          ///< hostname is passed as acsConfig.sisnet_inputs
+    string port;          ///< port of SISNet steam
+    string user;          ///< Username for SISnet stream access
+    string pass;          ///< Password for SISnet stream access
+    int    prn;           ///< prn of SBAS satellite
+    int    freq;          ///< freq (L1 or L5) of SBAS channel
+    int    mt0   = -1;    ///< message that is replaced by MT0 (use 65 for SouthPAN L5)
+    int ems_year = 2059;  ///< reference year for EMS files (2059 should work between 2009 and 2158)
+    bool use_do259 = false;  ///< Use original standard DO-259, intead of DO-259A, for DFMC, Keep as
+                             ///< 'false' unless using DFMC
+    bool pvs_on_dfmc  = false;  ///< Interpret DFMC messages as PVS messages
+    bool prec_aproach = true;  ///< Limit SBAS solutions to precision approach (which limits maximum
+                               ///< SBAS correction age)
+};
+
+/** Input source filenames and directories
+ */
+struct InputOptions
+{
+    string inputs_root = ".";
+
+    bool allow_missing_inputs = false;
+
+    string gnss_obs_root          = "<INPUTS_ROOT>";
+    string pseudo_obs_root        = "<INPUTS_ROOT>";
+    string custom_pseudo_obs_root = "<INPUTS_ROOT>";
+    string sat_data_root          = "<INPUTS_ROOT>";
+    string rtcm_inputs_root       = "<SAT_DATA_ROOT>";
+    string sisnet_inputs_root     = "<SAT_DATA_ROOT>";
+
+    vector<string> atx_files;
+    vector<string> snx_files;
+    vector<string> exclude_sinex_blocks;
+    vector<string> nav_files;
+    vector<string> ems_files;
+    vector<string> sp3_files;
+    vector<string> clk_files;
+    vector<string> obx_files;
+    vector<string> sid_files;
+    vector<string> com_files;
+    vector<string> crd_files;
+    vector<string> vmf_files;
+    vector<string> erp_files;
+    vector<string> dcb_files;
+    vector<string> bsx_files;
+    vector<string> ion_files;
+    vector<string> igrf_files;
+    vector<string> egm_files;
+    vector<string> cmc_files;
+    vector<string> hfeop_files;
+    vector<string> gpt2grid_files;
+    vector<string> orography_files;
+    vector<string> pseudo_filter_files;
+    vector<string> atm_reg_definitions;
+    vector<string> space_weather_files;
+    vector<string> planetary_ephemeris_files;
+    vector<string> ocean_tide_potential_files;
+    vector<string> atmos_tide_potential_files;
+    vector<string> ocean_tide_loading_blq_files;
+    vector<string> atmos_tide_loading_blq_files;
+    vector<string> ocean_pole_tide_loading_files;
+    vector<string> atmos_ocean_dealiasing_files;
+    vector<string> ocean_pole_tide_potential_files;
+
+    vector<string> sisnet_inputs;
+    vector<string> nav_rtcm_inputs;
+    vector<string> qzs_rtcm_inputs;
+
+    map<string, vector<string>> rnx_inputs;
+    map<string, vector<string>> ubx_inputs;
+    map<string, vector<string>> sbf_inputs;
+    map<string, vector<string>> custom_inputs;
+    map<string, vector<string>> obs_rtcm_inputs;
+    map<string, vector<string>> pseudo_sp3_inputs;
+    map<string, vector<string>> pseudo_snx_inputs;
+
+    vector<E_TidalComponent> atl_blq_row_order = {
+        E_TidalComponent::UP,
+        E_TidalComponent::EAST,
+        E_TidalComponent::NORTH
+    };
+    vector<E_TidalComponent> otl_blq_row_order = {
+        E_TidalComponent::UP,
+        E_TidalComponent::WEST,
+        E_TidalComponent::SOUTH
+    };
+
+    vector<E_TidalConstituent> atl_blq_col_order = {E_TidalConstituent::S1, E_TidalConstituent::S2};
+
+    vector<E_TidalConstituent> otl_blq_col_order = {
+        E_TidalConstituent::M2,
+        E_TidalConstituent::S2,
+        E_TidalConstituent::N2,
+        E_TidalConstituent::K2,
+        E_TidalConstituent::K1,
+        E_TidalConstituent::O1,
+        E_TidalConstituent::P1,
+        E_TidalConstituent::Q1,
+        E_TidalConstituent::MF,
+        E_TidalConstituent::MM,
+        E_TidalConstituent::SSA
+    };
+
+    bool eci_pseudoobs = false;
+
+    string stream_user;
+    string stream_pass;
+
+    SsrInputOptions  ssrInOpts;
+    SbasInputOptions sbsInOpts;
+};
+
+struct IonexOptions
+{
+    double lat_centre = 0;
+    double lon_centre = 0;
+    double lat_width  = 90;
+    double lon_width  = 90;
+    double lat_res    = 10;
+    double lon_res    = 10;
+    double time_res   = 900;
+};
+
+/** Enabling and setting destiations of program outputs.
+ */
+struct OutputOptions
+{
+    string outputs_root = ".";
+
+    int    fatal_level   = 0;
+    double rotate_period = 60 * 60 * 24;
+
+    int    trace_level               = 0;
+    bool   output_receiver_trace     = false;
+    bool   output_network_trace      = false;
+    bool   output_ionosphere_trace   = false;
+    bool   output_satellite_trace    = false;
+    bool   output_observations       = false;
+    bool   output_json_trace         = false;
+    string trace_directory           = "<OUTPUTS_ROOT>";
+    string receiver_trace_filename   = "<TRACE_DIRECTORY>/<RECEIVER>-<LOGTIME>.trace";
+    string receiver_json_filename    = "<TRACE_DIRECTORY>/<RECEIVER>-<LOGTIME>.json";
+    string network_trace_filename    = "<TRACE_DIRECTORY>/<RECEIVER>-<LOGTIME>.trace";
+    string ionosphere_trace_filename = "<TRACE_DIRECTORY>/<RECEIVER>-<LOGTIME>.trace";
+    string satellite_trace_filename  = "<TRACE_DIRECTORY>/<RECEIVER>-<LOGTIME>.trace";
+
+    bool   record_raw_ubx    = false;
+    string raw_ubx_directory = "<OUTPUTS_ROOT>";
+    string raw_ubx_filename  = "<UBX_DIRECTORY>/<RECEIVER>-<LOGTIME>-OBS.rtcm";
+
+    bool   record_raw_sbf    = false;
+    string raw_sbf_directory = "<OUTPUTS_ROOT>";
+    string raw_sbf_filename  = "<SBF_DIRECTORY>/<RECEIVER>-<LOGTIME>-OBS.sbf";
+
+    bool   record_raw_custom    = false;
+    string raw_custom_directory = "<OUTPUTS_ROOT>";
+    string raw_custom_filename  = "<CUSTOM_DIRECTORY>/<RECEIVER>-<LOGTIME>-OBS.custom";
+
+    bool   record_rtcm_obs    = false;
+    bool   record_rtcm_nav    = false;
+    string rtcm_obs_directory = "<OUTPUTS_ROOT>";
+    string rtcm_nav_directory = "<OUTPUTS_ROOT>";
+    string rtcm_obs_filename  = "<RTCM_OBS_DIRECTORY>/<RECEIVER>-<LOGTIME>-OBS.rtcm";
+    string rtcm_nav_filename  = "<RTCM_NAV_DIRECTORY>/<STREAM>-<LOGTIME>-NAV.rtcm";
+
+    bool   output_log    = false;
+    bool   log_json      = true;
+    string log_directory = "<OUTPUTS_ROOT>";
+    string log_filename  = "<LOG_DIRECTORY>/log-<LOGTIME>.json";
+
+    bool   output_ntrip_log    = false;
+    string ntrip_log_directory = "<OUTPUTS_ROOT>";
+    string ntrip_log_filename  = "<NTRIP_LOG_DIRECTORY>/ntrip_log-<LOGTIME>.json";
+
+    bool   output_gpx    = false;
+    string gpx_directory = "<OUTPUTS_ROOT>";
+    string gpx_filename  = "<GPX_DIRECTORY>/<RECEIVER>-<LOGTIME>.gpx";
+
+    bool   output_pos    = false;
+    string pos_directory = "<OUTPUTS_ROOT>";
+    string pos_filename  = "<POS_DIRECTORY>/<RECEIVER>-<LOGTIME>.pos";
+
+    bool   output_spp    = false;
+    string spp_directory = "<OUTPUTS_ROOT>";
+    string spp_filename  = "<SPP_DIRECTORY>/<RECEIVER>-<YYYY><MM><DD>.spp";
+
+    string root_stream_url = "";
+
+    bool output_predicted_states   = false;
+    bool output_initialised_states = false;
+    bool output_residuals          = false;
+    bool output_residual_chain     = true;
+
+    bool output_statistics      = false;
+    bool output_summaries       = false;
+    bool output_config          = false;
+    bool colourise_terminal     = true;
+    bool timestamp_console_logs = false;
+    bool warn_once              = true;
+
+    bool             output_clocks = false;
+    vector<E_Source> clocks_receiver_sources =
+        {E_Source::KALMAN, E_Source::PRECISE, E_Source::SPP, E_Source::BROADCAST};
+    vector<E_Source> clocks_satellite_sources = {
+        E_Source::KALMAN,
+        E_Source::PRECISE,
+        E_Source::BROADCAST
+    };
+    double clocks_output_interval = 1;
+    string clocks_directory       = "<OUTPUTS_ROOT>";
+    string clocks_filename        = "<CLOCKS_DIRECTORY>/<CONFIG>-<LOGTIME>_<SYS>.clk";
+
+    bool             output_sp3             = false;
+    bool             output_inertial_orbits = false;
+    bool             output_sp3_velocities  = false;
+    vector<E_Source> sp3_orbit_sources = {E_Source::KALMAN, E_Source::PRECISE, E_Source::BROADCAST};
+    vector<E_Source> sp3_clock_sources = {E_Source::KALMAN, E_Source::PRECISE, E_Source::BROADCAST};
+    double           sp3_output_interval    = 1;
+    string           sp3_directory          = "<OUTPUTS_ROOT>";
+    string           sp3_filename           = "<SP3_DIRECTORY>/<CONFIG>-<LOGTIME>_<SYS>-Filt.sp3";
+    string           predicted_sp3_filename = "<SP3_DIRECTORY>/<CONFIG>-<LOGTIME>_<SYS>-Prop.sp3";
+
+    bool             output_orbex        = false;
+    vector<E_Source> orbex_orbit_sources = {
+        E_Source::KALMAN,
+        E_Source::PRECISE,
+        E_Source::BROADCAST
+    };
+    vector<E_Source> orbex_clock_sources = {
+        E_Source::KALMAN,
+        E_Source::PRECISE,
+        E_Source::BROADCAST
+    };
+    vector<E_Source> orbex_attitude_sources = {
+        E_Source::PRECISE,
+        E_Source::MODEL,
+        E_Source::NOMINAL
+    };
+    double                orbex_output_interval = 1;
+    string                orbex_directory       = "<OUTPUTS_ROOT>";
+    string                orbex_filename        = "<ORBEX_DIRECTORY>/<CONFIG>-<LOGTIME>_<SYS>.obx";
+    vector<E_OrbexRecord> orbex_record_types    = {E_OrbexRecord::ATT};
+
+    bool split_sys = false;
+
+    bool   output_rinex_obs       = false;
+    string rinex_obs_directory    = "<OUTPUTS_ROOT>";
+    string rinex_obs_filename     = "<RINEX_OBS_DIRECTORY>/<RECEIVER>-<LOGTIME>_<SYS>.<YY>O";
+    double rinex_obs_version      = 3.05;
+    bool   rinex_obs_print_C_code = true;
+    bool   rinex_obs_print_L_code = true;
+    bool   rinex_obs_print_D_code = true;
+    bool   rinex_obs_print_S_code = true;
+
+    bool         output_ionex    = false;
+    string       ionex_directory = "<OUTPUTS_ROOT>";
+    string       ionex_filename  = "<IONEX_DIRECTORY>/<CONFIG>-<LOGTIME>.INX";
+    IonexOptions ionexGrid;
+
+    bool   output_rinex_nav    = false;
+    string rinex_nav_directory = "<OUTPUTS_ROOT>";
+    string rinex_nav_filename  = "<RINEX_NAV_DIRECTORY>/<CONFIG>-<LOGTIME>_nav_<SYS>.rnx";
+    double rinex_nav_version   = 3.05;
+
+    bool   output_ionstec    = false;
+    string ionstec_directory = "<OUTPUTS_ROOT>";
+    string ionstec_filename  = "<IONSTEC_DIRECTORY>/<CONFIG>-<LOGTIME>.STEC";
+
+    bool   output_erp    = false;
+    string erp_directory = "<OUTPUTS_ROOT>";
+    string erp_filename  = "<ERP_DIRECTORY>/<CONFIG>-<LOGTIME>.ERP";
+
+    bool   output_bias_sinex    = false;
+    string bias_sinex_directory = "<OUTPUTS_ROOT>";
+    string bias_sinex_filename  = "<BIAS_SINEX_DIRECTORY>/<CONFIG>-<LOGTIME>.BIA";
+    string bias_time_system     = "G";
+
+    bool   output_sinex    = false;
+    string sinex_directory = "<OUTPUTS_ROOT>";
+    string sinex_filename  = "<SINEX_DIRECTORY>/<CONFIG>-<LOGTIME>.snx";
+
+    bool             output_trop_sinex       = false;
+    vector<E_Source> trop_sinex_data_sources = {E_Source::KALMAN};
+    string           trop_sinex_directory    = "<OUTPUTS_ROOT>";
+    string           trop_sinex_filename     = "<TROP_SINEX_DIRECTORY>/<CONFIG>-<LOGTIME>.tro";
+    string           trop_sinex_sol_type     = "Solution parameters";
+    char             trop_sinex_obs_code     = 'P';
+    char             trop_sinex_const_code   = ' ';
+    double           trop_sinex_version      = 2.0;
+
+    bool             output_cost        = false;
+    vector<E_Source> cost_data_sources  = {E_Source::KALMAN};
+    string           cost_directory     = "<OUTPUTS_ROOT>";
+    string           cost_filename      = "<COST_DIRECTORY>/cost_s_t_<LOGTIME>_<RECEIVER>_ga__.dat";
+    int              cost_time_interval = 900;
+    string           cost_format        = "COST-716 V2.2";
+    string           cost_project       = "GA-NRT";
+    string           cost_status        = "TEST";
+    string           cost_centre        = "GA__ Geoscience Aus";
+    string           cost_method        = "GINAN V2";
+    string           cost_orbit_type    = "IGSPRE";
+    string           cost_met_source    = "NONE";
+
+    bool   output_slr_obs    = false;
+    string slr_obs_directory = "<OUTPUTS_ROOT>";
+    string slr_obs_filename  = "<SLR_OBS_DIRECTORY>/<RECEIVER>.slr_obs";
+
+    bool   output_orbit_ics    = false;
+    string orbit_ics_directory = "<OUTPUTS_ROOT>";
+    string orbit_ics_filename  = "<ORBIT_ICS_DIRECTORY>/<CONFIG>-<LOGTIME>-orbits.yaml";
+
+    bool   output_sbas_ems = false;
+    string ems_directory   = "<OUTPUTS_ROOT>";
+    string ems_filename    = "<EMS_DIRECTORY>/y<YYYY>/d<DDD>/h<HH>.ems";
+
+    void defaultOutputOptions() { *this = OutputOptions(); }
+
+    bool   output_decoded_rtcm_json    = false;
+    string decoded_rtcm_json_directory = "<OUTPUTS_ROOT>";
+    string decoded_rtcm_json_filename =
+        "<DECODED_RTCM_DIRECTORY>/<CONFIG>-<LOGTIME>_rtcm_decoded.json";
+
+    bool   output_encoded_rtcm_json    = false;
+    string encoded_rtcm_json_directory = "<OUTPUTS_ROOT>";
+    string encoded_rtcm_json_filename =
+        "<ENCODED_RTCM_DIRECTORY>/<CONFIG>-<LOGTIME>_rtcm_encoded.json";
+
+    bool   output_network_statistics_json    = false;
+    string network_statistics_json_directory = "<OUTPUTS_ROOT>";
+    string network_statistics_json_filename =
+        "<NETWORK_STATISTICS_DIRECTORY>/<CONFIG>-<LOGTIME>_network_statistics.json";
+};
+
+/** Options to be used only for debugging new features
+ */
+struct DebugOptions
+{
+    bool   mincon_only          = false;
+    bool   output_mincon        = false;
+    string mincon_filename      = "preMinconState.bin";
+    bool   check_plumbing       = false;
+    bool   retain_rts_files     = false;
+    bool   rts_only             = false;
+    bool   explain_measurements = false;
+    bool   compare_orbits       = false;
+    bool   compare_clocks       = false;
+    bool   compare_attitudes    = false;
+
+    bool check_broadcast_differences = false;
+};
+
+/** Options for processing SLR observations
+ */
+struct SlrOptions
+{
+    bool process_slr = false;
+};
+
+struct PreprocOptions
+{
+    double slip_threshold = 0.05;
+    double mw_proc_noise  = 0;
+
+    bool preprocess_all_data = true;
+};
+
+struct SlipOptions
+{
+    bool LLI         = false;
+    bool GF          = true;
+    bool MW          = true;
+    bool SCDIA       = true;
+    bool retrack     = false;
+    bool single_freq = true;
+};
+
+struct ExcludeOptions
+{
+    bool bad_spp   = false;
+    bool config    = true;
+    bool eclipse   = true;
+    bool elevation = true;
+    bool outlier   = true;
+    bool system    = true;
+    bool svh       = true;
+    // copy of the slip options
+    bool LLI         = true;
+    bool GF          = true;
+    bool MW          = true;
+    bool SCDIA       = true;
+    bool retrack     = true;
+    bool single_freq = true;
+};
+
+struct AmbiguityErrorHandler
+{
+    int phase_reject_limit = 10;
+
+    SlipOptions resetOnSlip;
+};
+
+struct IonoErrorHandler
+{
+    int outage_reset_limit = 300;
+};
+
+struct SatelliteErrorHandler
+{
+    bool   enable                   = false;
+    double pos_proc_noise           = 10;
+    double vel_proc_noise           = 5;
+    double vel_proc_noise_trail     = 1;
+    double vel_proc_noise_trail_tau = 0.05;
+    double clk_proc_noise           = 1000;
+};
+
+struct StateErrorHandler
+{
+    bool   enable          = true;
+    double deweight_factor = 1000;
+};
+
+struct MeasErrorHandler
+{
+    bool   enable          = true;
+    double deweight_factor = 1000;
+};
+
+struct ErrorAccumulationHandler
+{
+    bool enable                           = true;
+    int  receiver_error_count_threshold   = 0;
+    int  receiver_error_epochs_threshold  = 0;
+    int  satellite_error_count_threshold  = 0;
+    int  satellite_error_epochs_threshold = 0;
+    int  state_error_count_threshold      = 4;
+};
+
+/** Per-constellation datum definition for staged phase-clock/OSB estimation.
+ *
+ * Observation codes use Ginan's internal convention (for example L1W for
+ * RINEX C1W/L1W).  The code pair defines the ionosphere-free satellite-clock
+ * datum; the phase pair limits ambiguity resolution to the baseline
+ * frequencies used to generate the ambiguity-fixed clock.
+ */
+struct PhaseClockOsbSystemOptions
+{
+    vector<E_ObsCode> baseline_code_observables;
+    vector<E_ObsCode> baseline_phase_observables;
+    string            phase_reference_receiver;
+};
+
+/** Controller options for datum-consistent phase-clock/OSB product generation.
+ *
+ * The controller is opt-in so existing configurations retain their historic
+ * clock_codes behaviour.  When enabled, baseline code biases are constrained
+ * by their ionosphere-free combination instead of being individually fixed to
+ * zero, and only baseline phase ambiguities participate in ambiguity fixing.
+ */
+struct PhaseClockOsbOptions
+{
+    bool enable                             = false;
+    bool enforce_code_datum                 = true;
+    bool constrain_reference_receiver_phase = true;
+    bool baseline_only_ambiguity_resolution = true;
+    bool output_diagnostics                 = true;
+
+    double code_datum_sigma  = 1e-6;  ///< metres
+    double phase_datum_sigma = 1e-6;  ///< metres
+
+    string datum_identifier = "UNSPECIFIED";
+    string solution_id      = "UNSPECIFIED";
+    int    discontinuity_counter = 0;
+
+    map<E_Sys, PhaseClockOsbSystemOptions> sysOpts;
+};
+
+/** Per-constellation S-basis for the Zhang code-plus-phase, ionosphere-float model.
+ *
+ * The two baseline observables define the code IF/GF S-bases.  The configured
+ * receiver and satellite define the clock and phase/ambiguity S-bases.  The
+ * first implementation is intended for a fixed-reference GPS L1/L2 validation
+ * arc; datum changes must be applied as an explicit S-transform.
+ */
+struct ZhangFullRankSystemOptions
+{
+    vector<E_ObsCode> baseline_observables;
+    string            reference_receiver;
+    string            reference_satellite;
+
+    bool           use_spanning_tree      = false;
+    bool           auto_reference_switch = false;
+    int            reference_outage_epochs = 1;
+    int            state_edge_grace_epochs = 0;
+    bool           prefer_historical_edges = false;
+    bool           core_skeleton = false;
+    int            product_core_min_satellite_support = 0;
+	// Product-IAR-only gate.  FLOAT continues to use every accepted
+	// observation; when enabled the product core rejects arcs without a full
+	// independent quality audit rather than treating missing residual evidence
+	// as good evidence.
+	bool           product_integer_support_core = false;
+    vector<string> reference_receiver_candidates;
+    vector<string> reference_satellite_candidates;
+};
+
+/** Opt-in controller for Zhang's full-rank UDUC PPP-RTK network model.
+ *
+ * When enabled for a baseline signal:
+ * - receiver/satellite code-bias states are omitted (the IF/GF code S-bases);
+ * - the reference receiver clock and phase-bias states are omitted;
+ * - ambiguities in the reference receiver row and reference satellite column
+ *   are omitted;
+ * - remaining ambiguity states are the integer double-difference parameters.
+ */
+struct ZhangFullRankOptions
+{
+    bool enable             = false;
+    bool output_diagnostics = true;
+
+    map<E_Sys, ZhangFullRankSystemOptions> sysOpts;
+};
+
+/** Internal, non-standard product bridge used to validate a held-out PPP-AR user.
+ *
+ * This deliberately does not write or consume Bias-SINEX/SSR.  Network mode
+ * serialises the ambiguity-fixed Zhang clock/phase combinations; user mode
+ * reads them in a separate PEA process and applies them directly to code and
+ * phase observations.
+ */
+struct ZhangPppArOptions
+{
+    bool   output_products    = false;
+    bool   user_adapter       = false;
+    // Deprecated compatibility key.  It no longer authorises ambiguity
+    // fixing; non-certified products remain FLOAT_ONLY.
+    bool   user_accept_experimental_product_for_ar = false;
+    bool   output_diagnostics = true;
+    string product_filename;
+    string product_covariance_filename;
+    string product_solution = "FIXED";
+	string product_mode = "SATELLITE_TARGET_DATUM";
+	string hou_product_coordinate = "PRODUCT_TREE";
+	string besd_capture_policy = "OFF";
+	bool   temporal_product_transition_shadow = false;
+	bool   tree_slip_shadow_replay = false;
+	int    tree_slip_shadow_max_events = 12;
+	bool   tree_slip_pivot_before_retire = true;
+    string integer_strategy = "JOINT";
+    bool   component_bridge_targeting = false;
+    bool   current_state_relinking = false;
+    int    max_topology_targets = 3;
+    double deterministic_relink_variance_tolerance_cycles2 = 0;
+    bool   multi_epoch_relink_shadow = false;
+    int    multi_epoch_relink_shadow_max_epochs = 20;
+    double multi_epoch_relink_shadow_max_gap_seconds = 120;
+    double multi_epoch_relink_shadow_information_floor = 1e-8;
+    bool   whitened_wl_fixed_lag_shadow = false;
+    double whitened_wl_fixed_lag_seconds = 1800;
+    int    whitened_wl_fixed_lag_max_observations = 60;
+    bool   fixed_lag_factor_capture_shadow = false;
+    int    fixed_lag_factor_capture_max_events = 2000;
+    int    fixed_lag_factor_capture_evaluation_stride = 1;
+	// The deterministic A/B replay is a diagnostic-only consistency check.
+	// Keep its schedule independent of the authoritative marginal evaluation
+	// so profiling can reduce replay cost without changing product proposals.
+	int    fixed_lag_deterministic_replay_stride = 1;
+	// Use the immutable raw-factor target window only to propose product
+	// integers.  Every proposed row must still pass the current posterior NIS,
+	// exact physical identity/version and ordinary family-Perr gates before it
+	// can affect the disposable PRODUCT_FIXED branch.
+	bool   fixed_lag_product_relation_completion = false;
+	bool   targeted_besd_capture_shadow = false;
+	int    targeted_besd_min_lag_epochs = 30;
+	int    targeted_besd_max_lag_epochs = 60;
+    int    whitened_wl_prediction_gate_min_observations = 3;
+    double whitened_wl_prediction_gate_sigma = 4;
+    int    promotion_confirmation_epochs = 1;
+    double promotion_confirmation_max_gap_seconds = 0;
+    bool   conflict_quarantine = false;
+    int    user_max_ambiguities_per_signal = 0;
+    int    stabilization_epochs = 2;
+    int    initial_discontinuity_counter = 0;
+    bool   transactional_integer_fixing = true;
+    double held_constraint_nis_alpha = 1e-6;
+    string l1_candidate_shadow_ablation = "NONE";
+    vector<string> l1_candidate_shadow_satellites;
+    vector<string> l1_candidate_shadow_receivers;
+    int    l1_candidate_shadow_random_seed = 2104;
+    bool   l1_measurement_replay_shadow = false;
+    string l1_measurement_replay_target_epoch;
+    string l1_measurement_replay_receiver = "MELI";
+    string l1_measurement_replay_satellite = "G25";
+    bool   l1_multibranch_par_shadow = false;
+    int    l1_multibranch_core_max_dimension = 80;
+    int    l1_multibranch_reserve_dimension = 40;
+    int    l1_multibranch_branch_factor = 4;
+    int    l1_multibranch_beam_width = 12;
+    int    l1_multibranch_maximum_depth = 10;
+    int    l1_multibranch_minimum_rank = 3;
+    bool   l1_multibranch_evaluate_all_tiers = false;
+    string l1_multibranch_product_objective = "ABSOLUTE";
+    bool   l1_canonical_physical_search = false;
+    bool   l1_iar_gain_audit_shadow = false;
+    string l1_iar_gain_audit_target_epoch;
+    bool   l1_product_gain_spectrum_shadow = false;
+    vector<string> l1_product_gain_spectrum_epochs;
+    bool   product_relation_l1_par_shadow = false;
+    string product_relation_solver_mode = "OFF";
+    // Resolve the complete dual-frequency product ambiguity in the
+    // unimodular [WL,L1] chart with one current-posterior ILS/PAR call.
+    // This is mutually exclusive with the legacy staged WL -> L1 search in
+    // the product closure; it does not enable fixed-lag/raw-prefix replay.
+    bool   product_joint_dual_frequency_ils = false;
+    int    product_relation_beam_width = 12;
+    int    product_relation_minimum_rank = 1;
+    int    product_relation_maximum_evaluations = 256;
+    bool   product_relation_pair_audit_shadow = false;
+    vector<string> product_relation_pair_audit_epochs;
+    int    product_relation_pair_audit_best_edge_count = 20;
+    bool   product_relation_admission_shadow = false;
+    bool   product_relation_feedback = false;
+    // Component gauges close the remaining datum-free integer rank between
+    // already dual-frequency-certified product components. SHADOW only emits
+    // diagnostics; PRIVATE may only contribute to the disposable
+    // PRODUCT_FIXED branch. Neither mode changes authoritative FLOAT.
+    string product_component_gauge_solver_mode = "OFF";
+    int    product_component_gauge_max_iterations = 3;
+    double product_component_gauge_max_perr = 1e-3;
+    double product_component_gauge_nis_alpha = 1e-3;
+    int    product_component_gauge_confirmation_epochs = 2;
+    bool   product_dual_graph_objective = true;
+    // Physical ProductIntegerLedger rows are optional private-search evidence.
+    // This switch isolates their contribution without changing direct rows or
+    // the independent ProductGauge certificate ledger.
+    bool   product_integer_ledger_enabled = true;
+    bool   product_gauge_certificate_ledger = true;
+    bool   product_allow_partial_components = true;
+    // Explicit non-causal diagnostic control.  The file is accepted only when
+    // it contains a fully proved dual-frequency satellite graph; it never
+    // changes the authoritative network FLOAT state.
+    string full_product_lattice_oracle_filename;
+    vector<string> full_product_lattice_oracle_epochs;
+    bool   e29_real_math_closure_shadow = false;
+    string e29_real_math_closure_target_epoch;
+    bool   canonical_theory_regression_shadow = false;
+    string canonical_theory_regression_target_epoch;
+    vector<string> canonical_theory_regression_receivers;
+    int    canonical_theory_regression_min_common_satellites = 2;
+    bool   l1_subset_oracle_shadow = false;
+    int    l1_subset_oracle_pool_dimension = 10;
+    int    l1_subset_oracle_minimum_rank = 3;
+    int    l1_subset_oracle_maximum_rank = 5;
+    int    l1_subset_oracle_maximum_subsets = 5000;
+    string l1_subset_oracle_target_epoch;
+    bool   product_target_named_rounding = false;
+    bool   canonical_user_target_feedback = false;
+    int    canonical_user_target_min_named_wl = 5;
+    double canonical_user_target_max_perr = 1e-3;
+    bool   user_use_full_product_covariance = false;
+    double user_phase_product_temporal_sigma_m = 0;
+    double maximum_pppar_correction_sigma_m = 0;
+    double maximum_product_residual_step_m = 1000;
+
+	// Infra-0 v1 deterministic checkpointing is deliberately scoped to the
+	// frozen E29 GPS L1C/L2W Zhang full-rank experiment.
+	bool deterministic_checkpoint = false;
+	string checkpoint_runtime_id = "E29-NETWORK";
+	string checkpoint_output_directory;
+	vector<string> checkpoint_capture_epochs;
+	string checkpoint_restore_path;
+
+    map<E_Sys, vector<E_ObsCode>> baseline_observables;
+};
+
+/** Options for the general operation of the software
+ */
+struct GlobalOptions
+{
+    int    sleep_milliseconds = 50;
+    double epoch_interval     = 1;
+    double epoch_tolerance    = 0.5;
+    int    max_epochs         = 0;
+    int    leap_seconds       = -1;
+
+    boost::posix_time::ptime start_epoch{boost::posix_time::not_a_date_time};
+    boost::posix_time::ptime end_epoch{boost::posix_time::not_a_date_time};
+
+    string config_description = "Pea";
+    string config_details;
+    string analysis_agency                = "GAA";
+    string analysis_centre                = "Geoscience Australia";
+    string analysis_software              = "Ginan";
+    string analysis_software_version      = "3.0";
+    string ac_contact                     = "clientservices@ga.gov.au";
+    string rinex_comment                  = "Daily 30-sec observations from IGS stations";
+    string reference_system               = "igb14";
+    string time_system                    = "G";
+    string ocean_tide_loading_model       = "FES2004";
+    string atmospheric_tide_loading_model = "---";
+    string geoid_model                    = "EGM96";
+    string gradient_mapping_function      = "Chen & Herring, 1992";
+
+    bool simulate_real_time = false;
+
+    bool process_preprocessor        = true;
+    bool process_spp                 = true;
+    bool process_minimum_constraints = false;
+    bool process_ionosphere          = false;
+    bool process_rts                 = false;
+    bool process_ppp                 = false;
+    bool process_orbits              = false;
+    bool process_sbas                = false;
+
+    map<E_Sys, bool> process_sys;
+    map<E_Sys, bool> solve_amb_for;
+    bool             process_meas[NUM_MEAS_TYPES] = {true, true};
+    map<E_Sys, bool> reject_eclipse;
+
+    string reference_clock = "NO_REFERENCE";
+    string reference_bias  = "NO_REFERENCE";
+    string pivot_receiver  = "NO_REFERENCE";
+
+    bool interpolate_rec_pco       = true;
+    bool auto_fill_pco             = true;
+    bool require_apriori_positions = false;
+    bool require_site_eccentricity = false;
+    bool require_sinex_data        = false;
+    bool require_antenna_details   = false;
+    bool require_reflector_com     = false;
+
+    bool use_tgd_bias = false;
+
+    double wait_next_epoch      = 0;
+    double max_rec_latency      = 0;
+    bool   require_obs          = true;
+    bool   assign_closest_epoch = false;
+
+    bool delete_old_ephemerides = true;
+
+    // 	bool	reinit_on_clock_error		= false;
+    double validity_interval_factor = 10;
+
+    E_OffsetType ssr_input_antenna_offset = E_OffsetType::UNSPECIFIED;
+
+    map<E_Sys, vector<E_ObsCode>> code_priorities;
+    map<E_Sys, E_NavMsgType>      used_nav_types =  ///< Default observation codes on L1 for IF
+                                                    ///< combination based satellite clocks
+        {{E_Sys::GPS, E_NavMsgType::LNAV},
+         {E_Sys::GLO, E_NavMsgType::FDMA},
+         {E_Sys::GAL, E_NavMsgType::INAV},
+         {E_Sys::BDS, E_NavMsgType::D1},
+         {E_Sys::QZS, E_NavMsgType::LNAV}};
+
+    vector<E_ObsCode> default_code_priorities = {
+        E_ObsCode::L1C, E_ObsCode::L1P, E_ObsCode::L1Y, E_ObsCode::L1W, E_ObsCode::L1M,
+        E_ObsCode::L1N, E_ObsCode::L1S, E_ObsCode::L1L, E_ObsCode::L1X,
+
+        E_ObsCode::L2W, E_ObsCode::L2P, E_ObsCode::L2Y, E_ObsCode::L2C, E_ObsCode::L2M,
+        E_ObsCode::L2N, E_ObsCode::L2D, E_ObsCode::L2S, E_ObsCode::L2L, E_ObsCode::L2X,
+
+        E_ObsCode::L5I, E_ObsCode::L5Q, E_ObsCode::L5X
+    };
+
+    double fixed_phase_bias_var = 0.01;
+
+    bool adjust_rec_clocks_by_spp     = true;
+    bool adjust_clocks_for_jumps_only = false;
+    // bool	minimise_sat_clock_offsets		= false;
+    struct
+    {
+        bool   enable     = false;
+        double max_offset = 10;
+    } minimise_sat_clock_offsets;
+
+    bool minimise_sat_orbit_offsets  = false;
+    bool minimise_ionosphere_offsets = false;
+
+    map<E_Sys, bool> receiver_amb_pivot;  ///< fix one ambiguity to eliminate rank deficiency
+    map<E_Sys, bool> network_amb_pivot;  ///< fix ambiguities to eliminate network rank deficiencies
+    map<E_Sys, bool> use_for_iono_model;    ///< use system for ionospheric modelling
+    map<E_Sys, bool> use_iono_corrections;  ///< use system for ionospheric modelling
+
+    map<E_Sys, bool>   constrain_best_ambiguity_integer;
+    map<E_Sys, string> constrain_clock;
+    map<E_Sys, string> constrain_phase_bias;
+
+    map<E_Sys, double> eph_time_delay;
+    map<E_Sys, double> default_eph_time_delay = {
+        {E_Sys::GPS, -7200.0},
+        {E_Sys::GLO, 0.0},
+        {E_Sys::GAL, 0.0},
+        {E_Sys::QZS, 0.0},
+        {E_Sys::BDS, 0.0},
+        {E_Sys::LEO, 0.0},
+        {E_Sys::SBS, 0.0}
+    };
+
+    PhaseClockOsbOptions phaseClockOsb;
+    ZhangFullRankOptions zhangFullRank;
+    ZhangPppArOptions    zhangPppAr;
+
+    bool common_sat_pco       = false;
+    bool common_rec_pco       = false;
+    bool use_trop_corrections = false;
+
+    // to be removed?
+
+    double predefined_fail = 0.001; /* pre-defined fail-rate (0.01,0.001) */
+};
+
+/** Options associated with kalman filter states
+ */
+struct KalmanModel
+{
+    vector<double> sigma         = {-1};  //{0} is very necessary
+    vector<double> sigma_limit   = {0};
+    vector<double> outage_limit  = {0};
+    vector<double> apriori_value = {0};
+    vector<double> process_noise = {0};
+    vector<double> tau           = {
+        -1
+    };  // tau<0 (inf): Random Walk model; tau>0: First Order Gauss Markov model
+    vector<double> mu               = {0};
+    vector<bool>   estimate         = {false};
+    vector<bool>   use_remote_sigma = {false};
+    vector<string> comment          = {""};
+
+    KalmanModel& operator+=(const KalmanModel& rhs);
+
+    map<int, bool> initialisedMap;
+};
+
+struct LeastSquareOptions
+{
+    int    max_iterations       = 2;
+    bool   sigma_check          = false;
+    bool   omega_test           = true;
+    double meas_sigma_threshold = 4;
+};
+
+struct PrefitOptions
+{
+    int    max_iterations        = 2;
+    bool   sigma_check           = true;
+    bool   omega_test            = false;
+    double state_sigma_threshold = 4;
+    double meas_sigma_threshold  = 4;
+};
+
+struct PostfitOptions
+{
+    int    max_iterations        = 10;
+    bool   sigma_check           = false;
+    bool   omega_test            = true;
+    double state_sigma_threshold = 6;
+    double meas_sigma_threshold  = 4;
+};
+
+struct ChiSquareOptions
+{
+    bool        enable          = false;
+    E_ChiSqMode mode            = E_ChiSqMode::INNOVATION;
+    double      sigma_threshold = 4;
+};
+
+struct RtsOptions
+{
+    string rts_filename        = "<RTS_DIRECTORY>/Filter-<RECEIVER>.rts";
+    string rts_directory       = "<OUTPUTS_ROOT>";
+    int    rts_lag             = -1;
+    int    rts_interval        = 0;
+    string rts_smoothed_suffix = "_smoothed";
+
+    bool queue_rts_outputs = false;
+
+    double rts_regularisation = 1e-12;
+};
+
+struct FilterOptions : RtsOptions
+{
+    bool simulate_filter_only = false;
+    bool assume_linearity     = false;
+    bool advanced_postfits    = false;
+
+    bool joseph_stabilisation = false;
+
+    E_Inverter lsq_inverter = E_Inverter::INV;
+
+    LeastSquareOptions lsqOpts;
+    PrefitOptions      prefitOpts;
+    PostfitOptions     postfitOpts;
+    ChiSquareOptions   chiSquareTest;
+};
+
+/** Options associated with the ionospheric modelling processing mode of operation
+ */
+struct IonosphericOptions
+{
+    E_IonoMode corr_mode = E_IonoMode::BROADCAST;
+
+    bool common_ionosphere = true;
+    bool use_if_combo      = false;
+    bool use_gf_combo      = false;
+};
+
+/** Options associated with the ppp processing mode of operation
+ */
+struct PppOptions : FilterOptions
+{
+    KalmanModel eop;
+    KalmanModel eop_rates;
+
+    IonosphericOptions ionoOpts;
+
+    bool equate_ionospheres      = false;
+    bool equate_tropospheres     = false;
+    bool use_rtk_combo           = false;
+    bool merge_correlated_states = false;
+    bool use_primary_signals     = false;
+
+    bool add_eop_component = false;
+
+    bool receiver_chunking = false;
+    int  chunk_size        = 0;
+
+    bool           filter_reset_enable = false;
+    int            reset_interval      = 0;
+    vector<double> reset_epochs        = {};
+    vector<KF>     reset_states        = {KF::ALL};
+};
+
+struct SppOptions : FilterOptions
+{
+    bool   always_reinitialise = false;
+    int    smooth_window       = -1;
+    bool   use_smooth_only     = false;
+    int    max_lsq_iterations  = 12;
+    double smooth_outage       = 10;
+    double elevation_mask_deg  = 0;
+    double max_gdop            = 30;
+    double sigma_scaling       = 1;
+    struct
+    {
+        bool   enable         = true;
+        double max_iterations = 2;
+    } raim;
+
+    E_IonoMode          iono_mode   = E_IonoMode::IONO_FREE_LINEAR_COMBO;
+    vector<E_TropModel> trop_models = {E_TropModel::STANDARD};
+};
+
+struct IonModelOptions : FilterOptions
+{
+    E_IonoModel model = E_IonoModel::NONE;
+    int         numBasis;  ///< not a directly configurable parameter
+    int         function_order;
+    int         function_degree;
+
+    vector<double> layer_heights;
+    bool           estimate_sat_dcb  = true;
+    bool           use_rotation_mtx  = false;
+    double         basis_sigma_limit = 1000;
+
+    KalmanModel ion;
+};
+
+struct SbasOptions
+{
+    E_SbasMode mode = E_SbasMode::L1;
+
+    double sbas_time_delay  = 0;
+    bool   use_sbas_rec_var = false;
+
+    map<E_Sys, E_NavMsgType> sbas_nav_types = {
+        {E_Sys::GPS, E_NavMsgType::LNAV},
+        {E_Sys::GLO, E_NavMsgType::FDMA},
+        {E_Sys::GAL, E_NavMsgType::FNAV},
+        {E_Sys::BDS, E_NavMsgType::D1},
+        {E_Sys::QZS, E_NavMsgType::LNAV}
+    };
+
+    /// todo: May need to update this for BDS once ICD is released
+    map<E_Sys, vector<E_ObsCode>> sbas_code_priorities_map = {
+        {E_Sys::GPS, {E_ObsCode::L1C, E_ObsCode::L5Q, E_ObsCode::L5X}},
+        {E_Sys::GAL, {E_ObsCode::L1C, E_ObsCode::L5Q, E_ObsCode::L1X, E_ObsCode::L5X}},
+        {E_Sys::BDS, {E_ObsCode::L1C, E_ObsCode::L5Q, E_ObsCode::L5X}},
+        {E_Sys::QZS, {E_ObsCode::L1C, E_ObsCode::L5Q, E_ObsCode::L5X}},
+        {E_Sys::SBS, {E_ObsCode::L1C, E_ObsCode::L5Q}}
+    };
+};
+
+struct AmbROptions
+{
+    E_ARmode mode       = E_ARmode::OFF;
+    int      lambda_set = 2;
+    int      AR_max_itr = 1;
+
+    double elevation_mask_deg = 15;
+
+    double succsThres = 0.9999;        ///< Thresholds for ambiguity validation: succsess rate NL
+    double ratioThres = 3;             ///< Thresholds for ambiguity validation: succsess rate NL
+
+    double code_output_interval  = 0;  ///< Update interval for code  biases, 0: no output
+    double phase_output_interval = 0;  ///< Update interval for phase biases, 0: no output
+    bool   output_rec_bias       = false;  ///< Output receivr bias
+
+    bool once_per_epoch = true;
+    bool fix_and_hold   = false;
+};
+
+/** Rinex 2 conversions for individual receivers
+ */
+struct Rinex23Conversion
+{
+    map<E_ObsCode2, E_ObsCode>         codeConv;
+    map<E_ObsCode2, vector<E_ObsCode>> phasConv;
+
+    Rinex23Conversion& operator+=(const Rinex23Conversion& rhs)
+    {
+        for (auto& [code2, code3] : rhs.codeConv)
+        {
+            if (code3 != E_ObsCode::NONE)
+                codeConv[code2] = code3;
+        }
+        for (auto& [code2, code3List] : rhs.phasConv)
+        {
+            if (!code3List.empty())
+                phasConv[code2] = code3List;
+        }
+
+        return *this;
+    }
+};
+
+struct InertialKalmans
+{
+    KalmanModel accelerometer_scale;
+    KalmanModel accelerometer_bias;
+    KalmanModel orientation;
+    KalmanModel imu_offset;
+    KalmanModel gyro_scale;
+    KalmanModel gyro_bias;
+
+    InertialKalmans& operator+=(const InertialKalmans& rhs)
+    {
+        accelerometer_scale += rhs.accelerometer_scale;
+        accelerometer_bias += rhs.accelerometer_bias;
+        orientation += rhs.orientation;
+        imu_offset += rhs.imu_offset;
+        gyro_scale += rhs.gyro_scale;
+        gyro_bias += rhs.gyro_bias;
+
+        return *this;
+    }
+};
+
+struct EmpKalmans
+{
+    KalmanModel emp_d_0;
+    KalmanModel emp_d_1;
+    KalmanModel emp_d_2;
+    KalmanModel emp_d_3;
+    KalmanModel emp_d_4;
+
+    KalmanModel emp_y_0;
+    KalmanModel emp_y_1;
+    KalmanModel emp_y_2;
+    KalmanModel emp_y_3;
+    KalmanModel emp_y_4;
+
+    KalmanModel emp_b_0;
+    KalmanModel emp_b_1;
+    KalmanModel emp_b_2;
+    KalmanModel emp_b_3;
+    KalmanModel emp_b_4;
+
+    KalmanModel emp_r_0;
+    KalmanModel emp_r_1;
+    KalmanModel emp_r_2;
+    KalmanModel emp_r_3;
+    KalmanModel emp_r_4;
+
+    KalmanModel emp_t_0;
+    KalmanModel emp_t_1;
+    KalmanModel emp_t_2;
+    KalmanModel emp_t_3;
+    KalmanModel emp_t_4;
+
+    KalmanModel emp_n_0;
+    KalmanModel emp_n_1;
+    KalmanModel emp_n_2;
+    KalmanModel emp_n_3;
+    KalmanModel emp_n_4;
+
+    KalmanModel emp_p_0;
+    KalmanModel emp_p_1;
+    KalmanModel emp_p_2;
+    KalmanModel emp_p_3;
+    KalmanModel emp_p_4;
+
+    KalmanModel emp_q_0;
+    KalmanModel emp_q_1;
+    KalmanModel emp_q_2;
+    KalmanModel emp_q_3;
+    KalmanModel emp_q_4;
+
+    EmpKalmans& operator+=(const EmpKalmans& rhs)
+    {
+        emp_d_0 += rhs.emp_d_0;
+        emp_d_1 += rhs.emp_d_1;
+        emp_d_2 += rhs.emp_d_2;
+        emp_d_3 += rhs.emp_d_3;
+        emp_d_4 += rhs.emp_d_4;
+
+        emp_y_0 += rhs.emp_y_0;
+        emp_y_1 += rhs.emp_y_1;
+        emp_y_2 += rhs.emp_y_2;
+        emp_y_3 += rhs.emp_y_3;
+        emp_y_4 += rhs.emp_y_4;
+
+        emp_b_0 += rhs.emp_b_0;
+        emp_b_1 += rhs.emp_b_1;
+        emp_b_2 += rhs.emp_b_2;
+        emp_b_3 += rhs.emp_b_3;
+        emp_b_4 += rhs.emp_b_4;
+
+        emp_r_0 += rhs.emp_r_0;
+        emp_r_1 += rhs.emp_r_1;
+        emp_r_2 += rhs.emp_r_2;
+        emp_r_3 += rhs.emp_r_3;
+        emp_r_4 += rhs.emp_r_4;
+
+        emp_t_0 += rhs.emp_t_0;
+        emp_t_1 += rhs.emp_t_1;
+        emp_t_2 += rhs.emp_t_2;
+        emp_t_3 += rhs.emp_t_3;
+        emp_t_4 += rhs.emp_t_4;
+
+        emp_n_0 += rhs.emp_n_0;
+        emp_n_1 += rhs.emp_n_1;
+        emp_n_2 += rhs.emp_n_2;
+        emp_n_3 += rhs.emp_n_3;
+        emp_n_4 += rhs.emp_n_4;
+
+        emp_p_0 += rhs.emp_p_0;
+        emp_p_1 += rhs.emp_p_1;
+        emp_p_2 += rhs.emp_p_2;
+        emp_p_3 += rhs.emp_p_3;
+        emp_p_4 += rhs.emp_p_4;
+
+        emp_q_0 += rhs.emp_q_0;
+        emp_q_1 += rhs.emp_q_1;
+        emp_q_2 += rhs.emp_q_2;
+        emp_q_3 += rhs.emp_q_3;
+        emp_q_4 += rhs.emp_q_4;
+
+        return *this;
+    }
+};
+
+struct CommonKalmans
+{
+    KalmanModel    pos;
+    KalmanModel    pos_rate;
+    KalmanModel    orbit;
+    KalmanModel    clk;
+    KalmanModel    clk_rate;
+    KalmanModel    code_bias;
+    KalmanModel    phase_bias;
+    KalmanModel    pco;
+    KalmanModel    ant_delta;
+    KalmanModel    cr;
+    KalmanModel    cd;
+    CommonKalmans& operator+=(const CommonKalmans& rhs)
+    {
+        pos += rhs.pos;
+        pos_rate += rhs.pos_rate;
+        orbit += rhs.orbit;
+        clk += rhs.clk;
+        clk_rate += rhs.clk_rate;
+        code_bias += rhs.code_bias;
+        phase_bias += rhs.phase_bias;
+        pco += rhs.pco;
+        ant_delta += rhs.ant_delta;
+        cr += rhs.cr;
+        cd += rhs.cd;
+
+        return *this;
+    }
+};
+
+struct SatelliteKalmans : CommonKalmans, InertialKalmans, EmpKalmans
+{
+    // nothing here
+
+    SatelliteKalmans& operator+=(const SatelliteKalmans& rhs)
+    {
+        CommonKalmans::operator+=(rhs);
+        InertialKalmans::operator+=(rhs);
+        EmpKalmans::operator+=(rhs);
+
+        return *this;
+    }
+};
+
+struct ReceiverKalmans : CommonKalmans, InertialKalmans, EmpKalmans
+{
+    KalmanModel ambiguity;
+    KalmanModel strain_rate;
+    KalmanModel slr_range_bias;
+    KalmanModel slr_time_bias;
+    KalmanModel pcv;
+    KalmanModel ion_stec;
+    KalmanModel ion_model;
+    KalmanModel trop;
+    KalmanModel trop_grads;
+    KalmanModel trop_maps;
+
+    ReceiverKalmans& operator+=(const ReceiverKalmans& rhs)
+    {
+        CommonKalmans::operator+=(rhs);
+        InertialKalmans::operator+=(rhs);
+        EmpKalmans::operator+=(rhs);
+
+        ambiguity += rhs.ambiguity;
+        strain_rate += rhs.strain_rate;
+        slr_range_bias += rhs.slr_range_bias;
+        slr_time_bias += rhs.slr_time_bias;
+        pcv += rhs.pcv;
+        ion_stec += rhs.ion_stec;
+        ion_model += rhs.ion_model;
+        trop += rhs.trop;
+        trop_grads += rhs.trop_grads;
+        trop_maps += rhs.trop_maps;
+
+        return *this;
+    }
+};
+
+struct CommonOptions
+{
+    bool   exclude      = false;
+    double pseudo_sigma = 100000;
+    double laser_sigma  = 0.5;
+
+    vector<E_ObsCode> clock_codes                = {};
+    vector<double>    apriori_sigma_enu          = {};
+    double            mincon_scale_apriori_sigma = 1;
+    double            mincon_scale_filter_sigma  = 0;
+
+    Vector3d antenna_boresight = {0, 0, +1};
+    Vector3d antenna_azimuth   = {0, +1, 0};
+
+    double ellipse_propagation_time_tolerance = 30;
+
+    struct
+    {
+        bool             enable  = true;
+        vector<E_Source> sources = {
+            E_Source::KALMAN,
+            E_Source::CONFIG,
+            E_Source::PRECISE,
+            E_Source::SPP,
+            E_Source::BROADCAST
+        };
+    } posModel;
+
+    struct
+    {
+        bool             enable = true;
+        vector<E_Source> sources =
+            {E_Source::KALMAN, E_Source::PRECISE, E_Source::SPP, E_Source::BROADCAST};
+    } clockModel;
+
+    struct
+    {
+        bool             enable   = true;
+        vector<E_Source> sources  = {E_Source::PRECISE, E_Source::MODEL, E_Source::NOMINAL};
+        double           model_dt = 1;
+    } attitudeModel;
+
+    struct
+    {
+        bool   enable          = true;
+        double default_bias    = 0;
+        double undefined_sigma = 1;
+    } codeBiasModel;
+
+    struct
+    {
+        bool   enable          = false;
+        double default_bias    = 0;
+        double undefined_sigma = 0;
+    } phaseBiasModel;
+
+    struct
+    {
+        bool enable = true;
+    } pcoModel;
+
+    struct
+    {
+        bool enable = true;
+    } pcvModel;
+
+    struct
+    {
+        bool enable = true;
+    } phaseWindupModel;
+
+    CommonOptions& operator+=(const CommonOptions& rhs);
+
+    map<int, bool> initialisedMap;
+};
+
+struct PropagationOptions
+{
+    int    egm_degree           = 12;
+    double integrator_time_step = 60;
+    bool   egm_field            = true;
+    bool   solid_earth_tide     = true;
+    bool   pole_tide_ocean      = true;
+    bool   pole_tide_solid      = true;
+    bool   ocean_tide           = true;
+    bool   indirect_J2          = true;
+    bool   aod                  = false;
+    bool   atm_tide             = false;
+    bool   central_force        = true;
+    bool   general_relativity   = true;
+};
+
+struct SurfaceDetails
+{
+    vector<double> normal              = {0, 0, 0};
+    vector<double> rotation_axis       = {};  // Optional field
+    double         shape               = 0;
+    double         area                = 0;
+    double         reflection_visible  = 0;
+    double         diffusion_visible   = 0;
+    double         absorption_visible  = 0;
+    double         thermal_reemission  = 0;
+    double         reflection_infrared = 0;
+    double         diffusion_infrared  = 0;
+    double         absorption_infrared = 0;
+};
+
+/** Options associated with orbital force models
+ */
+struct OrbitOptions
+{
+    double mass    = 1000;
+    double area    = 20;
+    double power   = 20;
+    double srp_cr  = 1.25;
+    double drag_cd = 2.2;
+
+    vector<E_ThirdBody> planetary_perturbations = {
+        E_ThirdBody::SUN,
+        E_ThirdBody::MOON,
+        E_ThirdBody::JUPITER
+    };
+    bool       empirical                = true;
+    bool       antenna_thrust           = true;
+    E_SRPModel albedo                   = E_SRPModel::NONE;
+    E_SRPModel solar_radiation_pressure = E_SRPModel::NONE;
+    bool       drag                     = false;
+
+    vector<bool> empirical_dyb_eclipse = {true};
+    vector<bool> empirical_rtn_eclipse = {false};
+
+    vector<SurfaceDetails> surface_details;
+
+    struct
+    {
+        bool           enable         = false;
+        int            interval       = 0;
+        vector<double> epochs         = {};
+        double         pos_proc_noise = 10;
+        double         vel_proc_noise = 5;
+    } pseudoPulses;
+
+    OrbitOptions& operator+=(const OrbitOptions& rhs);
+
+    map<int, bool> initialisedMap;
+};
+
+/** Options to be applied to kalman filter states for individual satellites
+ */
+struct SatelliteOptions : SatelliteKalmans, CommonOptions, OrbitOptions
+{
+    bool   _initialised = false;
+    string id;
+
+    E_NoiseModel error_model = E_NoiseModel::UNIFORM;
+    double       code_sigma  = 0;
+    double       phase_sigma = 0;
+
+    SatelliteOptions& operator+=(const SatelliteOptions& rhs);
+
+    void uninitialiseInheritors();
+
+    map<string, SatelliteOptions*> inheritors;
+    map<string, SatelliteOptions*> inheritedFrom;
+
+    map<int, bool> initialisedMap;
+};
+
+/** Options to be applied to kalman filter states for individual receivers
+ */
+struct ReceiverOptions : ReceiverKalmans, CommonOptions
+{
+    bool   _initialised = false;
+    string id;
+
+    Rinex23Conversion rinex23Conv;
+
+    bool                         kill           = false;
+    vector<E_ObsCode>            zero_dcb_codes = {};
+    Vector3d                     apriori_pos    = Vector3d::Zero();
+    string                       antenna_type;
+    string                       receiver_type;
+    vector<E_ReceiverMetaSource> meta_priority = {
+        E_ReceiverMetaSource::CONFIG,
+        E_ReceiverMetaSource::SINEX,
+        E_ReceiverMetaSource::RINEX,
+        E_ReceiverMetaSource::RTCM
+    };
+    string domes_number;
+    string site_description;
+    string sat_id;
+    double elevation_mask_deg        = 5;
+    E_Sys  receiver_reference_system = E_Sys::NONE;
+
+    struct
+    {
+        bool     enable       = true;
+        Vector3d eccentricity = Vector3d::Zero();
+    } eccentricityModel;
+
+    ReceiverOptions()
+    {
+        posModel.sources = {E_Source::KALMAN, E_Source::META, E_Source::SPP, E_Source::REMOTE};
+    }
+
+    struct
+    {
+        bool                enable = true;
+        vector<E_TropModel> models = {E_TropModel::VMF3, E_TropModel::GPT2, E_TropModel::STANDARD};
+    } tropModel;
+
+    struct
+    {
+        bool enable = true;
+        bool solid  = true;
+        bool otl    = true;
+        bool atl    = true;
+        bool spole  = true;
+        bool opole  = true;
+    } tideModels;
+
+    bool range                  = true;
+    bool relativity             = true;
+    bool relativity2            = true;
+    bool sagnac                 = true;
+    bool integer_ambiguity      = true;
+    bool ionospheric_component  = true;
+    bool ionospheric_component2 = false;
+    bool ionospheric_component3 = false;
+    bool ionospheric_model      = false;
+    bool tropospheric_map       = false;
+    bool eop                    = false;
+
+    E_IonoMapFn mapping_function              = E_IonoMapFn::MSLM;
+    double      geomagnetic_field_height      = 450;
+    double      mapping_function_layer_height = 506.7;
+
+    E_NoiseModel error_model = E_NoiseModel::ELEVATION_DEPENDENT;
+    double       code_sigma  = 1;
+    double       phase_sigma = 0.0015;
+
+    ReceiverOptions& operator+=(const ReceiverOptions& rhs);
+
+    map<string, ReceiverOptions*> inheritors;
+    map<string, ReceiverOptions*> inheritedFrom;
+
+    map<int, bool> initialisedMap;
+};
+
+/** Options associated with the minimum constraints mode of operation
+ */
+struct MinimumConstraintOptions : FilterOptions
+{
+    KalmanModel delay;
+    KalmanModel scale;
+    KalmanModel rotation;
+    KalmanModel translation;
+
+    KalmanModel delay_rate;
+    KalmanModel scale_rate;
+    KalmanModel rotation_rate;
+    KalmanModel translation_rate;
+
+    bool once_per_epoch       = false;
+    bool full_vcv             = false;
+    bool constrain_orbits     = true;
+    bool transform_unweighted = true;
+
+    E_Mincon application_mode = E_Mincon::COVARIANCE_INVERSE;
+};
+
+struct MongoInstanceOptions
+{
+    string uri = "mongodb://localhost:27017";
+    string suffix;
+    string database = "<CONFIG>";
+};
+
+struct MongoOptions : array<MongoInstanceOptions, 3>
+{
+    E_Mongo enable                = E_Mongo::NONE;
+    E_Mongo output_measurements   = E_Mongo::NONE;
+    E_Mongo output_components     = E_Mongo::NONE;
+    E_Mongo output_cumulative     = E_Mongo::NONE;
+    E_Mongo output_states         = E_Mongo::NONE;
+    E_Mongo output_state_covars   = E_Mongo::NONE;
+    E_Mongo output_trace          = E_Mongo::NONE;
+    E_Mongo output_config         = E_Mongo::NONE;
+    E_Mongo output_test_stats     = E_Mongo::NONE;
+    E_Mongo output_logs           = E_Mongo::NONE;
+    E_Mongo output_ssr_precursors = E_Mongo::NONE;
+    E_Mongo delete_history        = E_Mongo::NONE;
+    E_Mongo cull_history          = E_Mongo::NONE;
+    E_Mongo use_predictions       = E_Mongo::NONE;
+    E_Mongo output_predictions    = E_Mongo::NONE;
+    E_Mongo output_editing        = E_Mongo::NONE;
+
+    bool queue_outputs = false;
+
+    vector<KF> used_predictions = {
+        KF::ORBIT,
+        KF::REC_POS,
+        KF::SAT_CLOCK,
+        KF::CODE_BIAS,
+        KF::PHASE_BIAS,
+        KF::EOP,
+        KF::EOP_RATE
+    };
+    vector<KF> sent_predictions = {
+        KF::ORBIT,
+        KF::REC_POS,
+        KF::SAT_CLOCK,
+        KF::CODE_BIAS,
+        KF::PHASE_BIAS,
+        KF::EOP,
+        KF::EOP_RATE
+    };
+
+    double prediction_offset           = 0;
+    double prediction_interval         = 30;
+    double forward_prediction_duration = 300;
+    double reverse_prediction_duration = -1;
+
+    double min_cull_age = 300;
+};
+
+/** Options associated with SSR corrections and exporting RTCM messages
+ */
+struct SsrOptions
+{
+    // todo Eugene: Use KALMAN source once RT POD done (same for code & phase)
+    bool             extrapolate_corrections = false;
+    double           prediction_interval     = 30;
+    double           prediction_duration     = 0;
+    vector<E_Source> ephemeris_sources       = {E_Source::PRECISE};
+    vector<E_Source> clock_sources           = {E_Source::KALMAN};
+    vector<E_Source> code_bias_sources       = {E_Source::PRECISE};
+    vector<E_Source> phase_bias_sources      = {E_Source::NONE};
+    vector<E_Source> atmosphere_sources      = {E_Source::NONE};
+    bool             cmpssr_cell_mask        = false;
+    int              cmpssr_stec_format      = 3;
+    int              cmpssr_trop_format      = 1;
+    double           max_stec_sigma          = 1.0;
+
+    int    region_id     = -1;
+    int    region_iod    = -1;
+    int    npoly_trop    = -1;
+    int    npoly_iono    = -1;
+    int    grid_type     = -1;
+    bool   use_grid_iono = true;
+    bool   use_grid_trop = true;
+    double lat_max       = 0;
+    double lat_min       = 0;
+    double lat_int       = 0;
+    double lon_max       = 0;
+    double lon_min       = 0;
+    double lon_int       = 0;
+
+    int ngrid  = 0;  // not configs?
+    int nbasis = 0;  // not configs?
+};
+
+struct SSRMetaOpts
+{
+    bool itrf_datum  = true;
+    int  provider_id = 0;
+    int  solution_id = 0;
+};
+
+struct RtcmMsgTypeOpts
+{
+    int udi = 0;  ///< Update interval (0 = don't upload message)
+
+    map<CompactSSRSubtype, int> comp_udi;
+    map<IgsSSRSubtype, int>     igs_udi;
+
+    // space for multiple UDI's here
+};
+
+struct SsrBroadcast : SSRMetaOpts
+{
+    string url;
+
+    map<RtcmMessageType, RtcmMsgTypeOpts> rtcmMsgOptsMap;  ///< RTCM message type options
+};
+
+struct NetworkOptions
+{
+    map<string, SsrBroadcast> uploadingStreamData;
+};
+
+struct YamlDefault
+{
+    string defaultValue;
+    string comment;
+    string typeName;
+    bool   found;
+    string foundValue;
+    string enumName;
+    int    configLevel;  // yet unused
+};
+
+/** General options object to be used throughout the software
+ */
+struct ACSConfig : GlobalOptions, InputOptions, OutputOptions, DebugOptions
+{
+    vector<YAML::Node>       yamls;
+    map<string, YamlDefault> yamlDefaults;
+    map<string, bool>        availableOptions = {
+        {"yaml_filename:", true},
+        {"yaml_number:", true},
+    };
+    map<string, map<string, bool>> foundOptions;
+
+    mutex configMutex;
+
+    map<string, set<string>> customAliasesMap;
+
+    vector<string>                               configFilenames;
+    vector<string>                               includedFilenames;
+    map<string, std::filesystem::file_time_type> configModifyTimeMap;
+    boost::program_options::variables_map        commandOpts;
+    bool                                         dry_run = false;
+
+    static map<string, string> docs;
+
+    void recurseYaml(
+        const string& file,
+        YAML::Node    node,
+        const string& stack      = "",
+        const string& aliasStack = ""
+    );
+
+    bool parse(const vector<string>& filenames, boost::program_options::variables_map& vm);
+
+    bool parse();
+
+    void info(Trace& trace);
+
+    void sanityChecks();
+
+    void outputDefaultConfiguration(int level);
+
+    SatelliteOptions& getSatOpts(SatSys Sat, const vector<string>& suffixes = {});
+    ReceiverOptions&  getRecOpts(string id, const vector<string>& suffixes = {});
+
+    unordered_map<string, SatelliteOptions> satOptsMap;
+    unordered_map<string, ReceiverOptions>  recOptsMap;
+
+    PropagationOptions       propagationOptions;
+    PreprocOptions           preprocOpts;
+    MinimumConstraintOptions minconOpts;
+    AmbROptions              ambrOpts;
+    SsrOptions               ssrOpts;
+    PppOptions               pppOpts;
+    SppOptions               sppOpts;
+    SbasOptions              sbsOpts;
+    SlrOptions               slrOpts;
+    ExcludeOptions           exclude;
+
+    StateErrorHandler        stateErrors;
+    MeasErrorHandler         measErrors;
+    AmbiguityErrorHandler    ambErrors;
+    SatelliteErrorHandler    satelliteErrors;
+    IonoErrorHandler         ionErrors;
+    ErrorAccumulationHandler errorAccumulation;
+
+    IonModelOptions ionModelOpts;
+    MongoOptions    mongoOpts;
+    NetworkOptions  netOpts;
+};
+
+bool replaceString(string& str, string subStr, string replacement, bool warn = true);
+
+bool configure(int argc, char** argv);
+
+void dumpConfig(Trace& trace);
+
+extern ACSConfig
+    acsConfig;  ///< Global variable housing all options to be used throughout the software

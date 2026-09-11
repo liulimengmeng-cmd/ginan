@@ -1,0 +1,356 @@
+#pragma once
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/format.hpp>
+#include <boost/iostreams/stream.hpp>
+#include <boost/log/sinks/basic_sink_backend.hpp>
+#include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/trivial.hpp>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include "common/eigenIncluder.hpp"
+
+namespace sinks = boost::log::sinks;
+
+using std::string;
+using std::vector;
+using Trace = std::ostream;
+
+struct GTime;
+
+extern thread_local boost::iostreams::stream<boost::iostreams::null_sink> nullStream;
+
+struct ConsoleLog : public sinks::basic_formatted_sink_backend<char, sinks::synchronized_feeding>
+{
+    // The function consumes the log records that come from the frontend
+    void consume(
+        boost::log::record_view const& rec,
+        sinks::basic_formatted_sink_backend<char, sinks::synchronized_feeding>::string_type const&
+            log_string
+    );
+};
+
+extern int traceLevel;
+
+template <typename... Arguments>
+void tracepdeex_(Trace& stream, string const& fmt, Arguments&&... args)
+{
+    boost::format f(fmt);
+    int           unroll[]{0, (f % std::forward<Arguments>(args), 0)...};
+    stream << boost::str(f);
+}
+
+template <typename... Args>
+void traceTrivialDebug_(string const& fmt, Args&&... args)
+{
+    boost::format f(fmt);
+    int           unroll[]{0, (f % std::forward<Args>(args), 0)...};
+    BOOST_LOG_TRIVIAL(debug) << boost::str(f);
+}
+template <typename... Args>
+void traceTrivialInfo_(string const& fmt, Args&&... args)
+{
+    boost::format f(fmt);
+    int           unroll[]{0, (f % std::forward<Args>(args), 0)...};
+    BOOST_LOG_TRIVIAL(info) << boost::str(f);
+}
+template <typename... Args>
+void traceTrivialTrace_(string const& fmt, Args&&... args)
+{
+    boost::format f(fmt);
+    int           unroll[]{0, (f % std::forward<Args>(args), 0)...};
+    BOOST_LOG_TRIVIAL(trace) << boost::str(f);
+}
+
+struct PooledTraceFile
+{
+    Trace*                         trace = &nullStream;
+    std::shared_ptr<std::ofstream> file;
+
+    PooledTraceFile() = default;
+    explicit PooledTraceFile(std::shared_ptr<std::ofstream> fileStream)
+        : file{std::move(fileStream)}
+    {
+        if (file && *file)
+        {
+            trace = file.get();
+        }
+    }
+
+    operator Trace&() { return *trace; }
+    operator const Trace&() const { return *trace; }
+
+    template <typename T>
+    PooledTraceFile& operator<<(T&& value)
+    {
+        (*trace) << std::forward<T>(value);
+        return *this;
+    }
+
+    PooledTraceFile& operator<<(std::ostream& (*manip)(std::ostream&))
+    {
+        (*trace) << manip;
+        return *this;
+    }
+
+    PooledTraceFile& operator<<(std::ios& (*manip)(std::ios&))
+    {
+        (*trace) << manip;
+        return *this;
+    }
+
+    PooledTraceFile& operator<<(std::ios_base& (*manip)(std::ios_base&))
+    {
+        (*trace) << manip;
+        return *this;
+    }
+
+    void flush() { trace->flush(); }
+};
+
+inline std::unordered_map<string, std::shared_ptr<std::ofstream>>& traceFileCache()
+{
+    thread_local std::unordered_map<string, std::shared_ptr<std::ofstream>> cache;
+    return cache;
+}
+
+inline std::mutex& retainedTraceFilesMutex()
+{
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::unordered_set<string>& retainedTraceFileNames()
+{
+    static std::unordered_set<string> activeFilenames;
+    return activeFilenames;
+}
+
+inline size_t& retainedTraceFilesGeneration()
+{
+    static size_t generation = 0;
+    return generation;
+}
+
+inline void pruneTraceFileCache(const std::unordered_set<string>& activeFilenames)
+{
+    auto& cache = traceFileCache();
+    for (auto it = cache.begin(); it != cache.end();)
+    {
+        if (activeFilenames.find(it->first) != activeFilenames.end())
+        {
+            it++;
+            continue;
+        }
+
+        if (it->second)
+        {
+            it->second->flush();
+        }
+        it = cache.erase(it);
+    }
+}
+
+inline void pruneTraceFileCacheIfNeeded()
+{
+    thread_local size_t localGeneration = 0;
+
+    std::unordered_set<string> activeFilenames;
+
+    {
+        std::lock_guard<std::mutex> lock(retainedTraceFilesMutex());
+        if (localGeneration == retainedTraceFilesGeneration())
+        {
+            return;
+        }
+
+        localGeneration = retainedTraceFilesGeneration();
+        activeFilenames = retainedTraceFileNames();
+    }
+
+    pruneTraceFileCache(activeFilenames);
+}
+
+inline void retainTraceFiles(const std::unordered_set<string>& activeFilenames)
+{
+    {
+        std::lock_guard<std::mutex> lock(retainedTraceFilesMutex());
+        retainedTraceFileNames() = activeFilenames;
+        retainedTraceFilesGeneration()++;
+    }
+
+    pruneTraceFileCache(activeFilenames);
+}
+
+inline PooledTraceFile getTraceFile(const string& traceFilename, const string& id)
+{
+    if (traceFilename.empty())
+    {
+        return PooledTraceFile();
+    }
+
+    pruneTraceFileCacheIfNeeded();
+
+    auto& cache = traceFileCache();
+
+    auto it = cache.find(traceFilename);
+    if (it != cache.end())
+    {
+        return PooledTraceFile(it->second);
+    }
+
+    auto traceFile = std::make_shared<std::ofstream>(traceFilename, std::ios::app);
+    if (!*traceFile)
+    {
+        BOOST_LOG_TRIVIAL(error) << "Could not open trace file for " << id << " at "
+                                 << traceFilename;
+        return PooledTraceFile();
+    }
+
+    cache.emplace(traceFilename, traceFile);
+    return PooledTraceFile(std::move(traceFile));
+}
+
+template <typename T>
+PooledTraceFile getTraceFile(T& thing, bool json = false)
+{
+    string traceFilename;
+    if (json)
+        traceFilename = thing.jsonTraceFilename;
+    else
+        traceFilename = thing.traceFilename;
+
+    return getTraceFile(traceFilename, thing.id);
+}
+
+void printHex(Trace& trace, vector<unsigned char>& chunk);
+
+void traceFormatedFloat(Trace& trace, double val, string formatStr);
+
+struct Block
+{
+    Trace& trace;
+    string blockName;
+    string separator;
+
+    Block(Trace& trace, string blockName, string separator = "")
+        : trace{trace}, blockName{blockName}, separator{separator}
+    {
+        trace << "\n";
+        if (separator.empty() == false)
+            trace << separator << "\n";
+        trace << "+" << blockName << "\n";
+    }
+
+    ~Block() { trace << "-" << blockName << "\n"; }
+};
+
+struct ArbitraryKVP
+{
+    string   name;
+    string   str;
+    double   num     = 0;
+    long int integer = 0;
+    int      type    = 0;
+
+    ArbitraryKVP(string name, const char* str) : name{name}, str{str} { type = 0; }
+    ArbitraryKVP(string name, string str) : name{name}, str{str} { type = 0; }
+    ArbitraryKVP(string name, double num) : name{name}, num{num} { type = 1; }
+    ArbitraryKVP(string name, int integer) : name{name}, integer{integer} { type = 2; }
+    ArbitraryKVP(string name, long int integer) : name{name}, integer{integer} { type = 2; }
+    ArbitraryKVP(string name, bool integer) : name{name}, integer{integer} { type = 3; }
+
+    bool isBool() const { return type == 3; }
+
+    string value()
+    {
+        if (isnan(num))
+        {
+            num = -1;
+        }
+
+        if (type == 0)
+            return "\"" + str + "\"";
+        else if (type == 1)
+            return std::to_string(num);
+        else if (type == 2)
+            return std::to_string(integer);
+        else if (type == 3)
+            return std::to_string(integer);
+        else
+            return "";
+    }
+};
+
+void traceJson_(Trace& trace, GTime& time, vector<ArbitraryKVP> id, vector<ArbitraryKVP> val);
+
+bool createNewTraceFile(
+    const string             id,
+    const string&            source,
+    boost::posix_time::ptime logptime,
+    string                   new_path_trace,
+    string&                  old_path_trace,
+    bool                     outputHeader = false,
+    bool                     outputConfig = false
+);
+
+extern boost::log::trivial::severity_level acsSeverity;
+
+// wrap trace functions to lazily execute their parameter evaluations.
+
+#define traceTrivialDebug(...)                        \
+    do                                                \
+    {                                                 \
+        if (acsSeverity > boost::log::trivial::debug) \
+            continue;                                 \
+                                                      \
+        traceTrivialDebug_(__VA_ARGS__);              \
+    } while (false)
+
+#define traceTrivialInfo(...)                        \
+    do                                               \
+    {                                                \
+        if (acsSeverity > boost::log::trivial::info) \
+            continue;                                \
+                                                     \
+        traceTrivialInfo_(__VA_ARGS__);              \
+    } while (false)
+
+#define traceTrivialTrace(...)                        \
+    do                                                \
+    {                                                 \
+        if (acsSeverity > boost::log::trivial::trace) \
+            continue;                                 \
+                                                      \
+        traceTrivialTrace_(__VA_ARGS__);              \
+    } while (false)
+
+#define tracepdeex(level, ...)    \
+    do                            \
+    {                             \
+        if (level > traceLevel)   \
+            continue;             \
+                                  \
+        tracepdeex_(__VA_ARGS__); \
+    } while (false)
+
+#define traceJson(level, ...)                                  \
+    do                                                         \
+    {                                                          \
+        if (level > traceLevel)                                \
+            continue;                                          \
+                                                               \
+        if (acsConfig.output_json_trace == false &&            \
+            acsConfig.mongoOpts.output_trace == E_Mongo::NONE) \
+        {                                                      \
+            continue;                                          \
+        }                                                      \
+        traceJson_(__VA_ARGS__);                               \
+    } while (false)
