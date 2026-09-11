@@ -61,6 +61,7 @@ add_executable(phase_clock_osb_tests
 )
 
 add_executable(zhang_full_rank_tests
+    unit/test_ZhangR47.cpp
     unit/test_ZhangR46.cpp
     ../cpp/common/satSys.cpp
     unit/test_ZhangFullRank.cpp

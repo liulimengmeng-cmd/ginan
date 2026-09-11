@@ -72,6 +72,7 @@
 #include "pea/zhangPppAr.hpp"
 #include "pea/zhangE29MathClosure.hpp"
 #include "common/zhangProductPhysicalCycleChart.hpp"
+#include "common/zhangProductPhysicalPullback.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 
 
@@ -9318,11 +9319,17 @@ static ZhangProductRelationBasis compileZhangProductRelationBasis(
 		ProductRelationBasisBuilder::build(
 			context.basis, context.productBasis, SatSys(), system, observable);
 	if (!authoritativeBasis.valid) return authoritativeBasis;
-	auto mappableExactRank = [&](const ZhangProductRelationBasis& basis)
+	const auto authoritativeChords = authoritativeBasis.currentChords;
+	auto mappableExactRank = [&](ZhangProductRelationBasis basis)
 	{
-		return static_cast<int>(
-			zhangIndependentMappableProductRelationIndices(
-				basis, availableStateEdges).size());
+		const auto pullback = zhangPullbackProductPhysicalRelations(
+			basis, context.basis, context.arcVersions, authoritativeChords,
+			columns, ambiguityState.aflt.size());
+		if (!pullback.valid) return 0;
+		ZhangExactMatrix rows;
+		for (std::size_t i = 0; i < pullback.posteriorRows.size(); ++i)
+			if (pullback.available[i]) rows.push_back(pullback.posteriorRows[i]);
+		return static_cast<int>(zhangExactRowHermiteNormalForm(rows).basis.size());
 	};
 	const int authoritativeMappableRank =
 		mappableExactRank(authoritativeBasis);
@@ -9416,98 +9423,44 @@ static ZhangProductRelationBasis compileZhangProductRelationBasis(
 		}
 	}
 
+	// This is the only binding from target semantics to posterior columns.
+	// Rebinding currentChords also protects later exact constraint compilers.
+	const auto pullback = zhangPullbackProductPhysicalRelations(
+		result, context.basis, context.arcVersions, authoritativeChords,
+		columns, ambiguityState.aflt.size());
+	if (!pullback.valid)
+	{
+		result.valid = false;
+		result.failureReason = pullback.failureReason;
+		return result;
+	}
 	vector<VectorXd> mappedRows;
 	vector<int> mappedIndices;
-	const auto selectedMappableIndices =
-		zhangIndependentMappableProductRelationIndices(
-			result, availableStateEdges);
-	const set<int> selectedMappableSet(
-		selectedMappableIndices.begin(), selectedMappableIndices.end());
+	ZhangExactMatrix independentRows;
 	for (int namedIndex = 0;
-		 namedIndex < static_cast<int>(result.namedRelations.size()); namedIndex++)
+		 namedIndex < static_cast<int>(result.namedRelations.size()); ++namedIndex)
 	{
-		const auto& relation = result.namedRelations.at(namedIndex);
-		VectorXd row = VectorXd::Zero(ambiguityState.aflt.size());
-		bool mappable = true;
-		ZhangUnmappableProductRelationAudit audit;
-		audit.satellite = relation.satellite;
-		audit.referenceSatellite = relation.referenceSatellite;
-		audit.observable = observable;
-		for (int chord = 0;
-			 chord < static_cast<int>(result.currentChords.size()); chord++)
+		const auto& relation = result.namedRelations[namedIndex];
+		VectorXd row;
+		if (!pullback.available[namedIndex] ||
+			!zhangExactPosteriorRowToDouble(pullback.posteriorRows[namedIndex], row))
 		{
-			const ZhangExactInteger coefficient =
-				relation.currentCycleCoefficients[chord];
-			if (coefficient == 0)
-			{
-				continue;
-			}
-			const bool currentVersionedRepresentation =
-				availableStateEdges.contains(result.currentChords[chord]);
-			auto column = columns.find(result.currentChords[chord]);
-			if (!currentVersionedRepresentation || column == columns.end())
-			{
-				audit.missingChord = result.currentChords[chord];
-				audit.missingReason = column == columns.end()
-					? "CURRENT_AMBIGUITY_COLUMN_ABSENT"
-					: "CURRENT_AMBIGUITY_ARC_VERSION_ABSENT_OR_UNREPRESENTED";
-				audit.treeOrChord = compilationBasis.treeEdges.contains(
-					result.currentChords[chord]) ? "TREE" : "CHORD";
-				auto version = context.arcVersions.find(result.currentChords[chord]);
-				if (version != context.arcVersions.end())
-					audit.missingArcVersion = version->second;
-				audit.temporalRecoverable =
-					context.basis.edges.contains(result.currentChords[chord]);
-				std::set<string> alternativeReceivers;
-				for (const auto& edge : availableStateEdges)
-					if (edge.satellite == result.currentChords[chord].satellite &&
-						edge.receiver != result.currentChords[chord].receiver)
-						alternativeReceivers.insert(edge.receiver);
-				audit.alternativeReceiverCount =
-					static_cast<int>(alternativeReceivers.size());
-				audit.status = audit.alternativeReceiverCount > 0
-					? ZhangCanonicalProductDirectionStatus::REQUIRES_COMPONENT_GAUGE
-					: audit.temporalRecoverable
-						? ZhangCanonicalProductDirectionStatus::REQUIRES_BESD
-						: ZhangCanonicalProductDirectionStatus::PHYSICALLY_UNSUPPORTED;
-				mappable = false;
-				break;
-			}
-			try
-			{
-				const long long exactCoefficient =
-					coefficient.convert_to<long long>();
-				if (ZhangExactInteger(exactCoefficient) != coefficient)
-				{
-					audit.missingChord = result.currentChords[chord];
-					audit.missingReason = "EXACT_COEFFICIENT_OUT_OF_NUMERIC_RANGE";
-					audit.status =
-					ZhangCanonicalProductDirectionStatus::PHYSICALLY_UNSUPPORTED;
-					mappable = false;
-					break;
-				}
-				row(column->second) = static_cast<double>(exactCoefficient);
-			}
-			catch (const std::exception&)
-			{
-				audit.missingChord = result.currentChords[chord];
-				audit.missingReason = "EXACT_COEFFICIENT_CONVERSION_FAILED";
-				audit.status =
-					ZhangCanonicalProductDirectionStatus::PHYSICALLY_UNSUPPORTED;
-				mappable = false;
-				break;
-			}
-		}
-		if (mappable)
-		{
-			if (!selectedMappableSet.contains(namedIndex)) continue;
-			mappedRows.push_back(std::move(row));
-			mappedIndices.push_back(namedIndex);
-		}
-		else
-		{
+			ZhangUnmappableProductRelationAudit audit;
+			audit.satellite = relation.satellite;
+			audit.referenceSatellite = relation.referenceSatellite;
+			audit.observable = observable;
+			audit.missingReason = pullback.available[namedIndex]
+				? "EXACT_COEFFICIENT_OUT_OF_NUMERIC_RANGE" : pullback.reasons[namedIndex];
+			audit.status = ZhangCanonicalProductDirectionStatus::REQUIRES_BESD;
 			result.unmappableNamedRelations.push_back(std::move(audit));
+			continue;
 		}
+		auto candidate = independentRows;
+		candidate.push_back(pullback.posteriorRows[namedIndex]);
+		if (zhangExactRowHermiteNormalForm(candidate).basis.size() <= independentRows.size()) continue;
+		independentRows.push_back(pullback.posteriorRows[namedIndex]);
+		mappedRows.push_back(std::move(row));
+		mappedIndices.push_back(namedIndex);
 	}
 	result.transform = MatrixXd::Zero(
 		mappedRows.size(), ambiguityState.aflt.size());

@@ -1,4 +1,5 @@
 #pragma once
+#include <Eigen/Core>
 
 #include <algorithm>
 #include <map>
@@ -90,7 +91,7 @@ struct ZhangProductRelationBasis
     bool                                    canonicalTargetPrimitive = false;
     ZhangExactMatrix                        exactRowBasis;
     ZhangExactMatrix                        networkContainmentTransform;
-    MatrixXd                                transform;
+    Eigen::MatrixXd                         transform;
     ZhangExactVector                        affineOffsets;
     int                                     fullTargetRank = 0;
     int                                     mappableTargetRank = 0;
