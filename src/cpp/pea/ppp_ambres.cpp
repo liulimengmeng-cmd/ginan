@@ -9359,9 +9359,11 @@ static ZhangProductRelationBasis compileZhangProductRelationBasis(
 			if (rebased.valid &&
 				mappableExactRank(rebased) > authoritativeMappableRank)
 			{
-				result = std::move(rebased);
-				compilationBasis = availableBasis;
-				result.availabilityRebased = true;
+				// R47 initial safety branch: a rank gain does not authorize a new
+				// frontend semantic chart. Retain the authoritative product graph;
+				// the candidate is still pulled back and measured in shadow.
+				result.privateShadowMappableRank = mappableExactRank(rebased);
+				result.privatePublicationGate = "SHADOW_ONLY_FRONTEND_SEMANTICS_NOT_PROVEN";
 			}
 		}
 	}
@@ -9433,6 +9435,31 @@ static ZhangProductRelationBasis compileZhangProductRelationBasis(
 		result.valid = false;
 		result.failureReason = pullback.failureReason;
 		return result;
+	}
+	ZhangExactMatrix completeNamed;
+	for (const auto& relation : result.namedRelations)
+		completeNamed.push_back(relation.currentCycleCoefficients);
+	std::vector<bool> availableChords;
+	for (const auto& chord : result.currentChords)
+	{
+		const bool available = columns.contains(chord) && availableStateEdges.contains(chord);
+		availableChords.push_back(available);
+		if (available) result.wholePosteriorColumns.push_back(columns.at(chord));
+	}
+	result.wholeLattice = zhangCompileWholeProductLattice(
+		completeNamed, ZhangExactVector(completeNamed.size()), availableChords);
+	if (!result.wholeLattice.valid)
+	{
+		result.valid = false;
+		result.failureReason = result.wholeLattice.failureReason;
+		return result;
+	}
+	for (const auto& compact : result.wholeLattice.searchPosteriorRows)
+	{
+		ZhangExactVector row(ambiguityState.aflt.size());
+		for (std::size_t c = 0; c < compact.size(); ++c)
+			row[result.wholePosteriorColumns[c]] = compact[c];
+		result.wholePosteriorRows.push_back(std::move(row));
 	}
 	vector<VectorXd> mappedRows;
 	vector<int> mappedIndices;
@@ -25960,6 +25987,24 @@ static int resolveLayeredWideLaneL1(
 							 })()
 						  << " canonical_hnf=" << basis.canonicalTargetHnf
 						  << " primitive=" << basis.canonicalTargetPrimitive;
+					trace << "\nZHANG_R47_WHOLE_PRODUCT_LATTICE time=" << time.to_string(0)
+						<< " observable=" << enum_to_string(basis.observable)
+						<< " named_target_count=" << basis.namedRelations.size()
+						<< " target_independent_rank=" << basis.wholeLattice.targetIndependentRank
+						<< " rowwise_available_rank=" << basis.wholeLattice.directlyAvailableRank
+						<< " whole_available_rank=" << basis.wholeLattice.wholeAvailableRank
+						<< " structural_identity_rank=" << basis.wholeLattice.structuralIdentityRows.size()
+						<< " search_image_primitive=" << basis.wholeLattice.primitiveSearchImage
+						<< " private_shadow_rank=" << basis.privateShadowMappableRank
+						<< " private_publication_gate=" << basis.privatePublicationGate
+						<< " missing_integers_assigned_zero=0";
+					for (std::size_t n = 0; n < basis.namedRelations.size(); ++n)
+						trace << "\nZHANG_R47_NAMED_TARGET time=" << time.to_string(0)
+							<< " observable=" << enum_to_string(basis.observable)
+							<< " satellite=" << basis.namedRelations[n].satellite.id()
+							<< " reference=" << basis.namedRelations[n].referenceSatellite.id()
+							<< " status=" << basis.wholeLattice.namedStatus[n]
+							<< " structural_identity_is_ar_certificate=0";
 					trace << "\nZHANG_PRODUCT_RELATION_AVAILABLE_GRAPH_REBASE time="
 						  << time.to_string(0)
 						  << " runtime_id=" << productLedgerRuntimeId

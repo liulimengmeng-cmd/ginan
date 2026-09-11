@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "common/zhangIntegerAudit.hpp"
+#include "common/zhangWholeProductLattice.hpp"
 
 /** One named satellite-minus-reference product relation, independently
  * expanded from current fundamental cycles to physical ambiguity arcs.
@@ -91,6 +92,12 @@ struct ZhangProductRelationBasis
     bool                                    canonicalTargetPrimitive = false;
     ZhangExactMatrix                        exactRowBasis;
     ZhangExactMatrix                        networkContainmentTransform;
+    // Complete target domain; legacy named-star coordinates below are only a view.
+    ZhangWholeProductLattice                wholeLattice;
+    ZhangExactMatrix                        wholePosteriorRows;
+    std::vector<int>                        wholePosteriorColumns;
+    int                                     privateShadowMappableRank = 0;
+    std::string                             privatePublicationGate;
     Eigen::MatrixXd                         transform;
     ZhangExactVector                        affineOffsets;
     int                                     fullTargetRank = 0;

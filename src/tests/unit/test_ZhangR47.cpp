@@ -98,3 +98,99 @@ BOOST_AUTO_TEST_CASE(r47_a_numeric_integer_coefficients_must_be_exactly_represen
     BOOST_REQUIRE(zhangExactPosteriorRowToDouble({-7,0,9}, numeric));
     BOOST_CHECK_EQUAL(numeric(0), -7);
 }
+
+#include <filesystem>
+#include <fstream>
+#include <boost/property_tree/json_parser.hpp>
+namespace {
+struct R47Fixture {
+    std::vector<std::string> names, columns;
+    ZhangExactMatrix rows;
+};
+R47Fixture r47ReadFixture(const std::string& file, const std::string& key)
+{
+    boost::property_tree::ptree input;
+    boost::property_tree::read_json((std::filesystem::path(__FILE__).parent_path().parent_path()
+        / "fixtures" / "r47" / file).string(), input);
+    R47Fixture f;
+    std::map<std::string,int> columns;
+    std::vector<std::map<std::string,int>> sparse;
+    for (const auto& [name, node] : input.get_child(key))
+    {
+        f.names.push_back(name);
+        std::map<std::string,int> row;
+        for (const auto& entry : node)
+        {
+            auto it = entry.second.begin();
+            const auto receiver = (it++)->second.get_value<std::string>();
+            const auto sat = (it++)->second.get_value<std::string>();
+            const int value = it->second.get_value<int>();
+            const auto arc = receiver+"/"+sat;
+            row[arc] = value;
+            if (!columns.count(arc)) { columns[arc] = f.columns.size(); f.columns.push_back(arc); }
+        }
+        sparse.push_back(row);
+    }
+    for (const auto& sparseRow : sparse)
+    {
+        ZhangExactVector row(columns.size());
+        for (const auto& [arc,value] : sparseRow) row[columns.at(arc)] = value;
+        f.rows.push_back(row);
+    }
+    return f;
+}
+}
+BOOST_AUTO_TEST_CASE(r47_b_actual_2100_whole_lattice_recovers_six_cancelled_directions)
+{
+    const auto f = r47ReadFixture("availability_2100_exact_cancellation.json", "full_targets");
+    std::vector<bool> available(f.columns.size(), true);
+    const auto missing = std::find(f.columns.begin(), f.columns.end(), "KIRI/G27") - f.columns.begin();
+    available.at(missing) = false;
+    const auto domain = zhangCompileWholeProductLattice(f.rows, ZhangExactVector(f.rows.size()), available);
+    BOOST_REQUIRE(domain.valid);
+    BOOST_CHECK_EQUAL(domain.directlyAvailableRank, 16);
+    BOOST_CHECK_EQUAL(domain.wholeAvailableRank, 22);
+    BOOST_CHECK_EQUAL(domain.namedExpressions.size(), 28);
+    BOOST_CHECK(domain.primitiveSearchImage);
+    const auto base = std::find(f.names.begin(), f.names.end(), "G10") - f.names.begin();
+    for (const std::string sat : {"G16","G18","G23","G26","G27","G29"})
+    {
+        const auto n = std::find(f.names.begin(), f.names.end(), sat) - f.names.begin();
+        BOOST_CHECK(!domain.namedRecoverable.at(n));
+        ZhangExactVector difference;
+        for (std::size_t c = 0; c < available.size(); ++c)
+            if (available[c]) difference.push_back(f.rows[n][c]-f.rows[base][c]);
+        BOOST_CHECK_EQUAL(f.rows[n][missing]-f.rows[base][missing], 0);
+        BOOST_CHECK(zhangIntegerRowLatticeContains(domain.searchPosteriorRows, difference).contained);
+    }
+}
+BOOST_AUTO_TEST_CASE(r47_b_actual_2730_catalogue_retains_all_dependent_targets)
+{
+    const auto f = r47ReadFixture("r46_2730_target_catalogue.json", "current_target_rows");
+    const auto domain = zhangCompileWholeProductLattice(f.rows, ZhangExactVector(f.rows.size()),
+        std::vector<bool>(f.columns.size(), true));
+    BOOST_REQUIRE(domain.valid);
+    BOOST_CHECK_EQUAL(domain.targetIndependentRank, 22);
+    BOOST_CHECK_EQUAL(domain.namedExpressions.size(), 28);
+    BOOST_CHECK_EQUAL(domain.structuralIdentityRows.size(), 6);
+    BOOST_CHECK(zhangExactMultiply(domain.namedRecovery, domain.searchPosteriorRows) == f.rows);
+    for (const std::string sat : {"G12","G19","G24","G25","G26","G32"})
+    {
+        const auto n = std::find(f.names.begin(), f.names.end(), sat) - f.names.begin();
+        BOOST_CHECK(domain.namedRecoverable.at(n));
+        BOOST_CHECK_EQUAL(domain.namedStatus.at(n), "REPRESENTABLE_DEPENDENT");
+    }
+}
+BOOST_AUTO_TEST_CASE(r47_b_affine_zero_identities_and_divisibility_are_not_ar_proofs)
+{
+    const auto d = zhangCompileWholeProductLattice({{2,1},{2,1},{0,0}}, {3,7,5}, {true,false});
+    BOOST_REQUIRE(d.valid);
+    BOOST_CHECK_EQUAL(d.wholeAvailableRank, 0);
+    BOOST_CHECK_EQUAL(d.structuralIdentityRows.size(), 2);
+    BOOST_CHECK(d.namedRecoverable[2]);
+    BOOST_CHECK_EQUAL(d.namedRecoveryOffsets[2], 5);
+    auto q = zhangCompileWholeProductLattice({{2,0}}, {3}, {true,true});
+    BOOST_REQUIRE(q.valid);
+    BOOST_CHECK(!q.primitiveSearchImage);
+    BOOST_CHECK_EQUAL(q.searchSmithInvariants.front(), 2);
+}

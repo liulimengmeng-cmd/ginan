@@ -34,3 +34,15 @@ The final experiment must use a freshly started process and unique output
 directory, 180 stations, unchanged observations and risk thresholds, a
 30-minute observation window, `product_relation_feedback: false`, and
 `transactional_integer_fixing: true`. Do not start until all stages pass.
+
+## B: catalogue and available whole lattice
+
+The runtime compiler retains all named expressions, affine structural identities,
+integer recovery maps, and the saturated missing-column cancellation lattice.
+Private trees use the design-approved shadow-only gate until their frontend
+semantics are independently proven. The legacy named-star view remains separate;
+stage E consumes the general search domain and publishes only proved consequences.
+
+Actual design fixtures: 21:00 rowwise rank 16, whole rank 22; 27:30 catalogue
+28, rank 22 with all six dependent identities preserved. Main executable builds;
+411 test cases and 16,675 assertions pass. Structural zeros are not AR proofs.
