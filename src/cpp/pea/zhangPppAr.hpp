@@ -675,7 +675,8 @@ void writeZhangInternalProducts(
     bool           wideLaneBranchValid,
     bool           fixedBranchValid,
     bool           networkIntegerReady,
-    const ZhangProductIntegerConstraintSet* productCertification = nullptr
+    const ZhangProductIntegerConstraintSet* productCertification = nullptr,
+    bool* productTransactionCommitted = nullptr
 );
 
 struct ZhangNamedProductIntegerSupport

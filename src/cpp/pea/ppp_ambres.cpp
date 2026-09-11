@@ -75,6 +75,7 @@
 #include "common/zhangProductPhysicalPullback.hpp"
 #include "common/zhangR47Candidate.hpp"
 #include "common/zhangR47History.hpp"
+#include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 
 
@@ -18666,6 +18667,375 @@ static void observeZhangFixedLagCanonicalProductCertificates(
 	report();
 }
 
+/** R47 official solver. The named catalogue is never an ILS coordinate list.
+ * Both routes start at the same real FLOAT root; only the conditional route
+ * applies the selected history. Search is restricted to the exact product
+ * image quotient, and the writer receives its proved consequences. */
+static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
+    Trace& trace,const KFState& state,const GinAR_mtx& root,
+    const ZhangProductRelationBasis& first,const ZhangProductRelationBasis& second,
+    const GinAR_opt& options,GTime time,const GinAR_mtx* currentCoordinates,
+    const ZhangProductLedgerPresearchSelection* history,
+    const ZhangGaugeLedgerPresearchAudit* gauge,
+    const std::vector<ZhangCertificateFamilyRisk>* receipts,const std::string& runtimeId)
+{
+    ZhangProductRelationFixResult result; result.r47ControlledSearch=true;
+    const int dimension=root.aflt.size(), named=first.namedRelations.size();
+    auto fail=[&](const std::string& reason) {result.status=result.failureReason=reason;return result;};
+    if(!first.valid || !second.valid || !first.wholeLattice.valid || !second.wholeLattice.valid ||
+       !zhangProductRelationSemanticOrderingMatches(first.namedRelations,second.namedRelations) ||
+       !root.decisionProofs.empty() || dimension<=0 || named<=0)
+        return fail("R47_COMPLETE_CATALOGUE_OR_UNCONDITIONED_ROOT_INVALID");
+    const double ceiling=std::min(1e-3,1-options.sucthr);
+    const double nisAlpha=options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6;
+    ZhangExactMatrix targets=first.wholePosteriorRows;
+    targets.insert(targets.end(),second.wholePosteriorRows.begin(),second.wholePosteriorRows.end());
+    if(targets.empty()) return fail("R47_NO_AVAILABLE_WHOLE_PRODUCT_LATTICE");
+    auto numeric=[&](const ZhangExactMatrix& rows,int columns)
+    { MatrixXd m(rows.size(),columns); for(int r=0;r<m.rows();++r) m.row(r)=zhangExactRowToDouble(rows[r]).transpose(); return m; };
+    ZhangExactMatrix held; ZhangExactVector heldValues; std::vector<ZhangDecisionProofs> heldParents;
+    auto addHeld=[&](const ZhangExactMatrix& rows,const ZhangExactVector& values,const ZhangDecisionProofs& parents)
+    {
+        if(rows.size()!=values.size() || !zhangExactRectangularMatrix(rows,dimension)) return false;
+        if(parents.empty() || !zhangDecisionRiskClosure(parents).valid) return rows.empty();
+        held.insert(held.end(),rows.begin(),rows.end());heldValues.insert(heldValues.end(),values.begin(),values.end());
+        for(const auto& row:rows) heldParents.push_back(parents);return true;
+    };
+    ZhangDecisionProofs networkParents;
+    if(receipts) for(const auto& receipt:*receipts)
+        networkParents=zhangMergeDecisionProofs(networkParents,receipt.decisionProofs);
+    if(currentCoordinates && currentCoordinates->Ztrs.rows())
+    {
+        ZhangExactMatrix rows;ZhangExactVector values;
+        if(!zhangExactRowsFromNumeric(currentCoordinates->Ztrs,currentCoordinates->zfix,rows,values) ||
+           !addHeld(rows,values,networkParents)) return fail("R47_CURRENT_CONDITIONER_RECEIPT_INVALID");
+    }
+    if(history && history->valid && !addHeld(history->networkRows,history->networkValues,history->decisionProofs))
+        return fail("R47_HISTORY_RECEIPT_INVALID");
+    if(gauge && gauge->currentReauthorized)
+    {
+        const int rank=first.mappableTargetRank;
+        MatrixXd dual(2*rank,dimension);dual.topRows(rank)=first.transform-second.transform;dual.bottomRows(rank)=first.transform;
+        ZhangExactMatrix transform;ZhangExactVector ignored;
+        ZhangExactVector offsets(2*rank);
+        for(int c=0;c<rank;++c) {offsets[c]=first.affineOffsets[c]-second.affineOffsets[c];offsets[rank+c]=first.affineOffsets[c];}
+        auto values=gauge->productDualValues;
+        const auto shifts=zhangExactMatrixTimesColumn(gauge->productDualRows,offsets);
+        if(shifts.size()!=values.size()) return fail("R47_GAUGE_AFFINE_DIMENSION_MISMATCH");
+        for(int r=0;r<values.size();++r) values[r]-=shifts[r];
+        if(!zhangExactRowsFromNumeric(dual,VectorXd::Zero(2*rank),transform,ignored) ||
+           !addHeld(zhangExactMultiply(gauge->productDualRows,transform),values,gauge->selectedDecisionProofs))
+            return fail("R47_GAUGE_CONDITIONER_RECEIPT_INVALID");
+    }
+    const MatrixXd t=numeric(targets,dimension),h=numeric(held,dimension);
+    const MatrixXd hq=h*root.Paflt, cross=hq*t.transpose();
+    std::vector<double> gains(held.size());
+    for(int r=0;r<h.rows();++r) {const double v=hq.row(r).dot(h.row(r));gains[r]=v>1e-14?cross.row(r).squaredNorm()/v:0;}
+    auto subset=zhangR47SelectHistorySubset(held,heldValues,heldParents,{},gains,dimension,ceiling,ceiling/4);
+    if(!subset.valid) return fail("R47_HISTORY_BUDGET_SELECTION_INVALID");
+    // One joint NIS gate before either a covariance update or a child decision.
+    if(!subset.rows.empty())
+    {
+        const auto rows=numeric(subset.rows,dimension);
+        const auto nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(subset.values)-rows*root.aflt,
+            rows*root.Paflt*rows.transpose(),nisAlpha);
+        if(!nis.valid || nis.nis>nis.threshold)
+        {
+            trace << "\nZHANG_R47_HISTORY_JOINT_NIS time="<<time.to_string(0)<<" admitted=0 reason=WHOLE_SUBSET_NIS_REJECTED";
+            subset.rows.clear();subset.values.clear();subset.parents.clear();subset.risk=0;
+        }
+    }
+    struct Route
+    {
+        bool valid=false,conditional=false;
+        ZhangExactMatrix held,newRows,jointRows,projector;
+        ZhangExactVector heldValues,newValues,jointValues,offsets;
+        ZhangDecisionProofs parents;
+        ZhangR47ProductSearchFrame finalFrame;
+        ZhangSequentialShadowResult search;
+        int pairCount=0;
+    };
+    const bool conditionedRoute=!subset.rows.empty();
+    const double familyBudget=std::max(0.0,ceiling-subset.risk);
+    const double perRoute=familyBudget/(conditionedRoute?2:1);
+    auto runRoute=[&](bool conditional)
+    {
+        Route out;out.conditional=conditional;
+        if(conditional) {out.held=subset.rows;out.heldValues=subset.values;out.parents=subset.parents;}
+        const auto frame=zhangR47CompileProductSearchFrame(targets,out.held,out.heldValues,dimension);
+        if(!frame.valid) return out;
+        VectorXd mean=root.aflt;MatrixXd covariance=root.Paflt;
+        if(!out.held.empty())
+        {
+            const auto c=zhangConditionPosteriorEffectiveIntegers(mean,covariance,
+                numeric(out.held,dimension),zhangExactRowToDouble(out.heldValues));
+            if(!c.valid) return out;mean=c.mean;covariance=c.covariance;
+        }
+        out.projector=frame.projector;out.offsets=frame.offsets;
+        if(frame.searchRank && perRoute>0)
+        {
+            auto w=numeric(out.projector,dimension);
+            VectorXd searchMean=w*mean+zhangExactRowToDouble(out.offsets);
+            MatrixXd searchCov=w*covariance*w.transpose();
+            GinAR_mtx reduction;reduction.aflt=searchMean;reduction.Paflt=searchCov;
+            ZhangExactMatrix decorrelation;ZhangExactVector ignored;
+            if(Ztrans_reduction(trace,reduction)<0 || reduction.Ztrs.rows()!=frame.searchRank ||
+               !zhangExactRowsFromNumeric(reduction.Ztrs,VectorXd::Zero(frame.searchRank),decorrelation,ignored) ||
+               !zhangExactPrimitiveRowLattice(decorrelation,frame.searchRank)) return out;
+            searchMean=(reduction.Ztrs*searchMean).eval();
+            searchCov=(reduction.Ztrs*searchCov*reduction.Ztrs.transpose()).eval();
+            out.projector=zhangExactMultiply(decorrelation,out.projector);
+            out.offsets=zhangExactMatrixTimesColumn(decorrelation,out.offsets);
+            out.search=zhangSequentialQuotientShadow(searchMean,searchCov,{}, {},perRoute,nisAlpha,
+                [&](const VectorXd& mu,const MatrixXd& q,double allocation,bool merged)
+                {
+                    GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
+                    auto opt=options;opt.sucthr=std::max(options.sucthr,1-allocation);
+                    opt.min_lambda_fix_count=merged?mu.size():1;
+                    const int fixed=rankAwareGnssAr(trace,trial,opt,time,
+                        merged?"R47_OFFICIAL_OVERLAP_MERGE":"R47_OFFICIAL_QUOTIENT_BLOCK",true);
+                    ZhangSequentialShadowProposal p;
+                    p.failureProbability=trial.lambda_selected_bootstrap_success>0 && trial.lambda_selected_bootstrap_success<=1
+                        ?1-trial.lambda_selected_bootstrap_success:1;
+                    p.valid=fixed>0 && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);
+                    return p;
+                },[&](const std::string& event)
+                {trace<<"\nZHANG_R47_OFFICIAL_QUOTIENT_STEP time="<<time.to_string(0)
+                    <<" route="<<(conditional?"HISTORY_CONDITIONED":"FLOAT_RECERTIFICATION")<<" "<<event;},4,8,8);
+            out.newRows=zhangExactMultiply(out.search.rows,out.projector);
+            out.newValues=out.search.values;
+            const auto offsets=zhangExactMatrixTimesColumn(out.search.rows,out.offsets);
+            for(std::size_t r=0;r<out.newValues.size();++r) out.newValues[r]-=offsets[r];
+        }
+        out.jointRows=out.held;out.jointValues=out.heldValues;
+        out.jointRows.insert(out.jointRows.end(),out.newRows.begin(),out.newRows.end());
+        out.jointValues.insert(out.jointValues.end(),out.newValues.begin(),out.newValues.end());
+        out.finalFrame=zhangR47CompileProductSearchFrame(targets,out.jointRows,out.jointValues,dimension);
+        out.valid=out.finalFrame.valid;
+        trace<<"\nZHANG_R47_SEARCH_ROUTE time="<<time.to_string(0)
+            <<" route="<<(conditional?"HISTORY_CONDITIONED":"FLOAT_RECERTIFICATION")
+            <<" source_integer_parent_count=0 historical_conditioner_rank="<<out.held.size()
+            <<" product_search_rank="<<frame.searchRank<<" new_fixed_rank="<<out.newRows.size()
+            <<" remaining_product_rank="<<out.finalFrame.searchRank<<" attempts="<<out.search.attempts
+            <<" family_spent="<<out.search.reservedRisk<<" valid="<<out.valid;
+        return out;
+    };
+    // FLOAT route does not receive the conditional mean, covariance or parents.
+    auto fresh=runRoute(false);
+    Route conditional;if(conditionedRoute) conditional=runRoute(true);
+    const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
+    // Compile only restricted, available functionals of the full catalogue.
+    // Individual missing targets never receive fabricated FLOAT values.
+    ZhangExactMatrix availableNamed(2*named,ZhangExactVector(dimension));
+    std::vector<std::vector<ZhangExactInteger>> missingNamed(2*named);
+    ZhangExactVector namedOffsets(2*named);
+    std::map<std::pair<int,int>,int> missingColumn;
+    for(int signal=0;signal<2;++signal)
+    {
+        const auto& basis=signal==0?first:second;
+        int compact=0;
+        for(int c=0;c<basis.currentChords.size();++c)
+        {
+            if(!basis.wholeLattice.availableColumns[c]) {missingColumn[{signal,c}]=missingColumn.size();continue;}
+            const int posterior=basis.wholePosteriorColumns.at(compact++);
+            for(int n=0;n<named;++n) availableNamed[signal*named+n][posterior]=basis.wholeLattice.namedExpressions[n][c];
+        }
+        for(int n=0;n<named;++n) namedOffsets[signal*named+n]=basis.wholeLattice.namedOffsets[n];
+    }
+    for(auto& row:missingNamed) row.resize(missingColumn.size());
+    for(const auto& [key,column]:missingColumn)
+    {
+        const auto& basis=key.first==0?first:second;
+        for(int n=0;n<named;++n) missingNamed[key.first*named+n][column]=basis.wholeLattice.namedExpressions[n][key.second];
+    }
+    auto mapNamed=[&](const ZhangExactVector& row,ZhangExactVector& network,ZhangExactInteger& offset)
+    {
+        if(row.size()!=2*named) return false;
+        for(int c=0;c<missingColumn.size();++c)
+        { ZhangExactInteger sum=0;for(int n=0;n<2*named;++n) sum+=row[n]*missingNamed[n][c];if(sum!=0) return false; }
+        network=ZhangExactVector(dimension);offset=0;
+        for(int n=0;n<2*named;++n) if(row[n]!=0)
+        {for(int c=0;c<dimension;++c) network[c]+=row[n]*availableNamed[n][c];offset+=row[n]*namedOffsets[n];}
+        return true;
+    };
+    struct Pair {int first,second;ZhangExactInteger wl,l1;};
+    auto pairsFor=[&](Route& route)
+    {
+        std::vector<Pair> pairs;if(!route.valid) return pairs;
+        for(int a=0;a<=named;++a) for(int b=a+1;b<=named;++b)
+        {
+            ZhangExactVector wl(2*named),l1(2*named);
+            if(a<named) {wl[a]=1;wl[named+a]=-1;l1[a]=1;}
+            if(b<named) {wl[b]=-1;wl[named+b]=1;l1[b]=-1;}
+            ZhangExactVector w,l;ZhangExactInteger wo,lo,wv,lv;
+            if(!mapNamed(wl,w,wo)||!mapNamed(l1,l,lo) ||
+               std::all_of(w.begin(),w.end(),[](const auto& v){return v==0;}) ||
+               std::all_of(l.begin(),l.end(),[](const auto& v){return v==0;}) ||
+               !zhangR47ProductConsequence(route.finalFrame,w,wo,wv) ||
+               !zhangR47ProductConsequence(route.finalFrame,l,lo,lv)) continue;
+            pairs.push_back({a,b,wv,lv});
+        }
+        route.pairCount=pairs.size();return pairs;
+    };
+    auto freshPairs=pairsFor(fresh),historyPairs=pairsFor(conditional);
+    const bool selectHistory=conditional.valid && (!fresh.valid || conditional.pairCount>fresh.pairCount ||
+        (conditional.pairCount==fresh.pairCount && conditional.finalFrame.searchRank<fresh.finalFrame.searchRank));
+    Route& selected=selectHistory?conditional:fresh;
+    const auto& pairs=selectHistory?historyPairs:freshPairs;
+    if(!selected.valid) return fail("R47_BOTH_CONTROLLED_ROUTES_INVALID");
+    auto firstView=first,secondView=second;
+    for(auto* view:{&firstView,&secondView})
+    {view->mappableTargetRank=named;view->mappableNamedIndices.resize(named);std::iota(view->mappableNamedIndices.begin(),view->mappableNamedIndices.end(),0);view->affineOffsets.resize(named);}
+    firstView.transform=numeric(ZhangExactMatrix(availableNamed.begin(),availableNamed.begin()+named),dimension);
+    secondView.transform=numeric(ZhangExactMatrix(availableNamed.begin()+named,availableNamed.end()),dimension);
+    firstView.affineOffsets=ZhangExactVector(namedOffsets.begin(),namedOffsets.begin()+named);
+    secondView.affineOffsets=ZhangExactVector(namedOffsets.begin()+named,namedOffsets.end());
+    ZhangExactMatrix wlRows,l1Rows;ZhangExactVector wlValues,l1Values;
+    std::vector<int> parent(named+1);std::iota(parent.begin(),parent.end(),0);
+    auto find=[&](int node){while(parent[node]!=node) node=parent[node];return node;};
+    for(const auto& pair:pairs)
+    {
+        const int a=find(pair.first),b=find(pair.second);if(a==b) continue;parent[a]=b;
+        ZhangExactVector row(named);if(pair.first<named) row[pair.first]=1;if(pair.second<named) row[pair.second]=-1;
+        wlRows.push_back(row);l1Rows.push_back(row);wlValues.push_back(pair.wl);l1Values.push_back(pair.l1);
+    }
+    const auto joint=numeric(selected.jointRows,dimension);
+    const auto nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(selected.jointValues)-joint*root.aflt,
+        joint*root.Paflt*joint.transpose(),nisAlpha);
+    if(!selected.jointRows.empty() && (!nis.valid || nis.nis>nis.threshold)) return fail("R47_FINAL_JOINT_NIS_REJECTED");
+    const double selectedRisk=zhangDecisionRiskClosure(selected.parents).bound+(selected.newRows.empty()?0:spent);
+    auto constraints=zhangBuildProductConstraintSet(firstView,secondView,wlRows,wlValues,l1Rows,l1Values,
+        nis.nis,nis.threshold,selectedRisk,0);
+    // Preserve general mixed product consequences separately from graph pairs.
+    ZhangExactMatrix targetKernelColumns(selected.finalFrame.affine.quotientRank,ZhangExactVector(targets.size()));
+    for(int r=0;r<targets.size();++r) for(int k=0;k<selected.finalFrame.affine.quotientRank;++k)
+        for(int c=0;c<selected.finalFrame.columns.size();++c)
+            targetKernelColumns[k][r]+=targets[r][selected.finalFrame.columns[c]]*selected.finalFrame.affine.kernelBasis[k][c];
+    const auto consequences=zhangExactIntegerKernel(targetKernelColumns,targets.size());
+    ZhangExactMatrix namedSearch(targets.size(),ZhangExactVector(2*named));
+    for(int r=0;r<first.wholeLattice.searchNamedRows.size();++r) for(int n=0;n<named;++n)
+        namedSearch[r][n]=first.wholeLattice.searchNamedRows[r][n];
+    for(int r=0;r<second.wholeLattice.searchNamedRows.size();++r) for(int n=0;n<named;++n)
+        namedSearch[first.wholeLattice.searchNamedRows.size()+r][named+n]=second.wholeLattice.searchNamedRows[r][n];
+    const auto namedConsequences=zhangExactMultiply(consequences,namedSearch);
+    for(const auto& namedRow:namedConsequences)
+    {
+        if(zhangIntegerRowLatticeContains(constraints.jointProductRows,namedRow).contained) continue;
+        ZhangExactVector row;ZhangExactInteger offset,value;
+        if(!mapNamed(namedRow,row,offset) || std::all_of(row.begin(),row.end(),[](const auto& v){return v==0;}) ||
+           !zhangR47ProductConsequence(selected.finalFrame,row,offset,value)) continue;
+        constraints.jointProductRows.push_back(namedRow);constraints.networkRows.push_back(row);
+        constraints.networkIntegers.push_back(value-offset);
+        constraints.conditioningOnlyRows.push_back(namedRow);constraints.conditioningOnlyIntegers.push_back(value);
+    }
+    // A structural zero alone never authorizes a broadcast edge.
+    auto nonzeroPair=[&](const ZhangCertifiedPairRelation& pair)
+    {
+        ZhangExactVector q(2*named);if(pair.firstNode<named) q[pair.firstNode]=1;if(pair.secondNode<named) q[pair.secondNode]-=1;
+        if(pair.coordinate=="WL") for(int c=0;c<named;++c) q[named+c]=-q[c];
+        ZhangExactVector row;ZhangExactInteger offset;
+        return mapNamed(q,row,offset) && std::any_of(row.begin(),row.end(),[](const auto& v){return v!=0;});
+    };
+    std::erase_if(constraints.certifiedPairs,[&](const auto& pair){return !nonzeroPair(pair);});
+    std::erase_if(constraints.dualFrequencyCertifiedPairs,[&](const auto& pair){return !nonzeroPair(pair);});
+    // The partial named chart is not advertised as a complete FLOAT map. All
+    // delivered functionals were checked above against its missing columns.
+    if(!missingColumn.empty()) {constraints.fullJointProductNetworkRows.clear();constraints.fullJointProductMappingExact=false;}
+    constraints.decisionProofs=selected.parents;
+    double charged=0;
+    for(std::size_t round=0;round<selected.search.acceptedRoundRows.size();++round)
+    {
+        const auto rows=zhangExactMultiply(selected.search.acceptedRoundRows[round],selected.projector);
+        auto values=selected.search.acceptedRoundValues[round];
+        const auto shifts=zhangExactMatrixTimesColumn(selected.search.acceptedRoundRows[round],selected.offsets);
+        for(int r=0;r<values.size();++r) values[r]-=shifts[r];
+        const double bound=selected.search.acceptedRoundRisk[round];charged+=bound;
+        const auto proof=zhangMakeNetworkDecisionProof(state,time,"R47_ACCEPTED_ROUND_"+std::to_string(round),root,
+            numeric(rows,dimension),zhangExactRowToDouble(values),1-bound,constraints.decisionProofs);
+        if(!proof) return fail("R47_ACCEPTED_ROUND_PROOF_FAILED");constraints.decisionProofs={proof};
+    }
+    if(!selected.newRows.empty())
+    {
+        const double selectionBound=std::max(0.0,spent-charged);
+        const auto proof=zhangMakeNetworkDecisionProof(state,time,selectHistory?"R47_CONTROLLED_HISTORY_FAMILY":"R47_FLOAT_RECERTIFICATION_FAMILY",root,
+            numeric(selected.newRows,dimension),zhangExactRowToDouble(selected.newValues),1-selectionBound,constraints.decisionProofs);
+        if(!proof) return fail("R47_FAMILY_PROOF_FAILED");constraints.decisionProofs={proof};
+    }
+    const auto risk=zhangDecisionRiskClosure(constraints.decisionProofs);
+    constraints.failureProbability=risk.bound;
+    constraints.conditioningRank=zhangExactRowHermiteNormalForm(constraints.networkRows).basis.size();
+    constraints.reliable=!constraints.networkRows.empty() && !constraints.decisionProofs.empty() && risk.valid &&
+        risk.bound<=ceiling && nis.valid && nis.nis<=nis.threshold;
+    constraints.failureReason=constraints.reliable?"NONE":"R47_NO_AUTHORIZED_PRODUCT_CONSEQUENCE";
+    result.constraints=std::move(constraints);
+    result.r47AdmittedRows=selected.held;result.r47AdmittedValues=selected.heldValues;
+    result.r47NewRows=selected.newRows;result.r47NewValues=selected.newValues;
+    result.basisValid=result.mappingValid=result.namedOrderingValid=true;
+    result.fullTargetRank=first.wholeLattice.targetIndependentRank;
+    result.mappableTargetRank=first.wholeLattice.wholeAvailableRank;
+    result.wideLaneFixedRank=wlRows.size();result.firstSignalFixedRank=l1Rows.size();
+    result.certifiedJointIntegerRank=zhangExactRowHermiteNormalForm(selected.jointRows).basis.size();
+    result.wideLaneReliable=result.firstSignalReliable=result.constraints.reliable;
+    result.jointNis=nis.nis;result.jointNisThreshold=nis.threshold;
+    result.certifiedForProduct=result.constraints.reliable && result.constraints.certifiedPairRank>0;
+    result.status=result.constraints.reliable?"R47_OFFICIAL_PRODUCT_QUOTIENT_ACCEPTED":"R47_NO_AUTHORIZED_PRODUCT_CONSEQUENCE";
+    result.failureReason=result.constraints.failureReason;
+    int oldEligible=0,oldRetained=0;
+    const auto previous=zhangProductIntegerLedgerRegistry().find({runtimeId,first.system});
+    if(previous!=zhangProductIntegerLedgerRegistry().end())
+    {
+        ZhangProductPhysicalCycleChart chart;
+        const bool chartValid=zhangBuildProductPhysicalCycleChart(state,root.ambmap,first.system,chart);
+        std::map<std::string,int> nodes;
+        for(int n=0;n<named;++n) nodes[first.namedRelations[n].satellite.id()]=n;
+        nodes[first.referenceSatellite.id()]=named;
+        for(const auto& old:previous->second.rows())
+        {
+            if(!old.certified || !old.pairCertificate || (old.coordinate!="WL" && old.coordinate!="L1")) continue;
+            std::string reason="NOT_IN_CURRENT_NAMED_CATALOGUE";
+            bool eligible=false,retained=false;
+            if(nodes.contains(old.firstSatellite) && nodes.contains(old.secondSatellite))
+            {
+                ZhangExactVector q(2*named);const int a=nodes.at(old.firstSatellite),b=nodes.at(old.secondSatellite);
+                if(a<named) q[a]=1;if(b<named) q[b]-=1;
+                if(old.coordinate=="WL") for(int c=0;c<named;++c) q[named+c]=-q[c];
+                ZhangExactVector current;ZhangExactInteger offset,value;
+                std::map<std::string,ZhangExactInteger> physical;
+                const auto phase=zhangProductCanonicalRowSegmentFingerprint(old.system,old.canonicalProductExpansion);
+                reason=phase==old.phaseSegmentFingerprint?"MISSING_CURRENT_PRODUCT_REPRESENTATION":"PHASE_SEGMENT_CHANGED";
+                if(!phase.empty() && phase==old.phaseSegmentFingerprint && mapNamed(q,current,offset) &&
+                   chartValid && chart.expand(current,physical))
+                {
+                    eligible=physical==old.physicalExpansion;
+                    reason=eligible?"NOT_IN_FINAL_PRODUCT_CONSEQUENCE":"PHYSICAL_TARGET_CHANGED";
+                    if(eligible && zhangR47ProductConsequence(selected.finalFrame,current,offset,value))
+                    {
+                        retained=value-offset==old.integerValue;
+                        reason=retained?"RETAINED_BY_EXACT_CONSEQUENCE":"AFFINE_INTEGER_CHANGED";
+                    }
+                }
+            }
+            oldEligible+=eligible;oldRetained+=retained;
+            trace<<"\nZHANG_R47_OLD_PAIR time="<<time.to_string(0)<<" coordinate="<<old.coordinate
+                <<" first="<<old.firstSatellite<<" second="<<old.secondSatellite
+                <<" physically_eligible="<<eligible<<" candidate_retained="<<retained
+                <<" previous_physical_rhs="<<old.integerValue<<" reason="<<reason<<" writer_publication=PENDING";
+        }
+    }
+    trace<<"\nZHANG_R47_LAYERED_METRICS time="<<time.to_string(0)
+        <<" target_independent_rank="<<first.wholeLattice.targetIndependentRank
+        <<" whole_available_rank="<<first.wholeLattice.wholeAvailableRank
+        <<" history_transported_rank="<<zhangExactRowHermiteNormalForm(held).basis.size()<<" state_conditioned_rank="<<selected.held.size()
+        <<" new_fixed_rank="<<selected.newRows.size()<<" product_consequence_rank="<<result.constraints.conditioningRank
+        <<" candidate_dual_graph_rank="<<result.constraints.certifiedPairRank<<" writer_publication=PENDING"
+        <<" selected_route="<<(selectHistory?"HISTORY_CONDITIONED":"FLOAT_RECERTIFICATION")
+        <<" old_pair_rows_physically_eligible="<<oldEligible<<" old_pair_rows_retained="<<oldRetained
+        <<" historical_parents="<<selected.parents.size()<<" certificate_risk="<<risk.bound
+        <<" candidate_family_spent="<<spent<<" family_budget="<<familyBudget
+        <<" authoritative_float_unchanged=1 structural_zero_is_ar_certificate=0";
+    return result;
+}
+
 static ZhangProductRelationFixResult solveZhangProductRelations(
 	Trace& trace,
 	const KFState& state,
@@ -18686,6 +19056,9 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 	const std::vector<ZhangCertificateFamilyRisk>*
 		currentNetworkRiskReceipts = nullptr)
 {
+	if(acsConfig.zhangPppAr.product_joint_dual_frequency_ils && currentFloatAmbiguities)
+		return zhangR47SolveWholeProducts(trace,state,*currentFloatAmbiguities,firstBasis,secondBasis,
+			options,time,currentCertifiedCoordinates,ledgerPresearchSelection,gaugePresearchAudit,currentNetworkRiskReceipts,productGaugeRuntimeId);
 	ZhangPhaseTimer phaseTimer(trace, "PRODUCT_RELATION_CLOSURE");
 	ZhangProductRelationFixResult result;
 	result.basisValid = firstBasis.valid && secondBasis.valid;
@@ -25253,7 +25626,7 @@ static int resolveLayeredWideLaneL1(
 			acsConfig.zhangPppAr.fixed_lag_product_relation_completion
 				? queryZhangPersistentProductSnapshotCount(captureOwner) : 0;
 		const bool hasFixedLagProductWork = fixedLagProductSnapshots > 0;
-		const bool runProductClosure = zhangShouldRunProductClosure(
+		const bool runProductClosure = acsConfig.zhangPppAr.product_joint_dual_frequency_ils || zhangShouldRunProductClosure(
 			hasNewNetworkWl,
 			hasHeldNetworkIntegers,
 			activeProductLedgerRank > 0,
@@ -26348,7 +26721,7 @@ static int resolveLayeredWideLaneL1(
 				std::map<int,KFKey> keys=productSearchAmbiguities.ambmap;
 				std::map<KFKey,int> columnByKey;
 				for (const auto& [c,key]:keys) columnByKey[key]=c;
-				if (appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts)
+				if (!relationFix.r47ControlledSearch && appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts)
 				for (const auto& [c,key]:receipt.ambmap)
 					if (key.Sat.sys==system && c<receipt.Ztrs.cols() && !receipt.Ztrs.col(c).isZero() && !columnByKey.contains(key))
 					{ const int next=keys.size(); columnByKey[key]=next; keys[next]=key; }
@@ -26375,8 +26748,8 @@ static int resolveLayeredWideLaneL1(
 					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,receipt.decisionProofs);
 					return true;
 				};
-				if (appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts) valid &= appendReceipt(receipt);
-				if (currentCertifiedValid) valid &= appendReceipt(currentCertifiedRows);
+				if (!relationFix.r47ControlledSearch && appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts) valid &= appendReceipt(receipt);
+				if (!relationFix.r47ControlledSearch && currentCertifiedValid) valid &= appendReceipt(currentCertifiedRows);
 				auto appendNetwork=[&](const ZhangExactMatrix& rows,const ZhangExactVector& values)
 				{
 					if(rows.size()!=values.size()) return false;
@@ -26388,12 +26761,12 @@ static int resolveLayeredWideLaneL1(
 					candidate.admittedStateValues.insert(candidate.admittedStateValues.end(),values.begin(),values.end());
 					return true;
 				};
-				if (productLedgerPresearchSelection.valid)
+				if (!relationFix.r47ControlledSearch && productLedgerPresearchSelection.valid)
 				{
 					valid &= appendNetwork(productLedgerPresearchSelection.networkRows,productLedgerPresearchSelection.networkValues);
 					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,productLedgerPresearchSelection.decisionProofs);
 				}
-				if (gaugePresearchAudit.currentReauthorized)
+				if (!relationFix.r47ControlledSearch && gaugePresearchAudit.currentReauthorized)
 				{
 					ZhangExactMatrix transform; ZhangExactVector ignored;
 					const int rank=relationBasis.mappableTargetRank;
@@ -26404,8 +26777,18 @@ static int resolveLayeredWideLaneL1(
 					if(valid) valid &= appendNetwork(zhangExactMultiply(gaugePresearchAudit.productDualRows,transform),gaugePresearchAudit.productDualValues);
 					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,gaugePresearchAudit.selectedDecisionProofs);
 				}
-				candidate.newIntegerConstraints=relationFix.constraints.networkRows;
-				candidate.newIntegerValues=relationFix.constraints.networkIntegers;
+				if(relationFix.r47ControlledSearch)
+				{
+					candidate.admittedStateConditioners=relationFix.r47AdmittedRows;
+					candidate.admittedStateValues=relationFix.r47AdmittedValues;
+					candidate.newIntegerConstraints=relationFix.r47NewRows;
+					candidate.newIntegerValues=relationFix.r47NewValues;
+				}
+				else
+				{
+					candidate.newIntegerConstraints=relationFix.constraints.networkRows;
+					candidate.newIntegerValues=relationFix.constraints.networkIntegers;
+				}
 				for(auto& row:candidate.newIntegerConstraints) row.resize(keys.size());
 				auto rows=candidate.admittedStateConditioners;
 				auto values=candidate.admittedStateValues;
@@ -29978,6 +30361,11 @@ void fixAndHoldAmbiguities(
     bool networkIntegerReady = false;
     KFState wideLaneState;
     bool wideLaneStateValid = false;
+    // Include presearch maturation and writer updates in the same product
+    // transaction. A rejected candidate cannot leave a mutated gauge ledger.
+    const auto r47IntegerLedgerBefore=zhangProductIntegerLedgerRegistry();
+    const auto r47GaugeLedgerBefore=zhangProductGaugeCertificateLedgerRegistry();
+    bool r47ProductTransactionCommitted=false;
 	KFState productFixedState;
 	bool productFixedStateValid = false;
 	ZhangProductRelationFixResult productRelationFix;
@@ -30447,8 +30835,16 @@ void fixAndHoldAmbiguities(
         productFixedStateValid
 			? productRelationFix.constraints.certifiedPairRank > 0
 			: networkIntegerReady,
-		productFixedStateValid ? &productRelationFix.constraints : nullptr
+		productFixedStateValid ? &productRelationFix.constraints : nullptr,
+        &r47ProductTransactionCommitted
     );
+    if(!r47ProductTransactionCommitted)
+    {
+        zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
+        zhangProductGaugeCertificateLedgerRegistry()=r47GaugeLedgerBefore;
+        trace<<"\nZHANG_R47_LEDGER_TRANSACTION time="<<kfState.time.to_string(0)
+            <<" action=ROLLBACK_TO_PRESEARCH_ROOT integer_ledger_restored=1 gauge_ledger_restored=1";
+    }
 	if (acsConfig.zhangPppAr.temporal_product_transition_shadow)
 	{
 		auto sameEpochTransitions = activateZhangTemporalProductTransitions(

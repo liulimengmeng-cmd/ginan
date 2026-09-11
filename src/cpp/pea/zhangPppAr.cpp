@@ -2356,7 +2356,8 @@ void appendProductCovariance(
     const KFState& state,
     const string&  solution,
     const KFState& graphState,
-	vector<ZhangInternalProduct>& epochProducts
+	vector<ZhangInternalProduct>& epochProducts,
+    std::string* deferredOutput = nullptr
 )
 {
     const string& filename =
@@ -2743,11 +2744,14 @@ void appendProductCovariance(
 		}
 	}
 
-    if (!ensureProductCovarianceFileHeader())
+    if (!deferredOutput && !ensureProductCovarianceFileHeader())
 	{
 		return;
 	}
-    std::ofstream output(filename, std::ios::app);
+    std::ostringstream staged;
+    std::ofstream file;
+    if(!deferredOutput) file.open(filename,std::ios::app);
+    std::ostream& output=deferredOutput ? static_cast<std::ostream&>(staged) : static_cast<std::ostream&>(file);
     output << std::setprecision(17);
     for (int row = 0; row < dimension; row++)
     {
@@ -2767,6 +2771,8 @@ void appendProductCovariance(
                 << covariance(row, column) << "\n";
         }
     }
+    if(deferredOutput) *deferredOutput += staged.str();
+
 }
 
 vector<string> splitCsv(const string& line)
@@ -9320,9 +9326,11 @@ void writeZhangInternalProducts(
     bool           wideLaneBranchValid,
     bool           fixedBranchValid,
     bool           networkIntegerReady,
-    const ZhangProductIntegerConstraintSet* productCertification
+    const ZhangProductIntegerConstraintSet* productCertification,
+    bool* productTransactionCommitted
 )
 {
+    if(productTransactionCommitted) *productTransactionCommitted=false;
     if (!acsConfig.zhangPppAr.output_products)
     {
         return;
@@ -10706,6 +10714,7 @@ void writeZhangInternalProducts(
 	// covariance, including clock-phase, cross-signal and cross-satellite
 	// blocks, and are then consumed by both the product CSV and the user noise
 	// adapter.
+    std::string r47DeferredProductCovariance;
     appendProductCovariance(
 		floatState, "FLOAT", fixedState, epochProducts);
     if (wideLaneState && wideLaneBranchValid)
@@ -10722,7 +10731,7 @@ void writeZhangInternalProducts(
 				"NETWORK_FIXED_DIAGNOSTIC", fixedState, epochProducts);
 		}
 		appendProductCovariance(*productFixedState,
-			"PRODUCT_FIXED", fixedState, epochProducts);
+			"PRODUCT_FIXED", fixedState, epochProducts,&r47DeferredProductCovariance);
 	}
 	else if (networkFixedDiagnosticState)
 	{
@@ -10735,6 +10744,7 @@ void writeZhangInternalProducts(
 	int productLedgerWriterConflictingRows = 0;
 	E_Sys productLedgerWriterSystem = E_Sys::NONE;
 	bool productLedgerWriterTransactionValid = true;
+	bool r47EvidenceCommitted=false;
 
 	// Product-fixed admission is derived from the exact dual-frequency product
 	// certificate graph and the actual full-state covariance update.  Network
@@ -10823,18 +10833,17 @@ void writeZhangInternalProducts(
 			effect.productTrace =
 				(projector * productCovariance * projector).trace();
 			effect.noncommonMeanUpdateNorm =
-				(projector * (productMean - wlMean)).norm();
-			if (std::isfinite(effect.wlTrace) && effect.wlTrace > 0)
-				effect.gain = 1 - effect.productTrace / effect.wlTrace;
+				(projector * (productMean - floatMean)).norm();
+			if (std::isfinite(effect.floatTrace) && effect.floatTrace > 0)
+				effect.gain = 1 - effect.productTrace / effect.floatTrace;
 			const double covarianceTolerance = 1e-10 *
-				std::max(1.0, std::abs(effect.wlTrace));
+				std::max(1.0, std::abs(effect.floatTrace));
 			effect.valid = productCertification->reliable &&
 				productCertification->exactNetworkMapping &&
 				std::isfinite(effect.productTrace) && effect.productTrace >= 0 &&
 				std::isfinite(effect.gain) && effect.gain > 1e-10 &&
-				effect.productTrace < effect.wlTrace - covarianceTolerance &&
-				std::isfinite(effect.noncommonMeanUpdateNorm) &&
-				effect.noncommonMeanUpdateNorm > 1e-10;
+				effect.productTrace < effect.floatTrace - covarianceTolerance &&
+				std::isfinite(effect.noncommonMeanUpdateNorm);
 			return effect;
 		};
 		vector<SatSys> allProductSatellites =
@@ -10872,7 +10881,7 @@ void writeZhangInternalProducts(
 				  << " pair_trace_wl=" << effect.wlTrace
 				  << " pair_trace_network_fixed=" << effect.networkTrace
 				  << " pair_trace_product_fixed=" << effect.productTrace
-				  << " wl_to_product_gain=" << effect.gain
+				  << " float_to_product_gain=" << effect.gain
 				  << " noncommon_mean_update_norm="
 				  << effect.noncommonMeanUpdateNorm
 				  << " product_precision_valid=" << effect.valid
@@ -11285,7 +11294,7 @@ void writeZhangInternalProducts(
 					  << " pair_trace_wl=" << effect.wlTrace
 					  << " pair_trace_network_fixed=" << effect.networkTrace
 					  << " pair_trace_product_fixed=" << effect.productTrace
-					  << " wl_to_product_gain=" << effect.gain
+					  << " float_to_product_gain=" << effect.gain
 					  << " noncommon_mean_update_norm="
 					  << effect.noncommonMeanUpdateNorm
 					  << " product_precision_valid=" << effect.valid
@@ -11365,8 +11374,12 @@ void writeZhangInternalProducts(
 				  << " feedback=PRIVATE_PRODUCT_BRANCH";
 		}
 
-		const bool ledgerEffectValid = overallFirstEffect.valid &&
-			overallSecondEffect.valid;
+		// Integer evidence and broadcast precision are different gates. A valid
+		// mixed conditioner persists even without a dual-frequency graph edge.
+		const auto r47ProofRisk=zhangDecisionRiskClosure(productCertification->decisionProofs);
+		const bool ledgerEffectValid = productCertification->reliable &&
+			productCertification->exactNetworkMapping && !productCertification->decisionProofs.empty() &&
+			r47ProofRisk.valid && r47ProofRisk.bound<=1e-3;
 		if (ledgerEffectValid &&
 			productCertification->physicalNetworkRows.size() ==
 				productCertification->networkRows.size() &&
@@ -11554,6 +11567,7 @@ void writeZhangInternalProducts(
                       << " proposed_physical=" << update.proposedPhysicalRow
                       << " current_posterior_arbitration=NOT_PROVEN writer_threshold_unchanged=1";
 			productLedgerWriterTransactionValid = update.valid;
+			r47EvidenceCommitted=zhangProductLedgerWriterCommitAuthorized(update);
 			productLedgerWriterConflictingRows = update.conflictingRows;
 			productLedgerWriterSystem = productCertification->system;
 			productLedgerWriterAuthorized =
@@ -11640,6 +11654,19 @@ void writeZhangInternalProducts(
 			  << " conflicting_rows=" << productLedgerWriterConflictingRows
 			  << " reason=" << productLedgerWriterFailureReason;
 	}
+
+	const bool r47Commit=productFixedMode && productLedgerWriterAuthorized &&
+		productLedgerWriterTransactionValid && r47EvidenceCommitted;
+	if(!r47Commit)
+		std::erase_if(epochProducts,[](const auto& product){return product.solution=="PRODUCT_FIXED";});
+	else if(!r47DeferredProductCovariance.empty() && ensureProductCovarianceFileHeader())
+	{
+		std::ofstream covariance(acsConfig.zhangPppAr.product_covariance_filename,std::ios::app);
+		covariance<<r47DeferredProductCovariance;
+	}
+	if(productTransactionCommitted) *productTransactionCommitted=r47Commit;
+	trace<<"\nZHANG_R47_WRITER_ATOMIC_COMMIT time="<<fixedState.time.to_string(0)
+		<<" committed="<<r47Commit<<" candidate_covariance_staged=1 rejected_branch_output_discarded=1";
 
     // Reject satellite-dependent correction jumps after removing the robust
     // per-signal common mode.  A common clock-datum change can be absorbed by
@@ -11813,6 +11840,23 @@ void writeZhangInternalProducts(
             }
         }
     }
+	std::map<std::pair<std::string,std::string>,std::set<E_ObsCode>> r47Published;
+	std::map<std::string,int> r47ComponentRanks;
+	for(const auto& product:epochProducts)
+		if(product.solution=="PRODUCT_FIXED" && product.integer_valid && product.pppar_usable &&
+			product.ar_valid && product.dual_frequency_ar_valid && !product.integer_component_id.empty())
+		{
+			r47Published[{product.integer_component_id,product.satellite.id()}].insert(product.observable);
+			r47ComponentRanks[product.integer_component_id]=product.integer_component_rank;
+		}
+	int r47Satellites=0,r47PublishedRank=0;
+	for(const auto& [identity,signals]:r47Published)
+		r47Satellites += signals.contains(E_ObsCode::L1C) && signals.contains(E_ObsCode::L2W);
+	for(const auto& [component,rank]:r47ComponentRanks) r47PublishedRank+=rank;
+	trace<<"\nZHANG_R47_PUBLISHED_GRAPH time="<<fixedState.time.to_string(0)
+		<<" strict_dual_satellites="<<r47Satellites<<" published_dual_graph_rank="<<r47PublishedRank
+		<<" product_transaction_committed="<<r47Commit<<" final_writer_flags_checked=1";
+
 }
 
 bool queryZhangInternalProduct(

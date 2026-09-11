@@ -305,3 +305,62 @@ BOOST_AUTO_TEST_CASE(r47_d_budget_subset_deduplicates_ancestors_and_reserves_sea
     BOOST_CHECK_EQUAL(conflict.reasons[1],"EXACT_AFFINE_CONFLICT");
     BOOST_CHECK_EQUAL(conflict.selected.size(),2); // shared risk is zero increment, not automatic acceptance.
 }
+
+#include "common/zhangR47ProductDomain.hpp"
+#include "common/zhangSequentialQuotientShadow.hpp"
+BOOST_AUTO_TEST_CASE(r47_e_nonprimitive_product_image_preserves_even_and_odd_cosets)
+{
+    const auto even=zhangR47CompileProductSearchFrame({{2,0}}, {},{},2);
+    BOOST_REQUIRE(even.valid);BOOST_CHECK_EQUAL(even.searchRank,1);
+    BOOST_CHECK_EQUAL(zhangExactAbs(even.imageGenerators[0][0]),2);
+    const auto odd=zhangR47CompileProductSearchFrame({{1,-1}},{{1,1}},{1},2);
+    BOOST_REQUIRE(odd.valid);BOOST_REQUIRE_EQUAL(odd.searchRank,1);
+    BOOST_CHECK_EQUAL(zhangExactAbs(odd.imageGenerators[0][0]),2);
+    auto rows=ZhangExactMatrix{{1,1}};auto values=ZhangExactVector{1};
+    rows.push_back(odd.projector[0]);values.push_back(2-odd.offsets[0]);
+    const auto final=zhangR47CompileProductSearchFrame({{1,-1}},rows,values,2);
+    BOOST_REQUIRE(final.valid);BOOST_CHECK_EQUAL(final.searchRank,0);
+    ZhangExactInteger consequence;
+    BOOST_REQUIRE(zhangR47ProductConsequence(final,{1,-1},0,consequence));
+    BOOST_CHECK_EQUAL(zhangExactAbs(consequence)%2,1);
+    BOOST_CHECK(!zhangR47CompileProductSearchFrame({{1,0}},{{2,0}},{5},2).valid);
+}
+BOOST_AUTO_TEST_CASE(r47_e_mixed_history_reduces_product_uncertainty_without_searching_network_nullspace)
+{
+    const auto f=zhangR47CompileProductSearchFrame({{1,0}},{{1,1}},{6},2);
+    BOOST_REQUIRE(f.valid);BOOST_REQUIRE_EQUAL(f.searchRank,1);
+    ZhangExactInteger value;
+    BOOST_CHECK(!zhangR47ProductConsequence(f,{1,0},0,value));
+    ZhangExactVector target(1000);target[517]=3;
+    const auto sparse=zhangR47CompileProductSearchFrame({target},{},{},1000);
+    BOOST_REQUIRE(sparse.valid);BOOST_CHECK_EQUAL(sparse.columns.size(),1);
+    BOOST_CHECK_EQUAL(sparse.searchRank,1);BOOST_CHECK_EQUAL(sparse.columns[0],517);
+    BOOST_CHECK_EQUAL(zhangExactAbs(sparse.imageGenerators[0][0]),3);
+}
+BOOST_AUTO_TEST_CASE(r47_e_actual_2100_search_domain_has_22_dimensions_after_missing_arc_elimination)
+{
+    const auto f=r47ReadFixture("availability_2100_exact_cancellation.json","full_targets");
+    std::vector<bool> available(f.columns.size(),true);
+    available[std::find(f.columns.begin(),f.columns.end(),"KIRI/G27")-f.columns.begin()]=false;
+    const auto domain=zhangCompileWholeProductLattice(f.rows,ZhangExactVector(f.rows.size()),available);
+    const auto frame=zhangR47CompileProductSearchFrame(domain.searchPosteriorRows,{}, {},
+        std::count(available.begin(),available.end(),true));
+    BOOST_REQUIRE(frame.valid);BOOST_CHECK_EQUAL(frame.searchRank,22);
+}
+BOOST_AUTO_TEST_CASE(r47_e_official_round_receipts_account_for_all_attempts)
+{
+    Eigen::Vector4d mean(1,2,3,4);Eigen::Matrix4d q=Eigen::Matrix4d::Identity()*1e-4;
+    const auto result=zhangSequentialQuotientShadow(mean,q,{}, {},1e-4,1e-6,
+        [](const Eigen::VectorXd& mean,const Eigen::MatrixXd&,double budget,bool)
+        {
+            ZhangSequentialShadowProposal p;p.rows=zhangExactIdentityMatrix(mean.size());
+            for(int i=0;i<mean.size();++i) p.values.push_back(std::llround(mean[i]));
+            p.valid=true;p.failureProbability=budget/2;return p;
+        },[](const std::string&){},2,3,4);
+    BOOST_CHECK_EQUAL(result.rows.size(),4);
+    BOOST_REQUIRE_EQUAL(result.acceptedRoundRows.size(),1);
+    BOOST_CHECK_EQUAL(result.acceptedRoundValues.size(),1);
+    BOOST_CHECK_SMALL(result.acceptedRoundRisk[0]-result.reservedRisk,1e-15);
+    BOOST_CHECK_LE(result.reservedRisk,1e-4);
+    BOOST_CHECK_EQUAL(result.status,"COMPLETE");
+}

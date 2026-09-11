@@ -19,22 +19,6 @@ binding is `[0,1]`; a rectangular subgraph; missing posterior columns; invalid
 physical support; exact numeric conversion. Existing full-state product gauge
 and same-posterior integer/real gauge closure tests remain required.
 
-## Remaining ordered stages
-
-- B: complete named catalogue, exact missing-column elimination, integral
-  recovery and history-preserving chart selection.
-- C: separate admitted state conditioners from product consequences, carry
-  the same joint constraint set from root posterior through delivery.
-- D: budget-feasible history subsets, immutable ancestry, controlled
-  recertification on a genuinely integer-unconditioned root.
-- E: accepted sequential product quotient candidates, actual common-functional
-  overlap retests, family risk accounting and layered diagnostics.
-
-The final experiment must use a freshly started process and unique output
-directory, 180 stations, unchanged observations and risk thresholds, a
-30-minute observation window, `product_relation_feedback: false`, and
-`transactional_integer_fixing: true`. Do not start until all stages pass.
-
 ## B: catalogue and available whole lattice
 
 The runtime compiler retains all named expressions, affine structural identities,
@@ -74,3 +58,48 @@ controlled search paths using this actual root and their explicit parent sets.
 
 Main executable and full regression pass, including retired-arc cancellation,
 shared ancestors, reserved budget, and zero-increment-risk affine conflicts.
+
+## E: official product quotient, route control and atomic delivery
+
+The official joint product path now searches the exact affine integer image of
+both complete available product lattices. It compacts only active columns,
+preserves nonprimitive congruences, and uses global decorrelation followed by
+sequential quotient blocks. Overlaps are retested as actual common functionals
+from an uncontroversial pre-round posterior; joint integer feasibility and NIS
+must pass before a round becomes an admitted conditioner.
+
+FLOAT recertification and history-conditioned routes start from the same
+protected FLOAT root. All attempted block allocations, including failed and
+unchosen routes, charge the candidate-family budget. Immutable candidates freeze
+the chosen route's conditioners, new constraints and original proof ancestry.
+Named products require exact missing-column cancellation and exact consequence
+proof; structural zeros alone never produce AR certificates.
+
+The writer stages PRODUCT_FIXED covariance bytes and commits them only with the
+physical Ledger transaction. Failed transactions discard fixed product rows and
+restore both integer and gauge Ledger snapshots. Mixed integer evidence can
+persist without pretending that it certifies a dual-frequency broadcast graph.
+Diagnostics distinguish transported history, admitted conditioners, new integer
+rank, product consequences, candidate graph, final published graph and ancestry
+risk. Old pair records explicitly state retention/revocation checks.
+
+Validation before final commit: main executable builds; 421 tests / 16,746
+assertions pass. New regressions cover nonprimitive cosets, empty/infeasible
+quotients, mixed conditioners, inactive network columns and sequential proof
+receipts. A final post-commit source/build consistency check and full regression
+are required before freezing the executable.
+
+## Experiment and acceptance boundary
+
+Start one fresh process only after A-E are pushed and the final build is verified.
+Use 180 stations, 30-second sampling and the inclusive 2024-07-17 00:00-00:30
+observation window (61 epochs), unchanged observation models and thresholds,
+`product_relation_feedback: false`, and `transactional_integer_fixing: true`.
+Disable the superseded sequential shadow route; E is the official route.
+
+Actual 21:00 and 27:30 design fixtures are covered by exact regression. Full-run
+14:00/19:00/21:00/26:00/27:30/29:00 behavior and comparison against R37/R45/R46
+remain empirical acceptance items, not claims established by compilation or
+unit tests. Private chart rebases remain shadow-only pending semantic proof.
+Coverage, formal covariance and certified graph size do not independently prove
+integer truth or positioning improvement. Preserve all raw outputs and logs.

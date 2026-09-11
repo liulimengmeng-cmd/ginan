@@ -16,6 +16,9 @@ struct ZhangSequentialShadowProposal {
 struct ZhangSequentialShadowResult {
     ZhangExactMatrix rows;
     ZhangExactVector values;
+    std::vector<ZhangExactMatrix> acceptedRoundRows;
+    std::vector<ZhangExactVector> acceptedRoundValues;
+    std::vector<double> acceptedRoundRisk;
     double reservedRisk = 0;
     int rounds = 0, attempts = 0, overlapChecks = 0, overlapConflicts = 0;
     int mergeAttempts = 0, mergeAccepted = 0, overlapCommonRankTotal = 0;
@@ -52,6 +55,7 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
     };
     for(int round=0;round<maxRounds;++round) {
         ++out.rounds;
+        const double riskBeforeRound=out.reservedRisk;
         const auto quotient=zhangExactAffineIntegerQuotient(out.rows,out.values,ambient);
         if(!quotient.valid) {out.status="INVALID_EXACT_QUOTIENT";break;}
         if(!quotient.quotientRank) {out.status="COMPLETE";break;}
@@ -114,12 +118,13 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
             ZhangExactMatrix rows;ZhangExactVector values;
             if(!attempt(coordinates,false,rows,values)) continue;
             if(!provisional.empty()) {
-                ++out.overlapChecks;
+
                 auto united=provisional;auto rhs=provisionalValues;
                 united.insert(united.end(),rows.begin(),rows.end());rhs.insert(rhs.end(),values.begin(),values.end());
                 const int commonRank=zhangExactRowHermiteNormalForm(provisional).basis.size()+
                     zhangExactRowHermiteNormalForm(rows).basis.size()-
                     zhangExactRowHermiteNormalForm(united).basis.size();
+                if(commonRank>0) ++out.overlapChecks;
                 out.overlapCommonRankTotal+=commonRank;
                 emit("round="+std::to_string(round)+" overlap_common_rank="+std::to_string(commonRank));
                 // Exact HNF checks common affine functionals in one ambient
@@ -154,6 +159,9 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
             matrix*covariance*matrix.transpose(),nisAlpha);
         if(!nis.valid || nis.nis>nis.threshold) {out.status="WHOLE_LATTICE_NIS_REJECTED";break;}
         out.rows=united.basis;out.values=united.values;
+        out.acceptedRoundRows.push_back(out.rows);
+        out.acceptedRoundValues.push_back(out.values);
+        out.acceptedRoundRisk.push_back(out.reservedRisk-riskBeforeRound);
         if(conflict) ++out.mergeAccepted;
         std::ostringstream event;
         event<<"round="<<round<<" accepted_rank="<<out.rows.size()

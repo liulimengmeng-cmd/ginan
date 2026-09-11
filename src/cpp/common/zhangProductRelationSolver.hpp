@@ -373,6 +373,9 @@ struct ZhangR47Candidate;
 struct ZhangProductRelationFixResult
 {
 	std::shared_ptr<const ZhangR47Candidate> r47Candidate;
+    bool r47ControlledSearch=false;
+    ZhangExactMatrix r47AdmittedRows,r47NewRows;
+    ZhangExactVector r47AdmittedValues,r47NewValues;
 	bool basisValid = false;
 	bool mappingValid = false;
 	bool wideLaneReliable = false;
