@@ -264,3 +264,44 @@ BOOST_AUTO_TEST_CASE(r47_c_immutable_candidate_rejects_dropped_conditioner_or_pa
     dropped=c; dropped.sourceIntegerParentCount=1;
     BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
 }
+
+#include "common/zhangR47History.hpp"
+BOOST_AUTO_TEST_CASE(r47_d_retired_physical_arcs_cancel_before_projection_with_both_parents)
+{
+    const auto graph=r47Graph(true);
+    std::map<ZhangGraphEdge,int> versions; for(auto edge:graph.edges) versions[edge]=2;
+    ZhangProductPhysicalCycleChart chart; chart.columns=2;
+    BOOST_REQUIRE(chart.add(0,"L1C",{"B",SatSys("G01")},graph,versions));
+    BOOST_REQUIRE(chart.add(1,"L1C",{"B",SatSys("G03")},graph,versions));
+    auto first=chart.expansions.at(0), second=chart.expansions.at(1);
+    first["L1C|OLD|G04|V1"]=1;second["L1C|OLD|G04|V1"]=1;
+    ZhangExactVector ignored;
+    BOOST_CHECK(!chart.project(first,ignored));BOOST_CHECK(!chart.project(second,ignored));
+    auto a=std::make_shared<const ZhangIntegerDecisionProof>(ZhangIntegerDecisionProof{"a","first","old",1e-4,{}});
+    auto b=std::make_shared<const ZhangIntegerDecisionProof>(ZhangIntegerDecisionProof{"b","second","old",2e-4,{}});
+    const auto result=zhangR47TransportHistory({first,second},{4,1},{{a},{b}},chart);
+    BOOST_REQUIRE(result.valid);BOOST_REQUIRE_EQUAL(result.rows.size(),1);
+    const auto membership=zhangIntegerRowLatticeContains(result.rows,{1,-1});
+    BOOST_REQUIRE(membership.contained);
+    BOOST_CHECK_EQUAL(membership.combination[0]*result.values[0],3);
+    const auto risk=zhangDecisionRiskClosure(result.parents[0]);
+    BOOST_REQUIRE(risk.valid);BOOST_CHECK_EQUAL(risk.atoms.size(),2);
+    BOOST_CHECK_SMALL(risk.bound-3e-4,1e-15);
+}
+BOOST_AUTO_TEST_CASE(r47_d_budget_subset_deduplicates_ancestors_and_reserves_search_risk)
+{
+    auto a=std::make_shared<const ZhangIntegerDecisionProof>(ZhangIntegerDecisionProof{"a","first","old",6e-4,{}});
+    auto b=std::make_shared<const ZhangIntegerDecisionProof>(ZhangIntegerDecisionProof{"b","second","old",1e-4,{a}});
+    auto c=std::make_shared<const ZhangIntegerDecisionProof>(ZhangIntegerDecisionProof{"c","third","old",2e-4,{}});
+    const auto choice=zhangR47SelectHistorySubset({{1,0,0},{0,1,0},{0,0,1}},
+        {2,3,4},{{a},{b},{c}},{},{3,2,1},3,1e-3,2.5e-4);
+    BOOST_REQUIRE(choice.valid);BOOST_REQUIRE_EQUAL(choice.selected.size(),2);
+    BOOST_CHECK_SMALL(choice.risk-7e-4,1e-15);
+    BOOST_CHECK_EQUAL(choice.reasons[2],"BUDGET_RESERVED_FOR_NEW_SEARCH");
+    BOOST_CHECK_EQUAL(zhangDecisionRiskClosure(choice.parents).atoms.size(),2);
+    const auto conflict=zhangR47SelectHistorySubset({{1,0},{1,0},{0,1}},
+        {2,5,3},{{a},{a},{a}},{},{3,2,1},2,1e-3,2.5e-4);
+    BOOST_REQUIRE(conflict.valid);
+    BOOST_CHECK_EQUAL(conflict.reasons[1],"EXACT_AFFINE_CONFLICT");
+    BOOST_CHECK_EQUAL(conflict.selected.size(),2); // shared risk is zero increment, not automatic acceptance.
+}

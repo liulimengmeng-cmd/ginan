@@ -74,6 +74,7 @@
 #include "common/zhangProductPhysicalCycleChart.hpp"
 #include "common/zhangProductPhysicalPullback.hpp"
 #include "common/zhangR47Candidate.hpp"
+#include "common/zhangR47History.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 
 
@@ -23406,9 +23407,9 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 	{
 		std::vector<int> indices;
 		for (int c = 0; c < evidenceDimension; ++c)
-			indices.push_back(conditionedState.kfIndexMap.at(evidence.ambmap.at(c)));
-		evidence.aflt = conditionedState.x(indices);
-		evidence.Paflt = conditionedState.P(indices, indices);
+			indices.push_back(state.kfIndexMap.at(evidence.ambmap.at(c)));
+		evidence.aflt = state.x(indices);
+		evidence.Paflt = state.P(indices, indices);
 	}
 	ZhangExactMatrix heldRows;
 	ZhangExactVector heldValues;
@@ -23868,6 +23869,9 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 	ZhangExactMatrix exactRows;
 	ZhangExactMatrix canonicalRows;
 	ZhangExactVector exactValues;
+	std::vector<std::map<std::string,ZhangExactInteger>> wholePhysical;
+	ZhangExactVector wholeValues;
+	std::vector<ZhangDecisionProofs> wholeParents;
 	for (const auto& held : registry->second.rows())
 	{
 		if (!held.certified || held.system != system) continue;
@@ -23887,23 +23891,42 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 			segmentRejectedRows++;
 			continue;
 		}
-		ZhangExactVector canonical;
-		ZhangExactVector projected;
-		if (!projectPhysicalToCurrentNetwork(
-			held, canonical, projected))
-		{
-			unavailableRows++;
-			continue;
-		}
-		crossGenerationRows +=
-			held.backendBasisGeneration != currentGeneration;
-		exactRows.push_back(std::move(projected));
-		canonicalRows.push_back(canonical);
-		exactValues.push_back(held.integerValue);
-		projectedRows++;
-		certificateProofs = zhangMergeDecisionProofs(certificateProofs, held.decisionProofs);
-		physicalRowProofs.push_back(held.decisionProofs);
+		if(!held.physicalExpansionExact) {unavailableRows++;continue;}
+		crossGenerationRows += held.backendBasisGeneration != currentGeneration;
+		wholePhysical.push_back(held.physicalExpansion);
+		wholeValues.push_back(held.integerValue);
+		wholeParents.push_back(held.decisionProofs);
 	}
+	const auto transported=zhangR47TransportHistory(wholePhysical,wholeValues,wholeParents,presearchChart);
+	if(!transported.valid) {status=transported.reason;traceResult();return result;}
+	std::vector<double> gains(transported.rows.size());
+	MatrixXd h(transported.rows.size(),source.aflt.size());
+	for(int row=0;row<h.rows();++row) h.row(row)=zhangExactRowToDouble(transported.rows[row]).transpose();
+	ZhangExactMatrix productRows=currentFirstBasis.wholePosteriorRows;
+	productRows.insert(productRows.end(),currentSecondBasis.wholePosteriorRows.begin(),currentSecondBasis.wholePosteriorRows.end());
+	MatrixXd t(productRows.size(),source.aflt.size());
+	for(int row=0;row<t.rows();++row) t.row(row)=zhangExactRowToDouble(productRows[row]).transpose();
+	const MatrixXd hq=h*source.Paflt;
+	const MatrixXd cross=hq*t.transpose();
+	for(int row=0;row<h.rows();++row)
+	{
+		const double variance=hq.row(row).dot(h.row(row));
+		gains[row]=variance>1e-14 ? cross.row(row).squaredNorm()/variance : 0;
+	}
+	const auto budgeted=zhangR47SelectHistorySubset(transported.rows,transported.values,
+		transported.parents,source.decisionProofs,gains,source.aflt.size(),familyFailureBudget,familyFailureBudget/4);
+	if(!budgeted.valid) {status="NO_BUDGET_FEASIBLE_HISTORY_BASE";traceResult();return result;}
+	exactRows=budgeted.rows; exactValues=budgeted.values;
+	for(int index:budgeted.selected) physicalRowProofs.push_back(transported.parents[index]);
+	certificateProofs=budgeted.parents;
+	projectedRows=exactRows.size();
+	trace << "\nZHANG_R47_HISTORY_BUDGET_SELECTION time=" << time.to_string(0)
+		<< " physically_transported_rank=" << transported.survivingRank
+		<< " selected_rows=" << budgeted.selected.size() << " selected_parent_risk=" << budgeted.risk
+		<< " reserved_new_risk=" << familyFailureBudget/4 << " before_conditioning=1";
+	for(std::size_t row=0;row<budgeted.reasons.size();++row)
+		trace << "\nZHANG_R47_HISTORY_ROW_SELECTION time=" << time.to_string(0)
+			<< " row=" << row << " reason=" << budgeted.reasons[row];
 	const auto originalPhysicalRows=exactRows;
 	const auto originalCanonicalRows=canonicalRows;
 	const auto originalPhysicalValues=exactValues;
@@ -23912,7 +23935,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 		if (rows.size()!=values.size()) return false;
 		const auto memberships=zhangIntegerRowLatticeContainsBatch(originalPhysicalRows,rows);
 		if (memberships.size()!=rows.size()) return false;
-		ZhangDecisionProofs selected;
+		ZhangDecisionProofs selected=source.decisionProofs;
 		for (std::size_t r=0;r<rows.size();++r)
 		{
 			const auto& membership=memberships[r];
@@ -24145,6 +24168,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 	}
 	result.aflt = conditioned.mean;
 	result.Paflt = conditioned.covariance;
+	result.decisionProofs=zhangMergeDecisionProofs(source.decisionProofs,certificateProofs);
 	maximumResidual = std::max(conditioned.maximumDeterministicResidual,
 		(MatrixXd(constraints) * result.aflt - selectedIntegers)
 			.cwiseAbs().maxCoeff());
@@ -24896,7 +24920,25 @@ static int resolveLayeredWideLaneL1(
 	// A full KFState copy can be several GiB on the 180-station service.  The
 	// product branch needs only the ambiguity FLOAT posterior, so snapshot it
 	// before any WL feedback mutates kfState and keep that snapshot private.
-	const GinAR_mtx floatInputAmbiguities = ambiguityResolution;
+	GinAR_mtx floatInputAmbiguities = ambiguityResolution;
+	if (persistentCaptureOwner)
+	{
+		// This pointer is the protected FLOAT owner, not CAPTURED_PRE_FRESH,
+		// which may already contain persistent held equalities.
+		if (!zhangLoadMappedAmbiguityPosterior(*persistentCaptureOwner,
+			floatInputAmbiguities.ambmap,floatInputAmbiguities.aflt,floatInputAmbiguities.Paflt))
+		{
+			zhangTransactionalConditioningFailed=true;
+			zhangTransactionalConditioningReason="INTEGER_UNCONDITIONED_ROOT_UNAVAILABLE";
+			return 0;
+		}
+		floatInputAmbiguities.decisionProofs.clear();
+		floatInputAmbiguities.Ztrs.resize(0,floatInputAmbiguities.aflt.size());
+		floatInputAmbiguities.zfix.resize(0);
+		trace << "\nZHANG_R47_INTEGER_UNCONDITIONED_ROOT time=" << time.to_string(0)
+			<< " source=AUTHORITATIVE_FLOAT integer_parent_count=0 moment_id="
+			<< zhangPosteriorMomentFingerprint(floatInputAmbiguities.aflt,floatInputAmbiguities.Paflt);
+	}
     vector<ZhangDecisionProofs> fixedRowProofs;
     struct PairColumns
     {
@@ -29666,13 +29708,13 @@ void fixAndHoldAmbiguities(
             const auto parentRisk = zhangDecisionRiskClosure(parentProofs);
             // Reject before conditioning; never erase a dependency while
             // retaining the covariance benefit. Keep room for fresh decisions.
-            if (held.decisionProofs.empty() || !parentRisk.valid || parentRisk.bound > 1e-3)
+            if (held.decisionProofs.empty() || !parentRisk.valid || parentRisk.bound > 7.5e-4)
             {
                 trace << "\nZHANG_HELD_DECISION_PRECONDITION time=" << kfState.time.to_string(0)
                       << " applied=0 posterior_unchanged=1 parent_perr=" << std::setprecision(17)
                       << parentRisk.bound << " reason="
                       << (held.decisionProofs.empty() || !parentRisk.valid
-                          ? "MISSING_DECISION_PROOF" : "PARENT_RISK_EXCEEDS_BUDGET");
+                          ? "MISSING_DECISION_PROOF" : "PARENT_RISK_EXCEEDS_BUDGET_WITH_NEW_SEARCH_RESERVE");
                 continue;
             }
             const int originalRows = held.zfix.size();

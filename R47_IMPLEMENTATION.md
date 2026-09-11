@@ -60,3 +60,17 @@ are rejected; nonprimitive but divisible equations are accepted.
 415 tests / 16,700 assertions pass; main executable builds. Regression includes
 the 1288/425 mixed-conditioner example, zero-cross-covariance control, full-state
 updates, contradictory equalities and deletion of conditioner/proof dependencies.
+
+## D: history selection and clean recertification source
+
+Retired and unavailable physical integers are eliminated from the whole historical
+lattice before strict physical projection. Surviving combinations retain every
+contributing original proof. History subsets are selected before conditioning,
+with deduplicated ancestor-union risk, exact affine feasibility and a reserved
+quarter of the ceiling for new search. Redundant rows create no risk refund.
+The recertification source is now loaded from the protected FLOAT KF owner, not
+the potentially held-conditioned PRE_FRESH snapshot. Stage E executes both
+controlled search paths using this actual root and their explicit parent sets.
+
+Main executable and full regression pass, including retired-arc cancellation,
+shared ancestors, reserved budget, and zero-increment-risk affine conflicts.
