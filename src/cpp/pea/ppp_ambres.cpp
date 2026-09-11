@@ -15448,7 +15448,8 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
                  <<" baseline_graph_rank="<<bestGraph.graphRank<<" final_graph_rank="<<graph.graphRank
                  <<" baseline_largest="<<bestGraph.largest<<" final_largest="<<graph.largest
                  <<" rounds="<<shadow.rounds<<" attempts="<<shadow.attempts
-                 <<" overlap_checks="<<shadow.overlapChecks<<" overlap_conflicts="<<shadow.overlapConflicts
+                 <<" overlap_checks="<<shadow.overlapChecks<<" overlap_common_rank_total="<<shadow.overlapCommonRankTotal
+                 <<" overlap_conflicts="<<shadow.overlapConflicts
                  <<" merge_attempts="<<shadow.mergeAttempts<<" merge_accepted="<<shadow.mergeAccepted
                  <<" base_nominal_perr="<<searchedFamilyRisk<<" base_budget="<<failureProbabilityBudget
                  <<" shadow_reserved_risk="<<shadow.reservedRisk<<" shadow_budget="<<shadowBudget

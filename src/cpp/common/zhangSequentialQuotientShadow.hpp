@@ -18,7 +18,7 @@ struct ZhangSequentialShadowResult {
     ZhangExactVector values;
     double reservedRisk = 0;
     int rounds = 0, attempts = 0, overlapChecks = 0, overlapConflicts = 0;
-    int mergeAttempts = 0, mergeAccepted = 0;
+    int mergeAttempts = 0, mergeAccepted = 0, overlapCommonRankTotal = 0;
     std::string status = "NOT_STARTED";
 };
 
@@ -114,6 +114,11 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
                 ++out.overlapChecks;
                 auto united=provisional;auto rhs=provisionalValues;
                 united.insert(united.end(),rows.begin(),rows.end());rhs.insert(rhs.end(),values.begin(),values.end());
+                const int commonRank=zhangExactRowHermiteNormalForm(provisional).basis.size()+
+                    zhangExactRowHermiteNormalForm(rows).basis.size()-
+                    zhangExactRowHermiteNormalForm(united).basis.size();
+                out.overlapCommonRankTotal+=commonRank;
+                emit("round="+std::to_string(round)+" overlap_common_rank="+std::to_string(commonRank));
                 // Exact HNF checks common affine functionals in one ambient
                 // integer lattice, including mixed rows and opposite signs.
                 if(!zhangExactAffineIntegerQuotient(united,rhs,ambient).valid) {

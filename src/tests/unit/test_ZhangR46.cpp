@@ -103,6 +103,7 @@ BOOST_AUTO_TEST_CASE(r46_overlap_conflict_requires_joint_merged_resolve) {
         },[](const std::string&){},4,2,4);
     BOOST_CHECK_EQUAL(out.overlapConflicts,1);BOOST_CHECK_EQUAL(out.mergeAttempts,1);
     BOOST_CHECK_EQUAL(out.mergeAccepted,1);BOOST_CHECK_EQUAL(out.rows.size(),4);
+    BOOST_CHECK_GT(out.overlapCommonRankTotal,0);
     for(const auto& v:out.values) BOOST_CHECK_EQUAL(v,0);
     BOOST_CHECK_LE(out.reservedRisk,1e-4);
 }
@@ -143,8 +144,8 @@ BOOST_AUTO_TEST_CASE(r46_true_physical_sign_is_independent_of_canonical_chart_or
     auto b=r46Row({{"N1",-1},{"N2",1}},-16);
     // Same canonical sign but opposite physical orientation: the true
     // physical row, rather than a transient named view, owns normalization.
-    BOOST_REQUIRE(ledger.observe(100,{a},2).accepted);
-    BOOST_REQUIRE(ledger.observe(130,{b},2).accepted);
+    BOOST_REQUIRE(ledger.observe(100,{a},2).valid);
+    BOOST_REQUIRE(ledger.observe(130,{b},2).valid);
     BOOST_CHECK_EQUAL(ledger.rows().size(),1);
     BOOST_CHECK_EQUAL(ledger.rows()[0].confirmationEpochs,2);
 }
@@ -152,8 +153,8 @@ BOOST_AUTO_TEST_CASE(r46_joint_physical_integer_feasibility_rejects_parity_confl
     ProductIntegerLedger ledger;
     auto a=r46Row({{"N1",1},{"N2",1}},0);
     auto b=r46Row({{"N1",1},{"N2",-1}},1);
-    BOOST_REQUIRE(ledger.observe(100,{a},1).accepted);
+    BOOST_REQUIRE(ledger.observe(100,{a},1).valid);
     const auto result=ledger.observe(130,{b},1);
-    BOOST_CHECK(!result.accepted);BOOST_CHECK_EQUAL(ledger.rows().size(),1);
+    BOOST_CHECK(!result.valid);BOOST_CHECK_EQUAL(ledger.rows().size(),1);
     BOOST_CHECK_EQUAL(result.failureReason,"PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT");
 }
