@@ -57,6 +57,7 @@ struct ProductIntegerLedgerRow
 	ZhangExactVector productRow;
 	ZhangExactInteger integerValue = 0;
 	std::map<std::string, ZhangExactInteger> physicalExpansion;
+    bool physicalExpansionExact = false;
 	std::map<std::string, ZhangExactInteger> canonicalProductExpansion;
 	// Named edge metadata is populated only for exact pair certificates.  It is
 	// retained separately from productRow so an offline full-oracle builder can
@@ -378,7 +379,7 @@ inline void zhangCanonicaliseProductLedgerRow(ProductIntegerLedgerRow& row)
 			iterator = row.canonicalProductExpansion.erase(iterator);
 		else ++iterator;
 	}
-	const auto& signAuthority = row.canonicalProductExpansion.empty()
+	const auto& signAuthority = row.physicalExpansionExact || row.canonicalProductExpansion.empty()
 		? row.physicalExpansion : row.canonicalProductExpansion;
 	if (signAuthority.empty() || signAuthority.begin()->second > 0) return;
 	for (auto& [identity, coefficient] : row.physicalExpansion)
@@ -400,8 +401,13 @@ inline void zhangCanonicaliseProductLedgerRow(ProductIntegerLedgerRow& row)
 inline std::string zhangProductLedgerIdentityFingerprint(
 	const ProductIntegerLedgerRow& row)
 {
-	std::ostringstream stream;
-	if (!row.canonicalProductExpansion.empty())
+    std::ostringstream stream;
+    if(row.physicalExpansionExact) {
+        stream << "PHYSICAL_CYCLE_V1|SYS" << static_cast<int>(row.system)
+               << "|ROW{" << zhangProductPhysicalRowFingerprint(row.physicalExpansion) << "}";
+        return stream.str();
+    }
+    if (!row.canonicalProductExpansion.empty())
 	{
 		stream << "CANONICAL|SEG{" << row.phaseSegmentFingerprint << "}|ROW{"
 			<< zhangProductPhysicalRowFingerprint(
@@ -594,8 +600,8 @@ public:
 				result.confirmedRows += existing->certified;
 				continue;
 			}
-			if (existing->canonicalProductExpansion !=
-				candidate.canonicalProductExpansion)
+            if (!candidate.physicalExpansionExact && existing->canonicalProductExpansion !=
+                candidate.canonicalProductExpansion)
 			{
 				result.failureReason =
 					"PRODUCT_LEDGER_CANONICAL_IDENTITY_CONFLICT";
@@ -606,7 +612,11 @@ public:
 				existing->lastConfirmed = epoch;
 				existing->confirmationEpochs++;
 			}
-			existing->productRow = std::move(candidate.productRow);
+            if(candidate.physicalExpansionExact) {
+                existing->canonicalProductExpansion=candidate.canonicalProductExpansion;
+                existing->phaseSegmentFingerprint=candidate.phaseSegmentFingerprint;
+            }
+            existing->productRow = std::move(candidate.productRow);
 			existing->physicalExpansion = std::move(candidate.physicalExpansion);
 			existing->backendBasisGeneration = candidate.backendBasisGeneration;
 			// Exact pair membership is a stronger semantic certificate than a
@@ -625,6 +635,33 @@ public:
 				existing->confirmationEpochs >= requiredConfirmations;
 			result.confirmedRows += existing->certified;
 		}
+        if(std::any_of(candidates.begin(),candidates.end(),[](const auto& row){return row.physicalExpansionExact;})) {
+            std::map<std::string,int> columns;
+            for(const auto& row:proposedRows) if(row.physicalExpansionExact)
+                for(const auto& [id,value]:row.physicalExpansion)
+                    if(value!=0 && !columns.contains(id)) columns[id]=static_cast<int>(columns.size());
+            ZhangExactMatrix physical; ZhangExactVector values;
+            for(const auto& row:proposedRows) if(row.physicalExpansionExact) {
+                ZhangExactVector dense(columns.size());
+                for(const auto& [id,value]:row.physicalExpansion) if(value!=0) dense[columns.at(id)]=value;
+                physical.push_back(std::move(dense));values.push_back(row.integerValue);
+            }
+            const auto joint=zhangExactRowHermiteNormalForm(physical,values);
+            // F*N=n has an integer solution iff n belongs to the column
+            // lattice of F. This also rejects parity/divisibility conflicts
+            // that rational affine consistency alone cannot detect.
+            ZhangExactMatrix columnLattice(columns.size(),ZhangExactVector(physical.size()));
+            for(int r=0;r<physical.size();++r) for(int c=0;c<columns.size();++c)
+                columnLattice[c][r]=physical[r][c];
+            const bool integerFeasible=values.empty() ||
+                zhangIntegerRowLatticeContains(columnLattice,values).contained;
+            if(!joint.consistent || !integerFeasible) {
+                result.activeRankAfter=result.activeRankBefore;
+                result.conflictingRows++;
+                result.failureReason="PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT";
+                return result;
+            }
+        }
 		result.activeRankAfter = zhangProductLedgerExactRank(proposedRows);
 		rows_ = std::move(proposedRows);
 		result.valid = true;

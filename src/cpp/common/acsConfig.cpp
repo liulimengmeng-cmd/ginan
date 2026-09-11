@@ -7635,6 +7635,12 @@ bool ACSConfig::parse(
                         "Rank product candidates by dual-frequency component-graph gain before information gain"
                     );
                     tryGetFromYaml(
+                        zhangPppAr.product_sequential_quotient_shadow,
+                        zhang_pppar,
+                        {"@ product_sequential_quotient_shadow"},
+                        "Private sequential exact quotient PAR with half-overlap joint recheck; reserves 1/8 of the shared decision budget"
+                    );
+                    tryGetFromYaml(
                         zhangPppAr.product_integer_ledger_enabled,
                         zhang_pppar,
                         {"@ product_integer_ledger_enabled"},

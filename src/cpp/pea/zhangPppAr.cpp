@@ -11398,6 +11398,7 @@ void writeZhangInternalProducts(
 					productCertification->networkIntegers[row];
 				candidate.physicalExpansion =
 					productCertification->physicalNetworkRows[row];
+                candidate.physicalExpansionExact = true;
 				if (!zhangBuildCanonicalProductExpansion(
 						candidate.productRow, canonicalCoordinateSatellites,
 						canonicalReferenceSatellite, candidate.firstObservable,
@@ -11527,7 +11528,8 @@ void writeZhangInternalProducts(
 					ZhangProductIntegerLedgerSource::DERIVED_PAIR;
 				certificate.conditioningOnly = false;
 				certificate.pairCertificate = true;
-				candidates.push_back(std::move(certificate));
+				certificate.physicalExpansionExact = true;
+                candidates.push_back(std::move(certificate));
 			}
 			auto& ledger = zhangProductIntegerLedgerRegistry()[
 				{integerLedgerRuntimeId, productCertification->system}];

@@ -739,6 +739,7 @@ struct ZhangPppArOptions
     double product_component_gauge_nis_alpha = 1e-3;
     int    product_component_gauge_confirmation_epochs = 2;
     bool   product_dual_graph_objective = true;
+    bool   product_sequential_quotient_shadow = false;
     // Physical ProductIntegerLedger rows are optional private-search evidence.
     // This switch isolates their contribution without changing direct rows or
     // the independent ProductGauge certificate ledger.
