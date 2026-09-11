@@ -46,3 +46,17 @@ stage E consumes the general search domain and publishes only proved consequence
 Actual design fixtures: 21:00 rowwise rank 16, whole rank 22; 27:30 catalogue
 28, rank 22 with all six dependent identities preserved. Main executable builds;
 411 test cases and 16,675 assertions pass. Structural zeros are not AR proofs.
+
+## C: conditioning and immutable delivery
+
+Product-image membership no longer filters state conditioners. The final
+transaction freezes all admitted receipts, new equations, original decision
+parents, exact physical expansions, ordered chart and phase-segment identities.
+Delivery validates this immutable union on the protected FLOAT root and applies
+the full-state equality conditioner, retaining cross-covariance updates. It no
+longer performs a second Ledger selection. Infeasible integer affine systems
+are rejected; nonprimitive but divisible equations are accepted.
+
+415 tests / 16,700 assertions pass; main executable builds. Regression includes
+the 1288/425 mixed-conditioner example, zero-cross-covariance control, full-state
+updates, contradictory equalities and deletion of conditioner/proof dependencies.

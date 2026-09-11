@@ -73,6 +73,7 @@
 #include "pea/zhangE29MathClosure.hpp"
 #include "common/zhangProductPhysicalCycleChart.hpp"
 #include "common/zhangProductPhysicalPullback.hpp"
+#include "common/zhangR47Candidate.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 
 
@@ -12313,11 +12314,7 @@ static ZhangDualSignalIntegerSupport zhangMapLedgerPresearchToProductSupport(
 	result = zhangSplitJointProductIntegerSupport(
 		jointRows, jointValues, rank);
 	if (!selection->networkRows.empty() && jointRows.empty())
-	{
-		result.valid = false;
-		result.failureReason =
-			"SELECTED_NETWORK_ROW_HAS_NO_JOINT_PRODUCT_IMAGE";
-	}
+		result.failureReason = "STATE_CONDITIONERS_WITHOUT_PRODUCT_CONSEQUENCES";
 	trace << "\nZHANG_PRODUCT_LEDGER_COMPLEMENTARY_SUPPORT time="
 		  << time.to_string(0)
 		  << " selected_network_rank=" << selection->networkRows.size()
@@ -12860,6 +12857,18 @@ static std::string zhangAmbiguityMapFingerprint(
 	for (const auto& [column, key] : ambiguityMap)
 		stream << "|" << column << "=" << key;
 	return zhangProductGaugeRiskHash(stream.str());
+}
+
+static std::string zhangR47FrontendSemanticId(const ZhangProductIntegerConstraintSet& constraints)
+{
+	std::ostringstream id;
+	auto satellites=constraints.coordinateSatellites;
+	satellites.push_back(constraints.referenceSatellite);
+	for(const auto& satellite:satellites)
+	for(auto signal:{constraints.firstObservable,constraints.secondObservable})
+		id << satellite.id() << "|" << enum_to_string(signal) << "|SEG"
+			<< zhangSatelliteDatumStatus(constraints.system,signal,satellite).phaseSegment << ";";
+	return id.str();
 }
 
 static bool zhangProductConstraintsWithLedgerAsGinAr(
@@ -23609,7 +23618,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 		  << " posterior_deterministic_rows=" << posteriorDeterministicRows
 		  << " product_image_eligible_rows=" << productImageEligibleRows
 		  << " product_image_rejected_rows=" << productImageRejectedRows
-		  << " product_image_preselection_gate=1"
+		  << " product_image_preselection_gate=0"
 		  << " maximum_conditional_residual=" << maximumConditionalResidual
 		  << " max_coefficient_before="
 		  << maximumIntegerCoefficientBefore
@@ -23929,84 +23938,20 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 		traceResult();
 		return result;
 	}
-	// Whole affine intersection preserves combinations cancelling nuisance
-	// coordinates. It creates no new integer decision or lower parent risk.
-	const auto productIntersection = zhangExactAffineRowLatticeIntersection(
-        exactRows, exactValues, currentProductNetworkRows,
-        ZhangExactVector(currentProductNetworkRows.size()));
-	if (!productIntersection.valid)
+	// Product image is a consequence query, never a state-conditioning gate.
+	const auto productImage = zhangAppliedLatticeProductImage(exactRows, exactValues,
+		currentProductNetworkRows, ZhangExactVector(currentProductNetworkRows.size()));
+	productImageEligibleRows = productImage.consistent ? productImage.basis.size() : 0;
+	productImageRejectedRows = std::max(0, projectedRows-productImageEligibleRows);
+	if (!zhangR47AffineIntegerFeasible(exactRows, exactValues, source.aflt.size()))
 	{
-		status = "PRESEARCH_PRODUCT_IMAGE_INTERSECTION_FAILED";
-		traceResult();
-		return result;
+		status = "LEDGER_AFFINE_INTEGER_INFEASIBLE";
+		traceResult(); return result;
 	}
-	productImageEligibleRows = productIntersection.rows.size();
-	productImageRejectedRows = projectedRows - productImageEligibleRows;
-	trace << "\nZHANG_LEDGER_WHOLE_IMAGE_INTERSECTION time=" << time.to_string(0)
-		<< " input_rows=" << exactRows.size() << " output_rank=" << productImageEligibleRows
-		<< " exact=1 affine_rhs_preserved=1 rowwise_prefilter=0 parent_risk_reduced=0"
-		<< " ambient=EXACT_CURRENT_CYCLE_SPACE_FROM_TRUE_PHYSICAL_ARCS";
-	const auto historyMemberships = zhangIntegerRowLatticeContainsBatch(
-		originalPhysicalRows, productIntersection.rows);
-	const auto currentMemberships = zhangIntegerRowLatticeContainsBatch(
-		currentProductNetworkRows, productIntersection.rows);
-	if (historyMemberships.size() != productIntersection.rows.size() ||
-		currentMemberships.size() != productIntersection.rows.size())
-	{
-		status = "CANONICAL_PRODUCT_TRANSPORT_MEMBERSHIP_FAILED";
-		traceResult();
-		return result;
-	}
-	exactRows.clear();
-	exactValues.clear();
-	for (std::size_t row = 0; row < productIntersection.rows.size(); row++)
-	{
-		const auto& history = historyMemberships[row];
-		const auto& current = currentMemberships[row];
-		if (!history.contained || !current.contained ||
-			history.combination.size() != originalPhysicalRows.size() ||
-			current.combination.size() != currentProductNetworkRows.size())
-		{
-			status = "CANONICAL_PRODUCT_TRANSPORT_COMBINATION_INVALID";
-			traceResult();
-			return result;
-		}
-		ZhangExactVector historicalNetwork(source.aflt.size());
-		ZhangExactVector currentNetwork(source.aflt.size());
-		ZhangExactInteger rhs = 0;
-		for (std::size_t sourceRow = 0;
-			 sourceRow < history.combination.size(); sourceRow++)
-		{
-			if (history.combination[sourceRow] == 0) continue;
-			for (int column = 0; column < source.aflt.size(); column++)
-				historicalNetwork[column] += history.combination[sourceRow] *
-					originalPhysicalRows[sourceRow][column];
-			rhs += history.combination[sourceRow] * originalPhysicalValues[sourceRow];
-		}
-		for (std::size_t sourceRow = 0;
-			 sourceRow < current.combination.size(); sourceRow++)
-		{
-			if (current.combination[sourceRow] == 0) continue;
-			for (int column = 0; column < source.aflt.size(); column++)
-				currentNetwork[column] += current.combination[sourceRow] *
-					currentProductNetworkRows[sourceRow][column];
-		}
-		if (historicalNetwork != currentNetwork ||
-			rhs != productIntersection.firstValues[row])
-		{
-			status = "CANONICAL_PRODUCT_TRANSPORT_COMMUTATIVE_SQUARE_FAILED";
-			traceResult();
-			return result;
-		}
-		exactRows.push_back(std::move(currentNetwork));
-		exactValues.push_back(std::move(rhs));
-	}
-	if (exactRows.empty())
-	{
-		status = "NO_LEDGER_ROWS_IN_CURRENT_PRODUCT_IMAGE";
-		traceResult();
-		return result;
-	}
+	trace << "\nZHANG_R47_STATE_CONDITIONER_IMAGE time=" << time.to_string(0)
+		<< " transported_rows=" << exactRows.size()
+		<< " product_consequence_rank=" << productImageEligibleRows
+		<< " product_image_preselection_gate=0 condition_only_rows_retained=1";
 	const auto hnf = zhangExactRowHermiteNormalForm(exactRows, exactValues);
 	if (!hnf.consistent || hnf.basis.empty() ||
 		hnf.basis.size() != hnf.values.size())
@@ -26354,6 +26299,115 @@ static int resolveLayeredWideLaneL1(
 			else if (acsConfig.zhangPppAr.product_component_gauge_solver_mode == "PRIVATE")
 			{
 				tracePrivateClosureFixedPoint(1, "ITERATION0_UNRELIABLE");
+			}
+			if (relationFix.constraints.reliable && persistentCaptureOwner)
+			{
+				ZhangR47Candidate candidate;
+				std::map<int,KFKey> keys=productSearchAmbiguities.ambmap;
+				std::map<KFKey,int> columnByKey;
+				for (const auto& [c,key]:keys) columnByKey[key]=c;
+				if (appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts)
+				for (const auto& [c,key]:receipt.ambmap)
+					if (key.Sat.sys==system && c<receipt.Ztrs.cols() && !receipt.Ztrs.col(c).isZero() && !columnByKey.contains(key))
+					{ const int next=keys.size(); columnByKey[key]=next; keys[next]=key; }
+				bool valid=true;
+				auto appendReceipt=[&](const GinAR_mtx& receipt)
+				{
+					ZhangExactMatrix exact; ZhangExactVector values;
+					if (!zhangExactRowsFromNumeric(receipt.Ztrs,receipt.zfix,exact,values)) return false;
+					bool belongs=false;
+					for (const auto& [c,key]:receipt.ambmap)
+						if(c<receipt.Ztrs.cols() && !receipt.Ztrs.col(c).isZero()) belongs|=key.Sat.sys==system;
+					if (!belongs) return true;
+					for (const auto& row:exact)
+					{
+						ZhangExactVector expanded(keys.size());
+						for (int c=0;c<row.size();++c) if(row[c]!=0)
+						{
+							if(!receipt.ambmap.contains(c) || !columnByKey.contains(receipt.ambmap.at(c))) return false;
+							expanded[columnByKey.at(receipt.ambmap.at(c))]+=row[c];
+						}
+						candidate.admittedStateConditioners.push_back(std::move(expanded));
+					}
+					candidate.admittedStateValues.insert(candidate.admittedStateValues.end(),values.begin(),values.end());
+					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,receipt.decisionProofs);
+					return true;
+				};
+				if (appliedHeldReceipts) for (const auto& receipt:*appliedHeldReceipts) valid &= appendReceipt(receipt);
+				if (currentCertifiedValid) valid &= appendReceipt(currentCertifiedRows);
+				auto appendNetwork=[&](const ZhangExactMatrix& rows,const ZhangExactVector& values)
+				{
+					if(rows.size()!=values.size()) return false;
+					for(auto row:rows)
+					{
+						if(row.size()!=productSearchAmbiguities.aflt.size()) return false;
+						row.resize(keys.size()); candidate.admittedStateConditioners.push_back(std::move(row));
+					}
+					candidate.admittedStateValues.insert(candidate.admittedStateValues.end(),values.begin(),values.end());
+					return true;
+				};
+				if (productLedgerPresearchSelection.valid)
+				{
+					valid &= appendNetwork(productLedgerPresearchSelection.networkRows,productLedgerPresearchSelection.networkValues);
+					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,productLedgerPresearchSelection.decisionProofs);
+				}
+				if (gaugePresearchAudit.currentReauthorized)
+				{
+					ZhangExactMatrix transform; ZhangExactVector ignored;
+					const int rank=relationBasis.mappableTargetRank;
+					MatrixXd dual(2*rank,productSearchAmbiguities.aflt.size());
+					dual.topRows(rank)=relationBasis.transform-secondRelationBasis.transform;
+					dual.bottomRows(rank)=relationBasis.transform;
+					valid &= zhangExactRowsFromNumeric(dual,VectorXd::Zero(2*rank),transform,ignored);
+					if(valid) valid &= appendNetwork(zhangExactMultiply(gaugePresearchAudit.productDualRows,transform),gaugePresearchAudit.productDualValues);
+					candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,gaugePresearchAudit.selectedDecisionProofs);
+				}
+				candidate.newIntegerConstraints=relationFix.constraints.networkRows;
+				candidate.newIntegerValues=relationFix.constraints.networkIntegers;
+				for(auto& row:candidate.newIntegerConstraints) row.resize(keys.size());
+				auto rows=candidate.admittedStateConditioners;
+				auto values=candidate.admittedStateValues;
+				rows.insert(rows.end(),candidate.newIntegerConstraints.begin(),candidate.newIntegerConstraints.end());
+				values.insert(values.end(),candidate.newIntegerValues.begin(),candidate.newIntegerValues.end());
+				const auto united=zhangExactRowHermiteNormalForm(rows,values);
+				candidate.jointRows=united.basis; candidate.jointValues=united.values;
+				candidate.allDecisionParents=zhangMergeDecisionProofs(candidate.allDecisionParents,relationFix.constraints.decisionProofs);
+				const auto risk=zhangDecisionRiskClosure(candidate.allDecisionParents);
+				candidate.riskBound=risk.bound;
+				VectorXd rootMean; MatrixXd rootCovariance;
+				valid &= zhangLoadMappedAmbiguityPosterior(*persistentCaptureOwner,keys,rootMean,rootCovariance);
+				for(const auto& [c,key]:keys)
+				{
+					const auto found=persistentCaptureOwner->kfIndexMap.find(key);
+					if(found==persistentCaptureOwner->kfIndexMap.end()) valid=false;
+					else candidate.stateIndices.push_back(found->second);
+				}
+				ZhangProductPhysicalCycleChart chart;
+				valid &= zhangBuildProductPhysicalCycleChart(*persistentCaptureOwner,keys,system,chart);
+				for(const auto& row:candidate.jointRows)
+				{
+					std::map<std::string,ZhangExactInteger> physical;
+					valid &= chart.expand(row,physical); candidate.physicalFunctionals.push_back(physical);
+				}
+				std::map<int,std::string> identities; std::uint64_t generation=0;
+				valid &= zhangCurrentProductPhysicalAmbiguityIdentities(*persistentCaptureOwner,keys,system,identities,generation);
+				candidate.authoritativeCycleChartId=std::to_string(generation)+"|"+zhangAmbiguityMapFingerprint(keys);
+				candidate.frontendSemanticId=zhangR47FrontendSemanticId(relationFix.constraints);
+				candidate.sourceIntegerParentCount=0; // persistentCaptureOwner is the protected authoritative FLOAT.
+				if(valid) candidate.sourcePosteriorId=zhangPosteriorMomentFingerprint(rootMean,rootCovariance);
+				candidate.productConsequences=relationFix.constraints;
+				valid &= acsConfig.zhangPppAr.transactional_integer_fixing && !acsConfig.zhangPppAr.product_relation_feedback &&
+					united.consistent && zhangR47CandidateContractValid(candidate);
+				if(valid) relationFix.r47Candidate=std::make_shared<const ZhangR47Candidate>(std::move(candidate));
+				else
+				{
+					relationFix.constraints.reliable=false;
+					relationFix.certifiedForProduct=false;
+					relationFix.failureReason="R47_IMMUTABLE_JOINT_CANDIDATE_REJECTED";
+				}
+				trace << "\nZHANG_R47_CANDIDATE_FREEZE time=" << time.to_string(0)
+					<< " valid=" << valid << " late_ledger_selection=0 joint_affine_union=1"
+					<< " parent_risk=" << risk.bound << " source=AUTHORITATIVE_FLOAT";
 			}
 			if (productRelationResult &&
 				(!productRelationResult->constraints.reliable ||
@@ -29997,25 +30051,60 @@ void fixAndHoldAmbiguities(
 					trace, workingState->time,
 					productRelationFix.constraints);
 			}
-			bool constraintsMapped = physicalIdentityAnnotated &&
-				zhangProductConstraintsWithLedgerAsGinAr(
-					trace,
-					workingState->time,
-					productRelationFix.constraints,
-					productIntegerLedgerRuntimeId,
-					kfState,
-					wideLaneState,
-					ARmtx.ambmap,
-					productConstraints,
-					ledgerProjectedRank,
-					ledgerSelectedRank,
-					ledgerRejectedRows,
-					ledgerCombinedNis,
-					ledgerCombinedNisThreshold,
-					selectedLedgerPairRows,
-					certificateOnlyAuthority,
-					deliveryContract,
-					ledgerAdmissionReason);
+			bool constraintsMapped = false;
+			if (physicalIdentityAnnotated && productRelationFix.r47Candidate)
+			{
+				const auto& candidate = *productRelationFix.r47Candidate;
+				productConstraints = GinAR_mtx{};
+				std::map<int,KFKey> stateKeys;
+				for (const auto& [key,index] : kfState.kfIndexMap) stateKeys[index]=key;
+				for (int c=0;c<candidate.stateIndices.size();++c)
+					productConstraints.ambmap[c]=stateKeys.at(candidate.stateIndices[c]);
+				VectorXd mean; MatrixXd covariance;
+				constraintsMapped = zhangR47CandidateContractValid(candidate) &&
+					zhangLoadMappedAmbiguityPosterior(kfState,productConstraints.ambmap,mean,covariance) &&
+					zhangPosteriorMomentFingerprint(mean,covariance)==candidate.sourcePosteriorId;
+				ZhangProductPhysicalCycleChart chart;
+				constraintsMapped = constraintsMapped && zhangBuildProductPhysicalCycleChart(
+					kfState,productConstraints.ambmap,productRelationFix.constraints.system,chart);
+				std::map<int,std::string> identities; std::uint64_t generation=0;
+				constraintsMapped = constraintsMapped && zhangCurrentProductPhysicalAmbiguityIdentities(
+					kfState,productConstraints.ambmap,productRelationFix.constraints.system,identities,generation) &&
+					candidate.authoritativeCycleChartId==std::to_string(generation)+"|"+zhangAmbiguityMapFingerprint(productConstraints.ambmap) &&
+					candidate.frontendSemanticId==zhangR47FrontendSemanticId(productRelationFix.constraints);
+				for (std::size_t row=0;constraintsMapped && row<candidate.jointRows.size();++row)
+				{
+					std::map<std::string,ZhangExactInteger> physical;
+					constraintsMapped = chart.expand(candidate.jointRows[row],physical) &&
+						physical==candidate.physicalFunctionals[row];
+				}
+				if (constraintsMapped)
+				{
+					productConstraints.aflt=mean; productConstraints.Paflt=covariance;
+					productConstraints.Ztrs.resize(candidate.jointRows.size(),mean.size());
+					for (int row=0;row<productConstraints.Ztrs.rows();++row)
+						productConstraints.Ztrs.row(row)=zhangExactRowToDouble(candidate.jointRows[row]).transpose();
+					productConstraints.zfix=zhangExactRowToDouble(candidate.jointValues);
+					productConstraints.decisionProofs=candidate.allDecisionParents;
+					const auto nis=assessZhangIntegerCandidateNis(productConstraints.zfix-productConstraints.Ztrs*mean,
+						productConstraints.Ztrs*covariance*productConstraints.Ztrs.transpose(),
+						ARopt.lambda_candidate_nis_alpha>0?ARopt.lambda_candidate_nis_alpha:1e-6);
+					constraintsMapped=nis.valid && nis.nis<=nis.threshold;
+					ledgerCombinedNis=nis.nis; ledgerCombinedNisThreshold=nis.threshold;
+					deliveryContract.valid=constraintsMapped;
+					deliveryContract.useIdentityState=true;
+					deliveryContract.momentId=candidate.sourcePosteriorId;
+					deliveryContract.ambiguityMapId=zhangAmbiguityMapFingerprint(productConstraints.ambmap);
+					certificateOnlyAuthority=true;
+				}
+				ledgerAdmissionReason=constraintsMapped?"IMMUTABLE_R47_JOINT_CANDIDATE":"R47_CANDIDATE_CONTRACT_FAILED";
+				trace << "\nZHANG_R47_CANDIDATE_DELIVERY time=" << kfState.time.to_string(0)
+					<< " admitted_state_conditioners=" << candidate.admittedStateConditioners.size()
+					<< " joint_rank=" << candidate.jointRows.size()
+					<< " source_integer_parent_count=" << candidate.sourceIntegerParentCount
+					<< " late_ledger_selection=0 full_state_cross_covariance=1 accepted=" << constraintsMapped;
+			}
+			else ledgerAdmissionReason="R47_IMMUTABLE_CANDIDATE_MISSING";
 			if (constraintsMapped &&
 				!zhangMergeSelectedLedgerPairCertificates(
 					trace, workingState->time, selectedLedgerPairRows,
@@ -30032,13 +30121,13 @@ void fixAndHoldAmbiguities(
 				MatrixXd deliveryCovariance;
 				const bool deliveryLoaded = deliveryContract.valid &&
 					zhangLoadMappedAmbiguityPosterior(
-						deliverySource, ARmtx.ambmap,
+						deliverySource, productConstraints.ambmap,
 						deliveryMean, deliveryCovariance);
 				const std::string applicationMomentId = deliveryLoaded
 					? zhangPosteriorMomentFingerprint(
 						deliveryMean, deliveryCovariance) : std::string{};
 				const std::string applicationMapId = deliveryLoaded
-					? zhangAmbiguityMapFingerprint(ARmtx.ambmap) : std::string{};
+					? zhangAmbiguityMapFingerprint(productConstraints.ambmap) : std::string{};
 				const bool deliveryMomentMatch = deliveryLoaded &&
 					applicationMomentId == deliveryContract.momentId &&
 					applicationMapId == deliveryContract.ambiguityMapId &&

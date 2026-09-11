@@ -13945,12 +13945,12 @@ BOOST_AUTO_TEST_CASE(
 		quotient.quotientProjector, relative) == quotientInteger);
 }
 
-BOOST_AUTO_TEST_CASE(persistent_joint_lattice_rejects_nonprimitive_rows)
+BOOST_AUTO_TEST_CASE(persistent_joint_lattice_enforces_nonprimitive_divisibility)
 {
-	const auto quotient = zhangExactAffineIntegerQuotient({{2, 0}}, {2}, 2);
-	BOOST_CHECK(!quotient.valid);
-	BOOST_CHECK_EQUAL(quotient.failureReason,
-		"AFFINE_QUOTIENT_NON_PRIMITIVE_LATTICE");
+    const auto quotient = zhangExactAffineIntegerQuotient({{2, 0}}, {2}, 2);
+    BOOST_REQUIRE(quotient.valid);
+    BOOST_CHECK_EQUAL(quotient.particularSolution[0],1);
+    BOOST_CHECK(!zhangExactAffineIntegerQuotient({{2,0}},{1},2).valid);
 }
 
 BOOST_AUTO_TEST_CASE(

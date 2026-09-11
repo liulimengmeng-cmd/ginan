@@ -369,8 +369,10 @@ inline void zhangPropagateProductPairProvenance(
  * This object deliberately separates structural estimability, statistical
  * reliability and frontend admission.  A positive network fixed rank alone
  * can never set certifiedForProduct. */
+struct ZhangR47Candidate;
 struct ZhangProductRelationFixResult
 {
+	std::shared_ptr<const ZhangR47Candidate> r47Candidate;
 	bool basisValid = false;
 	bool mappingValid = false;
 	bool wideLaneReliable = false;
@@ -1292,12 +1294,11 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	const auto primitive = zhangIntegerRowLatticeContains(
 		result.deterministicBasis, ZhangExactVector(ambientDimension));
 	result.smithInvariants = primitive.smithInvariants;
-	if (primitive.rank != result.deterministicRank ||
-		!std::all_of(primitive.smithInvariants.begin(),
-			primitive.smithInvariants.end(), [](const auto& invariant)
-			{ return zhangExactAbs(invariant) == 1; }))
+	// A nonprimitive equation is not infeasible: 2*a=6 is a=3. The exact
+	// column-lattice membership below enforces divisibility (2*a=5 fails).
+	if (primitive.rank != result.deterministicRank)
 	{
-		result.failureReason = "AFFINE_QUOTIENT_NON_PRIMITIVE_LATTICE";
+		result.failureReason = "AFFINE_QUOTIENT_RANK_MISMATCH";
 		return result;
 	}
 	if (result.deterministicRank == 0)

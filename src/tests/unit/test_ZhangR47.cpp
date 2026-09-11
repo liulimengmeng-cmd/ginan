@@ -194,3 +194,73 @@ BOOST_AUTO_TEST_CASE(r47_b_affine_zero_identities_and_divisibility_are_not_ar_pr
     BOOST_CHECK(!q.primitiveSearchImage);
     BOOST_CHECK_EQUAL(q.searchSmithInvariants.front(), 2);
 }
+
+#include "common/zhangR47Candidate.hpp"
+BOOST_AUTO_TEST_CASE(r47_c_mixed_conditioner_changes_product_without_certifying_it)
+{
+    Eigen::Vector2d mean(3.20,2.98);
+    Eigen::Matrix2d covariance=Eigen::Vector2d(.04,.0025).asDiagonal();
+    Eigen::Matrix<double,1,2> h; h<<1,1;
+    Eigen::VectorXd value(1); value<<6;
+    const auto conditioned=zhangConditionPosteriorEffectiveIntegers(mean,covariance,h,value);
+    BOOST_REQUIRE(conditioned.valid);
+    BOOST_CHECK_SMALL(conditioned.mean(0)-1288.0/425,1e-12);
+    BOOST_CHECK_SMALL(conditioned.covariance(0,0)-1.0/425,1e-12);
+    const auto image=zhangAppliedLatticeProductImage({{1,1}},{6},{{1,0}},{0});
+    BOOST_REQUIRE(image.consistent);
+    BOOST_CHECK(image.basis.empty());
+    Eigen::Matrix2d uncoupled=Eigen::Vector2d(.04,.0025).asDiagonal();
+    h<<0,1; value<<3;
+    const auto noGain=zhangConditionPosteriorEffectiveIntegers(mean,uncoupled,h,value);
+    BOOST_REQUIRE(noGain.valid);
+    BOOST_CHECK_EQUAL(noGain.mean(0),mean(0));
+    BOOST_CHECK_EQUAL(noGain.covariance(0,0),uncoupled(0,0));
+}
+BOOST_AUTO_TEST_CASE(r47_c_nonprimitive_equalities_require_integer_feasibility)
+{
+    BOOST_CHECK(zhangR47AffineIntegerFeasible({{2}},{6},1));
+    BOOST_CHECK(!zhangR47AffineIntegerFeasible({{2}},{5},1));
+    const auto q=zhangExactAffineIntegerQuotient({{2}},{6},1);
+    BOOST_REQUIRE(q.valid);
+    BOOST_CHECK_EQUAL(q.particularSolution[0],3);
+    BOOST_CHECK_EQUAL(q.quotientRank,0);
+    BOOST_CHECK(!zhangExactAffineIntegerQuotient({{2}},{5},1).valid);
+    BOOST_CHECK(!zhangR47AffineIntegerFeasible({{1,1},{1,-1}},{1,0},2));
+}
+BOOST_AUTO_TEST_CASE(r47_c_full_state_conditioning_retains_cross_covariance_and_rolls_back)
+{
+    Eigen::Vector3d mean(3.20,2.98,10);
+    Eigen::Matrix3d covariance;
+    covariance<<.04,0,.01, 0,.0025,.001, .01,.001,.1;
+    Eigen::Matrix<double,1,3> h; h<<1,1,0;
+    Eigen::VectorXd value(1); value<<6;
+    const auto result=zhangConditionPosteriorEffectiveIntegers(mean,covariance,h,value);
+    BOOST_REQUIRE(result.valid);
+    BOOST_CHECK_SMALL(result.mean(2)-(10-.011*.18/.0425),1e-12);
+    BOOST_CHECK_LT(result.covariance(2,2),covariance(2,2));
+    Eigen::Matrix<double,2,3> conflict; conflict<<1,1,0,1,1,0;
+    Eigen::Vector2d bad(6,7);
+    BOOST_CHECK(!zhangConditionPosteriorEffectiveIntegers(mean,covariance,conflict,bad).valid);
+    BOOST_CHECK_EQUAL(mean(2),10); // root never mutated, no inverse update.
+}
+BOOST_AUTO_TEST_CASE(r47_c_immutable_candidate_rejects_dropped_conditioner_or_parent)
+{
+    ZhangR47Candidate c;
+    c.sourcePosteriorId="root"; c.authoritativeCycleChartId="generation|columns";
+    c.frontendSemanticId="beta+kappa"; c.sourceIntegerParentCount=0; c.stateIndices={0,1};
+    c.admittedStateConditioners={{1,1}}; c.admittedStateValues={6};
+    c.newIntegerConstraints={{1,0}}; c.newIntegerValues={3};
+    c.jointRows={{1,0},{0,1}}; c.jointValues={3,3};
+    c.physicalFunctionals={{{"arc1",1}},{{"arc2",1}}};
+    c.allDecisionParents={std::make_shared<const ZhangIntegerDecisionProof>(
+        ZhangIntegerDecisionProof{"decision","integer","epoch",1e-4,{}})};
+    c.riskBound=1e-4;
+    BOOST_REQUIRE(zhangR47CandidateContractValid(c));
+    auto dropped=c; dropped.jointRows={{1,0}}; dropped.jointValues={3};
+    dropped.physicalFunctionals.resize(1);
+    BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
+    dropped=c; dropped.allDecisionParents.clear();
+    BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
+    dropped=c; dropped.sourceIntegerParentCount=1;
+    BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
+}
