@@ -15423,7 +15423,7 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
                 options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6,
                 [&](const VectorXd& mean,const MatrixXd& covariance,double allocation,bool merge) {
                     GinAR_mtx trial;trial.aflt=mean;trial.Paflt=covariance;
-                    auto opt=options;opt.min_lambda_fix_count=1;
+                    auto opt=options;opt.min_lambda_fix_count=merge?mean.size():1;
                     opt.sucthr=std::max(options.sucthr,1-allocation);
                     const int count=rankAwareGnssAr(trace,trial,opt,time,
                         merge?"R46_SHADOW_OVERLAP_JOINT":"R46_SHADOW_QUOTIENT_BLOCK",true);

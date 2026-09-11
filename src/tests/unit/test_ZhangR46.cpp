@@ -158,3 +158,18 @@ BOOST_AUTO_TEST_CASE(r46_joint_physical_integer_feasibility_rejects_parity_confl
     BOOST_CHECK(!result.valid);BOOST_CHECK_EQUAL(ledger.rows().size(),1);
     BOOST_CHECK_EQUAL(result.failureReason,"PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT");
 }
+
+BOOST_AUTO_TEST_CASE(r46_partial_merged_answer_cannot_hide_disputed_overlap) {
+    int calls=0;
+    const auto out=zhangSequentialQuotientShadow(Eigen::VectorXd::Zero(4),
+        Eigen::MatrixXd::Identity(4,4),{},{},1e-4,1e-6,
+        [&](const Eigen::VectorXd& m,const Eigen::MatrixXd&,double allocation,bool merge) {
+            auto p=r46ShadowIdentity(m,allocation);++calls;
+            if(calls==2) p.values[0]=1;
+            if(merge) {p.rows.resize(1);p.values.resize(1);}
+            return p;
+        },[](const std::string&){},4,2,4);
+    BOOST_CHECK(out.rows.empty());BOOST_CHECK_EQUAL(out.mergeAttempts,1);
+    BOOST_CHECK_EQUAL(out.mergeAccepted,0);
+    BOOST_CHECK_EQUAL(out.status,"OVERLAP_CONFLICT_MERGE_REJECTED");
+}

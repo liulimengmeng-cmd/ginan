@@ -94,6 +94,9 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
                proposal.rows.size()!=proposal.values.size() ||
                !std::isfinite(proposal.failureProbability) || proposal.failureProbability<0 ||
                proposal.failureProbability>allocation) return false;
+            // A conflict is resolved only by a full joint answer on the merged
+            // coordinates. A partial answer may omit the disputed overlap.
+            if(merge && proposal.rows.size()!=coordinates.size()) return false;
             ZhangExactMatrix selector(coordinates.size(),ZhangExactVector(dimension));
             for(int i=0;i<coordinates.size();++i) selector[i][coordinates[i]]=1;
             for(const auto& row:proposal.rows) if(row.size()!=coordinates.size()) return false;
