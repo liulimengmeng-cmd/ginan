@@ -12560,11 +12560,14 @@ static void traceZhangR46CanonicalAvailability(
             if(value!=0) physical[enum_to_string(basis.observable)+"|"+edge.receiver+"|"+
                 edge.satellite.id()+"|V"+std::to_string(version->second)]+=value;
         }
+        if(!physical.empty() && physical.begin()->second<0)
+            for(auto& [id,value]:physical) value=-value;
         bool temporal=false;
         if(currentPhysical && registry!=zhangProductIntegerLedgerRegistry().end())
             for(const auto& held:registry->second.rows())
-                if(held.certified && held.physicalExpansionExact && held.physicalExpansion==physical)
-                    temporal=true;
+                if(held.certified && held.physicalExpansionExact && held.physicalExpansion==physical &&
+                   held.phaseSegmentFingerprint==zhangProductCanonicalRowSegmentFingerprint(
+                       held.system,held.canonicalProductExpansion)) temporal=true;
         trace<<"\nZHANG_R46_CANONICAL_AVAILABILITY time="<<time.to_string(0)
              <<" signal="<<enum_to_string(basis.observable)<<" satellite="<<target.satellite.id()
              <<" reference="<<target.referenceSatellite.id()<<" status="<<status
