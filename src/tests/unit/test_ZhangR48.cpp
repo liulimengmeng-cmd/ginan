@@ -40,3 +40,44 @@ BOOST_AUTO_TEST_CASE(r48_c2_healthy_tree_identity_and_hard_rebuild) {
  auto e=*old.treeEdges.begin();p=proposeProductDatum(old,replacement,{e},true);auditProductDatumTransport(p,old);
  BOOST_CHECK(!p.identityTransport);BOOST_CHECK_EQUAL(p.status,"TRANSPORT_UNPROVEN");
 }
+#include <boost/test/unit_test.hpp>
+#include "common/zhangR48SafePrefix.hpp"
+BOOST_AUTO_TEST_CASE(r48_c4_late_failure_keeps_safe_prefix) {
+ Eigen::VectorXd mu=Eigen::VectorXd::Zero(3);
+ Eigen::MatrixXd q=Eigen::MatrixXd::Identity(3,3)*0.001;
+ int calls=0;std::vector<std::string> logs;
+ auto result=zhangR48SafePrefix(mu,q,{}, {},0.001,1e-6,
+  [&](const Eigen::VectorXd& m,const Eigen::MatrixXd& c,double risk,bool merge) {
+   ZhangSequentialShadowProposal p;++calls;
+   if(merge)return p;
+   p.valid=true;p.failureProbability=0;
+   p.rows=zhangExactIdentityMatrix(m.size());p.values=ZhangExactVector(m.size());
+   if(calls>1)p.values.back()=20;
+   return p;
+  },[&](const std::string& s){logs.push_back(s);},1,2,3);
+ BOOST_CHECK_EQUAL(result.rows.size(),2);
+ BOOST_CHECK(result.values==ZhangExactVector(2));
+ BOOST_CHECK(result.reservedRisk>0 && result.reservedRisk<=0.001);
+ BOOST_CHECK_EQUAL(result.mergeAttempts,1);
+ bool rejected=false;for(auto& s:logs)rejected|=s.find("safe_prefix_retained=1")!=std::string::npos;
+ BOOST_CHECK(rejected);
+}
+BOOST_AUTO_TEST_CASE(r48_c4_rescue_uses_common_snapshot_and_bounded_risk) {
+ Eigen::VectorXd mu=Eigen::VectorXd::Zero(3);
+ Eigen::MatrixXd q=Eigen::MatrixXd::Identity(3,3)*0.001;
+ int calls=0;bool common=false;
+ auto result=zhangR48SafePrefix(mu,q,{}, {},0.001,1e-6,
+  [&](const Eigen::VectorXd& m,const Eigen::MatrixXd& c,double risk,bool merge) {
+   ZhangSequentialShadowProposal p;++calls;p.valid=true;p.failureProbability=0;
+   p.rows=zhangExactIdentityMatrix(m.size());p.values=ZhangExactVector(m.size());
+   if(!merge && calls==2)p.values[0]=1;
+   if(merge)common=c.diagonal().minCoeff()>0.0009;
+   return p;
+  },[](const std::string&){},1,2,3);
+ BOOST_CHECK(common);BOOST_CHECK_EQUAL(result.rows.size(),3);
+ BOOST_CHECK_EQUAL(result.mergeAccepted,1);BOOST_CHECK(result.reservedRisk<=0.001);
+}
+BOOST_AUTO_TEST_CASE(r48_c4_joint_affine_not_pairwise) {
+ BOOST_CHECK(zhangR47AffineIntegerFeasible({{1,0},{0,1}},{0,0},2));
+ BOOST_CHECK(!zhangR47AffineIntegerFeasible({{1,0},{0,1},{1,1}},{0,0,1},2));
+}

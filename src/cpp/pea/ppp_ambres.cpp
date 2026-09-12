@@ -77,6 +77,7 @@
 #include "common/zhangR47History.hpp"
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
+#include "common/zhangR48SafePrefix.hpp"
 
 
 static bool filterError = false;
@@ -18796,7 +18797,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             searchCov=(reduction.Ztrs*searchCov*reduction.Ztrs.transpose()).eval();
             out.projector=zhangExactMultiply(decorrelation,out.projector);
             out.offsets=zhangExactMatrixTimesColumn(decorrelation,out.offsets);
-            out.search=zhangSequentialQuotientShadow(searchMean,searchCov,{}, {},perRoute,nisAlpha,
+            out.search=zhangR48SafePrefix(searchMean,searchCov,{}, {},perRoute,nisAlpha,
                 [&](const VectorXd& mu,const MatrixXd& q,double allocation,bool merged)
                 {
                     GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
