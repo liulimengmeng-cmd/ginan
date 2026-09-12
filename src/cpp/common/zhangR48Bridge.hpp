@@ -1,6 +1,8 @@
 #pragma once
+#include <memory>
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR47ProductDomain.hpp"
+#include "common/zhangR48Marginal.hpp"
 
 struct ZhangR48BridgeResult {
  bool accepted=false;
@@ -22,7 +24,8 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  const Eigen::VectorXd& mean,const Eigen::MatrixXd& covariance,
  const ZhangExactMatrix& targets,const ZhangExactMatrix& held,const ZhangExactVector& hv,
  double allocation,double alpha,
- const std::function<ZhangSequentialShadowProposal(const Eigen::VectorXd&,const Eigen::MatrixXd&,double,bool)>& search)
+ const std::function<ZhangSequentialShadowProposal(const Eigen::VectorXd&,const Eigen::MatrixXd&,double,bool)>& search,
+ ZhangR48MarginalWorkspace* sharedWorkspace=nullptr)
 {
  ZhangR48BridgeResult out;const int n=mean.size();
  if(targets.size()!=2 || !zhangExactRectangularMatrix(targets,n))return out;
@@ -39,13 +42,12 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  if(out.rank==0){out.status="ALREADY_PROVEN";return out;}
  if(out.rank>2){out.status="INCONSISTENT_COMPONENT";return out;}
  if(allocation<=0){out.status="RISK_EXHAUSTED";return out;}
- auto mu=mean;auto q=covariance;
- if(!held.empty()) {
-  auto c=zhangConditionPosteriorEffectiveIntegers(mean,covariance,zhangR48Numeric(held,n),zhangExactRowToDouble(hv));
-  if(!c.valid){out.status=c.failureReason;return out;}mu=c.mean;q=c.covariance;
- }
+ std::unique_ptr<ZhangR48MarginalWorkspace> local;
+ if(!sharedWorkspace){local=std::make_unique<ZhangR48MarginalWorkspace>(mean,covariance);sharedWorkspace=local.get();}
  auto p=zhangR48Numeric(out.frame.projector,n);
- out.mean=p*mu+zhangExactRowToDouble(out.frame.offsets);out.covariance=p*q*p.transpose();
+ auto marginal=sharedWorkspace->project(p,zhangR48Numeric(held,n),zhangExactRowToDouble(hv));
+ if(!marginal.valid){out.status=marginal.failureReason;return out;}
+ out.mean=marginal.mean+zhangExactRowToDouble(out.frame.offsets);out.covariance=marginal.covariance;
  out.spent=allocation;
  auto candidate=search(out.mean,out.covariance,allocation,true);
  if(!candidate.valid || candidate.rows.size()!=out.rank || candidate.values.size()!=out.rank ||

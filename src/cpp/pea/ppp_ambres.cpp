@@ -18682,7 +18682,18 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const std::vector<ZhangCertificateFamilyRisk>* receipts,const std::string& runtimeId)
 {
     ZhangProductRelationFixResult result; result.r47ControlledSearch=true;
+    ZhangPhaseTimer officialTimer(trace,"R48_OFFICIAL_PRODUCTS");
+    zhangR48ExactMetrics.clear();
+    struct ExactMetricExit {
+        Trace& trace;
+        ~ExactMetricExit() {for(const auto& [phase,m]:zhangR48ExactMetrics)
+            trace<<"\nR48_EXACT_TIMING phase="<<phase<<" seconds="<<m.seconds
+                 <<" calls="<<m.calls<<" matrix_rows_max="<<m.rows<<" matrix_columns_max="<<m.columns
+                 <<" nonzeros_max="<<m.nonzeros<<" coefficient_bits_max="<<m.bits
+                 <<" reuse=BATCH_RHS cache_hits=0";}
+    } exactMetricExit{trace};
     const int dimension=root.aflt.size(), named=first.namedRelations.size();
+    ZhangR48MarginalWorkspace r48Moments(root.aflt,root.Paflt);
     auto fail=[&](const std::string& reason) {result.status=result.failureReason=reason;return result;};
     if(!first.valid || !second.valid || !first.wholeLattice.valid || !second.wholeLattice.valid ||
        !zhangProductRelationSemanticOrderingMatches(first.namedRelations,second.namedRelations) ||
@@ -18772,21 +18783,16 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             ZhangPhaseTimer timer(trace,"R48_PRODUCT_IMAGE");
             return zhangR47CompileProductSearchFrame(targets,out.held,out.heldValues,dimension);
         }();
-        if(!frame.valid) return out;
-        VectorXd mean=root.aflt;MatrixXd covariance=root.Paflt;
-        if(!out.held.empty())
-        {
-            const auto c=zhangConditionPosteriorEffectiveIntegers(mean,covariance,
-                numeric(out.held,dimension),zhangExactRowToDouble(out.heldValues));
-            if(!c.valid) return out;mean=c.mean;covariance=c.covariance;
-        }
+        if(!frame.valid) {trace<<"\nR48_ROUTE_REJECT reason="<<frame.reason;return out;}
         out.projector=frame.projector;out.offsets=frame.offsets;
         if(frame.searchRank && perRoute>0)
         {
             auto w=numeric(out.projector,dimension);
-            VectorXd searchMean=w*mean+zhangExactRowToDouble(out.offsets);
-            MatrixXd searchCov=w*covariance*w.transpose();
-            trace<<"\nR48_SEARCH_SNAPSHOT_BEGIN time="<<time.to_string(0)
+            const auto marginal=r48Moments.project(w,numeric(out.held,dimension),zhangExactRowToDouble(out.heldValues));
+            if(!marginal.valid) {out.search.status=marginal.failureReason;return out;}
+            VectorXd searchMean=marginal.mean+zhangExactRowToDouble(out.offsets);
+            MatrixXd searchCov=marginal.covariance;
+            trace<<std::setprecision(17)<<"\nR48_SEARCH_SNAPSHOT_BEGIN time="<<time.to_string(0)
                  <<" route="<<(conditional?"HISTORY":"FLOAT")<<" mean="<<searchMean.transpose()
                  <<"\ncovariance=\n"<<searchCov<<"\nR48_SEARCH_SNAPSHOT_END";
             GinAR_mtx reduction;reduction.aflt=searchMean;reduction.Paflt=searchCov;
@@ -18798,6 +18804,20 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             searchCov=(reduction.Ztrs*searchCov*reduction.Ztrs.transpose()).eval();
             out.projector=zhangExactMultiply(decorrelation,out.projector);
             out.offsets=zhangExactMatrixTimesColumn(decorrelation,out.offsets);
+            trace<<std::setprecision(17)<<"\nR48_SEARCH_COORDINATES time="<<time.to_string(0)
+                <<" route="<<(conditional?"HISTORY":"FLOAT")<<" mean="<<searchMean.transpose()
+                <<"\ncovariance=\n"<<searchCov;
+            for(int c=0;c<dimension;++c)trace<<"\ncolumn["<<c<<"]="<<((string)root.ambmap.at(c));
+            for(int i=0;i<out.projector.size();++i) {
+                trace<<"\nprojector["<<i<<"]=";
+                for(const auto& v:out.projector[i])trace<<v<<",";
+                trace<<" offset="<<out.offsets[i];
+            }
+            for(int i=0;i<out.held.size();++i) {
+                trace<<"\nconditioner["<<i<<"]=";for(const auto& v:out.held[i])trace<<v<<",";
+                trace<<" rhs="<<out.heldValues[i];
+            }
+            trace<<"\nR48_SEARCH_COORDINATES_END";
             out.search=zhangR48SafePrefix(searchMean,searchCov,{}, {},perRoute*0.75,nisAlpha,
                 [&](const VectorXd& mu,const MatrixXd& q,double allocation,bool merged)
                 {
@@ -18983,7 +19003,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                         trial.lambda_selected_bootstrap_success<=1?1-trial.lambda_selected_bootstrap_success:1;
                     p.valid=fixed==mu.size() && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);
                     return p;
-                });
+                },&r48Moments);
             route.search.reservedRisk+=br.spent;
             trace<<"\nR48_COMPONENT_CUT_RESULT time="<<time.to_string(0)
                 <<" route="<<(route.conditional?"HISTORY":"FLOAT")
@@ -19006,6 +19026,10 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     };
     bridgeRoute(fresh);if(conditionedRoute)bridgeRoute(conditional);
     const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
+    trace<<"\nR48_NUMERIC_REUSE time="<<time.to_string(0)
+        <<" posterior_scope=THIS_CALL conditioner_decompositions="<<r48Moments.decompositions
+        <<" cache_hits="<<r48Moments.hits<<" root_dimension="<<dimension
+        <<" target_rows="<<targets.size();
     auto freshPairs=pairsFor(fresh),historyPairs=pairsFor(conditional);
     const bool selectHistory=conditional.valid && (!fresh.valid || conditional.pairCount>fresh.pairCount ||
         (conditional.pairCount==fresh.pairCount && conditional.finalFrame.searchRank<fresh.finalFrame.searchRank));
@@ -30091,14 +30115,17 @@ void fixAndHoldAmbiguities(
 	}
 
     if(acsConfig.zhangFullRank.enable) for(auto code:{E_ObsCode::L1C,E_ObsCode::L2W}) {
-        bool full=false,selected=false;
+        bool full=false,selected=false,transition=false;
         for(const auto& [key,index]:kfState.kfIndexMap)
             if(key.type==KF::AMBIGUITY && key.str=="KIRI" && key.Sat==SatSys("G27") && key.num==int(code))full=true;
+        for(const auto& [key,entries]:kfState.stateTransitionMap)
+            if(key.type==KF::AMBIGUITY && key.str=="KIRI" && key.Sat==SatSys("G27") && key.num==int(code))transition=true;
         for(const auto& [key,index]:ambiguityCandidates)
             if(key.str=="KIRI" && key.Sat==SatSys("G27") && key.num==int(code))selected=true;
         trace<<"\nR48_STATE_CHAIN time="<<kfState.time.to_string(0)<<" key=KIRI:G27:"<<enum_to_string(code)
             <<" full_kf_present="<<full<<" float_root_present="<<selected
-            <<" product_search_present="<<selected<<" pending_add=NOT_INFERRED"
+            <<" product_search_present="<<selected<<" pending_add="<<(transition && !full)
+            <<" pending_remove="<<(full && !transition)<<" state_transition_present="<<transition
             <<" branch_id="<<zhangAmbresRuntimeId(kfState);
     }
     int userCap = acsConfig.zhangPppAr.user_max_ambiguities_per_signal;

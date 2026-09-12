@@ -131,7 +131,7 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
                 emit("round="+std::to_string(round)+" overlap_common_rank="+std::to_string(commonRank));
                 // Exact HNF checks common affine functionals in one ambient
                 // integer lattice, including mixed rows and opposite signs.
-                if(!zhangExactAffineIntegerQuotient(united,rhs,ambient).valid) {
+                if(!zhangExactAffineIntegerQuotient(united,rhs,ambient,ZhangExactQuotientWork::FEASIBILITY_ONLY).valid) {
                     ++out.overlapConflicts;conflict=true;break;
                 }
             }
@@ -153,7 +153,7 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
         out.provisionalRows=provisional.size();out.previousAcceptedRank=out.rows.size();
         const auto united=zhangExactRowHermiteNormalForm(rows,values);
         out.wholeUnionRank=united.basis.size();
-        if(!united.consistent || !zhangExactAffineIntegerQuotient(united.basis,united.values,ambient).valid) {
+        if(!united.consistent || !zhangExactAffineIntegerQuotient(united.basis,united.values,ambient,ZhangExactQuotientWork::FEASIBILITY_ONLY).valid) {
             out.status="WHOLE_LATTICE_AFFINE_CONFLICT";break;
         }
         if(united.basis.size()<=out.rows.size()) {out.status="NO_RANK_GAIN";break;}
@@ -162,7 +162,7 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
             zhangExactRowToDouble(united.values)-matrix*mean,
             matrix*covariance*matrix.transpose(),nisAlpha);
         out.lastNis=nis;
-        if(!nis.valid || nis.nis>nis.threshold) {out.status=nis.status;break;}
+        if(!nis.valid || nis.nis>nis.threshold) {out.status=nis.valid?"WHOLE_LATTICE_NIS_REJECTED":nis.status;break;}
         out.rows=united.basis;out.values=united.values;
         out.acceptedRoundRows.push_back(out.rows);
         out.acceptedRoundValues.push_back(out.values);

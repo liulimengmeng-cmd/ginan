@@ -20,6 +20,7 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     const ZhangExactMatrix& targets,const ZhangExactMatrix& conditioners,
     const ZhangExactVector& values,int dimension)
 {
+    ZhangR48ExactTimer productTimer("R48_PRODUCT_IMAGE",targets,dimension);
     ZhangR47ProductSearchFrame out;
     if(targets.empty() || !zhangExactRectangularMatrix(targets,dimension) ||
        !zhangExactRectangularMatrix(conditioners,dimension)) return out;
@@ -40,7 +41,7 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     };
     const auto t=compact(targets),h=compact(conditioners);
     out.targetRank=zhangExactRowHermiteNormalForm(t).basis.size();
-    out.affine=zhangExactAffineIntegerQuotient(h,values,out.columns.size());
+    out.affine=zhangExactAffineIntegerQuotient(h,values,out.columns.size(),ZhangExactQuotientWork::PARTICULAR_AND_KERNEL);
     if(!out.affine.valid) {out.reason=out.affine.failureReason;return out;}
     out.conditionerRank=out.affine.deterministicRank;
     if(!out.affine.quotientRank) {out.valid=true;out.reason="PRODUCT_FULLY_DETERMINED";return out;}
@@ -52,7 +53,23 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     if(!image.valid) {out.reason="PRODUCT_IMAGE_COORDINATES_FAILED";return out;}
     out.imageGenerators=image.imageGenerators;
     out.searchRank=image.primitiveRows.size();
-    const auto projected=zhangExactMultiply(image.primitiveRows,out.affine.quotientProjector);
+    // Solve only the product-image coordinate RHS, never construct the
+    // entire network quotient left inverse. K is saturated, so these rows
+    // have exact integer lifts. Audit each lift before exposing it to ILS.
+    const auto lifts=[&]() {
+        ZhangR48ExactTimer timer("R48_PRODUCT_IMAGE_LIFT",k);
+        return zhangIntegerRowLatticeContainsBatch(k,image.primitiveRows);
+    }();
+    ZhangExactMatrix projected;
+    for(std::size_t i=0;i<lifts.size();++i) {
+        if(!lifts[i].contained || lifts[i].combination.size()!=out.columns.size()) {
+            out.reason="PRODUCT_IMAGE_INTEGER_LIFT_FAILED";return out;
+        }
+        projected.push_back(lifts[i].combination);
+    }
+    if(!projected.empty() && zhangExactMultiply(projected,k)!=image.primitiveRows) {
+        out.reason="PRODUCT_IMAGE_INTEGER_LIFT_AUDIT_FAILED";return out;
+    }
     for(const auto& row:projected)
     {
         ZhangExactVector full(dimension); ZhangExactInteger offset=0;

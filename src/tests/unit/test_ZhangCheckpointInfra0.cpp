@@ -523,3 +523,14 @@ BOOST_AUTO_TEST_CASE(receiver_pointer_rebind_failure_is_side_effect_free)
 	}
 	BOOST_CHECK(rebound);
 }
+
+BOOST_AUTO_TEST_CASE(r48_controller_30_second_checkpoint_roundtrip) {
+ ZhangPeaControllerCheckpointState state;
+ GTime completed;completed.bigTime=1405210830;
+ BOOST_REQUIRE(makeZhangPeaPostEpochCheckpointState(42,captureZhangCheckpointTime(completed),30,state).valid);
+ std::string payload;BOOST_REQUIRE(exportZhangPeaControllerCheckpointSection(state,payload).valid);
+ ZhangPeaControllerCheckpointRestorePlan plan;
+ BOOST_CHECK(preflightZhangPeaControllerCheckpointSection(payload,30,plan).valid);
+ BOOST_CHECK(!preflightZhangPeaControllerCheckpointSection(payload,60,plan).valid);
+ BOOST_CHECK_SMALL(double((restoreZhangCheckpointTime(state.nextTsync)-completed).to_double())-30,1e-9);
+}

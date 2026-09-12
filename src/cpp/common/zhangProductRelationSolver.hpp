@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangR48ExactAudit.hpp"
 
 
 #include <algorithm>
@@ -1257,11 +1258,15 @@ struct ZhangExactAffineIntegerQuotient
 	std::string failureReason = "NOT_EVALUATED";
 };
 
+enum class ZhangExactQuotientWork { FEASIBILITY_ONLY, PARTICULAR_AND_KERNEL, FULL_SEARCH_COORDINATES };
+
 inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	const ZhangExactMatrix& deterministicRows,
 	const ZhangExactVector& deterministicValues,
-	int ambientDimension)
+	int ambientDimension,
+    ZhangExactQuotientWork work=ZhangExactQuotientWork::FULL_SEARCH_COORDINATES)
 {
+    ZhangR48ExactTimer feasibilityTimer("R48_EXACT_FEASIBILITY",deterministicRows,ambientDimension);
 	ZhangExactAffineIntegerQuotient result;
 	result.ambientDimension = ambientDimension;
 	if (ambientDimension <= 0 ||
@@ -1308,7 +1313,9 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	{
 		result.particularSolution = ZhangExactVector(ambientDimension);
 		result.kernelBasis = zhangExactIdentityMatrix(ambientDimension);
-		result.quotientProjector = zhangExactIdentityMatrix(ambientDimension);
+        if(work==ZhangExactQuotientWork::FULL_SEARCH_COORDINATES)
+		    result.quotientProjector = zhangExactIdentityMatrix(ambientDimension);
+        if(work==ZhangExactQuotientWork::FEASIBILITY_ONLY)result.kernelBasis.clear();
 		result.quotientRank = ambientDimension;
 		result.valid = true;
 		result.failureReason = "NONE";
@@ -1331,9 +1338,15 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		return result;
 	}
 	result.particularSolution = particular.combination;
+    if(work==ZhangExactQuotientWork::FEASIBILITY_ONLY) {
+        result.valid=true;result.failureReason="NONE";return result;
+    }
 
-	result.kernelBasis = zhangExactIntegerKernel(
-		result.deterministicBasis, ambientDimension);
+    feasibilityTimer.finish();
+    {
+        ZhangR48ExactTimer timer("R48_EXACT_KERNEL",result.deterministicBasis,ambientDimension);
+	    result.kernelBasis = zhangExactIntegerKernel(result.deterministicBasis, ambientDimension);
+    }
 	result.quotientRank = static_cast<int>(result.kernelBasis.size());
 	if (result.deterministicRank + result.quotientRank != ambientDimension)
 	{
@@ -1341,6 +1354,9 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		return result;
 	}
 
+    if(work==ZhangExactQuotientWork::PARTICULAR_AND_KERNEL) {
+        result.valid=true;result.failureReason="NONE";return result;
+    }
 	// Find an exact integer left inverse L K^T=I.  The saturated kernel is
 	// primitive, so every quotient unit vector must lie in the column lattice
 	// of K.
@@ -1349,8 +1365,10 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	for (int column = 0; column < ambientDimension; column++)
 	for (int row = 0; row < result.quotientRank; row++)
 		kernelColumns[column][row] = result.kernelBasis[row][column];
-    const auto inverseRows=zhangIntegerRowLatticeContainsBatch(
-        kernelColumns,zhangExactIdentityMatrix(result.quotientRank));
+    const auto inverseRows=[&](){
+        ZhangR48ExactTimer timer("R48_EXACT_LEFT_INVERSE",kernelColumns);
+        return zhangIntegerRowLatticeContainsBatch(kernelColumns,zhangExactIdentityMatrix(result.quotientRank));
+    }();
 	result.quotientProjector.reserve(result.quotientRank);
 	for (int quotient = 0; quotient < result.quotientRank; quotient++)
 	{
@@ -1436,9 +1454,10 @@ inline ZhangPrimitiveImageCoordinates zhangPrimitiveImageCoordinates(const Zhang
 	result.imageGenerators.assign(m, ZhangExactVector(r));
 	for (int i=0;i<m;++i) for(int k=0;k<r;++k)
 		result.imageGenerators[i][k]=image.basis[k][i];
+    const auto memberships=zhangIntegerRowLatticeContainsBatch(image.basis,columns);
 	for (int j=0;j<n;++j)
 	{
-		const auto membership = zhangIntegerRowLatticeContains(image.basis, columns[j]);
+		const auto& membership = memberships[j];
 		if (!membership.contained || membership.combination.size() != r) return result;
 		for (int k=0;k<r;++k) result.primitiveRows[k][j]=membership.combination[k];
 	}

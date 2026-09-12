@@ -105,3 +105,31 @@ BOOST_AUTO_TEST_CASE(r48_c5_bridge_preserves_integer_image_and_joint_gate) {
  auto reject=zhangR48SearchBridge(mu,q,{{2,0},{0,1}},{},{},1e-5,1e-6,bad);
  BOOST_CHECK(!reject.accepted);BOOST_CHECK_EQUAL(reject.spent,1e-5);
 }
+
+BOOST_AUTO_TEST_CASE(r48_c6_product_image_lift_avoids_full_left_inverse) {
+ ZhangExactMatrix t={{2,0,0},{0,3,0}},h={{1,1,1}};
+ auto f=zhangR47CompileProductSearchFrame(t,h,{7},3);
+ BOOST_REQUIRE(f.valid);BOOST_CHECK(f.affine.quotientProjector.empty());
+ BOOST_CHECK_EQUAL(f.searchRank,2);
+ auto old=zhangExactAffineIntegerQuotient(h,{7},3);
+ ZhangExactMatrix k(3,ZhangExactVector(old.quotientRank));
+ for(int c=0;c<3;++c)for(int j=0;j<old.quotientRank;++j)k[c][j]=old.kernelBasis[j][c];
+ auto image=zhangPrimitiveImageCoordinates(zhangExactMultiply(t,k));
+ BOOST_CHECK(zhangExactMultiply(f.projector,k)==image.primitiveRows);
+ auto feasible=zhangExactAffineIntegerQuotient({{2,0}},{6},2,ZhangExactQuotientWork::FEASIBILITY_ONLY);
+ BOOST_CHECK(feasible.valid);BOOST_CHECK(feasible.kernelBasis.empty());
+}
+BOOST_AUTO_TEST_CASE(r48_c6_low_rank_marginal_matches_full_conditioning) {
+ Eigen::VectorXd m(3);m<<0.1,0.2,0.3;
+ Eigen::MatrixXd q(3,3);q<<2,.3,.1,.3,1,.2,.1,.2,3;
+ Eigen::MatrixXd h(1,3);h<<1,1,0;Eigen::VectorXd v(1);v<<0;
+ Eigen::MatrixXd j(2,3);j<<1,0,-1,0,2,0;
+ ZhangR48MarginalWorkspace w(m,q);
+ auto small=w.project(j,h,v);auto full=zhangConditionPosteriorEffectiveIntegers(m,q,h,v);
+ BOOST_REQUIRE(small.valid && full.valid);
+ BOOST_CHECK_SMALL((small.mean-j*full.mean).norm(),1e-10);
+ BOOST_CHECK_SMALL((small.covariance-j*full.covariance*j.transpose()).norm(),1e-10);
+ auto again=w.project(j,h,v);BOOST_CHECK_EQUAL(w.hits,1);BOOST_CHECK_EQUAL(w.decompositions,1);
+ Eigen::VectorXd changed(1);changed<<1;auto different=w.project(j,h,changed);
+ BOOST_CHECK_EQUAL(w.decompositions,2);BOOST_CHECK((different.mean-small.mean).norm()>0.1);
+}

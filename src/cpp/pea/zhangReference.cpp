@@ -2599,11 +2599,19 @@ void updateZhangGraphBasis(
     for(const auto& code:options.baseline_observables) {
         ZhangGraphEdge edge{"KIRI",SatSys("G27")};
         auto hist=runtime.edgeHistory.find(edge);
+        int lastObserved=-1;
+        if(hist!=runtime.edgeHistory.end()) {
+            auto obs=runtime.arcVersionObservationHistory.find({edge,hist->second.arcVersion});
+            if(obs!=runtime.arcVersionObservationHistory.end())lastObserved=obs->second.lastObservedEpoch;
+        }
         BOOST_LOG_TRIVIAL(info)<<"R48_STATE_AVAILABILITY time="<<kfState.time.to_string(0)
             <<" key=KIRI:G27:"<<enum_to_string(code)
             <<" phase=GRAPH_PRE_TRANSITION raw_observation_present="<<availability.rawEdges.count(edge)
             <<" qc_observation_valid="<<availability.edges.count(edge)
             <<" physical_arc_version="<<(hist==runtime.edgeHistory.end()?-1:hist->second.arcVersion)
+            <<" last_valid_observation_epoch="<<lastObserved
+            <<" last_valid_observation_time="<<(lastObserved<0?"UNOBSERVED":
+                (kfState.time-(runtime.epochIndex-lastObserved)*acsConfig.epoch_interval).to_string(0))
             <<" discontinuity="<<availability.discontinuousEdges.count(edge)
             <<" qc_excluded="<<availability.qcExcludedEdges.count(edge)
             <<" signal_unavailable="<<availability.signalUnavailableEdges.count(edge)
@@ -2873,6 +2881,30 @@ void updateZhangGraphBasis(
             nextProductCoreReceivers = core.receivers;
             productCoreMinimumSatelliteSupport =
                 core.minimumSatelliteSupport;
+        }
+        // A soft receiver-core choice must not hide a physically healthy
+        // old tree before the datum proposal can compare it. Add only edges
+        // passing the unchanged current integer-support and arc/QC gates.
+        bool oldCoreTreeHealthy=runtime.productInitialized && oldProduct.connected &&
+            oldProduct.rootReceiver==candidate.rootReceiver;
+        for(const auto& edge:oldProduct.treeEdges) {
+            const auto quality=integerSupportQuality.find(edge);
+            const auto history=runtime.edgeHistory.find(edge);
+            const auto previous=oldProductArcVersions.find(edge);
+            oldCoreTreeHealthy &= candidate.edges.count(edge)>0 &&
+                !availability.discontinuousEdges.count(edge) &&
+                !availability.qcExcludedEdges.count(edge) &&
+                !availability.elevationExcludedEdges.count(edge) &&
+                history!=runtime.edgeHistory.end() && previous!=oldProductArcVersions.end();
+            if(history!=runtime.edgeHistory.end() && previous!=oldProductArcVersions.end())
+                oldCoreTreeHealthy &= history->second.arcVersion==previous->second;
+            if(options.product_integer_support_core)
+                oldCoreTreeHealthy &= quality!=integerSupportQuality.end() &&
+                    zhangEvaluateIntegerSupportQuality(quality->second,{}).eligibleForIntegerSupport;
+        }
+        if(oldCoreTreeHealthy) {
+            productEdges.insert(oldProduct.treeEdges.begin(),oldProduct.treeEdges.end());
+            nextProductCoreReceivers.insert(oldProduct.receivers.begin(),oldProduct.receivers.end());
         }
         ZhangGraphBasis nextProduct = runtime.productInitialized
             ? (options.product_integer_support_core

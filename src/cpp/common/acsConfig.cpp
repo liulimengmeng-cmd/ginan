@@ -9973,11 +9973,11 @@ bool ACSConfig::parse(
 			if (checkpointCodes.size() != 2 ||
 				checkpointCodes[0] != E_ObsCode::L1C ||
 				checkpointCodes[1] != E_ObsCode::L2W ||
-				std::abs(epoch_interval - 60) > 1e-9)
+				(std::abs(epoch_interval - 60) > 1e-9 && std::abs(epoch_interval - 30) > 1e-9))
 			{
 				BOOST_LOG_TRIVIAL(error)
 					<< "Infra-0 v1 requires ordered GPS L1C/L2W baselines "
-					   "and a 60 second processing interval";
+					   "and a 30 or 60 second processing interval";
 				valid = false;
 			}
 		}
