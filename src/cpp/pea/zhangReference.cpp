@@ -1,4 +1,5 @@
 #include "pea/zhangReference.hpp"
+#include "common/zhangR48ProductDatum.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -2885,6 +2886,26 @@ void updateZhangGraphBasis(
             return false;
         }
 
+        std::set<ZhangGraphEdge> hardInvalid=availability.discontinuousEdges;
+        hardInvalid.insert(availability.qcExcludedEdges.begin(),availability.qcExcludedEdges.end());
+        hardInvalid.insert(availability.elevationExcludedEdges.begin(),availability.elevationExcludedEdges.end());
+        for(const auto& edge:oldProduct.treeEdges) {
+            auto oldVersion=oldProductArcVersions.find(edge);
+            auto now=runtime.edgeHistory.find(edge);
+            if(oldVersion==oldProductArcVersions.end() || now==runtime.edgeHistory.end() ||
+               oldVersion->second!=now->second.arcVersion) hardInvalid.insert(edge);
+        }
+        auto proposal=proposeProductDatum(oldProduct,nextProduct,hardInvalid,runtime.productInitialized);
+        auditProductDatumTransport(proposal,oldProduct);
+        BOOST_LOG_TRIVIAL(info)<<"R48_TREE_TRANSPORT time="<<kfState.time.to_string(0)
+            <<" reason="<<reason<<" old_healthy="<<proposal.oldHealthy
+            <<" proposed_changed="<<(oldProduct.treeEdges!=nextProduct.treeEdges)
+            <<" hard_invalid_edges="<<hardInvalid.size()
+            <<" integer_transport_proven="<<proposal.identityTransport
+            <<" numeric_frontend_consistency_valid="<<proposal.identityTransport
+            <<" status="<<proposal.status;
+        // First mutation remains below, after the candidate has been audited.
+        nextProduct=commitProductDatum(proposal);
         map<ZhangGraphEdge, int> nextProductArcVersions;
         for (const auto& edge : nextProduct.treeEdges)
         {
@@ -2979,8 +3000,14 @@ void updateZhangGraphBasis(
                 versionChangedEdges.empty() &&
                 slippedOldProductEdges.empty();
         }
-        if (runtime.productInitialized && !preserved &&
-            !preserveIntegerComponent)
+        const bool graphContinuity=preserved;
+        preserved=preserved && proposal.identityTransport;
+        BOOST_LOG_TRIVIAL(info)<<"R48_DATUM_CONTINUITY time="<<kfState.time.to_string(0)
+            <<" graph_continuity_valid="<<graphContinuity
+            <<" arc_segment_continuity_valid="<<hardInvalid.empty()
+            <<" integer_transport_proven="<<proposal.identityTransport
+            <<" preserve_integer_component_requested="<<preserveIntegerComponent;
+        if (runtime.productInitialized && !preserved)
         {
             runtime.productDatumVersion++;
             runtime.integerComponentVersion++;
