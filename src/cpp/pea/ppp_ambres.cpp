@@ -4859,7 +4859,7 @@ static bool conditionZhangAmbiguitiesExactly(
     const double largestEigenvalue = eigenSolver.eigenvalues().maxCoeff();
     const double smallestEigenvalue = eigenSolver.eigenvalues().minCoeff();
     const double rankTolerance = std::max(1e-14, 1e-12 * largestEigenvalue);
-    if (largestEigenvalue < -rankTolerance)
+    if (eigenSolver.eigenvalues().minCoeff() < -rankTolerance)
     {
         zhangTransactionalConditioningReason = "CONSTRAINT_COVARIANCE_NEGATIVE";
         zhangTransactionalConditioningFailed = true;
@@ -18777,6 +18777,9 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             auto w=numeric(out.projector,dimension);
             VectorXd searchMean=w*mean+zhangExactRowToDouble(out.offsets);
             MatrixXd searchCov=w*covariance*w.transpose();
+            trace<<"\nR48_SEARCH_SNAPSHOT_BEGIN time="<<time.to_string(0)
+                 <<" route="<<(conditional?"HISTORY":"FLOAT")<<" mean="<<searchMean.transpose()
+                 <<"\ncovariance=\n"<<searchCov<<"\nR48_SEARCH_SNAPSHOT_END";
             GinAR_mtx reduction;reduction.aflt=searchMean;reduction.Paflt=searchCov;
             ZhangExactMatrix decorrelation;ZhangExactVector ignored;
             if(Ztrans_reduction(trace,reduction)<0 || reduction.Ztrs.rows()!=frame.searchRank ||
@@ -18817,7 +18820,20 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             <<" source_integer_parent_count=0 historical_conditioner_rank="<<out.held.size()
             <<" product_search_rank="<<frame.searchRank<<" new_fixed_rank="<<out.newRows.size()
             <<" remaining_product_rank="<<out.finalFrame.searchRank<<" attempts="<<out.search.attempts
-            <<" family_spent="<<out.search.reservedRisk<<" valid="<<out.valid;
+            <<" family_spent="<<out.search.reservedRisk<<" valid="<<out.valid
+            <<" search_status="<<out.search.status
+            <<" provisional_rows="<<out.search.provisionalRows
+            <<" previous_accepted_rank="<<out.search.previousAcceptedRank
+            <<" whole_union_rank="<<out.search.wholeUnionRank
+            <<" whole_nis_valid="<<out.search.lastNis.valid
+            <<" whole_nis="<<out.search.lastNis.nis
+            <<" whole_nis_threshold="<<out.search.lastNis.threshold
+            <<" stochastic_rank="<<out.search.lastNis.rank
+            <<" deterministic_null_residual="<<out.search.lastNis.nullResidual
+            <<" min_eigenvalue="<<out.search.lastNis.minEigenvalue
+            <<" max_eigenvalue="<<out.search.lastNis.maxEigenvalue
+            <<" rank_tolerance="<<out.search.lastNis.rankTolerance
+            <<" source_posterior_id=FLOAT_ROOT@"<<time.to_string(0);
         return out;
     };
     // FLOAT route does not receive the conditional mean, covariance or parents.

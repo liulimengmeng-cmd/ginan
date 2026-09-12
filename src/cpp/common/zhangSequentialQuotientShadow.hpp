@@ -23,6 +23,8 @@ struct ZhangSequentialShadowResult {
     int rounds = 0, attempts = 0, overlapChecks = 0, overlapConflicts = 0;
     int mergeAttempts = 0, mergeAccepted = 0, overlapCommonRankTotal = 0;
     std::string status = "NOT_STARTED";
+    ZhangIntegerCandidateNis lastNis;
+    int provisionalRows=0, previousAcceptedRank=0, wholeUnionRank=0;
 };
 
 // Pure private workspace: no KF state, writer, ledger, or static registry is
@@ -148,7 +150,9 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
         auto rows=out.rows;auto values=out.values;
         rows.insert(rows.end(),provisional.begin(),provisional.end());
         values.insert(values.end(),provisionalValues.begin(),provisionalValues.end());
+        out.provisionalRows=provisional.size();out.previousAcceptedRank=out.rows.size();
         const auto united=zhangExactRowHermiteNormalForm(rows,values);
+        out.wholeUnionRank=united.basis.size();
         if(!united.consistent || !zhangExactAffineIntegerQuotient(united.basis,united.values,ambient).valid) {
             out.status="WHOLE_LATTICE_AFFINE_CONFLICT";break;
         }
@@ -157,7 +161,8 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
         const auto nis=assessZhangIntegerCandidateNis(
             zhangExactRowToDouble(united.values)-matrix*mean,
             matrix*covariance*matrix.transpose(),nisAlpha);
-        if(!nis.valid || nis.nis>nis.threshold) {out.status="WHOLE_LATTICE_NIS_REJECTED";break;}
+        out.lastNis=nis;
+        if(!nis.valid || nis.nis>nis.threshold) {out.status=nis.status;break;}
         out.rows=united.basis;out.values=united.values;
         out.acceptedRoundRows.push_back(out.rows);
         out.acceptedRoundValues.push_back(out.values);

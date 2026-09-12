@@ -512,7 +512,7 @@ zhangRecheckProductGaugeOnPosterior(
 	const double largestEigenvalue = eigenSolver.eigenvalues().maxCoeff();
 	const double rankTolerance = std::max(
 		1e-14, 1e-12 * std::max(0.0, largestEigenvalue));
-	if (largestEigenvalue < -rankTolerance ||
+	if (eigenSolver.eigenvalues().minCoeff() < -rankTolerance ||
 		eigenSolver.eigenvalues().minCoeff() < -rankTolerance)
 	{
 		result.failureReason = "PRODUCT_GAUGE_RECHECK_COVARIANCE_NOT_PSD";

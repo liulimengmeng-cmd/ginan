@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
 #include <boost/math/distributions/chi_squared.hpp>
 #include "common/eigenIncluder.hpp"
 
@@ -13,6 +14,8 @@ struct ZhangIntegerCandidateNis
 	double nis       = std::numeric_limits<double>::quiet_NaN();
 	double threshold = std::numeric_limits<double>::quiet_NaN();
 	int    rank      = 0;
+ double minEigenvalue=0, maxEigenvalue=0, rankTolerance=0, nullResidual=0;
+ std::string status="INVALID_INPUT";
 };
 
 inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
@@ -22,7 +25,8 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 {
 	ZhangIntegerCandidateNis assessment;
 	if (innovation.size() == 0 || covariance.rows() != innovation.size()
-	 || covariance.cols() != innovation.size())
+	 || covariance.cols() != innovation.size() || !innovation.allFinite() || !covariance.allFinite()
+     || !(alpha>0 && alpha<1))
 	{
 		return assessment;
 	}
@@ -39,8 +43,11 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 	const double rankTolerance = std::max(
 		1e-14,
 		1e-12 * std::max(0.0, largestEigenvalue));
-	if (largestEigenvalue < -rankTolerance)
+	assessment.minEigenvalue=eigenSolver.eigenvalues().minCoeff();
+ assessment.maxEigenvalue=largestEigenvalue;assessment.rankTolerance=rankTolerance;
+ if (assessment.minEigenvalue < -rankTolerance)
 	{
+        assessment.status="NON_PSD_COVARIANCE";
 		return assessment;
 	}
 
@@ -62,6 +69,8 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 				std::abs(coordinates(index)));
 		}
 	}
+	assessment.nullResidual=maximumNullInnovation;
+ assessment.status="DETERMINISTIC_RESIDUAL_CONFLICT";
 	if (maximumNullInnovation > 1e-7 || !std::isfinite(assessment.nis))
 	{
 		return assessment;
@@ -76,11 +85,13 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 		assessment.deterministic = true;
 		assessment.threshold = 0;
 		assessment.valid = true;
+        assessment.status="DETERMINISTIC_ACCEPTED";
 		return assessment;
 	}
 
 	boost::math::chi_squared distribution(assessment.rank);
 	assessment.threshold = quantile(complement(distribution, alpha));
 	assessment.valid = std::isfinite(assessment.threshold);
+ assessment.status=assessment.valid?(assessment.nis<=assessment.threshold?"ACCEPTED":"WHOLE_NIS_REJECTED"):"INVALID_THRESHOLD";
 	return assessment;
 }
