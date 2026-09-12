@@ -1349,13 +1349,12 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	for (int column = 0; column < ambientDimension; column++)
 	for (int row = 0; row < result.quotientRank; row++)
 		kernelColumns[column][row] = result.kernelBasis[row][column];
+    const auto inverseRows=zhangIntegerRowLatticeContainsBatch(
+        kernelColumns,zhangExactIdentityMatrix(result.quotientRank));
 	result.quotientProjector.reserve(result.quotientRank);
 	for (int quotient = 0; quotient < result.quotientRank; quotient++)
 	{
-		ZhangExactVector unit(result.quotientRank);
-		unit[quotient] = 1;
-		const auto inverseRow = zhangIntegerRowLatticeContains(
-			kernelColumns, unit);
+		const auto& inverseRow=inverseRows[quotient];
 		if (!inverseRow.contained ||
 			inverseRow.combination.size() !=
 				static_cast<std::size_t>(ambientDimension))

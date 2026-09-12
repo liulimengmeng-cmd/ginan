@@ -18731,7 +18731,10 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const MatrixXd hq=h*root.Paflt, cross=hq*t.transpose();
     std::vector<double> gains(held.size());
     for(int r=0;r<h.rows();++r) {const double v=hq.row(r).dot(h.row(r));gains[r]=v>1e-14?cross.row(r).squaredNorm()/v:0;}
-    auto subset=zhangR47SelectHistorySubset(held,heldValues,heldParents,{},gains,dimension,ceiling,ceiling/4);
+    auto subset=[&]() {
+        ZhangPhaseTimer timer(trace,"R48_HISTORY_SUBSET");
+        return zhangR47SelectHistorySubset(held,heldValues,heldParents,{},gains,dimension,ceiling,ceiling/4);
+    }();
     if(!subset.valid) return fail("R47_HISTORY_BUDGET_SELECTION_INVALID");
     // One joint NIS gate before either a covariance update or a child decision.
     if(!subset.rows.empty())
@@ -18760,9 +18763,13 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const double perRoute=familyBudget/(conditionedRoute?2:1);
     auto runRoute=[&](bool conditional)
     {
+        ZhangPhaseTimer routeTimer(trace,conditional?"R48_HISTORY_SEARCH":"R48_FLOAT_SEARCH");
         Route out;out.conditional=conditional;
         if(conditional) {out.held=subset.rows;out.heldValues=subset.values;out.parents=subset.parents;}
-        const auto frame=zhangR47CompileProductSearchFrame(targets,out.held,out.heldValues,dimension);
+        const auto frame=[&]() {
+            ZhangPhaseTimer timer(trace,"R48_PRODUCT_IMAGE");
+            return zhangR47CompileProductSearchFrame(targets,out.held,out.heldValues,dimension);
+        }();
         if(!frame.valid) return out;
         VectorXd mean=root.aflt;MatrixXd covariance=root.Paflt;
         if(!out.held.empty())
