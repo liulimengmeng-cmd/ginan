@@ -81,3 +81,27 @@ BOOST_AUTO_TEST_CASE(r48_c4_joint_affine_not_pairwise) {
  BOOST_CHECK(zhangR47AffineIntegerFeasible({{1,0},{0,1}},{0,0},2));
  BOOST_CHECK(!zhangR47AffineIntegerFeasible({{1,0},{0,1},{1,1}},{0,0,1},2));
 }
+
+
+#include "common/zhangR48Bridge.hpp"
+BOOST_AUTO_TEST_CASE(r48_c5_bridge_preserves_integer_image_and_joint_gate) {
+ Eigen::VectorXd mu(2);mu<<3,2;
+ Eigen::MatrixXd q=Eigen::MatrixXd::Identity(2,2)*0.001;
+ auto search=[](const Eigen::VectorXd& m,const Eigen::MatrixXd&,double,bool) {
+  ZhangSequentialShadowProposal p;p.valid=true;p.failureProbability=0;
+  p.rows=zhangExactIdentityMatrix(m.size());for(int i=0;i<m.size();++i)p.values.push_back(std::llround(m(i)));return p;
+ };
+ auto b=zhangR48SearchBridge(mu,q,{{2,0},{0,1}},{},{},1e-5,1e-6,search);
+ BOOST_REQUIRE(b.accepted);BOOST_CHECK_EQUAL(b.rank,2);
+ auto frame=zhangR47CompileProductSearchFrame({{2,0},{0,1}},b.rows,b.values,2);
+ ZhangExactInteger value;BOOST_REQUIRE(zhangR47ProductConsequence(frame,{2,0},0,value));
+ BOOST_CHECK(value==6);
+ auto already=zhangR48SearchBridge(mu,q,{{2,0},{0,1}},b.rows,b.values,1e-5,1e-6,search);
+ BOOST_CHECK_EQUAL(already.status,"ALREADY_PROVEN");BOOST_CHECK_EQUAL(already.spent,0);
+ auto bad=[](const Eigen::VectorXd& m,const Eigen::MatrixXd&,double,bool) {
+  ZhangSequentialShadowProposal p;p.valid=true;p.failureProbability=0;
+  p.rows=zhangExactIdentityMatrix(m.size());p.values=ZhangExactVector(m.size(),100);return p;
+ };
+ auto reject=zhangR48SearchBridge(mu,q,{{2,0},{0,1}},{},{},1e-5,1e-6,bad);
+ BOOST_CHECK(!reject.accepted);BOOST_CHECK_EQUAL(reject.spent,1e-5);
+}

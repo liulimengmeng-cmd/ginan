@@ -78,6 +78,7 @@
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR48SafePrefix.hpp"
+#include "common/zhangR48Bridge.hpp"
 
 
 static bool filterError = false;
@@ -18797,7 +18798,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             searchCov=(reduction.Ztrs*searchCov*reduction.Ztrs.transpose()).eval();
             out.projector=zhangExactMultiply(decorrelation,out.projector);
             out.offsets=zhangExactMatrixTimesColumn(decorrelation,out.offsets);
-            out.search=zhangR48SafePrefix(searchMean,searchCov,{}, {},perRoute,nisAlpha,
+            out.search=zhangR48SafePrefix(searchMean,searchCov,{}, {},perRoute*0.75,nisAlpha,
                 [&](const VectorXd& mu,const MatrixXd& q,double allocation,bool merged)
                 {
                     GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
@@ -18847,7 +18848,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     // FLOAT route does not receive the conditional mean, covariance or parents.
     auto fresh=runRoute(false);
     Route conditional;if(conditionedRoute) conditional=runRoute(true);
-    const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
+    // Remaining quarter of each route budget is reserved for at most four bridges.
     // Compile only restricted, available functionals of the full catalogue.
     // Individual missing targets never receive fabricated FLOAT values.
     ZhangExactMatrix availableNamed(2*named,ZhangExactVector(dimension));
@@ -18901,6 +18902,110 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         }
         route.pairCount=pairs.size();return pairs;
     };
+    auto bridgeRoute=[&](Route& route) {
+        if(!route.valid)return;
+        ZhangPhaseTimer timer(trace,"R48_COMPONENT_DIAGNOSIS");
+        auto known=pairsFor(route);
+        std::vector<int> parent(named+1);std::iota(parent.begin(),parent.end(),0);
+        auto find=[&](int v){while(parent[v]!=v)v=parent[v];return v;};
+        for(const auto& p:known)parent[find(p.first)]=find(p.second);
+        std::map<int,std::vector<int>> groups;
+        for(int i=0;i<=named;++i)groups[find(i)].push_back(i);
+        struct Cut {std::vector<int> a,b;int oldBridge=0;};
+        std::vector<Cut> cuts;
+        auto satName=[&](int n){return n<named?first.namedRelations[n].satellite.id():first.referenceSatellite.id();};
+        const auto prior=zhangProductIntegerLedgerRegistry().find({runtimeId,first.system});
+        for(auto i=groups.begin();i!=groups.end();++i)for(auto j=std::next(i);j!=groups.end();++j) {
+            if(i->second.size()<2 || j->second.size()<2)continue;
+            Cut c{i->second,j->second};
+            // Names set deterministic priority only; no prior RHS is reused.
+            if(prior!=zhangProductIntegerLedgerRegistry().end())
+                for(const auto& old:prior->second.rows())if(old.certified && old.pairCertificate)
+                    for(int x:c.a)for(int y:c.b)
+                        if((old.firstSatellite==satName(x) && old.secondSatellite==satName(y)) ||
+                           (old.firstSatellite==satName(y) && old.secondSatellite==satName(x)))c.oldBridge=1;
+            cuts.push_back(std::move(c));
+        }
+        std::stable_sort(cuts.begin(),cuts.end(),[](const auto& a,const auto& b) {
+            if(a.oldBridge!=b.oldBridge)return a.oldBridge>b.oldBridge;
+            return a.a.size()*a.b.size()>b.a.size()*b.b.size();
+        });
+        int attempts=0;
+        for(const auto& cut:cuts) {
+            ZhangExactVector wl(2*named),l1(2*named);
+            int x=cut.a.front(),y=cut.b.front();
+            if(x<named){wl[x]=1;wl[named+x]=-1;l1[x]=1;}
+            if(y<named){wl[y]=-1;wl[named+y]=1;l1[y]=-1;}
+            ZhangExactVector w,l;ZhangExactInteger wo,lo;
+            trace<<"\nR48_COMPONENT_CUT time="<<time.to_string(0)
+                <<" route="<<(route.conditional?"HISTORY":"FLOAT")<<" members_A=";
+            for(int n:cut.a)trace<<satName(n)<<",";
+            trace<<" members_B=";for(int n:cut.b)trace<<satName(n)<<",";
+            trace<<" source_posterior_id=FLOAT_ROOT@"<<time.to_string(0)
+                <<" proof_parent_count="<<route.parents.size();
+            if(!mapNamed(wl,w,wo) || !mapNamed(l1,l,lo)) {
+                trace<<" status=UNREPRESENTABLE missing_support_columns=";
+                for(const auto& [key,c]:missingColumn) {
+                    ZhangExactInteger sw=0,sl=0;
+                    for(int n=0;n<2*named;++n){sw+=wl[n]*missingNamed[n][c];sl+=l1[n]*missingNamed[n][c];}
+                    if(sw!=0 || sl!=0) {
+                        const auto& b=key.first==0?first:second;
+                        trace<<b.currentChords[key.second].receiver<<":"<<b.currentChords[key.second].satellite.id()
+                            <<":"<<enum_to_string(b.observable)<<",";
+                    }
+                }
+                continue;
+            }
+            // Every alternate pair must differ from the anchor by already
+            // certified WL/L1 relations. No real-rank shortcut certifies it.
+            bool equivalent=true;
+            for(int a:cut.a)for(int b:cut.b) {
+                ZhangExactVector rw(2*named),rl(2*named);
+                if(a<named){rw[a]=1;rw[named+a]=-1;rl[a]=1;}
+                if(b<named){rw[b]-=1;rw[named+b]+=1;rl[b]-=1;}
+                for(int n=0;n<2*named;++n){rw[n]-=wl[n];rl[n]-=l1[n];}
+                ZhangExactVector nw,nl;ZhangExactInteger ow,ol,v;
+                equivalent &= mapNamed(rw,nw,ow) && mapNamed(rl,nl,ol) &&
+                    zhangR47ProductConsequence(route.finalFrame,nw,ow,v) &&
+                    zhangR47ProductConsequence(route.finalFrame,nl,ol,v);
+            }
+            if(!equivalent){trace<<" status=INCONSISTENT_COMPONENT";continue;}
+            const double allocation=attempts<4?perRoute*0.25/4:0;
+            ZhangPhaseTimer bridgeTimer(trace,"R48_BRIDGE_SEARCH");
+            auto br=zhangR48SearchBridge(root.aflt,root.Paflt,{w,l},route.jointRows,route.jointValues,
+                allocation,nisAlpha,[&](const VectorXd& mu,const MatrixXd& q,double risk,bool) {
+                    ++attempts;GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
+                    auto opt=options;opt.sucthr=std::max(options.sucthr,1-risk);
+                    opt.min_lambda_fix_count=mu.size();
+                    const int fixed=rankAwareGnssAr(trace,trial,opt,time,"R48_DIRECTED_COMPONENT_BRIDGE",true);
+                    ZhangSequentialShadowProposal p;
+                    p.failureProbability=trial.lambda_selected_bootstrap_success>0 &&
+                        trial.lambda_selected_bootstrap_success<=1?1-trial.lambda_selected_bootstrap_success:1;
+                    p.valid=fixed==mu.size() && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);
+                    return p;
+                });
+            route.search.reservedRisk+=br.spent;
+            trace<<"\nR48_COMPONENT_CUT_RESULT time="<<time.to_string(0)
+                <<" route="<<(route.conditional?"HISTORY":"FLOAT")
+                <<" anchor_A="<<satName(x)<<" anchor_B="<<satName(y)
+                <<" representable=1 WL_residual_rank="<<br.wlRank<<" L1_residual_rank="<<br.l1Rank
+                <<" joint_residual_rank="<<br.rank<<" status="<<br.status<<" spent="<<br.spent
+                <<" nis="<<br.nis.nis<<" threshold="<<br.nis.threshold
+                <<" affine_offset="<<wo<<","<<lo<<" integer_image_generators=";
+            for(const auto& row:br.frame.imageGenerators){trace<<"[";for(const auto& v:row)trace<<v<<",";trace<<"]";}
+            trace<<" conditional_mean="<<br.mean.transpose()<<"\nconditional_covariance=\n"<<br.covariance;
+            if(!br.accepted)continue;
+            route.newRows.insert(route.newRows.end(),br.rows.begin(),br.rows.end());
+            route.newValues.insert(route.newValues.end(),br.values.begin(),br.values.end());
+            route.jointRows.insert(route.jointRows.end(),br.rows.begin(),br.rows.end());
+            route.jointValues.insert(route.jointValues.end(),br.values.begin(),br.values.end());
+            route.finalFrame=zhangR47CompileProductSearchFrame(targets,route.jointRows,route.jointValues,dimension);
+            route.valid=route.finalFrame.valid;
+            if(!route.valid)break;
+        }
+    };
+    bridgeRoute(fresh);if(conditionedRoute)bridgeRoute(conditional);
+    const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
     auto freshPairs=pairsFor(fresh),historyPairs=pairsFor(conditional);
     const bool selectHistory=conditional.valid && (!fresh.valid || conditional.pairCount>fresh.pairCount ||
         (conditional.pairCount==fresh.pairCount && conditional.finalFrame.searchRank<fresh.finalFrame.searchRank));
