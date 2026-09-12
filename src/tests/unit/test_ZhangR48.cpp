@@ -133,3 +133,51 @@ BOOST_AUTO_TEST_CASE(r48_c6_low_rank_marginal_matches_full_conditioning) {
  Eigen::VectorXd changed(1);changed<<1;auto different=w.project(j,h,changed);
  BOOST_CHECK_EQUAL(w.decompositions,2);BOOST_CHECK((different.mean-small.mean).norm()>0.1);
 }
+
+#include "common/zhangActiveGraphBasis.hpp"
+BOOST_AUTO_TEST_CASE(r48_active_basis_retains_transformed_datum_without_promoting_eligibility)
+{
+    const ZhangGraphEdge a9{"ROOT", SatSys("G09")}, a11{"ROOT", SatSys("G11")},
+        b9{"DAV1", SatSys("G09")}, b11{"DAV1", SatSys("G11")};
+    const std::set<ZhangGraphEdge> representedEdges{a9, a11, b9, b11};
+    const auto transformed = zhangBuildSpanningTree(representedEdges, "ROOT", {a9,a11,b11});
+    BOOST_REQUIRE(transformed.treeEdges.contains(b11));
+    const std::set<ZhangGraphEdge> eligible{a9,a11,b9};
+    auto broken = transformed; broken.edges = eligible;
+    BOOST_CHECK(!std::includes(broken.edges.begin(), broken.edges.end(),
+        broken.treeEdges.begin(), broken.treeEdges.end()));
+    const auto repaired = zhangActiveGraphBasisAfterTransform(transformed, eligible);
+    BOOST_REQUIRE_MESSAGE(repaired.valid, repaired.failureReason);
+    BOOST_CHECK(repaired.basis.treeEdges == transformed.treeEdges);
+    BOOST_CHECK(repaired.basis.edges == representedEdges);
+    BOOST_CHECK(repaired.retainedDatumOnlyEdges == std::set<ZhangGraphEdge>{b11});
+    BOOST_CHECK(!eligible.contains(b11));
+    BOOST_CHECK(repaired.basis.receivers == transformed.receivers);
+    BOOST_CHECK(repaired.basis.satellites == transformed.satellites);
+    auto oldCycle = zhangFundamentalCycle(transformed,b9);
+    BOOST_CHECK(zhangFundamentalCycle(repaired.basis,b9) == oldCycle);
+    // Removing a non-tree edge must not retain its stale stochastic support.
+    auto treeOnly = zhangActiveGraphBasisAfterTransform(transformed,{a9,a11});
+    BOOST_REQUIRE(treeOnly.valid);
+    BOOST_CHECK(!treeOnly.basis.edges.contains(b9));
+    BOOST_CHECK(treeOnly.basis.treeEdges == transformed.treeEdges);
+}
+
+BOOST_AUTO_TEST_CASE(r48_active_basis_rejects_unrepresented_tree_and_new_chart)
+{
+    const ZhangGraphEdge a9{"ROOT", SatSys("G09")}, a11{"ROOT", SatSys("G11")},
+        b9{"DAV1", SatSys("G09")}, b11{"DAV1", SatSys("G11")};
+    auto basis = zhangBuildSpanningTree({a9,a11,b9,b11},"ROOT",{a9,a11,b11});
+    auto invalid = basis;invalid.edges.erase(b11);
+    auto result = zhangActiveGraphBasisAfterTransform(invalid,{a9,a11,b9});
+    BOOST_CHECK(!result.valid);
+    BOOST_CHECK_EQUAL(result.failureReason,"REPRESENTED_TREE_EDGE_MISSING");
+    auto newNode=basis.edges;newNode.insert({"NEW",SatSys("G09")});
+    result=zhangActiveGraphBasisAfterTransform(basis,newNode);
+    BOOST_CHECK(!result.valid);
+    BOOST_CHECK_EQUAL(result.failureReason,"ACTIVE_SUPPORT_REQUIRES_NEW_COORDINATE_TRANSFORM");
+    result=zhangActiveGraphBasisAfterTransform(basis,basis.edges);
+    BOOST_REQUIRE(result.valid);
+    BOOST_CHECK(result.retainedDatumOnlyEdges.empty());
+    BOOST_CHECK(result.basis.treeEdges==basis.treeEdges);
+}

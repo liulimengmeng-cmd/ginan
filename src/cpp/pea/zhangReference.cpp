@@ -1,5 +1,6 @@
 #include "pea/zhangReference.hpp"
 #include "common/zhangR48ProductDatum.hpp"
+#include "common/zhangActiveGraphBasis.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -444,7 +445,9 @@ bool zhangGraphCheckpointBasisValid(
             if (failureReason.empty())
             {
                 failureReason =
-                    "ZHANG_GRAPH_CHECKPOINT_TREE_EDGE_OUTSIDE_GRAPH:" + field;
+                    "ZHANG_GRAPH_CHECKPOINT_TREE_EDGE_OUTSIDE_GRAPH:" + field +
+                    ":" + edge.receiver + ":" +
+                    zhangGraphCheckpointSatellite(edge.satellite).id();
             }
             return false;
         }
@@ -3599,6 +3602,21 @@ void updateZhangGraphBasis(
                 modelledEdges.begin(), modelledEdges.end(),
                 retiredChordEdges.begin(), retiredChordEdges.end(),
                 std::inserter(retainedBasis.edges, retainedBasis.edges.begin()));
+            auto postRetirementStateEdges = stateEdges;
+            for (const auto& edge : availability.discontinuousEdges)
+                if (availability.edges.contains(edge) &&
+                    retainedBasis.receivers.contains(edge.receiver) &&
+                    retainedBasis.satellites.contains(edge.satellite))
+                    postRetirementStateEdges.insert(edge);
+            const auto activeAfterRetirement = zhangActiveGraphBasisAfterTransform(
+                retainedBasis, postRetirementStateEdges);
+            if (!activeAfterRetirement.valid)
+            {
+                trace << "\nR48_ACTIVE_BASIS_REJECT time=" << kfState.time.to_string(0)
+                      << " phase=CHORD_RETIRE reason=" << activeAfterRetirement.failureReason;
+                retainOldTreeRootComponent();
+                return;
+            }
             if (transformZhangGraphBasis(
                     trace,
                     kfState,
@@ -3623,8 +3641,11 @@ void updateZhangGraphBasis(
                         observationEdges.insert(edge);
                     }
                 }
-                candidate = retainedBasis;
-                candidate.edges = stateEdges;
+                candidate = activeAfterRetirement.basis;
+                trace << "\nR48_ACTIVE_BASIS_COMMIT time=" << kfState.time.to_string(0)
+                      << " phase=CHORD_RETIRE retained_datum_only_edges="
+                      << edgeList(activeAfterRetirement.retainedDatumOnlyEdges)
+                      << " coordinate_tree_unchanged=1 observation_eligibility_unchanged=1";
                 if (!updateProductDatum("chord_arc_retire"))
                 {
                     invalidateRetiredProductArcs(
@@ -4186,6 +4207,21 @@ void updateZhangGraphBasis(
                 availability.discontinuousEdges.end(),
                 std::inserter(retiredRepresentedEdges,
                               retiredRepresentedEdges.begin()));
+            auto postPivotStateEdges = stateEdges;
+            for (const auto& edge : availability.discontinuousEdges)
+                if (availability.edges.contains(edge) &&
+                    transformedBasis.receivers.contains(edge.receiver) &&
+                    transformedBasis.satellites.contains(edge.satellite))
+                    postPivotStateEdges.insert(edge);
+            const auto activeAfterPivot = zhangActiveGraphBasisAfterTransform(
+                transformedBasis, postPivotStateEdges);
+            if (!activeAfterPivot.valid)
+            {
+                trace << "\nR48_ACTIVE_BASIS_REJECT time=" << kfState.time.to_string(0)
+                      << " phase=PIVOT reason=" << activeAfterPivot.failureReason;
+                retainOldTreeRootComponent();
+                return;
+            }
             const int representationBefore = runtime.representationVersion;
             const int floatGaugeBefore = runtime.floatGaugeVersion;
             const int integerComponentBefore =
@@ -4246,7 +4282,11 @@ void updateZhangGraphBasis(
                     stateEdges.insert(edge);
                     observationEdges.insert(edge);
                 }
-                candidate.edges = stateEdges;
+                candidate = activeAfterPivot.basis;
+                trace << "\nR48_ACTIVE_BASIS_COMMIT time=" << kfState.time.to_string(0)
+                      << " phase=PIVOT retained_datum_only_edges="
+                      << edgeList(activeAfterPivot.retainedDatumOnlyEdges)
+                      << " coordinate_tree_unchanged=1 observation_eligibility_unchanged=1";
                 runtime.representationVersion++;
                 runtime.basis = transformedBasis;
                 runtime.activeBasis = candidate;
