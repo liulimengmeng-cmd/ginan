@@ -427,6 +427,12 @@ void KFState::removeState(
 
     traceTrivialTrace("Removing '%s'", ((string)removeKey).c_str());
 
+    if(removeKey.type==KF::AMBIGUITY && removeKey.str=="KIRI" && removeKey.Sat==SatSys("G27"))
+        BOOST_LOG_TRIVIAL(info)<<"R48_STATE_LIFECYCLE time="<<time.to_string(0)
+            <<" key="<<((string)removeKey)<<" action=REMOVE_REQUEST"
+            <<" full_kf_present="<<kfIndexMap.count(removeKey)
+            <<" state_transition_present="<<stateTransitionMap.count(removeKey)
+            <<" pending_remove=1 callsite=KFState::removeState";
     stateTransitionMap.erase(removeKey);
     sigmaMaxMap.erase(removeKey);
     procNoiseMap.erase(removeKey);

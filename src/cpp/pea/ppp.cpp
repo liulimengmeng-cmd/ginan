@@ -897,6 +897,12 @@ void removeBadAmbiguities(
 
             auto& sigStat        = satStat.sigStatMap[sigName];
             auto& preprocSigStat = satStat.sigStatMap[preprocSigName];
+            if(key.str=="KIRI" && key.Sat==SatSys("G27"))
+                trace<<"\nR48_STATE_LIFECYCLE time="<<kfState.time.to_string(0)
+                    <<" key="<<((string)key)<<" action=CLEANUP_CHECK"
+                    <<" phase_reject_count="<<sigStat.phaseRejectCount
+                    <<" saved_slip="<<preprocSigStat.savedSlip.any
+                    <<" callsite=removeBadAmbiguities";
 
             if (sigStat.phaseRejectCount >= acsConfig.ambErrors.phase_reject_limit)
             {

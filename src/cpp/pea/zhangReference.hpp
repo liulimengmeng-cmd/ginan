@@ -171,3 +171,7 @@ bool applyZhangGraphBasisTransformForAudit(
     SparseMatrix<double>&          transform,
     std::string&                   failureReason
 );
+
+// Stochastic support is distinct from direct, currently observed AR eligibility.
+bool zhangGraphStochasticSupportValid(const KFState&, const std::string&,
+ const SatSys&, E_ObsCode);

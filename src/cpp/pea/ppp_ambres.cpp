@@ -25463,7 +25463,7 @@ static int resolveLayeredWideLaneL1(
         map<ZhangGraphEdge, PairColumns> pairs;
         for (const auto& [column, key] : ambiguityResolution.ambmap)
         {
-            if (key.Sat.sys != system)
+            if (key.Sat.sys != system || !useAmbiguityForZhang(kfState,key))
             {
                 continue;
             }
@@ -25762,7 +25762,7 @@ static int resolveLayeredWideLaneL1(
         vector<int> firstColumns;
         for (const auto& [column, key] : ambiguityResolution.ambmap)
         {
-            if (key.Sat.sys == system &&
+            if (key.Sat.sys == system && useAmbiguityForZhang(kfState,key) &&
                 static_cast<E_ObsCode>(key.num) == firstCode)
             {
                 firstColumns.push_back(column);
@@ -29952,11 +29952,25 @@ void fixAndHoldAmbiguities(
             continue;
         }
 
-        if (useAmbiguityForZhang(kfState, key) == false)
-        {
-            continue;
-        }
-
+        const bool directEligible=useAmbiguityForZhang(kfState,key);
+        const bool supportEligible=acsConfig.zhangFullRank.enable &&
+            !acsConfig.zhangPppAr.user_adapter &&
+            acsConfig.zhangPppAr.integer_strategy=="HYBRID_PRODUCT_WL_L1" &&
+            kfState.stateTransitionMap.count(key)>0 &&
+            zhangGraphStochasticSupportValid(kfState,key.str,key.Sat,static_cast<E_ObsCode>(key.num)) &&
+            std::isfinite(kfState.x(index)) && std::isfinite(kfState.P(index,index)) && kfState.P(index,index)>=0;
+        if(key.str=="KIRI" && key.Sat==SatSys("G27"))
+            trace<<"\nR48_STATE_AVAILABILITY time="<<kfState.time.to_string(0)
+                <<" key="<<key.str<<":"<<key.Sat.id()<<":"<<enum_to_string(static_cast<E_ObsCode>(key.num))
+                <<" phase=AR_EXTRACT full_kf_present=1 kf_state_index="<<index
+                <<" state_transition_present="<<kfState.stateTransitionMap.count(key)
+                <<" pending_remove="<<(!kfState.stateTransitionMap.count(key))
+                <<" ar_eligible="<<directEligible<<" stochastic_support_eligible="<<supportEligible
+                <<" float_root_present="<<(directEligible||supportEligible)
+                <<" variance="<<kfState.P(index,index)
+                <<" first_rejection_reason="<<(directEligible?"NONE":supportEligible?"DIRECT_OBSERVATION_GATE_SUPPORT_RETAINED":"GRAPH_OR_STATE_UNAVAILABLE")
+                <<" remove_or_filter_callsite=fixAndHoldAmbiguities";
+        if(!directEligible && !supportEligible)continue;
         ambiguityCandidates.emplace_back(key, index);
     }
 	if (acsConfig.zhangPppAr.user_adapter)
@@ -29970,6 +29984,17 @@ void fixAndHoldAmbiguities(
 				 static_cast<int>(ambiguityCandidates.size());
 	}
 
+    if(acsConfig.zhangFullRank.enable) for(auto code:{E_ObsCode::L1C,E_ObsCode::L2W}) {
+        bool full=false,selected=false;
+        for(const auto& [key,index]:kfState.kfIndexMap)
+            if(key.type==KF::AMBIGUITY && key.str=="KIRI" && key.Sat==SatSys("G27") && key.num==int(code))full=true;
+        for(const auto& [key,index]:ambiguityCandidates)
+            if(key.str=="KIRI" && key.Sat==SatSys("G27") && key.num==int(code))selected=true;
+        trace<<"\nR48_STATE_CHAIN time="<<kfState.time.to_string(0)<<" key=KIRI:G27:"<<enum_to_string(code)
+            <<" full_kf_present="<<full<<" float_root_present="<<selected
+            <<" product_search_present="<<selected<<" pending_add=NOT_INFERRED"
+            <<" branch_id="<<zhangAmbresRuntimeId(kfState);
+    }
     int userCap = acsConfig.zhangPppAr.user_max_ambiguities_per_signal;
     if (acsConfig.zhangPppAr.user_adapter && userCap > 0)
     {

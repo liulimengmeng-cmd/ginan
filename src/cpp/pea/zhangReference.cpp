@@ -2596,6 +2596,21 @@ void updateZhangGraphBasis(
         }
     }
 
+    for(const auto& code:options.baseline_observables) {
+        ZhangGraphEdge edge{"KIRI",SatSys("G27")};
+        auto hist=runtime.edgeHistory.find(edge);
+        BOOST_LOG_TRIVIAL(info)<<"R48_STATE_AVAILABILITY time="<<kfState.time.to_string(0)
+            <<" key=KIRI:G27:"<<enum_to_string(code)
+            <<" phase=GRAPH_PRE_TRANSITION raw_observation_present="<<availability.rawEdges.count(edge)
+            <<" qc_observation_valid="<<availability.edges.count(edge)
+            <<" physical_arc_version="<<(hist==runtime.edgeHistory.end()?-1:hist->second.arcVersion)
+            <<" discontinuity="<<availability.discontinuousEdges.count(edge)
+            <<" qc_excluded="<<availability.qcExcludedEdges.count(edge)
+            <<" signal_unavailable="<<availability.signalUnavailableEdges.count(edge)
+            <<" graph_role="<<(runtime.basis.treeEdges.count(edge)?"TREE":runtime.basis.edges.count(edge)?"CHORD":"ABSENT")
+            <<" cycle_chart_id="<<runtime.representationVersion
+            <<" branch_id="<<zhangGraphRuntimeId(kfState);
+    }
     set<ZhangGraphEdge> stateCandidates = availability.edges;
     for (const auto& edge : modelledEdges)
     {
@@ -5209,4 +5224,23 @@ bool importZhangGraphCheckpointSection(
             string(exception.what());
         return false;
     }
+}
+
+bool zhangGraphStochasticSupportValid(const KFState& state,const std::string& receiver,
+ const SatSys& satellite,E_ObsCode code)
+{
+ auto o=acsConfig.zhangFullRank.sysOpts.find(satellite.sys);
+ if(o==acsConfig.zhangFullRank.sysOpts.end() || !o->second.use_spanning_tree ||
+    !zhangFullRankUsesObservable(code,o->second.baseline_observables))return false;
+ auto it=graphStateMap.find({zhangGraphRuntimeId(state),satellite.sys});
+ if(it==graphStateMap.end() || !it->second.initialized)return false;
+ const auto& runtime=it->second;
+ const auto& basis=runtime.activeBasis.connected?runtime.activeBasis:runtime.basis;
+ ZhangGraphEdge edge{receiver,satellite};
+ auto history=runtime.edgeHistory.find(edge);
+ // The controller removes discontinuous arcs from stateEdges before commit.
+ // Requiring a propagated KF state at the caller forbids synthesizing columns.
+ return runtime.stateEdges.count(edge)>0 && basis.edges.count(edge)>0 &&
+    !basis.treeEdges.count(edge) && history!=runtime.edgeHistory.end() &&
+    history->second.outageEpochs<=o->second.state_edge_grace_epochs;
 }
