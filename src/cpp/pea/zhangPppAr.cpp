@@ -4418,8 +4418,19 @@ ZhangPppArCheckpointResult inspectZhangPppArCheckpointSnapshotReferences(
 	summary.availableSnapshotIdentities = retained;
 	for (const auto& [ignored, identity] : snapshot.snapshotIdentities)
 	{
-		if (identity.empty()
-		 || retained.count(identity) == 0)
+		if (identity.empty())
+		{
+			return fail("PPP_AR_CHECKPOINT_CURRENT_SNAPSHOT_UNAVAILABLE");
+		}
+		// Product identity metadata is also maintained when E18 factor capture
+		// is disabled. Those names are serialized with the physical functionals;
+		// they do not assert that a numerical replay target has been retained.
+		// Pins and transition references below still require a retained target.
+		if (!snapshot.hasFactorCapture && !snapshot.factorCaptureConfigured)
+		{
+			continue;
+		}
+		if (retained.count(identity) == 0)
 		{
 			return fail("PPP_AR_CHECKPOINT_CURRENT_SNAPSHOT_UNAVAILABLE");
 		}
