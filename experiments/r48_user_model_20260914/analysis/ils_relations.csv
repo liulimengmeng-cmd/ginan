@@ -1,0 +1,7 @@
+case,station,model,mode,tag,time,receiver,stage,general_rows,named_dimension,full_covariance_used,general_rows_feedback,row,rhs,coefficients,named_recovered,final_named_gate_pending
+r48u_20260914_MARS_UDUC_ils_shadow,MARS,UDUC,ils_shadow,ZHANG_USER_ILS_RELATIONS,2024-07-17T00:10:30,MARS,USER_WL_SD,1,4,1,0,,,,,
+r48u_20260914_MARS_UDUC_ils_shadow,MARS,UDUC,ils_shadow,ZHANG_USER_ILS_ROW,,,,,,,,0,-13,0,,
+r48u_20260914_MARS_UDUC_ils_shadow,MARS,UDUC,ils_shadow,ZHANG_USER_ILS_NAMED_RECOVERY,2024-07-17T00:10:30,MARS,USER_WL_SD,1,,,,,,,1,1
+r48u_20260914_MARS_UDUC_ils_feedback,MARS,UDUC,ils_feedback,ZHANG_USER_ILS_RELATIONS,2024-07-17T00:10:30,MARS,USER_WL_SD,1,4,1,0,,,,,
+r48u_20260914_MARS_UDUC_ils_feedback,MARS,UDUC,ils_feedback,ZHANG_USER_ILS_ROW,,,,,,,,0,-13,0,,
+r48u_20260914_MARS_UDUC_ils_feedback,MARS,UDUC,ils_feedback,ZHANG_USER_ILS_NAMED_RECOVERY,2024-07-17T00:10:30,MARS,USER_WL_SD,1,,,,,,,1,1

@@ -1,0 +1,60 @@
+{
+  "matched_float_epochs_checked": 550,
+  "float_controls": [
+    {
+      "station": "DYNG",
+      "model": "IF",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "DYNG",
+      "model": "UDUC",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "NICO",
+      "model": "IF",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "NICO",
+      "model": "UDUC",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "BREW",
+      "model": "IF",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "BREW",
+      "model": "UDUC",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "MARS",
+      "model": "IF",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "MARS",
+      "model": "UDUC",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "JPLM",
+      "model": "IF",
+      "float_unchanged_at_trace_precision": true
+    },
+    {
+      "station": "JPLM",
+      "model": "UDUC",
+      "float_unchanged_at_trace_precision": true
+    }
+  ],
+  "completed": 50,
+  "actual_l1_feedback_cases": [
+    "r48u_20260914_BREW_UDUC_round_feedback_fix1",
+    "r48u_20260914_BREW_UDUC_ils_feedback_fix1"
+  ]
+}

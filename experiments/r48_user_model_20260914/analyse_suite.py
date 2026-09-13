@@ -11,7 +11,7 @@ def csvwrite(name,rows):
  with (out/name).open('w',newline='') as f:
   wr=csv.DictWriter(f,fieldnames=keys);wr.writeheader();wr.writerows(rows)
 expected=[(datetime.datetime(2024,7,17)+datetime.timedelta(seconds=e-1405209600)).isoformat() for e in range(spec['first_epoch'],spec['last_epoch']+1,30)]
-summaries=[];epochs=[];stages=[];targets=[];relations=[];positions={};hashes=[]
+summaries=[];epochs=[];stages=[];targets=[];relations=[];positions={};hashes=[];commit_rows=[]
 for case in spec['cases']:
  receipt=w/(case['case']+'.result.json')
  if not receipt.exists():continue
@@ -52,9 +52,10 @@ for case in spec['cases']:
  if effective:assert effective==(['LAMBDA_ALT'] if case['joint_ils'] else ['ROUND']),effective
  alarms={k:(log+'\n'+txt).count(k) for k in ['DGEMV','AUTHORITATIVE MEASUREMENT TRANSACTION REJECTED','AUTHORITATIVE PREDICTION TRANSACTION REJECTED']}
  errors=[l[l.index('Error:'):] for l in log.splitlines() if 'Error:' in l]
- summaries.append({**ident,'completed':receipt['exit_code']==0 and times==expected,'epochs':len(times),'exit_code':receipt['exit_code'],'wall_seconds':receipt['wall_seconds'],'ar_attempt_epochs':len(ar),'wl_passed_epochs':wlpassed,'l1_passed_epochs':l1passed,'newly_fixed_total':newly,'held_integer_rank_peak':held,'newly_fixed_epochs':sum(int(r.get('newly_fixed',0))>0 for r in ar.values()),'rms_3d_m':rms([math.sqrt(sum(x*x for x in p)) for p in pp.values()]),'final_enu_m':list(pp.values())[-1] if pp else None,'effective_search':effective,'general_rows_total':sum(int(r.get('general_rows',0)) for r in rec['ZHANG_USER_ILS_RELATIONS']),'named_recovered_total':sum(int(r.get('named_recovered',0)) for r in rec['ZHANG_USER_ILS_NAMED_RECOVERY']),'reference_difference_m':refdiff,'errors':errors,'alarms':alarms,'trace':str(trace)})
+ summaries.append({**ident,'completed':receipt['exit_code']==0 and times==expected,'epochs':len(times),'exit_code':receipt['exit_code'],'wall_seconds':receipt['wall_seconds'],'ar_attempt_epochs':len(ar),'wl_passed_epochs':wlpassed,'l1_passed_epochs':l1passed,'reported_newly_fixed_sum':newly,'held_integer_rank_peak':held,'newly_fixed_epochs':sum(int(r.get('newly_fixed',0))>0 for r in ar.values()),'rms_3d_m':rms([math.sqrt(sum(x*x for x in p)) for p in pp.values()]),'final_enu_m':list(pp.values())[-1] if pp else None,'effective_search':effective,'general_rows_total':sum(int(r.get('general_rows',0)) for r in rec['ZHANG_USER_ILS_RELATIONS']),'named_recovered_total':sum(int(r.get('named_recovered',0)) for r in rec['ZHANG_USER_ILS_NAMED_RECOVERY']),'reference_difference_m':refdiff,'errors':errors,'alarms':alarms,'trace':str(trace)})
  commits=rec['ZHANG_USER_INTEGER_FACTOR_COMMIT']
- summaries[-1].update(integer_factor_commits=len(commits),integer_factor_rows=sum(int(r['rows']) for r in commits),integer_factor_l1_rows=sum(int(r['rows']) for r in commits if 'L1' in r.get('provenance','')))
+ commit_rows.extend({**ident,**r} for r in commits)
+ summaries[-1].update(integer_factor_commits=len(commits),integer_factor_rows=sum(int(r['rows']) for r in commits),integer_factor_l1_rows=sum(int(r['rows']) for r in commits if 'L1' in r.get('provenance','')),held_positive_epochs=sum(int(r.get('held_integer_rank',0))>0 for r in ar.values()))
  for f in [trace,pos,root/'run.log']:hashes.append({'path':str(f),'bytes':f.stat().st_size,'sha256':hashlib.sha256(f.read_bytes()).hexdigest()})
 pairs=[]
 for s in summaries:
@@ -63,8 +64,8 @@ for s in summaries:
  if not base:continue
  common=sorted(set(base)&set(p));diffs=[math.sqrt(sum((a-b)**2 for a,b in zip(base[t],p[t]))) for t in common]
  if s['completed'] and 'shadow' in s['mode']:assert max(diffs,default=0)==0,(s['case'],max(diffs))
- pairs.append({k:s[k] for k in ['station','model','mode','completed','epochs','wl_passed_epochs','l1_passed_epochs','newly_fixed_total','held_integer_rank_peak','general_rows_total','named_recovered_total','integer_factor_commits','integer_factor_rows','integer_factor_l1_rows']}|{'matched_epochs':len(common),'float_matched_3d_rms_m':rms([math.sqrt(sum(x*x for x in base[t])) for t in common]),'test_matched_3d_rms_m':rms([math.sqrt(sum(x*x for x in p[t])) for t in common]),'max_position_difference_m_trace_precision':max(diffs,default=None)})
+ pairs.append({k:s[k] for k in ['station','model','mode','completed','epochs','wl_passed_epochs','l1_passed_epochs','reported_newly_fixed_sum','held_integer_rank_peak','general_rows_total','named_recovered_total','integer_factor_commits','integer_factor_rows','integer_factor_l1_rows']}|{'matched_epochs':len(common),'float_matched_3d_rms_m':rms([math.sqrt(sum(x*x for x in base[t])) for t in common]),'test_matched_3d_rms_m':rms([math.sqrt(sum(x*x for x in p[t])) for t in common]),'max_position_difference_m_trace_precision':max(diffs,default=None)})
 result={'expected_epochs':len(expected),'cases':summaries,'paired':pairs,'independent_integer_truth_available':False,'product_temporal_covariance_available':False,'all_cases_finished':len(summaries)==len(spec['cases'])}
 (out/'summary.json').write_text(json.dumps(result,indent=2)+'\n');(out/'output_sha256.json').write_text(json.dumps(hashes,indent=2)+'\n')
-for name,rows in [('case_summary.csv',summaries),('paired_summary.csv',pairs),('per_epoch.csv',epochs),('stage_gates.csv',stages),('named_targets.csv',targets),('ils_relations.csv',relations)]:csvwrite(name,rows)
-print(json.dumps({'cases':len(summaries),'completed':sum(s['completed'] for s in summaries),'actual_newly_fixed':sum(s['newly_fixed_total'] for s in summaries),'failed':[{k:s[k] for k in ['station','model','mode','epochs','errors']} for s in summaries if not s['completed']]},indent=2))
+for name,rows in [('case_summary.csv',summaries),('paired_summary.csv',pairs),('per_epoch.csv',epochs),('stage_gates.csv',stages),('named_targets.csv',targets),('ils_relations.csv',relations),('integer_commits.csv',commit_rows)]:csvwrite(name,rows)
+print(json.dumps({'cases':len(summaries),'completed':sum(s['completed'] for s in summaries),'reported_newly_fixed_sum':sum(s['reported_newly_fixed_sum'] for s in summaries),'failed':[{k:s[k] for k in ['station','model','mode','epochs','errors']} for s in summaries if not s['completed']]},indent=2))

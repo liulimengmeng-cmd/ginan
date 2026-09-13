@@ -13,7 +13,7 @@ for case in spec['cases']:
 while not (w/'suite_complete.json').exists():time.sleep(5)
 print('Initial suite ended; compiling revision2',flush=True)
 source=(w/'freeze_user.py').read_text().replace("w=Path('/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914')", "w=Path('/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/revision2')")
-exec(compile(source,'freeze_revision2','exec'))
+exec(compile(source,'freeze_revision2','exec'),{})
 print('Revision2 frozen; starting matched suite',flush=True)
 rc=subprocess.run(['python3',str(w/'run_suite.py'),str(v)]).returncode
 assert rc==0
