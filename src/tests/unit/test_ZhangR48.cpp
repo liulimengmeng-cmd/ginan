@@ -129,9 +129,9 @@ BOOST_AUTO_TEST_CASE(r48_c6_low_rank_marginal_matches_full_conditioning) {
  BOOST_REQUIRE(small.valid && full.valid);
  BOOST_CHECK_SMALL((small.mean-j*full.mean).norm(),1e-10);
  BOOST_CHECK_SMALL((small.covariance-j*full.covariance*j.transpose()).norm(),1e-10);
- auto again=w.project(j,h,v);BOOST_CHECK_EQUAL(w.hits,1);BOOST_CHECK_EQUAL(w.decompositions,1);
+ auto again=w.project(j,h,v);BOOST_CHECK_EQUAL(w.targetHits,1);BOOST_CHECK_EQUAL(w.decompositions,1);
  Eigen::VectorXd changed(1);changed<<1;auto different=w.project(j,h,changed);
- BOOST_CHECK_EQUAL(w.decompositions,2);BOOST_CHECK((different.mean-small.mean).norm()>0.1);
+ BOOST_CHECK_EQUAL(w.decompositions,1);BOOST_CHECK_EQUAL(w.hits,1);BOOST_CHECK((different.mean-small.mean).norm()>0.1);
 }
 
 #include "common/zhangActiveGraphBasis.hpp"
@@ -180,4 +180,21 @@ BOOST_AUTO_TEST_CASE(r48_active_basis_rejects_unrepresented_tree_and_new_chart)
     BOOST_REQUIRE(result.valid);
     BOOST_CHECK(result.retainedDatumOnlyEdges.empty());
     BOOST_CHECK(result.basis.treeEdges==basis.treeEdges);
+}
+
+BOOST_AUTO_TEST_CASE(r49_partial_bridge_is_shadow_only_and_not_dual_certificate) {
+ Eigen::VectorXd mu(2);mu<<3,2;
+ Eigen::MatrixXd q=Eigen::MatrixXd::Identity(2,2)*0.001;
+ auto partial=[](const Eigen::VectorXd&,const Eigen::MatrixXd&,double,bool) {
+  ZhangSequentialShadowProposal p;p.valid=true;p.failureProbability=0;
+  p.rows={{1,0}};p.values={3};return p;
+ };
+ auto formal=zhangR48SearchBridge(mu,q,{{1,0},{0,1}},{},{},1e-5,1e-6,partial);
+ BOOST_CHECK(!formal.accepted);
+ auto shadow=zhangR48SearchBridge(mu,q,{{1,0},{0,1}},{},{},1e-5,1e-6,partial,nullptr,nullptr,true);
+ BOOST_REQUIRE(shadow.accepted);BOOST_CHECK_EQUAL(shadow.status,"PARTIAL_INTEGER_PROGRESS");
+ auto domain=zhangR47CompileProductSearchFrame({{1,0},{0,1}},shadow.rows,shadow.values,2);
+ ZhangExactInteger value;
+ BOOST_CHECK(zhangR47ProductConsequence(domain,{1,0},0,value));
+ BOOST_CHECK(!zhangR47ProductConsequence(domain,{0,1},0,value));
 }

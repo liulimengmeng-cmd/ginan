@@ -1,0 +1,6 @@
+{
+  "exit": 86,
+  "audit_intercepted": true,
+  "invalid_arguments_logged": true,
+  "production_binary": true
+}

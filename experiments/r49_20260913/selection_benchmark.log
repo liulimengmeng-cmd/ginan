@@ -1,0 +1,5 @@
+new rows=64 selected=64 seconds=0.221983
+reference rows=64 seconds=11.9258 identical=1
+new rows=128 selected=128 seconds=0.294343
+reference rows=128 seconds=28.1433 identical=1
+new rows=845 selected=845 seconds=4.72015

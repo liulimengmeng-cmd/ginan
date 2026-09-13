@@ -46,3 +46,14 @@ E: optional ZHANG_R49_PARTIAL_SHADOW counterfactual on rejected rank-2 bridges;
 maps PAR rows/RHS back through exact projector and offsets, audits full joint NIS,
 classifies WL/L1/mixed/full consequences. Never mutates formal domain or Ledger.
 Shadow timing and risk are separate; disabled for formal performance comparison.
+
+Audit completion: unique posterior serials; one optional binary network-root
++snapshot (mean, column-major covariance, exact column order) per root; final
++domain records include every ordinary-search and bridge row/RHS, source and
++full statistical/algebraic dependency lists. Formal run enables root snapshots.
++Actual PEA invalid-DGEMV injection returned 86 with argument values and call stack.
++OpenBLAS runtime ABI is checked against USE64BITINT when that backend is linked.
++Reference selector tests: 320 randomized cases + integer parity regressions pass.
++Recorded R48 00:30 subset fixture: 128-row selections identical; full 845 rows
++accepted by new selector. Timing is diagnostic under concurrent compilation.
++

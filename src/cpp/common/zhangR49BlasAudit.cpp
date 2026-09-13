@@ -4,6 +4,10 @@
 #include <execinfo.h>
 #include <stdexcept>
 #include <cctype>
+#include <cstring>
+#ifdef GINAN_USE_OPENBLAS
+extern "C" char* openblas_get_config();
+#endif
 // The configured OpenBLAS backend is LP64 (32-bit Fortran INTEGER).
 extern "C" void __real_dgemv_(const char*,const int*,const int*,const double*,const double*,const int*,const double*,const int*,const double*,double*,const int*);
 extern "C" void __wrap_dgemv_(const char* t,const int* m,const int* n,const double* a,const double* p,const int* lda,const double* x,const int* ix,const double* b,double* y,const int* iy) {
@@ -18,6 +22,11 @@ extern "C" void __wrap_dgemv_(const char* t,const int* m,const int* n,const doub
 namespace {
 struct BlasInjection {
     BlasInjection() {
+#ifdef GINAN_USE_OPENBLAS
+        const char* config=openblas_get_config();
+        std::fprintf(stderr,"R49_BLAS_BACKEND config=%s integer_abi=LP64\n",config);
+        if(std::strstr(config,"USE64BITINT")) {std::fprintf(stderr,"R49_BLAS_ABI_MISMATCH\n");std::_Exit(85);}
+#endif
         if(!std::getenv("ZHANG_R49_BLAS_INJECT_INVALID")) return;
         char t='N';int m=2,n=1,lda=1,inc=1;double a=1,b=0,p[2]={},x[1]={},y[2]={};
         try {__wrap_dgemv_(&t,&m,&n,&a,p,&lda,x,&inc,&b,y,&inc);}

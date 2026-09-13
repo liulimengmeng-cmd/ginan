@@ -1,0 +1,103 @@
+processing_options:
+  epoch_control: {start_epoch: 2024-07-17 00:00:00, end_epoch: 2024-07-17 00:30:00, epoch_interval: 30, wait_next_epoch: 86400}
+  gnss_general:
+    zhang_pppar:
+      integer_strategy: HYBRID_PRODUCT_WL_L1
+      product_mode: HOU_OSB_LIKE
+      hou_product_coordinate: HYBRID_STABLE
+      product_relation_solver_mode: SHADOW
+      product_joint_dual_frequency_ils: true
+      product_relation_feedback: false
+      product_relation_maximum_evaluations: 256
+      product_relation_beam_width: 12
+      product_relation_minimum_rank: 1
+      product_dual_graph_objective: true
+      product_sequential_quotient_shadow: false
+      product_integer_ledger_enabled: true
+      product_gauge_certificate_ledger: true
+      product_component_gauge_solver_mode: OFF
+      product_component_gauge_max_iterations: 1
+      product_component_gauge_confirmation_epochs: 2
+      product_allow_partial_components: true
+      transactional_integer_fixing: true
+      tree_slip_pivot_before_retire: true
+      tree_slip_shadow_replay: false
+      temporal_product_transition_shadow: false
+      besd_capture_policy: OFF
+      whitened_wl_fixed_lag_shadow: false
+      fixed_lag_factor_capture_shadow: false
+      fixed_lag_deterministic_replay_stride: 1000000
+      fixed_lag_product_relation_completion: false
+      l1_measurement_replay_shadow: false
+      deterministic_checkpoint: true
+      checkpoint_runtime_id: R49-NETWORK
+      checkpoint_output_directory: /mnt/d/GINAN_R20/r49_checkpoints_20260913
+      checkpoint_capture_epochs:
+        - "2024-07-17 00:00:00"
+        - "2024-07-17 00:00:30"
+        - "2024-07-17 00:01:00"
+        - "2024-07-17 00:01:30"
+        - "2024-07-17 00:02:00"
+        - "2024-07-17 00:02:30"
+        - "2024-07-17 00:03:00"
+        - "2024-07-17 00:03:30"
+        - "2024-07-17 00:04:00"
+        - "2024-07-17 00:04:30"
+        - "2024-07-17 00:05:00"
+        - "2024-07-17 00:05:30"
+        - "2024-07-17 00:06:00"
+        - "2024-07-17 00:06:30"
+        - "2024-07-17 00:07:00"
+        - "2024-07-17 00:07:30"
+        - "2024-07-17 00:08:00"
+        - "2024-07-17 00:08:30"
+        - "2024-07-17 00:09:00"
+        - "2024-07-17 00:09:30"
+        - "2024-07-17 00:10:00"
+        - "2024-07-17 00:10:30"
+        - "2024-07-17 00:11:00"
+        - "2024-07-17 00:11:30"
+        - "2024-07-17 00:12:00"
+        - "2024-07-17 00:12:30"
+        - "2024-07-17 00:13:00"
+        - "2024-07-17 00:13:30"
+        - "2024-07-17 00:14:00"
+        - "2024-07-17 00:14:30"
+        - "2024-07-17 00:15:00"
+        - "2024-07-17 00:15:30"
+        - "2024-07-17 00:16:00"
+        - "2024-07-17 00:16:30"
+        - "2024-07-17 00:17:00"
+        - "2024-07-17 00:17:30"
+        - "2024-07-17 00:18:00"
+        - "2024-07-17 00:18:30"
+        - "2024-07-17 00:19:00"
+        - "2024-07-17 00:19:30"
+        - "2024-07-17 00:20:00"
+        - "2024-07-17 00:20:30"
+        - "2024-07-17 00:21:00"
+        - "2024-07-17 00:21:30"
+        - "2024-07-17 00:22:00"
+        - "2024-07-17 00:22:30"
+        - "2024-07-17 00:23:00"
+        - "2024-07-17 00:23:30"
+        - "2024-07-17 00:24:00"
+        - "2024-07-17 00:24:30"
+        - "2024-07-17 00:25:00"
+        - "2024-07-17 00:25:30"
+        - "2024-07-17 00:26:00"
+        - "2024-07-17 00:26:30"
+        - "2024-07-17 00:27:00"
+        - "2024-07-17 00:27:30"
+        - "2024-07-17 00:28:00"
+        - "2024-07-17 00:28:30"
+        - "2024-07-17 00:29:00"
+        - "2024-07-17 00:29:30"
+        - "2024-07-17 00:30:00"
+      output_products: true
+      output_diagnostics: true
+      product_filename: ./outputs/zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913/zhang_internal_products.csv
+      product_covariance_filename: ./outputs/zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913/zhang_internal_product_covariance.csv
+outputs:
+  outputs_root: ./outputs/zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913
+  metadata: {config_description: zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913}

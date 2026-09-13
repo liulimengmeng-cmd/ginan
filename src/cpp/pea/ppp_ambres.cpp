@@ -83,6 +83,7 @@
 #include "common/zhangR49ConditionDomain.hpp"
 #include "common/zhangR49BridgeScheduler.hpp"
 #include "common/zhangR49RouteFusion.hpp"
+#include "common/zhangR49RootSnapshot.hpp"
 
 
 static bool filterError = false;
@@ -6642,6 +6643,9 @@ static int rankAwareGnssAr(
     search.searchDiagnostic={};
     search.searchDiagnostic.mode=enum_to_string(options.mode);
     search.searchDiagnostic.reason="NON_LAMBDA_MODE";
+    search.searchDiagnostic.minimumFixCount=std::max(1,options.min_lambda_fix_count);
+    search.searchDiagnostic.effectiveSuccess=options.sucthr;
+    search.searchDiagnostic.localAlpha=options.lambda_candidate_nis_alpha;
     auto selected = positiveVarianceTargetSubset(search.Paflt);
     struct R49SearchExit {
         Trace& trace; GinAR_mtx& search; GTime time; const string& label; int requested, stochastic;
@@ -18708,6 +18712,15 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                  <<" reuse=BATCH_RHS cache_hits=0";}
     } exactMetricExit{trace};
     const int dimension=root.aflt.size(), named=first.namedRelations.size();
+    static std::atomic<std::uint64_t> r49RootSerial{0};
+    const auto rootSerial=++r49RootSerial;
+    std::vector<std::string> rootOrder(dimension);
+    for(const auto& [index,key]:root.ambmap)rootOrder.at(index)=(string)key;
+    const auto rootSnapshot=[&]() {ZhangPhaseTimer timer(trace,"R49_ROOT_SNAPSHOT_WRITE");
+        return zhangR49WriteRootSnapshot(root.aflt,root.Paflt,rootOrder,rootSerial); }();
+    trace<<"\nR49_ROOT_SNAPSHOT time="<<time.to_string(0)<<" posterior_id="<<rootSerial
+        <<" columns="<<dimension<<" snapshot="<<rootSnapshot<<" immutable_owner=THIS_CALL";
+
     ZhangR48MarginalWorkspace r48Moments(root.aflt,root.Paflt);
     auto fail=[&](const std::string& reason) {result.status=result.failureReason=reason;return result;};
     if(!first.valid || !second.valid || !first.wholeLattice.valid || !second.wholeLattice.valid ||
@@ -18819,8 +18832,8 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     {
         ZhangPhaseTimer routeTimer(trace,conditional?"R48_HISTORY_SEARCH":"R48_FLOAT_SEARCH");
         Route out;out.conditional=conditional;
-        out.domain.posteriorId="FLOAT_ROOT@"+time.to_string(0);
-        out.domain.chartId=runtimeId+":"+std::to_string(dimension);
+        out.domain.posteriorId="FLOAT_ROOT@"+time.to_string(0)+"#"+std::to_string(rootSerial);
+        out.domain.chartId=runtimeId+":"+std::to_string(rootSerial)+":EXACT_ROOT_COLUMN_ORDER";
         out.domain.policyId=conditional?"HISTORY_FULL_BRIDGE4":"FLOAT_FULL_BRIDGE4";
         if(conditional) {out.held=subset.rows;out.heldValues=subset.values;out.parents=subset.parents;}
         const auto frame=[&]() {
@@ -18897,6 +18910,13 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             record.algebraicParentIds=record.conditioningParentIds;out.domain.records.push_back(std::move(record));
         }
         if(!out.newRows.empty())out.domain.searchTickets.push_back(out.domain.scope()+"/ORDINARY_FAMILY");
+        for(int i=0;i<out.newRows.size();++i) {
+            ZhangR49ConditionRecord record{out.newRows[i],out.newValues[i],ZhangR49ConditionSource::CURRENT_PRODUCT_SEARCH};
+            for(const auto& p:out.parents)record.conditioningParentIds.push_back(p->id);
+            record.conditioningParentIds.insert(record.conditioningParentIds.end(),out.domain.searchTickets.begin(),out.domain.searchTickets.end());
+            record.algebraicParentIds=record.conditioningParentIds;out.domain.records.push_back(std::move(record));
+        }
+
         trace<<"\nZHANG_R47_SEARCH_ROUTE time="<<time.to_string(0)
             <<" route="<<(conditional?"HISTORY_CONDITIONED":"FLOAT_RECERTIFICATION")
             <<" source_integer_parent_count=0 historical_conditioner_rank="<<out.held.size()
@@ -19247,6 +19267,17 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         const int a=find(pair.first),b=find(pair.second);if(a==b) continue;parent[a]=b;
         ZhangExactVector row(named);if(pair.first<named) row[pair.first]=1;if(pair.second<named) row[pair.second]=-1;
         wlRows.push_back(row);l1Rows.push_back(row);wlValues.push_back(pair.wl);l1Values.push_back(pair.l1);
+    }
+    if(selected.domain.records.size()!=selected.jointRows.size())return fail("R49_CONDITION_RECORD_COVERAGE_MISMATCH");
+    trace<<"\nR49_FINAL_DOMAIN time="<<time.to_string(0)<<" scope="<<selected.domain.scope()
+        <<" rows="<<selected.jointRows.size()<<" root_snapshot="<<rootSnapshot;
+    for(int i=0;i<selected.domain.records.size();++i) {
+        const auto& record=selected.domain.records[i];
+        trace<<"\nR49_CONDITION_RECORD index="<<i<<" source="<<static_cast<int>(record.source)
+             <<" rhs="<<record.value<<" exact_coefficients=";
+        for(int c=0;c<record.row.size();++c)if(record.row[c]!=0)trace<<c<<":"<<record.row[c]<<",";
+        trace<<" conditioning_parent_ids=";for(const auto& id:record.conditioningParentIds)trace<<id<<",";
+        trace<<" algebraic_parent_ids=";for(const auto& id:record.algebraicParentIds)trace<<id<<",";
     }
     const auto joint=numeric(selected.jointRows,dimension);
     const auto nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(selected.jointValues)-joint*root.aflt,

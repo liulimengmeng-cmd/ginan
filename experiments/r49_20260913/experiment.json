@@ -1,0 +1,81 @@
+{
+  "case": "zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913",
+  "source_chat": {
+    "project": "OSB",
+    "title": "分析解算速度并测试",
+    "id": "6aa68697-6fac-83e9-be18-acaf20169431",
+    "latest_answer": "9e70982f-4190-4cda-9a00-42d9194d40d0",
+    "read_turns": 4,
+    "has_more": false,
+    "text_truncated": false,
+    "attachment_contents_retrieved": false,
+    "transcript_sha256": "09bdd5fc89cdcdd98dd04b9a4bad650f1b07ecb5b3955494b1d0ba0385b20660"
+  },
+  "source_root": "/home/rx/GINAN/r49-condition-domain-20260913",
+  "frozen_root": "/home/rx/GINAN/frozen-r49-condition-domain-20260913",
+  "baseline_source_root": "/home/rx/GINAN/r48-continuity-bridge-20260912",
+  "baseline_snapshot_commit": "820c2cb09a6e48a155b3fbdc69d100631f88dc6c",
+  "baseline_outputs": {
+    "r37": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_exact_lattice_continuity_2024199_180_003000_r37_20260908",
+    "r45": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r45_blas_affine_bridge_2024199_180_003000_20260911",
+    "r46": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r46_physical_quotient_2024199_180_003000_20260911",
+    "r47": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r47_integer_contracts_2024199_180_003000_20260911",
+    "r48_original": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48_continuity_bridge_2024199_180_003000_20260912",
+    "r48fix1": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913"
+  },
+  "observations": {
+    "start": "2024-07-17 00:00:00",
+    "end": "2024-07-17 00:30:00",
+    "interval_s": 30,
+    "expected_epochs": 61,
+    "stations": 180
+  },
+  "threads": {
+    "OMP_NUM_THREADS": 4,
+    "OPENBLAS_NUM_THREADS": 1,
+    "MKL_NUM_THREADS": 1
+  },
+  "budget": {
+    "maximum_current_certificate_risk": 0.001,
+    "minimum_history_reserve_fraction": 0.25,
+    "search_routes": [
+      "FLOAT_RECERTIFICATION",
+      "HISTORY_CONDITIONED"
+    ],
+    "route_allocation": "0.45/0.45/0.10 fresh/history/fusion, before statistical searches; missing history share goes to fresh",
+    "max_rounds": 4,
+    "block_size": 8,
+    "half_overlap_stride": 4,
+    "max_blocks_per_round": 8,
+    "failed_or_discarded_allocations_recycled": false,
+    "ratio_threshold_lowered": false,
+    "success_threshold_lowered": false,
+    "ordinary_search_fraction": 0.75,
+    "bridge_search_fraction": 0.25,
+    "max_bridge_attempts_per_route": 4,
+    "max_rescue_attempts_per_round": 1,
+    "max_rescue_dimension": 16
+  },
+  "input_manifest_basis": "R45 packaging snapshot, not a retrospectively proven R45 original-run preflight identity",
+  "claims": "Internal integer certification and product continuity only; not independent integer truth or positioning benefit. Compare R47 on 47 common epochs and R48fix1 on 61 common epochs. Separate strategy changes from reference equivalence tests and never sum nested timers.",
+  "checkpoints": {
+    "enabled": true,
+    "interval_seconds": 30,
+    "expected_bundles": 61,
+    "directory": "/mnt/d/GINAN_R20/r49_checkpoints_20260913",
+    "scope": "post-epoch full deterministic KF, controller, graph, PPP-AR/AMBRES, receivers, satellites and input cursors"
+  },
+  "r49_policy": {
+    "formal_stage": "R49-D",
+    "fusion_weight": 0.1,
+    "fresh_weight": 0.45,
+    "history_weight": 0.45,
+    "bridge_search_cap_per_route": 4,
+    "fusion_search_cap": 4,
+    "partial_shadow_formal": false,
+    "partial_shadow_separate_test": true,
+    "no_statistical_threshold_relaxation": true,
+    "actual_pea_blas_audit": true,
+    "root_snapshot_directory": "/mnt/d/GINAN_R20/r49_root_snapshots_20260913"
+  }
+}

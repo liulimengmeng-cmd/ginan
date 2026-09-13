@@ -2,7 +2,7 @@
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangIntegerCandidateNis.hpp"
 #include <sstream>
-enum class ZhangR49ConditionSource {CURRENT_NETWORK,TRANSPORTED_HISTORY,GAUGE,BRIDGE};
+enum class ZhangR49ConditionSource {CURRENT_NETWORK,TRANSPORTED_HISTORY,GAUGE,CURRENT_PRODUCT_SEARCH,BRIDGE};
 struct ZhangR49ConditionRecord {
  ZhangExactVector row;ZhangExactInteger value;
  ZhangR49ConditionSource source;
