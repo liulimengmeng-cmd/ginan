@@ -1,0 +1,693 @@
+{
+  "work": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914",
+  "source_root": "/home/rx/GINAN/r48-user-model-20260914",
+  "base_commit": "793814c",
+  "r49_server_unchanged": true,
+  "stations": [
+    {
+      "station": "MARS",
+      "filename": "MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "43.086731",
+      "longitude": "5.353784",
+      "path": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "7e0af5de03234b41332ce9354b5842cdd0fea344d9591b8995ae21039cf306fb",
+      "in_server_network": false
+    },
+    {
+      "station": "DYNG",
+      "filename": "DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "37.891884",
+      "longitude": "23.932434",
+      "path": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "87ce687d6dca3a373e71ecd58c58a37f334e795666ded8c3c68a5ae6679ef177",
+      "in_server_network": false
+    },
+    {
+      "station": "NICO",
+      "filename": "NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "34.960051",
+      "longitude": "33.396433",
+      "path": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "1568aac7615df081762e61f6eecd64e06c2fd87ec691d6016990448bc56e8232",
+      "in_server_network": false
+    },
+    {
+      "station": "BREW",
+      "filename": "BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "region": "north_america_arctic",
+      "latitude": "47.940186",
+      "longitude": "-119.682634",
+      "path": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "1c78f5636d50d247dfcaa0eaebf81e946d9ac95396dd7c0efb4f03013fb39b42",
+      "in_server_network": false
+    },
+    {
+      "station": "JPLM",
+      "filename": "JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "region": "north_america_arctic",
+      "latitude": "34.026131",
+      "longitude": "-118.173229",
+      "path": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "28a8f2f52f0ffc9c901603db65c1212b33147ece4236304b76fc59bffb6086ba",
+      "in_server_network": false
+    }
+  ],
+  "reference_sinex": {
+    "path": "/mnt/d/GINAN_R20/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+    "sha256": "3bf384a89d9589c24659b26b1ce667397ad447ad58cbe7956afbefd80f7881f3",
+    "reference": [
+      {
+        "station": "MARS",
+        "coordinates_m": {
+          "STAX": 4630532.50007753,
+          "STAY": 433946.68513361,
+          "STAZ": 4350142.94136138
+        }
+      },
+      {
+        "station": "DYNG",
+        "coordinates_m": {
+          "STAX": 4595220.07189335,
+          "STAY": 2039434.23486599,
+          "STAZ": 3912625.87502075
+        }
+      },
+      {
+        "station": "NICO",
+        "coordinates_m": {
+          "STAX": 4359415.36576401,
+          "STAY": 2874117.28318661,
+          "STAZ": 3650778.08020589
+        }
+      },
+      {
+        "station": "BREW",
+        "coordinates_m": {
+          "STAX": -2112007.43210056,
+          "STAY": -3705351.82129059,
+          "STAZ": 4726827.00013152
+        }
+      },
+      {
+        "station": "JPLM",
+        "coordinates_m": {
+          "STAX": -2493304.99028864,
+          "STAY": -4655214.77398551,
+          "STAZ": 3565497.67654098
+        }
+      }
+    ]
+  },
+  "product_manifest": {
+    "zhang_internal_products.csv": {
+      "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_products.csv",
+      "sha256": "90a60d3dc2fb6d2fbcfc14a514c6f9923488eab2db9843ad7d0d70f9cac82d47",
+      "bytes": 6731211
+    },
+    "zhang_internal_product_covariance.csv": {
+      "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_product_covariance.csv",
+      "sha256": "9fc68d01e58494478e0292c2866c6ecac2cc3deecf19125f76bec538488cfbaf",
+      "bytes": 67929724
+    }
+  },
+  "first_epoch": 1405209780,
+  "last_epoch": 1405211400,
+  "expected_epochs": 55,
+  "window": "2024-07-17 00:03:00--00:30:00",
+  "user_models": [
+    "IF",
+    "UDUC"
+  ],
+  "test_groups": [
+    "FLOAT",
+    "ROUND_SHADOW",
+    "ROUND_FEEDBACK",
+    "ILS_SHADOW",
+    "ILS_FEEDBACK"
+  ],
+  "claims": "Single-epoch full product covariance retained; unknown cross-epoch product covariance is a model limitation. Independent user stations. No synthetic integer truth.",
+  "cases": [
+    {
+      "case": "r48u_20260914_DYNG_IF_float",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_IF_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "76c1c9969f01b36edb9aba9fca6a7687b32096c43cd69aef227362d287b5808e",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_IF_round_shadow",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_IF_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "4664378cdd02a9aa16e23b12b684b96be4193f8051a4ced95ad6711465de63cd",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_IF_round_feedback",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_IF_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "0930d8b41aac78eb2f549ce97af052d130f88be546503629c98f4b83aff684a9",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_IF_ils_shadow",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_IF_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "fff166ac834018fbc796e6e9a6eab46fd9078926757ad4b891eccdee34299781",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_DYNG_IF_ils_feedback",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_IF_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "a2110775cf9417cbbf57e7ccb6d96f44190313990d7a6efeed46741cf1014884",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_float",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_IF_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "55ccaeea5d24178f0d24aea203aa09e03ea6c7fbfc38722e9f236c0a1707fa21",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_round_shadow",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_IF_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "9f47fe3052741a791b250794508e3eec6ce7e3bc99567ea6fa8b2ccae7a1367e",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_round_feedback",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_IF_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "db6959d80db3c04754f2de9f6f63802e9fd5a598bcdbbe1df243b1045fa66550",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_ils_shadow",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_IF_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "95ee83b6a00116e181b53410394aad437992d34d641d3941cf50b451c9b2aaf5",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_ils_feedback",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_IF_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "87e557312b524d7f21e565ea3da8108929c553c33f84931840821695dfe6aad9",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_float",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_IF_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "291213a2c57ed3fb0e4c30600f2380ca8381e3dd89f8a23640582e5537e8805c",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_round_shadow",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_IF_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "919fc45e27ce808ad30537037904ded81933abe1f6c09e804a7e911d6ab62f14",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_round_feedback",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_IF_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "30a5c681d092f40bcc6c9f2c14d9e4698b61e8a8367e4ca296a5d95e3cc64be5",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_ils_shadow",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_IF_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "ee1eb430c1ad24cfc1d8fc97f4dfca6d5b1711345e5a519d3be7f40cc195a92e",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_ils_feedback",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_IF_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "bcaba6e541c986dcb309ee7f1972d87583afe325b85fbcf9ce417add3c106698",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_float",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_IF_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "859b5d9d2f8b87e2e0ca2f5ad72e15cea1fdeea0be2d1035869ffe7031535b7e",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_round_shadow",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_IF_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "4aeadd48173f3090f40ebee7d98413b96e07aae591d48443a40090a6838c7272",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_round_feedback",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_IF_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "e37f921208f94ee931b3875427534d3119493e1c73aa37a12a7522656085cb53",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_ils_shadow",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_IF_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "a335837fc4953a6dfd95a2c004e60149ce08ae5081f425dcfc1036c647e86368",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_ils_feedback",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_IF_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "bcac2a9a87806f377857df56a2f8f198e4ee8c22d4b6db492bb052e5b534a01f",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_float",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_IF_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "642a71895e578ae571c3bc312a1ebc852331116838d5496d8d12ada4b1c2e951",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_round_shadow",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_IF_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "bac964ff47220b912ca41091a13b3202e0a8f2e83fba94fb6ec45e9c0e883970",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_round_feedback",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_IF_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "68f0ef15f90618c200308153f5aab4cb340fbc0d98693c9f09a0e6a175db8e98",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_ils_shadow",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_IF_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "45d0a6aa8e4c4d9a9385745593f99c8087e0f177ee7eb17d49c66caab460334c",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_ils_feedback",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_IF_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "b2055616abdecca864ed7a198d21454f430ed18c73b0a7edbf5d20e8d749617b",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_float",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_UDUC_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "b6a3ae07de346f8f200b6d0d14c1f47e00dd966ead6b432177a677a14de1816b",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_round_shadow",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_UDUC_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "9e23ad4087239b2fb98a55978516907f8d0cdd7b954d50f1dbcaaae64f3a633e",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_round_feedback",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_UDUC_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "60f90ef15fb92a6a3dd9711c0b691427ab3d52b1a7b7f54b3e920ddf049e7cfa",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_ils_shadow",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_UDUC_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "81cac1cfdb0f70b223210b9d417847b6e6217f6b3d762632196a39dfcab8376d",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_ils_feedback",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_DYNG_UDUC_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "a9658517b330d58837eacbd0b6b5506a8b7fbc12cb22944f8a88ac6ef72837b3",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_float",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_UDUC_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "eee6da3d5f2cb4b301526ad74be0e713bb93947e7de0fb0b63120bf96eb849bd",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_round_shadow",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_UDUC_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "51b111be98ae0c39332e078fbd6d7360c0c1157bb860b62b7b4c38b67c16d353",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_round_feedback",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_UDUC_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "cf0fa8997cffa2970e7e58fd7959f8fe99c32f6fa51e622bf12c493387cfd655",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_ils_shadow",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_UDUC_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "112f1a1fe02ddd8c71daac1b39a3949ccfa687c4adb285a8b4c0448085ee8492",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_ils_feedback",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_NICO_UDUC_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "26b9cf08b8d960322ab24eb16e25ee4dcbc887c3502fd95c79ff5a3ca0740df5",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_float",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_UDUC_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "5ff394ce686a8ad88fb9ff7dceef402921b068803ec5225d9b188adf2c92bd42",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_round_shadow",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_UDUC_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "734912decf10969eb91e4460c5e6299c9bd78201518b3185c2bc9b352a412107",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_round_feedback",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_UDUC_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "71f061403885f053c60ce71892436a6f3f03233c3e68e7cd22cb2f084a858c83",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_ils_shadow",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_UDUC_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "82e1a1351101787c7b64e8c3886b1ab5e1802264475663ccf1d9fc66968b7145",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_ils_feedback",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_BREW_UDUC_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "eb459d896e77d41c53b2ad108bf00096d6040c4f404d72fcde6dae374cb2ca33",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_float",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_UDUC_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "8d3f51d1229b4ed197c3ee7e236c336b11a0e368edeb3320a11880b6e52ef3b4",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_round_shadow",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_UDUC_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "a8396918ad944f74a3059971f1374805f0774c7487a7ce7a5da33ba1da3ef335",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_round_feedback",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_UDUC_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "554b3328a47266ac59d9210b476664a8babb85f5364cf4cfe79db539300ebefc",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_ils_shadow",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_UDUC_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "20fe99472236cab62188ce6db7ed883938ff2fd439f42b0ca971513b70280e8c",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_ils_feedback",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_MARS_UDUC_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "d2eef2f3680eb42f6e53c25b249cc500d0b4c9abd3c81bfbba3cc5c4cf4d0fd0",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_float",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_UDUC_float.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_float",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "9966b8eff92ea3d82c815bc84bed62d3fef1ba8603f2361eca727212195bc569",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_round_shadow",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "round_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_UDUC_round_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "5ab796e184c949618962a6e08c27ad7ba542252d01a796fb1ca4e198b79b40c1",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_round_feedback",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "round_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_UDUC_round_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "9c9822da2e5d5cd3e62866fcb9d9d709d462c4da163881a15e227f62aa593c97",
+      "joint_ils": false
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_ils_shadow",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "ils_shadow",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_UDUC_ils_shadow.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_shadow",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "846eccbb2135ae6526494aa2179ea690d36e1c4393c4e1d29a1709dcc016a235",
+      "joint_ils": true
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_ils_feedback",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "ils_feedback",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/config/r48u_20260914_JPLM_UDUC_ils_feedback.yaml",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_feedback",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "config_sha256": "55652622bf0cdee82707fc309230151668d49f3b1f3bbcc07721fe3386175049",
+      "joint_ils": true
+    }
+  ],
+  "joseph_stabilisation": true,
+  "named_joint_mode": "LAMBDA_ALT",
+  "general_mixed_rows": "logged; only exact recovered named targets may pass original feedback gates",
+  "remaining_model_limits": [
+    "single selected component reference remains in existing user implementation",
+    "MW physical and product eligibility lifecycle remains baseline; diagnostics retained",
+    "cross-epoch product covariance unavailable",
+    "no independent integer truth"
+  ]
+}

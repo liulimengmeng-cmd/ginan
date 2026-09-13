@@ -1,0 +1,577 @@
+inputs:
+  include_yamls:
+  - products/boxwing.yaml
+  inputs_root: ./products/
+  atx_files:
+  - igs20_2303.atx
+  egm_files:
+  - tables/EGM2008.gfc
+  igrf_files:
+  - tables/igrf14coeffs.txt
+  erp_files:
+  - WUM0MGXFIN_2024198_2024200_03D_01D_ERP.ERP
+  ionosphere:
+    ion_files:
+    - IGS0OPSFIN_20241990000_01D_02H_GIM.INX
+  planetary_ephemeris_files:
+  - tables/DE436.1950.2050
+  troposphere:
+    gpt2grid_files:
+    - tables/gpt_25.grd
+  tides:
+    ocean_tide_loading_blq_files:
+    - tables/OLOAD_ZHANG_2024199_180.BLQ
+    atmos_tide_loading_blq_files:
+    - tables/ALOAD_ZHANG_2024199_180.BLQ
+    ocean_pole_tide_loading_files:
+    - tables/opoleloadcoefcmcor.txt
+    ocean_tide_potential_files:
+    - tables/fes2014b_Cnm-Snm.dat
+  snx_files:
+  - tables/igs_satellite_metadata_2203_plus.snx
+  - tables/sat_yaw_bias_rate.snx
+  - tables/qzss_yaw_modes.snx
+  - tables/bds_yaw_modes.snx
+  - IGS0OPSSNX_20241960000_07D_07D_CRD.SNX
+  satellite_data:
+    nav_files:
+    - BRDC00IGS_R_20241990000_01D_MN.rnx
+    sp3_files:
+    - WUM0MGXFIN_20241980000_01D_05M_ORB.SP3
+    - WUM0MGXFIN_20241990000_01D_05M_ORB.SP3
+    - WUM0MGXFIN_20242000000_01D_05M_ORB.SP3
+    clk_files:
+    - WUM0MGXFIN_20241990000_01D_30S_CLK.CLK
+    obx_files: []
+    bsx_files: []
+outputs:
+  outputs_root: ./outputs/<CONFIG>
+  metadata:
+    config_description: r48u_20260914_MARS_IF_float
+    analysis_agency: GAA
+    analysis_centre: Geoscience Australia -----FILE NOT FOR OPERATIONAL USE-----
+    analysis_software: Ginan v3.0
+    rinex_comment: AUSNETWORK1
+    gradient_mapping_function: Chen & Herring, 1992
+    ocean_tide_loading_model: FES2014
+    reference_system: igs20
+    time_system: G
+  trace:
+    level: 4
+    output_receivers: true
+    output_network: true
+    receiver_filename: <RECEIVER>-<CONFIG>-<YYYY><DDD><HH>.TRACE
+    network_filename: Network-<CONFIG>-<YYYY><DDD><HH>.TRACE
+    output_residuals: true
+    output_residual_chain: false
+    output_config: true
+    output_json: false
+  network_statistics:
+    output: false
+    directory: ./
+    filename: <CONFIG>_network_statistics.json
+  gpx:
+    output: false
+  pos:
+    output: true
+    filename: <RECEIVER>-<CONFIG>-<YYYY><DDD><HH>.POS
+  sinex:
+    output: false
+    directory: ./
+    filename: <CONFIG>_<YYYY><DDD><HH>.SNX
+  sp3:
+    output: false
+    filename: orbit.sp3
+    output_interval: 300
+  clocks:
+    output: false
+    directory: ./
+    filename: clock_wum_orbit_osb.clk
+  erp:
+    output: false
+    directory: ./
+    filename: erp.erp
+  orbit_ics:
+    output: false
+    directory: ./
+    filename: orbit_initial_conditions.yaml
+  orbex:
+    output: false
+    filename: <CONFIG>_<YYYY><DDD><HH>.OBX
+    attitude_sources:
+    - MODEL
+    - NOMINAL
+  bias_sinex:
+    output: false
+    directory: ./
+    filename: osb_estimated.BIA
+    bias_time_system: G
+    code_output_interval: 86400
+    phase_output_interval: 0
+    output_rec_bias: false
+satellite_options:
+  global:
+    models:
+      clock:
+        enable: true
+        sources:
+        - PRECISE
+        - BROADCAST
+      pos:
+        enable: true
+        sources:
+        - PRECISE
+      attitude:
+        enable: true
+        sources:
+        - MODEL
+        - PRECISE
+        - NOMINAL
+      pco:
+        enable: true
+      pcv:
+        enable: true
+      code_bias:
+        enable: true
+      phase_bias:
+        enable: true
+    orbit_propagation:
+      albedo: cannonball
+      antenna_thrust: true
+      empirical: true
+      empirical_dyb_eclipse:
+      - true
+      - false
+      - false
+      planetary_perturbations:
+      - moon
+      - sun
+      - mercury
+      - venus
+      - mars
+      - jupiter
+      - saturn
+      - uranus
+      - neptune
+      - pluto
+      pseudo_pulses:
+        enable: false
+      solar_radiation_pressure: boxwing
+      mass: 1000
+      area: 15
+      srp_cr: 1.75
+      power: 20
+  GPS:
+    clock_codes:
+    - L1W
+  G04:
+    exclude: true
+  G01:
+    exclude: true
+  G30:
+    exclude: true
+  E05:
+    exclude: true
+  E06:
+    exclude: true
+  E10:
+    exclude: true
+  E16:
+    exclude: true
+  E17:
+    exclude: true
+  E23:
+    exclude: true
+  E28:
+    exclude: true
+  E29:
+    exclude: true
+  E32:
+    exclude: true
+  E34:
+    exclude: true
+  E35:
+    exclude: true
+receiver_options:
+  MATE:
+    aliases:
+    - PIVOT
+    models:
+      code_bias:
+        enable: true
+        default_bias: 0
+        undefined_sigma: 0
+  global:
+    error_model: elevation_dependent
+    elevation_mask: 10
+    code_sigma: 0.4
+    phase_sigma: 0.002
+    clock_codes:
+    - L1C
+    rec_reference_system: GPS
+    models:
+      eccentricity:
+        enable: true
+      attitude:
+        enable: true
+        sources:
+        - MODEL
+        - NOMINAL
+      clock:
+        enable: true
+      pco:
+        enable: true
+      pcv:
+        enable: true
+      code_bias:
+        enable: true
+      phase_bias:
+        enable: true
+      pos:
+        enable: true
+      ionospheric_components:
+        enable: true
+        use_2nd_order: false
+        use_3rd_order: false
+      troposphere:
+        enable: true
+        models:
+        - gpt2
+      eop:
+        enable: true
+    apriori_sigma_enu:
+    - 0.003
+    - 0.003
+    - 0.009
+    mincon_scale_apriori_sigma: 1
+    mincon_scale_filter_sigma: 0
+    exclude: false
+processing_options:
+  process_modes:
+    preprocessor: true
+    spp: true
+    ppp: true
+    ionosphere: false
+  epoch_control:
+    start_epoch: '2024-07-17 00:03:00'
+    end_epoch: '2024-07-17 00:30:00'
+    epoch_interval: 30
+    wait_next_epoch: 3600
+    max_rec_latency: 1
+  gnss_general:
+    minimise_sat_clock_offsets:
+      enable: true
+    pivot_receiver: <AUTO>
+    sys_options:
+      gps:
+        process: true
+        ambiguity_resolution: true
+        reject_eclipse: false
+        code_priorities:
+        - L1C
+        - L2W
+        receiver_amb_pivot: true
+        network_amb_pivot: false
+      gal:
+        process: false
+      glo:
+        process: false
+      bds:
+        process: false
+    zhang_full_rank:
+      enable: false
+    phase_clock_osb:
+      enable: false
+    zhang_pppar:
+      output_products: false
+      user_adapter: true
+      output_diagnostics: true
+      product_solution: PRODUCT_FIXED
+      stabilization_epochs: 2
+      user_max_ambiguities_per_signal: 0
+      sys_options:
+        gps:
+          baseline_observables:
+          - L1C
+          - L2W
+      product_mode: HOU_OSB_LIKE
+      integer_strategy: CANONICAL_USER_IF_WL_L1
+      user_use_full_product_covariance: true
+      user_phase_product_temporal_sigma_m: 0
+      canonical_user_target_feedback: false
+      canonical_user_target_min_named_wl: 1
+      canonical_user_target_max_perr: 0.001
+      transactional_integer_fixing: true
+      held_constraint_nis_alpha: 1.0e-06
+      product_filename: /mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/products/zhang_internal_products.csv
+      product_covariance_filename: /mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/products/zhang_internal_product_covariance.csv
+      deterministic_checkpoint: false
+      checkpoint_runtime_id: r48u_20260914_MARS_IF_float
+      fixed_lag_factor_capture_shadow: true
+  spp:
+    outlier_screening:
+      chi_square:
+        enable: true
+        sigma_threshold: 5
+      least_square:
+        max_iterations: 1
+        sigma_check: false
+        omega_test: true
+        meas_sigma_threshold: 5
+      raim:
+        enable: true
+        max_iterations: 2
+  ppp_filter:
+    ionospheric_components:
+      common_ionosphere: true
+      use_if_combo: true
+      corr_mode: iono_free_linear_combo
+      use_gf_combo: false
+    outlier_screening:
+      prefit:
+        max_iterations: 2
+        sigma_check: false
+        omega_test: false
+        state_sigma_threshold: 5
+        meas_sigma_threshold: 5
+      postfit:
+        max_iterations: 20
+        sigma_check: false
+        omega_test: true
+        state_sigma_threshold: 8
+        meas_sigma_threshold: 6
+    rts:
+      enable: false
+      filename: Filter-<CONFIG>-<RECEIVER>-<BRANCH>.rts
+    joseph_stabilisation: true
+  model_error_handling:
+    error_accumulation:
+      enable: true
+      receiver_error_count_threshold: 0
+      receiver_error_epochs_threshold: 0
+      satellite_error_count_threshold: 0
+      satellite_error_epochs_threshold: 0
+      state_error_count_threshold: 3
+    meas_deweighting:
+      deweight_factor: 10000
+    state_deweighting:
+      deweight_factor: 10000
+    ambiguities:
+      phase_reject_limit: 2
+      reset_on:
+        gf: true
+        lli: true
+        mw: true
+        scdia: true
+        retrack: true
+        single_freq: true
+    exclusions:
+      gf: true
+      lli: false
+      mw: true
+      scdia: true
+      eclipse: false
+      retrack: false
+      single_freq: true
+    ionospheric_components:
+      outage_reset_limit: 300
+    satellite_errors:
+      enable: false
+      pos_process_noise: 10
+      vel_process_noise: 1
+      vel_process_noise_trail: 0
+      vel_process_noise_trail_tau: 0
+  minimum_constraints:
+    enable: false
+    rotation:
+      sigma:
+      - 400
+      estimated:
+      - true
+    scale:
+      sigma:
+      - 400
+      estimated:
+      - true
+    translation:
+      sigma:
+      - 400
+      estimated:
+      - true
+    application_mode: weight_matrix
+    once_per_epoch: false
+    constrain_orbits: false
+    outlier_screening:
+      postfit:
+        max_iterations: 10
+        sigma_check: true
+        state_sigma_threshold: 3
+        meas_sigma_threshold: 3
+      prefit:
+        max_iterations: 2
+        omega_test: false
+        sigma_check: true
+        state_sigma_threshold: 5
+        meas_sigma_threshold: 5
+  orbit_propagation:
+    integrator_time_step: 60
+    central_force: true
+    egm_field: true
+    egm_degree: 15
+    solid_earth_tide: true
+    ocean_tide: true
+    pole_tide_solid: true
+    pole_tide_ocean: true
+    general_relativity: true
+    indirect_J2: true
+  ambiguity_resolution:
+    mode: 'OFF'
+    success_rate_threshold: 0.99
+    solution_ratio_threshold: 3
+    lambda_set_size: 2
+    once_per_epoch: true
+    fix_and_hold: true
+estimation_parameters:
+  global_models:
+    eop:
+      estimated:
+      - false
+      sigma:
+      - 10
+      - 10
+      - 1e-9
+    eop_rates:
+      estimated:
+      - false
+      sigma:
+      - 10
+  receivers:
+    PIVOT:
+      code_bias:
+        estimated:
+        - false
+    global:
+      pos:
+        estimated:
+        - true
+        sigma:
+        - 100
+        process_noise:
+        - 0
+      clock:
+        estimated:
+        - true
+        sigma:
+        - 1000
+        process_noise:
+        - 10
+      ambiguities:
+        estimated:
+        - true
+        sigma:
+        - 1000
+        process_noise:
+        - 0
+        outage_limit:
+        - 900
+      trop:
+        estimated:
+        - true
+        sigma:
+        - 0.3
+        process_noise:
+        - 0.0001
+      trop_grads:
+        estimated:
+        - false
+        sigma:
+        - 0.03
+        process_noise:
+        - 1.0e-06
+      ion_stec:
+        estimated:
+        - true
+        sigma:
+        - 200
+        process_noise:
+        - 1
+        outage_limit:
+        - 900
+      code_bias:
+        estimated:
+        - false
+        sigma:
+        - 20
+        process_noise:
+        - 0
+      phase_bias:
+        estimated:
+        - true
+        sigma:
+        - 1000
+        process_noise:
+        - 0
+  satellites:
+    global:
+      clock:
+        estimated:
+        - false
+        sigma:
+        - 1000
+        process_noise:
+        - 1
+        tau:
+        - 100
+      code_bias:
+        estimated:
+        - false
+        sigma:
+        - 10
+        process_noise:
+        - 0
+      orbit:
+        estimated:
+        - false
+        sigma:
+        - 10
+        - 10
+        - 10
+        - 0.01
+        process_noise:
+        - 0
+      emp_d_0:
+        estimated:
+        - false
+        sigma:
+        - 10
+      emp_y_0:
+        estimated:
+        - false
+        sigma:
+        - 1
+      emp_b_0:
+        estimated:
+        - false
+        sigma:
+        - 1
+      emp_b_1:
+        estimated:
+        - false
+        sigma:
+        - 1
+      emp_d_2:
+        estimated:
+        - false
+        sigma:
+        - 1
+      phase_bias:
+        estimated:
+        - false
+mongo:
+  enable: none
+  output_components: primary
+  output_states: primary
+  output_measurements: primary
+  output_test_stats: none
+  output_trace: primary
+  delete_history: primary

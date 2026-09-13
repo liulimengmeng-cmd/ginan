@@ -1,0 +1,12 @@
+{
+  "zhang_internal_products.csv": {
+    "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_products.csv",
+    "sha256": "90a60d3dc2fb6d2fbcfc14a514c6f9923488eab2db9843ad7d0d70f9cac82d47",
+    "bytes": 6731211
+  },
+  "zhang_internal_product_covariance.csv": {
+    "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_product_covariance.csv",
+    "sha256": "9fc68d01e58494478e0292c2866c6ecac2cc3deecf19125f76bec538488cfbaf",
+    "bytes": 67929724
+  }
+}

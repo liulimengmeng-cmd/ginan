@@ -1,0 +1,9 @@
+{
+  "source_commit": "83edfb8a9552bc8f653b4bf2f513207be4885a99",
+  "source_sha256": "8bef4474b10337b62f4a089cc6ed3a537626aff7bbd4f545d74aff66821dee2f",
+  "binary_sha256": "4937cb534a5d17410306157b5afeea4db60d0de66910f882014bb3964abb9058",
+  "binary": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/frozen/pea",
+  "build_exit": 0,
+  "build_log": "/mnt/c/Users/rx/Documents/GINAN/r48_user_model_work_20260914/build_final.log",
+  "created": "2026-09-14T00:23:16.710201+08:00"
+}
