@@ -82,6 +82,7 @@
 #include "common/zhangR49PosteriorWorkspace.hpp"
 #include "common/zhangR49ConditionDomain.hpp"
 #include "common/zhangR49BridgeScheduler.hpp"
+#include "common/zhangR49RouteFusion.hpp"
 
 
 static bool filterError = false;
@@ -18799,7 +18800,12 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     };
     const bool conditionedRoute=!subset.rows.empty();
     const double familyBudget=std::max(0.0,ceiling-subset.risk);
-    const double perRoute=familyBudget/(conditionedRoute?2:1);
+    const ZhangR49RouteFusionPolicy fusionPolicy;
+    const double fusionBudget=familyBudget*fusionPolicy.weight;
+    const double perRoute=(familyBudget-fusionBudget)/(conditionedRoute?2:1);
+    trace<<"\nR49_FAMILY_ALLOCATION time="<<time.to_string(0)<<" total="<<familyBudget
+         <<" fresh="<<perRoute<<" history="<<(conditionedRoute?perRoute:0)<<" fusion="<<fusionBudget
+         <<" allocation_before_search=1 failed_search_refund=0";
     auto finalizeRoute=[&](Route& route) {
         if(!route.finalFrame.valid || !zhangR47AffineIntegerFeasible(route.jointRows,route.jointValues,dimension))return false;
         const auto closure=zhangDecisionRiskClosure(route.parents);
@@ -19107,7 +19113,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     bridgeRoute(fresh);if(conditionedRoute)bridgeRoute(conditional);
     fresh.valid=fresh.valid && finalizeRoute(fresh);
     conditional.valid=conditional.valid && finalizeRoute(conditional);
-    const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
+
     trace<<"\nR48_NUMERIC_REUSE time="<<time.to_string(0)
         <<" posterior_scope=THIS_CALL conditioner_decompositions="<<r48Moments.decompositions
         <<" cache_hits="<<r48Moments.hits<<" target_cache_hits="<<r48Moments.targetHits<<" root_dimension="<<dimension
@@ -19116,8 +19122,78 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const bool selectHistory=conditional.valid && (!fresh.valid || conditional.pairCount>fresh.pairCount ||
         (conditional.pairCount==fresh.pairCount && conditional.finalFrame.searchRank<fresh.finalFrame.searchRank));
     Route& selected=selectHistory?conditional:fresh;
-    const auto& pairs=selectHistory?historyPairs:freshPairs;
+
     if(!selected.valid) return fail("R47_BOTH_CONTROLLED_ROUTES_INVALID");
+    Route& alternate=selectHistory?fresh:conditional;
+    std::vector<std::pair<int,int>> fusionTargets=alternate.acceptedBridges;
+    const auto& alternatePairs=selectHistory?freshPairs:historyPairs;
+    for(const auto& p:alternatePairs)fusionTargets.push_back({p.first,p.second});
+    std::set<std::pair<int,int>> fusionEndpoints;
+    std::set<std::string> fusionRequests;
+    int fusionAttempts=0;
+    auto satName=[&](int n){return n<named?first.namedRelations[n].satellite.id():first.referenceSatellite.id();};
+    for(auto [x,y]:fusionTargets) {
+        if(x>y)std::swap(x,y);
+        if(!fusionEndpoints.insert({x,y}).second)continue;
+        auto outcome=[&](const std::string& reason) {
+            trace<<"\nR49_ALTERNATE_TARGET time="<<time.to_string(0)
+                <<" source_route="<<(alternate.conditional?"HISTORY":"FLOAT")
+                <<" selected_route="<<(selected.conditional?"HISTORY":"FLOAT")
+                <<" first="<<satName(x)<<" second="<<satName(y)
+                <<" destination_domain="<<selected.domain.version<<" status="<<reason
+                <<" rhs_imported=0 candidate_moments_imported=0";
+        };
+        if(!alternate.valid){outcome("SOURCE_ROUTE_NOT_FINALIZED");continue;}
+        ZhangExactVector wl(2*named),l1(2*named),w,l;ZhangExactInteger wo,lo,wv,lv;
+        if(x<named){wl[x]=1;wl[named+x]=-1;l1[x]=1;}
+        if(y<named){wl[y]=-1;wl[named+y]=1;l1[y]=-1;}
+        if(!mapNamed(wl,w,wo)||!mapNamed(l1,l,lo)){outcome("UNREPRESENTABLE");continue;}
+        if(zhangR47ProductConsequence(selected.finalFrame,w,wo,wv) &&
+           zhangR47ProductConsequence(selected.finalFrame,l,lo,lv)){outcome("ALREADY_COVERED");continue;}
+        if(!(fusionBudget>0) || fusionAttempts>=fusionPolicy.maximumSearches) {
+            outcome("NOT_EVALUATED_NO_SEARCH_BUDGET");continue;
+        }
+        const auto canonical=zhangR49CanonicalTarget(selected.finalFrame,{w,l},dimension);
+        if(canonical.empty()){outcome("INVALID_CANONICAL_TARGET");continue;}
+        const auto request=selected.domain.scope()+"/FUSION/"+canonical;
+        if(!fusionRequests.insert(request).second){outcome("DUPLICATE_CANONICAL_TARGET");continue;}
+        const double allocation=fusionBudget/fusionPolicy.maximumSearches;
+        const auto proposal=zhangR48SearchBridge(root.aflt,root.Paflt,{w,l},selected.jointRows,selected.jointValues,
+            allocation,nisAlpha,[&](const VectorXd& mu,const MatrixXd& q,double risk,bool) {
+                ++fusionAttempts;GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
+                auto opt=options;opt.sucthr=std::max(options.sucthr,1-risk);opt.min_lambda_fix_count=mu.size();
+                const int fixed=rankAwareGnssAr(trace,trial,opt,time,"R49_ALTERNATE_ROUTE_RECERTIFICATION",true);
+                ZhangSequentialShadowProposal p;
+                p.failureProbability=trial.lambda_selected_bootstrap_success>0 && trial.lambda_selected_bootstrap_success<=1?
+                    1-trial.lambda_selected_bootstrap_success:1;
+                p.valid=fixed==mu.size() && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);return p;
+            },&r48Moments,&selected.finalFrame);
+        selected.search.reservedRisk+=proposal.spent;
+        if(proposal.spent>0)selected.domain.searchTickets.push_back(request);
+        if(!proposal.accepted){outcome(proposal.status);continue;}
+        auto trial=selected;
+        trial.newRows.insert(trial.newRows.end(),proposal.rows.begin(),proposal.rows.end());
+        trial.newValues.insert(trial.newValues.end(),proposal.values.begin(),proposal.values.end());
+        trial.jointRows.insert(trial.jointRows.end(),proposal.rows.begin(),proposal.rows.end());
+        trial.jointValues.insert(trial.jointValues.end(),proposal.values.begin(),proposal.values.end());
+        trial.finalFrame=zhangR47CompileProductSearchFrame(targets,trial.jointRows,trial.jointValues,dimension);
+        trial.valid=finalizeRoute(trial);
+        if(!trial.valid){outcome("FINALIZE_REJECT_SAFE_DOMAIN_RETAINED");continue;}
+        ++trial.domain.version;
+        for(int i=0;i<proposal.rows.size();++i) {
+            ZhangR49ConditionRecord record{proposal.rows[i],proposal.values[i],ZhangR49ConditionSource::BRIDGE};
+            for(const auto& parent:trial.parents)record.conditioningParentIds.push_back(parent->id);
+            record.conditioningParentIds.insert(record.conditioningParentIds.end(),trial.domain.searchTickets.begin(),trial.domain.searchTickets.end());
+            record.algebraicParentIds=record.conditioningParentIds;trial.domain.records.push_back(std::move(record));
+        }
+        zhangR49CommitTrial(selected,std::move(trial),[](const Route& domain){return domain.valid;});
+        outcome("RECERTIFIED_AND_COMMITTED");
+    }
+    // Never publish a cached pre-fusion pair catalogue or discard family spend.
+    const auto pairs=pairsFor(selected);
+    const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
+    if(spent>familyBudget+1e-15)return fail("R49_SEARCH_FAMILY_BUDGET_EXCEEDED");
+
     auto firstView=first,secondView=second;
     for(auto* view:{&firstView,&secondView})
     {view->mappableTargetRank=named;view->mappableNamedIndices.resize(named);std::iota(view->mappableNamedIndices.begin(),view->mappableNamedIndices.end(),0);view->affineOffsets.resize(named);}

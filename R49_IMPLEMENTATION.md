@@ -35,3 +35,9 @@ retained, trial append atomically replaces only after full route gates. Initial
 routes are finalized before comparison. Joint gate reports base/increment/whole.
 The sparse rank basis never authorizes integer membership. Physical target maps
 still use the existing missing-column cancellation and final candidate writer.
+
+D: fusion search share is reserved before either route (default 0 for control;
+formal fusion ablation ZHANG_R49_FUSION_WEIGHT=0.10). Maximum 4 recertifications.
+Only target identities transfer, never alternate RHS, moments or certificates.
+All alternate accepted bridge targets and pair targets get explicit outcomes.
+Every accepted addition rebuilds the final full domain, risk and product catalogue.
