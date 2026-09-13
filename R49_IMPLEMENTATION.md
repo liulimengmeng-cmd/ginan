@@ -24,3 +24,7 @@ B1: full-set exact feasibility fast path with unchanged greedy fallback;
 sparse incremental rational rank only after separate integer feasibility;
 immutable proof-vector closure cache; zero-budget bridge returns before compile.
 Original selector retained as a numerical/selection reference in tests.
+
+B2: exact-posterior/order/epoch root-factor cache in full KF conditioner;
+H-only decomposition reuse with fresh RHS/null checks; target marginal cache;
+Gram/projection covariance retains full cross covariance. No tolerance changes.

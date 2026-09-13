@@ -79,6 +79,7 @@
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR48SafePrefix.hpp"
 #include "common/zhangR48Bridge.hpp"
+#include "common/zhangR49PosteriorWorkspace.hpp"
 
 
 static bool filterError = false;
@@ -4995,28 +4996,19 @@ static bool conditionZhangAmbiguitiesExactly(
     // coordinate system.  The algebraically equivalent subtractive update
     // P - PA' (APA')+ AP loses positive semidefiniteness when the float state
     // spans metre-level clock modes and near-zero ambiguity directions.
-    MatrixXd priorCovariance =
-        0.5 * (kfState.P + kfState.P.transpose());
-    Eigen::SelfAdjointEigenSolver<MatrixXd> priorEigenSolver(priorCovariance);
-    if (priorEigenSolver.info() != Eigen::Success ||
-        !priorEigenSolver.eigenvalues().allFinite())
-    {
-        zhangTransactionalConditioningReason = "PRIOR_COVARIANCE_EIGENSOLVER_FAILED";
-        zhangTransactionalConditioningFailed = true;
-        return false;
+    static thread_local ZhangR49PosteriorWorkspace priorWorkspace;
+    std::vector<std::string> order(kfState.x.size());
+    for(const auto& [key,index]:kfState.kfIndexMap)order.at(index)=(string)key;
+    const auto oldHits=priorWorkspace.hits;
+    if(!priorWorkspace.factor(kfState.P,order,kfState.time.to_string(0))) {
+        zhangTransactionalConditioningReason=priorWorkspace.reason;
+        zhangTransactionalConditioningFailed=true;return false;
     }
-    const double priorScale = std::max(
-        1.0, priorEigenSolver.eigenvalues().cwiseAbs().maxCoeff());
-    if (priorEigenSolver.eigenvalues().minCoeff() < -1e-9 * priorScale)
-    {
-        zhangTransactionalConditioningReason = "PRIOR_COVARIANCE_NOT_PSD";
-        zhangTransactionalConditioningFailed = true;
-        return false;
-    }
-    VectorXd squareRootEigenvalues =
-        priorEigenSolver.eigenvalues().cwiseMax(0).cwiseSqrt();
-    MatrixXd priorSquareRoot = priorEigenSolver.eigenvectors() *
-        squareRootEigenvalues.asDiagonal();
+    const MatrixXd& priorSquareRoot=priorWorkspace.squareRoot;
+    trace<<"\nR49_KF_ROOT_WORKSPACE time="<<kfState.time.to_string(0)
+        <<" branch_id="<<provenance<<" posterior_id="<<priorWorkspace.generation
+        <<" state_order_id=EXACT_ORDER_CHECKED root_cache_hit="<<(priorWorkspace.hits>oldHits)
+        <<" total_decompositions="<<priorWorkspace.decompositions;
     MatrixXd whitenedConstraint = A * priorSquareRoot;
     MatrixXd constraintRightBasis = MatrixXd::Zero(
         kfState.x.size(), effectiveRank);
@@ -19057,7 +19049,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
     trace<<"\nR48_NUMERIC_REUSE time="<<time.to_string(0)
         <<" posterior_scope=THIS_CALL conditioner_decompositions="<<r48Moments.decompositions
-        <<" cache_hits="<<r48Moments.hits<<" root_dimension="<<dimension
+        <<" cache_hits="<<r48Moments.hits<<" target_cache_hits="<<r48Moments.targetHits<<" root_dimension="<<dimension
         <<" target_rows="<<targets.size();
     auto freshPairs=pairsFor(fresh),historyPairs=pairsFor(conditional);
     const bool selectHistory=conditional.valid && (!fresh.valid || conditional.pairCount>fresh.pairCount ||
