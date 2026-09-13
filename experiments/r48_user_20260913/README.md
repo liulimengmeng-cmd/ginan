@@ -1,9 +1,22 @@
-# R48 independent user PPP-AR prefix experiment
+# R48 independent user PPP-AR experiment
 
-Five stations (MARS, DYNG, NICO, BREW, JPLM) are held out from the actual 180-station R48 network input. Each station estimates its position freely using the same PRODUCT_FIXED products and full product covariance in paired FLOAT and AR cases. The existing CANONICAL_USER_IF_WL_L1 path and fixed acceptance thresholds are used. No server algorithm or running binary is modified.
+The actual experiment uses the frozen 2024-07-17 00:03:00--00:24:30 PRODUCT_FIXED prefix (44 epochs). MARS, DYNG, NICO, BREW and JPLM are absent from the exact 180-station network input. Each user estimates position freely with identical products and full covariance; only the AR mode and feedback flag differ within each pair. Acceptance thresholds remain unchanged.
 
-The frozen prefix is 2024-07-17 00:03:00 through 00:24:30 inclusive (44 epochs). prepare.py requires the corresponding complete server checkpoint, validates every covariance triangle, checks station independence and ancillary files, and refuses to overwrite the work directory. Raw input files are referenced and hashed, never copied. The 5 upstream DGEMV warnings remain unresolved; results are diagnostic and cannot establish integer truth or final product acceptance.
+## Execution and provenance
 
-Run prepare.py with OPENBLAS_NUM_THREADS=1. Work and products are saved in /mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix. Run individual users serially, with one BLAS/OMP thread, keeping server resources available. Changes to experiment scripts/configuration are committed and pushed to fork before execution.
+Work: `/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix`.
+Binary: the unchanged frozen R48fix1 binary, source 94af7df, SHA256 9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0.
 
-Preflight correction: PRODUCT_FIXED does not exist before 00:03:00. The initial rejected preparation is retained in r48_user_work_20260913. Both controls begin at the first actual PRODUCT_FIXED epoch; no product relabelling or future product backfilling is used.
+Preparation sequence: `prepare.py`, `enable_if_capture.py`, `restore_if_design.py`. Preparation refuses overwrites; an intentional rerun requires a new work/output root. Final case specification: `experiment_if.json`.
+
+Run `run.py --spec experiment_if.json --case CASE` for individual cases, or omit `--case` for serial execution. Existing successful receipts are validated and skipped; a failed case stops the batch and is never silently overwritten. BREW's failure was retained, and JPLM was subsequently run via individual case selection. All user processes use one OMP/BLAS thread and niceness 10. The server is untouched.
+
+Run `analyse.py` after all ten case attempts. It requires contiguous actual epochs, verifies POS references against IGS SINEX, checks formal product hashes, retains failures and exports separate WL/L1/committed-constraint evidence. `diagnose_brew.py` reproduces the failed BREW transaction with informational logs enabled in a unique output root.
+
+## Results and limits
+
+Four station pairs completed; BREW FLOAT and AR both failed at 00:06:30. Every case had zero actually committed user integer rank. Three stations admitted partial WL targets but none passed conditional L1. No positioning benefit was demonstrated. The full server R48 experiment continues independently; this user trial consumes only the completed prefix.
+
+Raw input data are referenced and hashed, never copied. ENU is relative to the IGS weekly SINEX apriori (also used for initialization with a 100 m position prior), not an external ambiguity truth. The upstream five DGEMV warnings are unresolved. Failed setup attempts and the detailed BREW reproduction are retained in the work and output directories.
+
+The `results` and `executed_config` folders preserve the final evidence and exact used configurations without input data or frozen product copies.

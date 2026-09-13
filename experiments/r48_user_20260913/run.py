@@ -9,7 +9,7 @@ def sha(p):
   for b in iter(lambda:f.read(1048576),b''):h.update(b)
  return h.hexdigest()
 def main():
- ap=argparse.ArgumentParser();ap.add_argument('--case');ap.add_argument('--spec',default='experiment_capture.json');args=ap.parse_args()
+ ap=argparse.ArgumentParser();ap.add_argument('--case');ap.add_argument('--spec',default='experiment_if.json');args=ap.parse_args()
  s=json.loads((WORK/args.spec).read_text())
  assert sha(s['binary'])==s['binary_sha256']
  for x in s['snapshot'].values():assert sha(x['path'])==x['sha256']
