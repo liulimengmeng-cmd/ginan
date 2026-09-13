@@ -27,7 +27,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  double allocation,double alpha,
  const std::function<ZhangSequentialShadowProposal(const Eigen::VectorXd&,const Eigen::MatrixXd&,double,bool)>& search,
  ZhangR48MarginalWorkspace* sharedWorkspace=nullptr,
- const ZhangR47ProductSearchFrame* domainFrame=nullptr)
+ const ZhangR47ProductSearchFrame* domainFrame=nullptr, bool partialShadow=false)
 {
  ZhangR48BridgeResult out;const int n=mean.size();
  if(!(allocation>0) || !std::isfinite(allocation)) {
@@ -58,9 +58,10 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  out.mean=marginal.mean+zhangExactRowToDouble(out.frame.offsets);out.covariance=marginal.covariance;
  out.spent=allocation;
  auto candidate=search(out.mean,out.covariance,allocation,true);
- if(!candidate.valid || candidate.rows.size()!=out.rank || candidate.values.size()!=out.rank ||
+ const int fixedRank=candidate.rows.size();
+ if(!candidate.valid || fixedRank<=0 || fixedRank>out.rank || (!partialShadow && fixedRank!=out.rank) || candidate.values.size()!=fixedRank ||
     !zhangExactRectangularMatrix(candidate.rows,out.rank) ||
-    zhangExactRowHermiteNormalForm(candidate.rows).basis.size()!=out.rank ||
+    zhangExactRowHermiteNormalForm(candidate.rows).basis.size()!=fixedRank ||
     !std::isfinite(candidate.failureProbability) || candidate.failureProbability<0 ||
     candidate.failureProbability>allocation) {out.status="BRIDGE_SEARCH_REJECTED";return out;}
  out.rows=zhangExactMultiply(candidate.rows,out.frame.projector);out.values=candidate.values;
@@ -80,7 +81,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  if(out.nis.valid && out.baseNis.valid && out.incrementNis.valid)
   out.schurIdentityError=std::abs(out.nis.nis-out.baseNis.nis-out.incrementNis.nis);
  out.accepted=out.nis.valid && out.nis.nis<=out.nis.threshold;
- out.status=out.accepted?"BRIDGE_ACCEPTED":out.nis.status;
+ out.status=out.accepted?(partialShadow && fixedRank<out.rank?"PARTIAL_INTEGER_PROGRESS":"BRIDGE_ACCEPTED"):out.nis.status;
  return out;
 }
 

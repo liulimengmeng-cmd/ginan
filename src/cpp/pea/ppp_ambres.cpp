@@ -19082,6 +19082,44 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                 <<" affine_offset="<<wo<<","<<lo<<" integer_image_generators=";
             for(const auto& row:br.frame.imageGenerators){trace<<"[";for(const auto& v:row)trace<<v<<",";trace<<"]";}
             trace<<" conditional_mean="<<br.mean.transpose()<<"\nconditional_covariance=\n"<<br.covariance;
+            if(!br.accepted && br.spent>0 && br.rank==2 && std::getenv("ZHANG_R49_PARTIAL_SHADOW")) {
+                ZhangPhaseTimer shadowTimer(trace,"R49_PARTIAL_BRIDGE_SHADOW");
+                // A separately labelled counterfactual branch. Nothing below can
+                // mutate the formal route, Ledger, family tickets or writer.
+                const auto shadow=zhangR48SearchBridge(root.aflt,root.Paflt,{w,l},route.jointRows,route.jointValues,
+                    allocation,nisAlpha,[&](const VectorXd& mu,const MatrixXd& q,double risk,bool) {
+                        GinAR_mtx trial;trial.aflt=mu;trial.Paflt=q;
+                        auto opt=options;opt.sucthr=std::max(options.sucthr,1-risk);opt.min_lambda_fix_count=1;
+                        const int fixed=rankAwareGnssAr(trace,trial,opt,time,"R49_PARTIAL_BRIDGE_SHADOW",true);
+                        ZhangSequentialShadowProposal p;
+                        p.failureProbability=trial.lambda_selected_bootstrap_success>0 && trial.lambda_selected_bootstrap_success<=1?
+                            1-trial.lambda_selected_bootstrap_success:1;
+                        p.valid=fixed>0 && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);return p;
+                    },&r48Moments,&route.finalFrame,true);
+                std::string kind="NO_PROGRESS";bool wlDetermined=false,l1Determined=false;
+                if(shadow.accepted) {
+                    auto rows=route.jointRows;auto values=route.jointValues;
+                    rows.insert(rows.end(),shadow.rows.begin(),shadow.rows.end());
+                    values.insert(values.end(),shadow.values.begin(),shadow.values.end());
+                    const auto frame=zhangR47CompileProductSearchFrame({w,l},rows,values,dimension);
+                    ZhangExactInteger v;
+                    wlDetermined=zhangR47ProductConsequence(frame,w,wo,v);
+                    l1Determined=zhangR47ProductConsequence(frame,l,lo,v);
+                    kind=wlDetermined && l1Determined?"COMPLETE_DUAL_BRIDGE":
+                        wlDetermined?"WL_ONLY":l1Determined?"L1_ONLY":"MIXED_INTEGER";
+                }
+                trace<<"\nR49_PARTIAL_SHADOW_RESULT time="<<time.to_string(0)
+                    <<" route="<<(route.conditional?"HISTORY":"FLOAT")<<" first="<<satName(x)<<" second="<<satName(y)
+                    <<" domain_version="<<route.domain.version<<" status="<<shadow.status<<" kind="<<kind
+                    <<" fixed_rank="<<shadow.rows.size()<<" shadow_spent="<<shadow.spent
+                    <<" whole_nis="<<shadow.nis.nis<<" threshold="<<shadow.nis.threshold
+                    <<" full_conditioning_ticket_count="<<route.domain.searchTickets.size()
+                    <<" conditioning_parent_count="<<route.parents.size()<<" formal_state_changed=0 ledger_admission=0";
+                for(int i=0;i<shadow.rows.size();++i) {
+                    trace<<"\nR49_PARTIAL_SHADOW_EXACT_ROW index="<<i<<" rhs="<<shadow.values[i]<<" coefficients=";
+                    for(int c=0;c<dimension;++c)if(shadow.rows[i][c]!=0)trace<<c<<":"<<shadow.rows[i][c]<<",";
+                }
+            }
             if(!br.accepted)continue;
             // Search risk is consumed even when a trial append is rejected.
             // Every estimator/domain/product change below is private until finalize.

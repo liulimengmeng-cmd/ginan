@@ -41,3 +41,8 @@ formal fusion ablation ZHANG_R49_FUSION_WEIGHT=0.10). Maximum 4 recertifications
 Only target identities transfer, never alternate RHS, moments or certificates.
 All alternate accepted bridge targets and pair targets get explicit outcomes.
 Every accepted addition rebuilds the final full domain, risk and product catalogue.
+
+E: optional ZHANG_R49_PARTIAL_SHADOW counterfactual on rejected rank-2 bridges;
+maps PAR rows/RHS back through exact projector and offsets, audits full joint NIS,
+classifies WL/L1/mixed/full consequences. Never mutates formal domain or Ledger.
+Shadow timing and risk are separate; disabled for formal performance comparison.
