@@ -1,0 +1,7 @@
+# R48 UDUC user experiment
+
+Run prepare.py once in a new work root, then run.py. Both controls use the same frozen 00:03:00--00:24:30 PRODUCT_FIXED product/covariance prefix, five held-out stations, original frozen R48fix1 binary, original acceptance gates, full covariance and factor-replay audit as the IF trial. The UDUC model retains raw per-frequency measurements and explicitly estimates STEC (prior sigma 200, process noise 1 in the existing configuration units); no extra ionosphere pseudo-observation is added. Each station freely estimates position.
+
+The only scientific model differences from IF are CANONICAL_USER_SD_WL_L1, use_if_combo=false and corr_mode=estimate. Metadata/runtime/output names are unique. Product-relative integer candidate extraction checks component IDs, versions, alignment generations and dual-frequency validity. UDUC common dual-frequency targets are formed only from eligible candidates. The current per-frequency persistent reference policy is retained; coverage limitations must be reported, not silently fixed during this control.
+
+All cases run serially with one thread and niceness 10. Failed cases retain their evidence and the batch proceeds to other independent cases. Actual WL constraints and additional L1 constraints are reported separately; a nonzero UDUC newly_fixed count alone does not establish full dual-frequency AR. Input data are never copied.
