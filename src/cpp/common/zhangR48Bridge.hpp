@@ -14,7 +14,8 @@ struct ZhangR48BridgeResult {
  ZhangExactVector values;
  Eigen::VectorXd mean;
  Eigen::MatrixXd covariance;
- ZhangIntegerCandidateNis nis;
+ ZhangIntegerCandidateNis nis,baseNis,incrementNis;
+ double schurIdentityError=0;
 };
 inline Eigen::MatrixXd zhangR48Numeric(const ZhangExactMatrix& rows,int columns) {
  Eigen::MatrixXd m(rows.size(),columns);
@@ -25,14 +26,18 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  const ZhangExactMatrix& targets,const ZhangExactMatrix& held,const ZhangExactVector& hv,
  double allocation,double alpha,
  const std::function<ZhangSequentialShadowProposal(const Eigen::VectorXd&,const Eigen::MatrixXd&,double,bool)>& search,
- ZhangR48MarginalWorkspace* sharedWorkspace=nullptr)
+ ZhangR48MarginalWorkspace* sharedWorkspace=nullptr,
+ const ZhangR47ProductSearchFrame* domainFrame=nullptr)
 {
  ZhangR48BridgeResult out;const int n=mean.size();
  if(!(allocation>0) || !std::isfinite(allocation)) {
   out.status="NOT_EVALUATED_NO_SEARCH_BUDGET";return out;
  }
  if(targets.size()!=2 || !zhangExactRectangularMatrix(targets,n))return out;
- out.frame=zhangR47CompileProductSearchFrame(targets,held,hv,n);
+ out.frame=domainFrame?zhangR49CompileTargetOnDomain(targets,*domainFrame,n):
+  zhangR47CompileProductSearchFrame(targets,held,hv,n);
+ if(!out.frame.valid && out.frame.reason=="TARGET_OUTSIDE_CACHED_DOMAIN")
+  out.frame=zhangR47CompileProductSearchFrame(targets,held,hv,n);
  if(!out.frame.valid){out.status=out.frame.reason;return out;}
  out.rank=out.frame.searchRank;
  auto residualRank=[&](int row) {
@@ -67,6 +72,13 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  auto h=zhangExactRowHermiteNormalForm(combined,cv);
  auto a=zhangR48Numeric(h.basis,n);
  out.nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(h.values)-a*mean,a*covariance*a.transpose(),alpha);
+ auto hn=zhangR48Numeric(held,n),dn=zhangR48Numeric(out.rows,n);
+ if(held.empty()){out.baseNis.valid=true;out.baseNis.nis=0;out.baseNis.rank=0;}
+ else out.baseNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(hv)-hn*mean,hn*covariance*hn.transpose(),alpha);
+ const auto dm=sharedWorkspace->project(dn,hn,zhangExactRowToDouble(hv));
+ if(dm.valid)out.incrementNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(out.values)-dm.mean,dm.covariance,alpha);
+ if(out.nis.valid && out.baseNis.valid && out.incrementNis.valid)
+  out.schurIdentityError=std::abs(out.nis.nis-out.baseNis.nis-out.incrementNis.nis);
  out.accepted=out.nis.valid && out.nis.nis<=out.nis.threshold;
  out.status=out.accepted?"BRIDGE_ACCEPTED":out.nis.status;
  return out;

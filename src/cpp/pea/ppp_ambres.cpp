@@ -80,6 +80,8 @@
 #include "common/zhangR48SafePrefix.hpp"
 #include "common/zhangR48Bridge.hpp"
 #include "common/zhangR49PosteriorWorkspace.hpp"
+#include "common/zhangR49ConditionDomain.hpp"
+#include "common/zhangR49BridgeScheduler.hpp"
 
 
 static bool filterError = false;
@@ -18791,14 +18793,29 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         ZhangR47ProductSearchFrame finalFrame;
         ZhangSequentialShadowResult search;
         int pairCount=0;
+        ZhangR49ConditionDomain domain;
+        ZhangIntegerCandidateNis finalizedNis;
+        std::vector<std::pair<int,int>> acceptedBridges;
     };
     const bool conditionedRoute=!subset.rows.empty();
     const double familyBudget=std::max(0.0,ceiling-subset.risk);
     const double perRoute=familyBudget/(conditionedRoute?2:1);
+    auto finalizeRoute=[&](Route& route) {
+        if(!route.finalFrame.valid || !zhangR47AffineIntegerFeasible(route.jointRows,route.jointValues,dimension))return false;
+        const auto closure=zhangDecisionRiskClosure(route.parents);
+        if(!closure.valid || closure.bound+route.search.reservedRisk>ceiling+1e-15)return false;
+        if(route.jointRows.empty()){route.finalizedNis.valid=true;route.finalizedNis.nis=0;route.finalizedNis.threshold=0;return true;}
+        const MatrixXd j=numeric(route.jointRows,dimension);
+        route.finalizedNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(route.jointValues)-j*root.aflt,j*root.Paflt*j.transpose(),nisAlpha);
+        return route.finalizedNis.valid && route.finalizedNis.nis<=route.finalizedNis.threshold;
+    };
     auto runRoute=[&](bool conditional)
     {
         ZhangPhaseTimer routeTimer(trace,conditional?"R48_HISTORY_SEARCH":"R48_FLOAT_SEARCH");
         Route out;out.conditional=conditional;
+        out.domain.posteriorId="FLOAT_ROOT@"+time.to_string(0);
+        out.domain.chartId=runtimeId+":"+std::to_string(dimension);
+        out.domain.policyId=conditional?"HISTORY_FULL_BRIDGE4":"FLOAT_FULL_BRIDGE4";
         if(conditional) {out.held=subset.rows;out.heldValues=subset.values;out.parents=subset.parents;}
         const auto frame=[&]() {
             ZhangPhaseTimer timer(trace,"R48_PRODUCT_IMAGE");
@@ -18864,7 +18881,16 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         out.jointRows.insert(out.jointRows.end(),out.newRows.begin(),out.newRows.end());
         out.jointValues.insert(out.jointValues.end(),out.newValues.begin(),out.newValues.end());
         out.finalFrame=zhangR47CompileProductSearchFrame(targets,out.jointRows,out.jointValues,dimension);
-        out.valid=out.finalFrame.valid;
+        out.valid=finalizeRoute(out);
+        for(int i=0;i<out.held.size();++i) {
+            const auto source=heldSources[subset.selected[i]];
+            ZhangR49ConditionRecord record{out.held[i],out.heldValues[i],
+                source=="CURRENT_NETWORK"?ZhangR49ConditionSource::CURRENT_NETWORK:
+                source=="GAUGE"?ZhangR49ConditionSource::GAUGE:ZhangR49ConditionSource::TRANSPORTED_HISTORY};
+            for(const auto& p:out.parents)record.conditioningParentIds.push_back(p->id);
+            record.algebraicParentIds=record.conditioningParentIds;out.domain.records.push_back(std::move(record));
+        }
+        if(!out.newRows.empty())out.domain.searchTickets.push_back(out.domain.scope()+"/ORDINARY_FAMILY");
         trace<<"\nZHANG_R47_SEARCH_ROUTE time="<<time.to_string(0)
             <<" route="<<(conditional?"HISTORY_CONDITIONED":"FLOAT_RECERTIFICATION")
             <<" source_integer_parent_count=0 historical_conditioner_rank="<<out.held.size()
@@ -18946,6 +18972,10 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     auto bridgeRoute=[&](Route& route) {
         if(!route.valid)return;
         ZhangPhaseTimer timer(trace,"R48_COMPONENT_DIAGNOSIS");
+        ZhangR49BridgeScheduler scheduler;
+        auto& attempts=scheduler.attempts;auto& testedRequests=scheduler.testedRequests;
+        while(attempts<4) {
+        bool changed=false;
         auto known=pairsFor(route);
         std::vector<int> parent(named+1);std::iota(parent.begin(),parent.end(),0);
         auto find=[&](int v){while(parent[v]!=v)v=parent[v];return v;};
@@ -18971,8 +19001,8 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             if(a.oldBridge!=b.oldBridge)return a.oldBridge>b.oldBridge;
             return a.a.size()*a.b.size()>b.a.size()*b.b.size();
         });
-        int attempts=0;
         for(const auto& cut:cuts) {
+            if(attempts>=4 || !(perRoute>0))break;
             ZhangExactVector wl(2*named),l1(2*named);
             int x=cut.a.front(),y=cut.b.front();
             if(x<named){wl[x]=1;wl[named+x]=-1;l1[x]=1;}
@@ -19011,7 +19041,11 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                     zhangR47ProductConsequence(route.finalFrame,nl,ol,v);
             }
             if(!equivalent){trace<<" status=INCONSISTENT_COMPONENT";continue;}
-            const double allocation=attempts<4?perRoute*0.25/4:0;
+            const auto targetKey=zhangR49CanonicalTarget(route.finalFrame,{w,l},dimension);
+            if(targetKey.empty()){trace<<" status=INVALID_CANONICAL_TARGET";continue;}
+            const std::string requestKey=route.domain.scope()+"|"+targetKey;
+            if(!testedRequests.insert(requestKey).second){trace<<" status=DUPLICATE_CANONICAL_TARGET";continue;}
+            const double allocation=perRoute*0.25/4;
             ZhangPhaseTimer bridgeTimer(trace,"R48_BRIDGE_SEARCH");
             auto br=zhangR48SearchBridge(root.aflt,root.Paflt,{w,l},route.jointRows,route.jointValues,
                 allocation,nisAlpha,[&](const VectorXd& mu,const MatrixXd& q,double risk,bool) {
@@ -19024,8 +19058,15 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                         trial.lambda_selected_bootstrap_success<=1?1-trial.lambda_selected_bootstrap_success:1;
                     p.valid=fixed==mu.size() && zhangExactRowsFromNumeric(trial.Ztrs,trial.zfix,p.rows,p.values);
                     return p;
-                },&r48Moments);
+                },&r48Moments,&route.finalFrame);
             route.search.reservedRisk+=br.spent;
+            if(br.spent>0)route.domain.searchTickets.push_back(requestKey);
+            trace<<"\nR49_JOINT_GATE time="<<time.to_string(0)<<" domain_version="<<route.domain.version
+                <<" base_nis="<<br.baseNis.nis<<" base_rank="<<br.baseNis.rank
+                <<" increment_nis="<<br.incrementNis.nis<<" increment_rank="<<br.incrementNis.rank
+                <<" whole_nis="<<br.nis.nis<<" whole_rank="<<br.nis.rank<<" whole_threshold="<<br.nis.threshold
+                <<" schur_identity_error="<<br.schurIdentityError<<" null_residual="<<br.nis.nullResidual
+                <<" rank_tolerance="<<br.nis.rankTolerance<<" whole_alpha="<<nisAlpha;
             trace<<"\nR48_COMPONENT_CUT_RESULT time="<<time.to_string(0)
                 <<" route="<<(route.conditional?"HISTORY":"FLOAT")
                 <<" anchor_A="<<satName(x)<<" anchor_B="<<satName(y)
@@ -19036,16 +19077,36 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             for(const auto& row:br.frame.imageGenerators){trace<<"[";for(const auto& v:row)trace<<v<<",";trace<<"]";}
             trace<<" conditional_mean="<<br.mean.transpose()<<"\nconditional_covariance=\n"<<br.covariance;
             if(!br.accepted)continue;
-            route.newRows.insert(route.newRows.end(),br.rows.begin(),br.rows.end());
-            route.newValues.insert(route.newValues.end(),br.values.begin(),br.values.end());
-            route.jointRows.insert(route.jointRows.end(),br.rows.begin(),br.rows.end());
-            route.jointValues.insert(route.jointValues.end(),br.values.begin(),br.values.end());
-            route.finalFrame=zhangR47CompileProductSearchFrame(targets,route.jointRows,route.jointValues,dimension);
-            route.valid=route.finalFrame.valid;
-            if(!route.valid)break;
+            // Search risk is consumed even when a trial append is rejected.
+            // Every estimator/domain/product change below is private until finalize.
+            auto trial=route;
+            trial.newRows.insert(trial.newRows.end(),br.rows.begin(),br.rows.end());
+            trial.newValues.insert(trial.newValues.end(),br.values.begin(),br.values.end());
+            trial.jointRows.insert(trial.jointRows.end(),br.rows.begin(),br.rows.end());
+            trial.jointValues.insert(trial.jointValues.end(),br.values.begin(),br.values.end());
+            trial.finalFrame=zhangR47CompileProductSearchFrame(targets,trial.jointRows,trial.jointValues,dimension);
+            trial.valid=finalizeRoute(trial);
+            if(!trial.valid){trace<<"\nR49_APPEND_REJECT safe_domain_retained=1";continue;}
+            ++trial.domain.version;
+            for(int i=0;i<br.rows.size();++i) {
+                ZhangR49ConditionRecord record{br.rows[i],br.values[i],ZhangR49ConditionSource::BRIDGE};
+                for(const auto& p:trial.parents)record.conditioningParentIds.push_back(p->id);
+                record.conditioningParentIds.insert(record.conditioningParentIds.end(),trial.domain.searchTickets.begin(),trial.domain.searchTickets.end());
+                record.algebraicParentIds=record.conditioningParentIds;trial.domain.records.push_back(std::move(record));
+            }
+            trial.acceptedBridges.push_back({x,y});
+            zhangR49CommitTrial(route,std::move(trial),[](const Route& d){return d.valid;});changed=true;
+            trace<<"\nR49_DOMAIN_COMMIT time="<<time.to_string(0)<<" version="<<route.domain.version
+                <<" joint_rows="<<route.jointRows.size()<<" conditioning_tickets="<<route.domain.searchTickets.size()
+                <<" rebuild_components=1";
+            break;
+        }
+        if(!changed)break;
         }
     };
     bridgeRoute(fresh);if(conditionedRoute)bridgeRoute(conditional);
+    fresh.valid=fresh.valid && finalizeRoute(fresh);
+    conditional.valid=conditional.valid && finalizeRoute(conditional);
     const double spent=fresh.search.reservedRisk+conditional.search.reservedRisk;
     trace<<"\nR48_NUMERIC_REUSE time="<<time.to_string(0)
         <<" posterior_scope=THIS_CALL conditioner_decompositions="<<r48Moments.decompositions

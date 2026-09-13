@@ -28,3 +28,10 @@ Original selector retained as a numerical/selection reference in tests.
 B2: exact-posterior/order/epoch root-factor cache in full KF conditioner;
 H-only decomposition reuse with fresh RHS/null checks; target marginal cache;
 Gram/projection covariance retains full cross covariance. No tolerance changes.
+
+C: condition-domain metadata, exact target-on-domain compiler and signed/translated
+canonical requests; dynamic component reconstruction after commit; attempted-risk
+retained, trial append atomically replaces only after full route gates. Initial
+routes are finalized before comparison. Joint gate reports base/increment/whole.
+The sparse rank basis never authorizes integer membership. Physical target maps
+still use the existing missing-column cancellation and final candidate writer.
