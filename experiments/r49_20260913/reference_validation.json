@@ -1,0 +1,17 @@
+[
+  {
+    "test": "r49_selection_reference",
+    "exit": 0,
+    "backend": "EIGEN_USE_BLAS=1 + actual LP64 OpenBLAS + DGEMV wrapper"
+  },
+  {
+    "test": "r49_posterior_reference",
+    "exit": 0,
+    "backend": "EIGEN_USE_BLAS=1 + actual LP64 OpenBLAS + DGEMV wrapper"
+  },
+  {
+    "test": "r49_domain_reference",
+    "exit": 0,
+    "backend": "EIGEN_USE_BLAS=1 + actual LP64 OpenBLAS + DGEMV wrapper"
+  }
+]

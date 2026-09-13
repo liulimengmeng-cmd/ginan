@@ -5,7 +5,7 @@ spec=json.loads((w/'experiment.json').read_text());source=Path(spec['source_root
 assert not frozen.exists(),'Never overwrite a frozen run'
 current=json.loads((w/'build_current.json').read_text());assert current['up_to_date']
 tests=(w/'test_results_final.log').read_text();match=re.search(r'(\d+) test cases out of (\d+) passed',tests)
-assert match and match[1]==match[2] and int(match[1])>=433 and 'has failed' not in tests
+assert match and match[1]==match[2] and int(match[1])>=434 and 'has failed' not in tests
 assert '9 test cases out of 9 passed' in (w/'test_checkpoint_final.log').read_text()
 assert json.loads((w/'blas_injection_result.json').read_text())['audit_intercepted']
 smoke=json.loads((w/'smoke_result.json').read_text());assert smoke['status']==0
@@ -13,6 +13,14 @@ assert 'R49_INVALID_DGEMV_ARGUMENT' not in (w/'smoke.log').read_text()
 assert 'illegal value' not in (w/'smoke.log').read_text()
 manifests=list(Path(smoke['checkpoint_directory']).glob('*/checkpoint_manifest.json'));assert len(manifests)==1
 manifest=json.loads(manifests[0].read_text());assert manifest['runtime_id']=='R49-NETWORK' and manifest['state_dimension']>0
+snapshots=list(Path(smoke['root_snapshot_directory']).glob('*.bin'));assert snapshots
+for snapshot in snapshots:
+ with snapshot.open('rb') as stream:
+  assert stream.readline()==b'R49_POSTERIOR_V1_COLUMN_MAJOR\n'
+  n=int(stream.readline());offset=stream.tell()
+ assert n>0 and snapshot.stat().st_size==offset+8*(n+n*n)
+ assert len(snapshot.with_suffix('.columns.txt').read_text().splitlines())==n
+
 for label in ['selection','posterior','domain']:
  assert 'PASS' in (w/f'r49_{label}_reference.log').read_text()
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()

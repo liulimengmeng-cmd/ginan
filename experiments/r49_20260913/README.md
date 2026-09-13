@@ -16,3 +16,8 @@ concurrent, so these numbers are diagnostic, not the formal GNSS speed ratio.
 Scripts retain execution-machine absolute paths and require matching external
 inputs/libraries. Freeze and formal startup remain gated on successful full build,
 regression tests, actual PEA BLAS injection interception and a real epoch smoke.
+
+Final validation evidence: test_summary.json (434+9 cases), reference_validation.json,
+blas_injection_result.json, empty_domain_dgemv_diagnosis.json and smoke_result.json.
+The first startup deliberately failed closed on an actual invalid BLAS call;
+the caller was repaired and the real epoch passed on a fresh output root.

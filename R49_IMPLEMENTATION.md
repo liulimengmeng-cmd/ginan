@@ -59,7 +59,7 @@ Recorded R48 00:30 subset fixture: 128-row selections identical; full 845 rows
 accepted by new selector. Timing is diagnostic under concurrent compilation.
 
 
-Validation: 433/433 full regression cases and 9/9 checkpoint cases passed.
+Validation: 434/434 full regression cases and 9/9 checkpoint cases passed.
 All three standalone reference suites passed with EIGEN_USE_BLAS=1, the actual
 OpenBLAS archive and the DGEMV audit wrapper. A real 180-station first-epoch
 smoke is a separate mandatory gate before freezing and launching the formal run.
@@ -70,3 +70,8 @@ The final NIS call now checks an empty domain before Eigen evaluates H*x;
 empty domains receive no statistical acceptance or certificate. The regression
 reproduces the 0x2588 shape under the BLAS audit and compares nonempty NIS.
 The failed smoke log is retained locally; a fresh output root is required for retry.
+
+Final real-epoch startup after the empty-domain fix passed with PEA exit 0.
+The original failed run is preserved separately. One full checkpoint and network
+root snapshots are required and structurally checked by freeze_r49.py. All final
+434 regression cases (17144 assertions) and 9 checkpoint cases passed.

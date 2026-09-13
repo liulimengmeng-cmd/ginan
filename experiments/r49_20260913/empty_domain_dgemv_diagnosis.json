@@ -5,5 +5,7 @@
   "lda": 0,
   "call_site": "zhangR47SolveWholeProducts final whole-domain NIS expression, inlined into solveZhangProductRelations",
   "fix": "test empty domain before evaluating Eigen matrix-vector product; no certificate granted",
-  "preserved_log": "smoke_failed_empty_domain_smoke.log"
+  "preserved_log": "smoke_failed_empty_domain_smoke.log",
+  "same_unguarded_expression_in_r48_baseline_820c2cb": true,
+  "source_note": "Current R49 smoke identifies this concrete caller; historical R48 warning call stacks were not available, so not every historical warning is attributed."
 }

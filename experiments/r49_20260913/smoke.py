@@ -18,7 +18,7 @@ files=['zhang_global_2024199_180_base.yaml','zhang_global_2024199_180_inputs.yam
 cmd=[spec['source_root']+'/bin/pea','-q','-y',*[str(a/'config'/f) for f in files],str(a/'smoke.yaml'),'-d',smoke]
 start=time.time()
 with (a/'smoke.log').open('w') as f:
- rc=subprocess.run(cmd,cwd='/mnt/d/GINAN_R20/inputData',env={**os.environ,'OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'4','MKL_NUM_THREADS':'1','ZHANG_R49_FUSION_WEIGHT':'0.10'},stdout=f,stderr=subprocess.STDOUT).returncode
-out={'status':rc,'seconds':time.time()-start,'output':str(output),'checkpoint_directory':checkpoint}
+ rc=subprocess.run(cmd,cwd='/mnt/d/GINAN_R20/inputData',env={**os.environ,'OPENBLAS_NUM_THREADS':'1','OMP_NUM_THREADS':'4','MKL_NUM_THREADS':'1','ZHANG_R49_FUSION_WEIGHT':'0.10','ZHANG_R49_SNAPSHOT_DIRECTORY':checkpoint+'_root_snapshots'},stdout=f,stderr=subprocess.STDOUT).returncode
+out={'status':rc,'seconds':time.time()-start,'output':str(output),'checkpoint_directory':checkpoint,'root_snapshot_directory':checkpoint+'_root_snapshots'}
 (a/'smoke_result.json').write_text(json.dumps(out,indent=2))
 print(json.dumps(out));assert rc==0

@@ -1,0 +1,1308 @@
+Running 434 test cases...
+
+Test module "ZhangFullRankTests" has passed with:
+  434 test cases out of 434 passed
+  17144 assertions out of 17144 passed
+
+  Test case "r47_a_private_target_pulls_back_before_search_and_constraint_binding" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "r47_a_rectangular_private_subgraph_does_not_require_unimodular_inverse" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r47_a_numeric_integer_coefficients_must_be_exactly_representable" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "r47_b_actual_2100_whole_lattice_recovers_six_cancelled_directions" has passed with:
+    23 assertions out of 23 passed
+
+  Test case "r47_b_actual_2730_catalogue_retains_all_dependent_targets" has passed with:
+    17 assertions out of 17 passed
+
+  Test case "r47_b_affine_zero_identities_and_divisibility_are_not_ar_proofs" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r47_c_mixed_conditioner_changes_product_without_certifying_it" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r47_c_nonprimitive_equalities_require_integer_feasibility" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r47_c_full_state_conditioning_retains_cross_covariance_and_rolls_back" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r47_c_immutable_candidate_rejects_dropped_conditioner_or_parent" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r47_d_retired_physical_arcs_cancel_before_projection_with_both_parents" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r47_d_budget_subset_deduplicates_ancestors_and_reserves_search_risk" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r47_e_nonprimitive_product_image_preserves_even_and_odd_cosets" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r47_e_mixed_history_reduces_product_uncertainty_without_searching_network_nullspace" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r47_e_actual_2100_search_domain_has_22_dimensions_after_missing_arc_elimination" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "r47_e_official_round_receipts_account_for_all_attempts" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r48_c0_covariance_safety" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r48_c1_batch_matches_scalar" has passed with:
+    324 assertions out of 324 passed
+
+  Test case "r48_c2_healthy_tree_identity_and_hard_rebuild" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r48_c4_late_failure_keeps_safe_prefix" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r48_c4_rescue_uses_common_snapshot_and_bounded_risk" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r48_c4_joint_affine_not_pairwise" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "r48_c5_bridge_preserves_integer_image_and_joint_gate" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r48_c6_product_image_lift_avoids_full_left_inverse" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r48_c6_low_rank_marginal_matches_full_conditioning" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r48_active_basis_retains_transformed_datum_without_promoting_eligibility" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "r48_active_basis_rejects_unrepresented_tree_and_new_chart" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r49_partial_bridge_is_shadow_only_and_not_dual_certificate" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r49_empty_product_domain_skips_blas_and_does_not_authorize" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r46_tree_pivot_expands_and_roundtrips_true_physical_functional" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r46_retired_arc_and_missing_posterior_column_fail_closed" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r46_distinct_physical_support_requires_joint_affine_consistency" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r46_same_true_physical_row_confirms_across_chart_labels" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r46_sequential_shadow_removes_fixed_mixed_dimensions_and_keeps_input" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r46_overlap_conflict_requires_joint_merged_resolve" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r46_failed_overlap_merge_rolls_back_round_and_charges_discarded_attempts" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r46_shadow_rejects_overbudget_and_joint_nis_outlier" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r46_true_physical_sign_is_independent_of_canonical_chart_orientation" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r46_joint_physical_integer_feasibility_rejects_parity_conflict" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r46_partial_merged_answer_cannot_hide_disputed_overlap" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "routine_temporal_snapshot_capture_covers_persistent_product_coordinates" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_integer_pending_row_rechecks_on_later_posterior" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "product_integer_pending_recheck_preserves_original_joint_admission_budget" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_integer_pending_row_matures_without_lambda_reselection" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "reference_row_and_column_are_ambiguity_s_bases" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "raw_model_null_space_matches_the_29_zhang_s_basis_directions" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "raw_generalized_inverse_and_full_rank_solution_are_equivalent" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "code_phase_ionosphere_float_design_is_full_column_rank" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "reference_change_preserves_code_and_phase_observables" has passed with:
+    1 assertion out of 1 passed
+
+  Test case "reference_change_transforms_full_covariance_without_information_loss" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "random_sparse_connected_graphs_have_full_rank_tree_coordinates" has passed with:
+    120 assertions out of 120 passed
+
+  Test case "product_receiver_core_spans_all_satellites_with_redundancy" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "integer_support_core_excludes_unqualified_arcs_but_keeps_float_graph" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "risk_aware_s_basis_rejects_bad_integer_support_arc" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "rooted_product_tree_limits_nonroot_satellite_path_load" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "two_spanning_trees_preserve_observations_and_integer_cycle_lattice" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "tree_edge_failure_exchanges_basis_without_losing_rank" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "tree_slip_pivots_on_surviving_represented_graph_before_retire" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "tree_slip_allows_component_split_only_when_surviving_graph_disconnects" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "tree_slip_joint_pivot_rejects_single_frequency_replacement" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "p3_experiment3_fault_injection_preserves_connected_float_posterior" has passed with:
+    36 assertions out of 36 passed
+
+  Test case "p3_experiment3_multi_edge_split_loses_only_cross_component_rank" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "represented_edges_are_preferred_for_replacement_tree" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "longer_continuous_arc_breaks_historical_edge_ties" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "disconnected_graph_is_detected_and_root_component_isolated" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "canonical_integer_coordinates_close_exactly_on_two_by_two_graph" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "canonical_audit_rejects_stale_arcs_outside_active_tree" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "global_scale_canonical_audit_uses_sparse_structure" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "sparse_tree_exchange_is_an_exact_unimodular_integer_transition" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "e27_if_user_integer_and_covariance_algebra_closes" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "e29_hybrid_user_model_follows_frozen_document_equations" has passed with:
+    33 assertions out of 33 passed
+
+  Test case "e29_hybrid_real_gauge_is_overlap_gls_and_not_epoch_zero_mean" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "e29_persistent_dynamic_gate_uses_manager_not_product_tree_proof" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "e29_hybrid_real_gauge_checkpoint_preserves_transport" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "e29_hybrid_real_gauge_candidate_copy_is_transactional" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "hybrid_stable_frontend_controller_is_prepare_commit_atomic" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "e29_hybrid_real_gauge_maps_transform_cross_block_covariance" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "e29_dual_frequency_partition_is_component_intersection" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "e27_if_wl_conditioning_uses_the_full_cross_covariance" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "e27_wide_lane_raw_noise_sensitivity_reconstructs_covariance" has passed with:
+    28 assertions out of 28 passed
+
+  Test case "e27_wide_lane_window_is_reference_invariant_and_arc_safe" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "satellite_product_target_is_exact_across_tree_exchange" has passed with:
+    21 assertions out of 21 passed
+
+  Test case "product_relation_basis_expands_independently_to_physical_arcs" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "product_relation_independence_is_reselected_after_column_availability" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_relation_basis_is_reference_invariant" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "product_relation_basis_fails_closed_on_graph_mismatch" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_transition_transport_includes_exact_affine_offset" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_support_metrics_distinguish_paths_bridges_and_capacity" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "promoted_satellite_relation_survives_source_arc_retirement" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "frontend_integer_gauge_birth_defines_zero_kappa_component" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "product_support_path_switch_preserves_component_and_value" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "detached_subtree_keeps_internal_promoted_relations" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "inconsistent_satellite_integer_bridge_is_rejected" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "satellite_product_events_distinguish_topology_progress" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "hybrid_broadcast_component_metadata_is_persistent_and_exact" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "local_fractional_alignment_loss_can_relink_to_component_anchor" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "attaching_left_singleton_preserves_established_component_alignment" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "conflicting_current_relation_is_quarantined_then_relinked" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "held_support_quarantine_preserves_trusted_anchor" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "certified_temporal_batch_restores_quarantined_frontend" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "certified_temporal_batch_fails_without_aligned_anchor" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "dynamic_tree_integer_changes_leave_product_invariant" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "component_common_fractional_gauge_preserves_integer_datum" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "hybrid_tree_invariance_is_relative_then_real_gauge" has passed with:
+    37 assertions out of 37 passed
+
+  Test case "hybrid_pure_s_basis_event_closes_integer_and_real_gauges" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "real_gauge_transport_audit_separates_coordinate_and_time" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "hybrid_server_to_user_dual_frequency_integer_theorem_closes" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_reference_exchange_preserves_integer_relations" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "only_satellite_discontinuity_changes_product_version" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "canonical_product_relations_reject_silent_satellite_substitution" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "l1c_and_l2w_product_datum_versions_are_independent" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "wide_lane_alignment_transport_is_invariant_across_s_basis_changes" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_constraint_promotion_requires_exact_named_membership" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "local_subtree_break_preserves_unaffected_product_continuity" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "wide_lane_only_lattice_does_not_validate_individual_signals" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "wide_lane_plus_l1_lattice_recovers_both_signals" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "exact_row_hnf_removes_redundancy_and_tracks_integer_values" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "exact_physical_row_hnf_tracks_a_basis_invariant_search_frame" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "iar_gain_low_rank_covariance_matches_dense_conditioning" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "theory_regression_physical_dd_row_closes_in_cycle_basis" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "theory_regression_detects_stronger_satellite_sd_correlation" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "exact_surviving_lattice_eliminates_removed_arcs_without_rounding" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "integer_cycle_fixing_feedback_updates_full_state_and_covariance" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "leave_one_out_internal_phase_products_restore_user_integer_differences" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "phase_continuity_integer_branch_change_preserves_validity" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "phase_continuity_fractional_change_forces_user_reinitialisation" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "auxiliary_product_tree_generation_is_not_a_global_product_reset" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "hou_product_coordinate_absorbs_fractional_tree_transform" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "phase_continuity_reinitialisation_resets_branch_and_stabilises" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "phase_continuity_lost_integer_rank_invalidates_once" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "held_out_user_reference_exchange_preserves_phase_and_covariance" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "user_phase_and_wl_targets_survive_three_affine_s_bases" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "user_target_is_invariant_for_tree_receiver_and_satellite_reference_changes" has passed with:
+    20 assertions out of 20 passed
+
+  Test case "satellite_join_and_leaf_exit_preserve_common_physical_target_subspace" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "dual_frequency_common_target_survives_independent_backbone_changes" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "fixed_lag_identity_resets_only_for_real_physical_change" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "square_root_window_matches_dense_schur_marginal" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "square_root_window_is_invariant_to_retained_coordinate_change" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "whitening_reveals_rank_and_rejects_negative_variance" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "final_accepted_factor_capture_preserves_order_and_linearisation" has passed with:
+    36 assertions out of 36 passed
+
+  Test case "factor_capture_fails_closed_on_state_key_chain_mismatch" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "authoritative_factor_commit_packet_preserves_affine_chain" has passed with:
+    23 assertions out of 23 passed
+
+  Test case "authoritative_factor_commit_packet_fails_closed" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "authoritative_postfit_relaxation_moments_preserve_mean_and_cross_covariance" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "authoritative_postfit_noncommuting_staged_transitions_preserve_order" has passed with:
+    47 assertions out of 47 passed
+
+  Test case "authoritative_postfit_transaction_candidate_rejection_rolls_back_live_state_and_capture" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "terminal_reconciliation_closes_final_model_generation_without_new_factor" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "least_square_state_initialisation_is_stochastic_reset_commit" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "temporal_product_snapshots_survive_rectangular_arc_reinitialisation" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "candidate_product_snapshot_is_bound_before_its_coordinate_is_dropped" has passed with:
+    17 assertions out of 17 passed
+
+  Test case "temporal_zero_row_snapshot_is_a_valid_besd_endpoint" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "persistent_snapshot_chronology_supports_correlated_measurement_row_ablation" has passed with:
+    18 assertions out of 18 passed
+
+  Test case "persistent_snapshot_replay_has_separate_zero_process_noise_control" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "e29_product_gauge_compiler_closes_ten_exact_three_by_three_by_two_s_bases" has passed with:
+    11595 assertions out of 11595 passed
+
+  Test case "e29_integer_conditioner_matches_near_zero_noise_fixed_resolve" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "accepted_measurement_families_use_obs_key_and_actual_state_support" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "persistent_snapshot_is_not_rebound_after_unrepresentable_rectangular_reset" has passed with:
+    22 assertions out of 22 passed
+
+  Test case "persistent_snapshot_batch_augmentation_matches_sequential_bindings" has passed with:
+    20 assertions out of 20 passed
+
+  Test case "persistent_snapshot_lifecycle_marginalises_only_released_targets" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "retained_target_information_block_matches_scalar_schur_update" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "raw_multi_epoch_window_matches_gaussian_kalman_posterior" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "single_receiver_wl_is_not_observation_estimable_with_free_phase_biases" has passed with:
+    1 assertion out of 1 passed
+
+  Test case "network_fundamental_cycle_is_primitive_and_nuisance_orthogonal" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "six_legal_trees_and_receiver_roots_replay_identical_raw_factors" has passed with:
+    82 assertions out of 82 passed
+
+  Test case "satellite_reference_change_preserves_raw_integer_mean_variance_perr_and_nis" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "incremental_fixed_lag_matches_dense_batch_and_kalman_at_2_5_10_epochs" has passed with:
+    61 assertions out of 61 passed
+
+  Test case "raw_square_root_boundary_matches_kalman_with_semidefinite_process" has passed with:
+    153 assertions out of 153 passed
+
+  Test case "raw_square_root_boundary_preserves_deterministic_prior_subspace" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "rejected_measurement_key_chain_is_transactional" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "canonical_affine_ledger_unions_before_current_projection" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "raw_square_root_selected_linear_marginal_matches_full_rank_deficient_projection" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "raw_square_root_qr_permutation_preserves_exact_condition_and_future_update" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "persistent_target_joint_difference_cancels_common_gauge_and_rejects_stale_identity" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "persistent_target_direct_difference_matches_full_target_projection" has passed with:
+    17 assertions out of 17 passed
+
+  Test case "persistent_target_full_canonical_catalogue_preserves_all_28_directions" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "canonical_product_relation_semantic_order_ignores_representation" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "persistent_canonical_snapshot_never_crosses_phase_segment" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "persistent_target_exact_constraint_survives_process_and_s_basis_change" has passed with:
+    18 assertions out of 18 passed
+
+  Test case "persistent_raw_target_variable_is_constant_across_s_basis_and_versions_reset" has passed with:
+    18 assertions out of 18 passed
+
+  Test case "incremental_fixed_lag_eliminates_epoch_local_nuisance_immediately" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "incremental_exact_s_basis_change_preserves_physical_posterior" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "residual_domains_keep_independent_dof_and_project_integer_gauge" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "generic_primitive_integer_targets_do_not_require_wide_lane" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "integer_quotient_and_wide_lane_coordinates_are_primitive" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "production_canonical_separator_identities_pair_l1c_l2w" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "par_subset_selection_uses_joint_covariance" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "lambda_reduction_diagnostics_require_conditional_variances" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "lambda_par_diagnostics_report_joint_ranks_candidates_and_closure" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "retained_target_whitening_projects_shared_quotient_direction" has passed with:
+    18 assertions out of 18 passed
+
+  Test case "factor_evidence_window_tracks_every_accepted_measurement_block" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "raw_window_never_promotes_unresolved_peer_to_absolute_datum" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "single_unresolved_target_is_valid_zero_dof_block" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "persistent_canonical_functional_survives_temporary_target_loss" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "persistent_canonical_functional_rejects_unrepresentable_s_transform" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "persistent_quotient_is_held_when_state_transition_drops_its_row" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "incremental_target_separator_accumulates_and_retires_without_history_rows" has passed with:
+    25 assertions out of 25 passed
+
+  Test case "lambda_beam_single_row_leverage_matches_direct_schur_deletion" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "lambda_beam_product_gain_and_hnf_are_basis_invariant" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "iar_product_gain_spectrum_matches_known_real_mode_ceiling" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "iar_product_gain_spectrum_is_ambiguity_basis_invariant" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "iar_product_gain_spectrum_rejects_nullspace_cross_covariance" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "lambda_beam_bootstrap_log_failure_does_not_saturate" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "e25b_joint_user_integer_functional_s0_s1_closes_exactly" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "e25b_random_tree_exchange_preserves_fixed_product_lattice" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "e25b_cycle_slip_requires_besd_or_datum_reset" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "targeted_besd_selector_routes_only_nonheld_retired_arcs" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "e25b_product_phase_transport_is_current_node_plus_cycle_target" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_physical_identity_ignores_unrelated_tree_generation" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_functional_difference_preserves_arc_versions_exactly" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "product_pair_difference_accepts_distinct_satellites_exactly" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "e25b_rejects_nuisance_fractional_offset_and_unsaturated_rows" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "e29_checkpoint_core_roundtrip_is_bitwise_and_preserves_callbacks" has passed with:
+    28 assertions out of 28 passed
+
+  Test case "e29_checkpoint_rejects_corruption_and_provenance_drift" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "e29_checkpoint_writer_fails_closed_on_invalid_identity_and_index" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "e29_checkpoint_required_sections_are_strictly_validated" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "e29_checkpoint_manifest_json_is_atomic_and_auditable" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_admission_commits_exact_redundant_batch" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_admission_aborts_conflicting_cycle_atomically" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_relation_admission_waits_for_redundancy" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_admission_fails_closed_at_every_gate" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "product_relation_admission_requires_redundancy_per_signal" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "temporal_certificate_confirmation_is_value_gap_and_kind_safe" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "targeted_besd_tracker_matches_augmented_kalman_update" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "targeted_besd_tracker_carries_only_target_schur_boundary" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "product_relation_score_is_reliability_lexicographic" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_relation_named_ordering_is_semantic" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_relation_wl_gain_uses_joint_cross_covariance" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_gain_spectrum_separates_rank_and_search_failures" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_relation_wl_l1_transform_is_unimodular" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_relation_partial_decorrelated_rows_are_not_certificate" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "canonical_physical_product_rows_ignore_restricted_product_core" has passed with:
+    89 assertions out of 89 passed
+
+  Test case "canonical_physical_catalogue_retains_unrepresented_directions" has passed with:
+    34 assertions out of 34 passed
+
+  Test case "canonical_29_satellite_product_target_is_reference_invariant" has passed with:
+    39 assertions out of 39 passed
+
+  Test case "only_product_fixed_is_a_formal_pppar_product" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "user_rejects_legacy_network_fixed_ar_claim" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_named_rows_inherit_accepted_parent_lattice_certificate" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_mixed_lattice_recovers_pair_without_star_coordinate" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "product_relation_reliability_forest_uses_only_passed_independent_edges" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_relation_all_pair_gain_is_reference_invariant" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_relation_exact_conditioning_reports_reference_free_gain" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "component_bridge_gls_aggregates_correlated_edges" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "component_gauge_gls_jointly_recovers_all_component_gauges" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "component_gauge_gls_rejects_unestimable_gauge" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_gauge_certificate_requires_segment_stable_confirmation" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "fixed_lag_gauge_confirmation_requires_new_conditional_information" has passed with:
+    20 assertions out of 20 passed
+
+  Test case "fixed_lag_gauge_confirmation_rejects_non_nested_factor_windows" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_pending_recheck_accepts_same_correlated_dual_integer" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_gauge_projection_maps_reference_invariant_q_to_wl_l1_posterior" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "product_gauge_projection_rejects_noninvariant_or_unavailable_q" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_pending_recheck_honours_semidefinite_null_space" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_pending_recheck_rejects_reliable_changed_integer" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_pending_recheck_handles_deterministic_posterior" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "integer_candidate_nis_accepts_only_consistent_deterministic_certificate" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "fixed_lag_raw_integer_proposal_requires_current_posterior_reauthorization" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_pair_provenance_survives_exact_union_catalogue_rebuild" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_pending_recheck_preserves_original_admission_budget" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_pending_certificate_matures_without_candidate_reselection" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "product_gauge_admission_family_budget_counts_joint_family_once" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_gauge_family_subset_maximises_coverage_before_redundant_rank" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_family_subset_uses_safe_temporal_overlap_as_tie_breaker" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_gauge_family_subset_can_replace_expensive_current_family" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_family_subset_prefers_one_larger_common_component" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_family_subset_evaluates_complementary_joint_family_sets" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_gauge_bounded_selector_distinguishes_pruned_from_tested_failure" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_gauge_family_beam_preserves_late_complementary_frontier" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_gauge_family_beam_width_one_keeps_one_nonempty_candidate" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_gauge_family_beam_width_one_prefers_verified_output" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_gauge_ledger_keeps_first_joint_admission_family_immutable" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_certificate_rejects_unresolved_segment_sentinels" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_gauge_certificate_identity_includes_canonical_segments" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_gauge_certificate_retires_on_phase_segment_change" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_gauge_ledger_persists_arbitrary_canonical_q" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "component_gauge_product_row_includes_certified_offsets" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "component_gauge_product_row_supports_implicit_reference" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "dual_component_gauge_wl_l1_is_exact" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_rows_map_exactly_to_product_lattice" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "component_gauge_union_increases_exact_rank" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "redundant_component_edge_does_not_increase_rank" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "component_gauge_joint_covariance_uses_l1_l2_cross_terms" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "component_gauge_receiver_group_leave_one_out_refits_gls" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "component_gauge_rejected_candidate_keeps_p1_physical_diagnostics" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "component_gauge_residual_conflict_fails_closed" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "component_gauge_uses_same_conditioned_snapshot_for_mean_and_covariance" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "component_gauge_rank_deficiency_keeps_maximal_integer_forest" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_block_forest_uses_estimable_incidence_edges" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "component_gauge_forest_uses_cross_frequency_wl_covariance" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_forest_prefers_receiver_and_arc_disjoint_bridge" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_real_null_direction_never_becomes_integer_row" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_primitive_forest_recovers_single_reliable_bridge_in_large_block" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "component_gauge_primitive_forest_recovers_two_independent_bridges" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "component_gauge_dense_only_direction_remains_conditioning_only" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_l1_candidates_require_exact_wl_edge_membership" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "component_gauge_square_bridge_reaches_provisional_ledger_while_unreliable" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "component_gauge_block_family_budget_separates_authoritative_and_provisional" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "product_closure_final_union_equals_single_conditioning" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_closure_is_not_gated_on_fresh_wide_lane" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "component_null_conflict_quarantine_uses_evidence_order" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_closure_runs_without_new_network_wl" has passed with:
+    1 assertion out of 1 passed
+
+  Test case "product_gauge_ledger_alone_requires_stable_runtime_id" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "ledger_selected_subset_is_exactly_independent" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "ledger_hnf_reduction_preserves_integer_values" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "ledger_exact_rank_equals_numeric_rank" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "partial_component_block_survives_other_block_failure" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "null_conflict_localizes_bad_relation_group" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_gauge_certificate_fails_closed_without_joint_evidence" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_square_bridge_requires_multi_epoch_confirmation" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "conditioning_only_row_never_becomes_pair_certificate" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "dense_product_gauge_certificate_never_masquerades_as_writer_pair" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "strict_dual_graph_drives_pppar_usable" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "final_product_constraints_are_conditioned_once" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_gauge_certificate_survives_backend_generation" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_gauge_certificate_requires_exact_current_segments" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_gauge_certificate_dies_on_phase_segment_change" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_gauge_quiet_epoch_retains_and_schedules_historical_certificate" has passed with:
+    18 assertions out of 18 passed
+
+  Test case "product_gauge_conflict_has_explicit_inactive_reason" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_components_require_exact_pair_lattice_membership" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "temporal_component_integer_basis_removes_common_gauge_and_is_reference_invariant" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "product_relation_named_backward_search_reaches_low_rank" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "product_named_pair_beam_expands_alternate_forests" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_named_pair_beam_uses_selected_set_conditional_gain" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_named_pair_beam_prioritises_dual_graph_gain" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_named_pair_beam_treats_admitted_perr_as_tie_breaker" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_named_pair_beam_counts_component_cut_only_once" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_named_pair_beam_prioritises_exact_quotient_gain" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_named_pair_beam_honours_construction_expansion_cap" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_relation_constraints_pull_back_affine_wl_and_l1" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_relation_constraint_pullback_rejects_noninteger_basis" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "product_integer_ledger_accumulates_exact_physical_rank" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "product_integer_ledger_rejects_nonprimitive_transactionally" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_integer_ledger_mature_conflict_is_quarantined" has passed with:
+    21 assertions out of 21 passed
+
+  Test case "product_integer_ledger_canonicalises_negated_relation" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_ledger_physical_fingerprint_is_row_local" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_integer_ledger_upgrades_conditioner_to_pair_certificate" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "product_ledger_exact_affine_membership_separates_conflict" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "integer_lattice_batch_membership_matches_scalar_queries" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "posterior_effective_basis_excludes_deterministic_integer_row" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "posterior_conditionally_deterministic_affine_row_is_consistent" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "posterior_fully_determined_certificate_needs_no_conditioner" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "posterior_effective_conditioner_keeps_consistent_deterministic_rows" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "posterior_effective_conditioner_rejects_deterministic_affine_conflict" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "posterior_effective_conditioner_handles_canonical_56d_rank44_psd_case" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "product_integer_ledger_transports_backend_generations_canonically" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "r33_product_ledger_rebinds_same_canonical_row_to_current_chart" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_lattice_failure_probability_respects_decimal_budget" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "product_candidate_pair_rank_requires_exact_named_edge" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "lambda_reports_selected_suffix_bootstrap_success" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "full_product_lattice_oracle_parser_requires_admissible_complete_rank" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "integer_support_quality_fails_closed_without_residuals" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "integer_support_residual_audit_uses_postfit_phase_and_code_rows" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "exact_held_quotient_separates_certified_and_unresolved_rank" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "exact_held_quotient_rejects_nonprimitive_intersection" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "exact_dual_product_intersection_finds_maximum_common_lattice" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "exact_dual_product_intersection_preserves_full_rank" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "exact_affine_row_lattice_intersection_preserves_both_integers" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "exact_affine_row_lattice_intersection_rejects_hidden_conflict" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "exact_affine_agreement_keeps_combination_when_basis_rows_disagree" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "minimal_affine_conflict_isolates_one_edge_and_preserves_complement" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "exact_dual_intersection_recovers_implied_pair_certificates" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "exact_dual_full_rank_does_not_hide_nonprimitive_index" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "partial_physical_intersection_embeds_without_certifying_missing_direction" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "exact_certified_union_recomputes_rank_and_target_equality" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "deterministic_quotient_distinguishes_integer_inconsistency" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "integer_gain_frontier_is_reliability_first_and_exact_at_rank_one" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "integer_gain_frontier_rejects_fractional_low_variance_rows" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "integer_gain_frontier_keeps_reliable_explicit_seed_beyond_bound" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "integer_gain_frontier_sparse_support_reaches_high_dimension" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_candidate_generator_adds_dense_real_mode_integer_rows" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "product_candidate_generator_orders_reliability_then_signal_graph_then_gain" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "product_candidate_dual_priority_precedes_dictionary_truncation" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "product_candidate_exact_quotient_gain_precedes_refixed_gain" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "product_candidate_priority_completes_complementary_signal_lattice" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "product_candidate_dual_priority_ignores_already_connected_edges" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "product_final_selection_scores_incremental_completion_not_absolute_forest" has passed with:
+    21 assertions out of 21 passed
+
+  Test case "product_candidate_rejects_mismatched_priority_lattice_dimensions" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "product_ledger_joint_support_splits_wl_l1_and_mixed_rows" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "product_ledger_joint_support_rejects_affine_conflict" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_ledger_joint_support_recovers_pure_integer_combination" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "joint_wl_l1_rows_pull_back_exactly_to_l1_l2" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "persistent_joint_lattice_builds_exact_affine_stochastic_quotient" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "persistent_joint_lattice_enforces_nonprimitive_divisibility" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "persistent_joint_44d_rank24_exposes_full_rank20_stochastic_quotient" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "no_new_joint_claim_adds_zero_incremental_risk" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "incremental_risk_budget_never_injects_phantom_floor" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "conditioned_posterior_and_receipt_are_atomic" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "optional_ledger_cannot_poison_feasible_baseline" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "persistent_certificate_snapshot_distinguishes_external_posterior_nullity" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "certificate_risk_uses_current_scope_and_charges_family_once" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "product_gauge_family_selection_retains_feasible_fallback" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r26_applied_lattice_image_recovers_combinations_and_affine_offset" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r26_incremental_nis_matches_reference_including_singular_trials" has passed with:
+    874 assertions out of 874 passed
+
+  Test case "r27_missing_search_column_keeps_exact_held_consequence" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r27_complete_domain_conditioning_precedes_marginalization" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r27_whole_product_image_recovers_combinations_not_rows" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r27_final_baseline_must_pass_same_posterior_not_old_one" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r26_workspace_matches_uncached_psd_and_spd_decisions" has passed with:
+    148 assertions out of 148 passed
+
+  Test case "r28_snapshot_audit_reuses_ambient_posterior_nullspace" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r28_snapshot_audit_fails_closed_by_specific_cause" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "r26_historical_subblocks_keep_parent_risk_and_reject_bad_block" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r26_exact_graph_rejects_rank_plus_one_island_estimate" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r26_larger_component_cannot_destroy_safe_baseline_rank" has passed with:
+    2 assertions out of 2 passed
+
+  Test case "product_gauge_risk_receipt_is_immutable_and_lifetime_is_monotone" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "r29_product_tree_is_transported_before_target_build" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r29_current_family_risk_is_deduplicated_without_floor" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r29_explicit_dual_bridge_closes_fragmented_components" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r31_original_decision_dependencies_survive_nested_views" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r31_incremental_target_image_preserves_congruences_and_rank_one" has passed with:
+    11 assertions out of 11 passed
+
+  Test case "r31_family_subsets_deduplicate_nested_original_decisions" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "r32_unpublishable_posterior_still_charges_parent_risk" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r32_unpublishable_parent_valid_boundary_and_invalid_inputs" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r32_full_dependency_union_deduplicates_but_retains_conditional_parents" has passed with:
+    4 assertions out of 4 passed
+
+  Test case "r32_late_receipt_failure_requires_atomic_restore_before_retry" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r32_row_proof_hnf_does_not_spread_independent_risk" has passed with:
+    29 assertions out of 29 passed
+
+  Test case "r32_survival_cancellation_keeps_used_proofs_and_real_ancestors" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r32_row_proofs_fail_closed_on_affine_lattice_or_provenance_mismatch" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r33_canonical_product_expansion_is_reference_invariant" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r33_incremental_decision_risk_charges_only_new_proof_ids" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "r35_conflict_hypothesis_requires_later_independent_epoch" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r35_conflict_hypothesis_capacity_is_fail_closed" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r35_component_forest_generates_bounded_joint_families" has passed with:
+    17 assertions out of 17 passed
+
+  Test case "r35_component_forest_selection_forbids_graph_regression" has passed with:
+    3 assertions out of 3 passed
+
+  Test case "r35_product_ledger_rejects_epoch_regression_transactionally" has passed with:
+    14 assertions out of 14 passed
+
+  Test case "r35_product_ledger_rejects_unknown_admission_risk" has passed with:
+    15 assertions out of 15 passed
+
+  Test case "r35_product_ledger_invalid_batch_rolls_back_all_existing_fields" has passed with:
+    25 assertions out of 25 passed
+
+  Test case "r35_product_ledger_unrelated_history_does_not_poison_fresh_baseline" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "r35_product_ledger_sign_authority_is_canonical" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "r35_conflict_hypothesis_ttl_uses_independent_evidence" has passed with:
+    16 assertions out of 16 passed
+
+  Test case "r35_component_branch_rejects_degenerate_candidate" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "r43_historical_whole_lattice_pair_authorization_survives_catalogue_rebuild" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "r43_historical_pair_authorization_fails_closed_on_value_segment_or_risk" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r43_candidate_first_failure_taxonomy_is_stable" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "kfilter_block_guard_rejects_zero_state_before_dgemv" has passed with:
+    10 assertions out of 10 passed
+
+  Test case "r45_pair_ledger_rhs_requires_exact_affine_parent_pullback" has passed with:
+    9 assertions out of 9 passed
+
+  Test case "r45_bridge_coverage_preserves_total_and_per_attempt_risk_caps" has passed with:
+    20 assertions out of 20 passed
+
+  Test case "r45_mature_conflict_records_exact_scope_without_committing_fresh_rows" has passed with:
+    11 assertions out of 11 passed
+

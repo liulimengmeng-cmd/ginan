@@ -1,0 +1,7 @@
+{
+  "status": 0,
+  "seconds": 299.31587958335876,
+  "output": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r49_condition_domain_2024199_180_003000_20260913_checkpoint_smoke_fix1",
+  "checkpoint_directory": "/mnt/d/GINAN_R20/r49_checkpoint_smoke_20260913_fix1",
+  "root_snapshot_directory": "/mnt/d/GINAN_R20/r49_checkpoint_smoke_20260913_fix1_root_snapshots"
+}

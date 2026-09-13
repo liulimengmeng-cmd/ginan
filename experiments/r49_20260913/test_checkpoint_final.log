@@ -1,0 +1,33 @@
+Running 9 test cases...
+
+Test module "ZhangCheckpointInfra0Tests" has passed with:
+  9 test cases out of 9 passed
+  80 assertions out of 80 passed
+
+  Test case "controller_post_epoch_boundary_roundtrips_exactly" has passed with:
+    6 assertions out of 6 passed
+
+  Test case "controller_preflight_rejects_boundary_schema_and_interval_drift" has passed with:
+    8 assertions out of 8 passed
+
+  Test case "controller_failed_commit_does_not_modify_destination" has passed with:
+    7 assertions out of 7 passed
+
+  Test case "rinex_cursor_queue_and_done_ledger_roundtrip_exactly" has passed with:
+    19 assertions out of 19 passed
+
+  Test case "rinex_failed_commit_and_preflight_leave_live_stream_unchanged" has passed with:
+    13 assertions out of 13 passed
+
+  Test case "required_sections_reject_bad_spec_schema_payload_and_hash" has passed with:
+    12 assertions out of 12 passed
+
+  Test case "bundle_read_failure_does_not_replace_callers_live_bundle" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "receiver_pointer_rebind_failure_is_side_effect_free" has passed with:
+    5 assertions out of 5 passed
+
+  Test case "r48_controller_30_second_checkpoint_roundtrip" has passed with:
+    5 assertions out of 5 passed
+

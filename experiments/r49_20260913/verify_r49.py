@@ -53,7 +53,7 @@ def final(status):
    if not path.exists():continue
    with path.open(errors='replace') as f:
     for line in f:
-     for token in ['R49_INVALID_DGEMV_ARGUMENT','std::bad_alloc','INVALID KALMAN FILTER BLOCK','PRODUCT_PAIR_AFFINE_PULLBACK_MISMATCH','TRUE_PHYSICAL_EXPANSION_FAILED','EXACT_PHYSICAL_ROUNDTRIP_FAILED','R49_SEARCH_FAMILY_BUDGET_EXCEEDED']:
+     for token in ['R49_INVALID_DGEMV_ARGUMENT','std::bad_alloc','INVALID KALMAN FILTER BLOCK','PRODUCT_PAIR_AFFINE_PULLBACK_MISMATCH','TRUE_PHYSICAL_EXPANSION_FAILED','EXACT_PHYSICAL_ROUNDTRIP_FAILED','R49_SEARCH_FAMILY_BUDGET_EXCEEDED','R49_BLAS_ABI_MISMATCH','R49_CONDITION_RECORD_COVERAGE_MISMATCH']:
       if token in line:alarms[token]+=1
      if 'DGEMV' in line and 'illegal value' in line:alarms['DGEMV_ILLEGAL_VALUE']+=1
      if line.startswith('R49_'):

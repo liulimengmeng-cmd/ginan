@@ -1,0 +1,7 @@
+R49_BLAS_BACKEND config=OpenBLAS 0.3.29 NO_LAPACK NO_LAPACKE NO_AFFINITY COOPERLAKE MAX_THREADS=12 integer_abi=LP64
+R49_INVALID_DGEMV_ARGUMENT TRANS=N M=2 N=1 LDA=1 INCX=1 INCY=1 interface=FORTRAN_LP64
+/home/rx/GINAN/r49-condition-domain-20260913/bin/pea[0x1447cfd]
+/home/rx/GINAN/r49-condition-domain-20260913/bin/pea[0x6f5071]
+/lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0xfb)[0x7a58e9c29ebb]
+/home/rx/GINAN/r49-condition-domain-20260913/bin/pea(_start+0x25)[0x6f82e5]
+R49_BLAS_INJECTION_CAUGHT
