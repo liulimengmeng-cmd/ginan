@@ -5067,6 +5067,35 @@ static bool conditionZhangAmbiguitiesExactly(
         return false;
     }
 
+    // User fix-and-hold changes the authoritative posterior.  Transport its
+    // factor history by the exact conditional moment map F=I-KA, b=Kz,
+    // Q=0 before publishing that posterior. This is integer conditioning,
+    // not a physical process transition or a new independent observation.
+    if (acsConfig.zhangPppAr.user_adapter &&
+        acsConfig.zhangPppAr.canonical_user_target_feedback)
+    {
+        const MatrixXd gain = PAt * inverseConstraintCovariance;
+        const MatrixXd projection = MatrixXd::Identity(kfState.x.size(), kfState.x.size()) - gain * A;
+        const SparseMatrix<double> sparseProjection = projection.sparseView();
+        const MatrixXd zeroNoise = MatrixXd::Zero(kfState.x.size(), kfState.x.size());
+        const auto before = kfState.factorCommitSequence;
+        if (!kfState.stateTransitionFactorCallback ||
+            !kfState.stateTransitionFactorCallback(
+                kfState, kfState.time, kfState.kfIndexMap, kfState.kfIndexMap,
+                sparseProjection, zeroNoise, "USER_INTEGER_CONDITION:" + provenance,
+                conditionedState, conditionedCovariance, before, before + 1))
+        {
+            zhangTransactionalConditioningReason = "USER_INTEGER_FACTOR_COMMIT_REJECTED";
+            zhangTransactionalConditioningFailed = true;
+            return false;
+        }
+        kfState.factorCommitSequence = before + 1;
+        trace << "\nZHANG_USER_INTEGER_FACTOR_COMMIT time=" << kfState.time.to_string(0)
+              << " provenance=" << provenance << " rows=" << rows
+              << " before_commit_sequence=" << before << " after_commit_sequence=" << before + 1
+              << " status=COMMITTED map=EXACT_CONDITIONAL_MOMENTS independent_observation=0";
+    }
+
     kfState.x = std::move(conditionedState);
     kfState.P = std::move(conditionedCovariance);
     trace << "\nZHANG_TRANSACTIONAL_CONDITION time="
