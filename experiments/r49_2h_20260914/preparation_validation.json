@@ -1,0 +1,728 @@
+{
+  "gate_cases_passed": 6,
+  "scientific_settings_unchanged": true,
+  "stations_covering_end": 180,
+  "input_tail_coverage": [
+    {
+      "station": "MATE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "STJ3",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAS1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "REYK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ZIM2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "FAIR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "YEL2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KOKV",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BAKE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "AREQ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CRO1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "FALK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "RGDG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KOUG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CPVG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NKLG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DGAR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "VACS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SUTM",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "IISC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ULAB",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BAKO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "JFNG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DARW",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HOB2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KIRI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAJU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "POHN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LAUT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NNOR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DAV1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAW1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MDVJ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KIRU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ROAG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ONSA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ZECK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SULP",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "METG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SCOR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HERT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MIKL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "GRAZ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "POTS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ISTA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LROC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "YEBE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SOFI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "WSRT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ARUC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MEDI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAR6",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "RIGA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "VIS0",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HOFN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "JOZ2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MELI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NLIB",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "EUR2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MDO1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NRC1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "IQAL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "QAQ1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "FLIN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NIST",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SCH2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HLFX",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PICL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "UTQI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "WHIT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SGPO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "GODE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "QUIN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HOLB",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CHUR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SAVO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SANT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SALU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "POVE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BRAZ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "UNSA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BOAV",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "AGGO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CHPI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SCRZ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TOPL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CORD",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "UFPR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LMMF",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ABMF",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KOUR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LPGS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ASCG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KRGG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "YKRO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SEYG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "STHL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "WIND",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAL2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HARB",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "VOIM",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "REUN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "POL2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CUSV",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PTGG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "GUAM",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LCK4",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "COCO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CCJ2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "URUM",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NTUS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HKSL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "STK2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "JDPR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TWTF",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KIT3",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DAEJ",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SGOC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CMUM",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BADG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "OUS2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TOW2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SOLO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "THTI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MAC1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NRMG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CKIS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PARK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TUVA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ALIC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SAMO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MCHL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NAUR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KARR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MOBS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PTVL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MKEA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SYDN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TID1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "YAR3",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PERT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MCM4",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SYOG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BAIE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PIE1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "THU2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PRDS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "XMIS",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "WILL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DUBO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "JOG2",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "MIZU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SASK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "VALD",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "NANO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TASH",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "AJAC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "TLSE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "BUCU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "WTZR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "M0SE",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SVTL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "PENC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "RABT",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "FRDN",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ORID",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "LPAL",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "SOD3",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "KAT1",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ALGO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ISHI",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "AIRA",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "GRAC",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "DRAO",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "UCLU",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "ALBH",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "CEBR",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "GAMG",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "IITK",
+      "last_epoch": "2024-07-17 23:59:30"
+    },
+    {
+      "station": "HKWS",
+      "last_epoch": "2024-07-17 23:59:30"
+    }
+  ],
+  "note": "Tail coverage does not establish gap-free observations; full input hashes are checked by the runner."
+}

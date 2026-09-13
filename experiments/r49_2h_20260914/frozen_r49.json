@@ -1,0 +1,11 @@
+{
+  "frozen_root": "/home/rx/GINAN/frozen-r49-condition-domain-20260913",
+  "source_commit": "793814c422cceaada3e92d64f7175bc139c2c9d9",
+  "binary_sha256": "e16fdb3d68f7f0497d0b9ba6ab23440d32c196991ad2fe131a378f3f5d731874",
+  "tests_passed": true,
+  "test_count": 434,
+  "source_matches_build": true,
+  "manifest_files": 745,
+  "input_data_copied": false,
+  "frozen_at": "2026-09-13T21:49:04.655131+08:00"
+}
