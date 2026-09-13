@@ -92,8 +92,8 @@ def main():
  zp=config['processing_options']['gnss_general']['zhang_pppar']
  zp.update(product_filename=str(WORK/'products/zhang_internal_products.csv'),product_covariance_filename=str(WORK/'products/zhang_internal_product_covariance.csv'),product_solution='PRODUCT_FIXED',user_adapter=True,output_products=False,deterministic_checkpoint=False,checkpoint_runtime_id='R48-USER',canonical_user_target_feedback=True)
  config['processing_options']['epoch_control'].update(start_epoch='2024-07-17 00:03:00',end_epoch=END,epoch_interval=30,wait_next_epoch=3600)
- # IF processing does not estimate an unused STEC state.
- config['estimation_parameters']['receivers']['global']['ion_stec']['estimated']=[False]
+ # Ginan constructs IF combinations from STEC design columns; this must remain enabled.
+ config['estimation_parameters']['receivers']['global']['ion_stec']['estimated']=[True]
  config['receiver_options']['global']['exclude']=False
  config['outputs']['outputs_root']='./outputs/<CONFIG>'
  cases=[]
