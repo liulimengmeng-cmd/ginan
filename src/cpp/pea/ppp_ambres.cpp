@@ -6644,9 +6644,28 @@ static int rankAwareGnssAr(
 )
 {
     const int originalSize = search.aflt.size();
+    search.searchDiagnostic={};
+    search.searchDiagnostic.mode=enum_to_string(options.mode);
+    search.searchDiagnostic.reason="NON_LAMBDA_MODE";
     auto selected = positiveVarianceTargetSubset(search.Paflt);
+    struct R49SearchExit {
+        Trace& trace; GinAR_mtx& search; GTime time; const string& label; int requested, stochastic;
+        ~R49SearchExit() {
+            const auto& d=search.searchDiagnostic;
+            trace<<"\nR49_SEARCH_DIAGNOSTIC time="<<time.to_string(0)<<" label="<<label
+                <<" requested_rank="<<requested<<" stochastic_rank="<<stochastic
+                <<" minimum_fix_count="<<d.minimumFixCount<<" bootstrap_eligible_rank="<<d.bootstrapEligibleRank
+                <<" bootstrap_best_1d="<<d.bootstrapBest1d<<" bootstrap_full="<<d.bootstrapFull
+                <<" effective_sucthr="<<d.effectiveSuccess<<" actual_ar_mode="<<d.mode
+                <<" ratio_test_executed="<<d.ratioExecuted<<" local_nis_test_executed="<<d.localNisExecuted
+                <<" local_nis_alpha="<<d.localAlpha
+                <<" whole_nis_alpha="<<acsConfig.zhangPppAr.held_constraint_nis_alpha
+                <<" search_exit_reason="<<d.reason;
+        }
+    } r49SearchExit{trace,search,time,label,originalSize,static_cast<int>(selected.size())};
     if (selected.empty())
     {
+        search.searchDiagnostic.reason="NO_STOCHASTIC_DIRECTION";
         search.Ztrs.resize(0, originalSize);
         search.zfix.resize(0);
         trace << "\nZHANG_INTEGER_SEARCH_RANK time=" << time.to_string(0)
@@ -6738,6 +6757,7 @@ static int rankAwareGnssAr(
         candidateNis.nis <= candidateNis.threshold;
     if (enforceCandidateNis && !candidateAccepted)
     {
+        if(fixed>0) search.searchDiagnostic.reason="LOCAL_NIS_REJECTED";
         fixed = 0;
         search.Ztrs.resize(0, search.aflt.size());
         search.zfix.resize(0);
@@ -18707,12 +18727,13 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     auto numeric=[&](const ZhangExactMatrix& rows,int columns)
     { MatrixXd m(rows.size(),columns); for(int r=0;r<m.rows();++r) m.row(r)=zhangExactRowToDouble(rows[r]).transpose(); return m; };
     ZhangExactMatrix held; ZhangExactVector heldValues; std::vector<ZhangDecisionProofs> heldParents;
+    std::vector<std::string> heldSources; std::string currentHeldSource="CURRENT_NETWORK";
     auto addHeld=[&](const ZhangExactMatrix& rows,const ZhangExactVector& values,const ZhangDecisionProofs& parents)
     {
         if(rows.size()!=values.size() || !zhangExactRectangularMatrix(rows,dimension)) return false;
         if(parents.empty() || !zhangDecisionRiskClosure(parents).valid) return rows.empty();
         held.insert(held.end(),rows.begin(),rows.end());heldValues.insert(heldValues.end(),values.begin(),values.end());
-        for(const auto& row:rows) heldParents.push_back(parents);return true;
+        for(const auto& row:rows) {heldParents.push_back(parents);heldSources.push_back(currentHeldSource);}return true;
     };
     ZhangDecisionProofs networkParents;
     if(receipts) for(const auto& receipt:*receipts)
@@ -18723,8 +18744,10 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         if(!zhangExactRowsFromNumeric(currentCoordinates->Ztrs,currentCoordinates->zfix,rows,values) ||
            !addHeld(rows,values,networkParents)) return fail("R47_CURRENT_CONDITIONER_RECEIPT_INVALID");
     }
+    currentHeldSource="TRANSPORTED_HISTORY";
     if(history && history->valid && !addHeld(history->networkRows,history->networkValues,history->decisionProofs))
         return fail("R47_HISTORY_RECEIPT_INVALID");
+    currentHeldSource="GAUGE";
     if(gauge && gauge->currentReauthorized)
     {
         const int rank=first.mappableTargetRank;
@@ -18749,6 +18772,12 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         return zhangR47SelectHistorySubset(held,heldValues,heldParents,{},gains,dimension,ceiling,ceiling/4);
     }();
     if(!subset.valid) return fail("R47_HISTORY_BUDGET_SELECTION_INVALID");
+    for(const auto& source: {"CURRENT_NETWORK","TRANSPORTED_HISTORY","GAUGE"}) {
+        int admitted=0;for(int index:subset.selected)if(heldSources[index]==source)++admitted;
+        trace<<"\nR49_CONDITION_SOURCE time="<<time.to_string(0)<<" source="<<source
+             <<" candidate_rows="<<std::count(heldSources.begin(),heldSources.end(),source)
+             <<" selected_rows="<<admitted<<" selected_before_joint_nis=1";
+    }
     // One joint NIS gate before either a covariance update or a child decision.
     if(!subset.rows.empty())
     {

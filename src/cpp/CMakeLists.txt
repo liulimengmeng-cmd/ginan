@@ -187,6 +187,11 @@ add_executable(pea
 )
 
 add_dependencies(pea updateGit)
+option(ZHANG_R49_BLAS_AUDIT "Audit actual PEA Fortran LP64 DGEMV calls" ON)
+if(UNIX AND ZHANG_R49_BLAS_AUDIT)
+    target_sources(pea PRIVATE common/zhangR49BlasAudit.cpp)
+    target_link_options(pea PRIVATE "-Wl,--wrap=dgemv_" "-rdynamic")
+endif()
 
 target_include_directories(pea PUBLIC
 		configurator

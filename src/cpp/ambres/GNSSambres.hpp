@@ -116,6 +116,12 @@ struct GinAR_mtx
     VectorXd afix;
     MatrixXd Pafix;
 
+    struct SearchDiagnostic {
+        int requestedRank=0, stochasticRank=0, minimumFixCount=0, bootstrapEligibleRank=0;
+        double bootstrapBest1d=0, bootstrapFull=0, effectiveSuccess=0, localAlpha=0;
+        bool ratioExecuted=false, localNisExecuted=false;
+        string mode="NOT_EVALUATED", reason="NOT_EVALUATED";
+    } searchDiagnostic;
     int    lambda_initial_fix_count          = 0;
     /** Bootstrapped success probability of the suffix actually returned by
      * lambda_search(), after any NIS-driven rank reduction. */

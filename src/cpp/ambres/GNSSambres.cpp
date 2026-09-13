@@ -509,7 +509,14 @@ int lambda_search(
     GinAR_opt  opt     ///< Object containing processing options
 )
 {
-	const int minimumFixCount = std::max(1, opt.min_lambda_fix_count);
+    auto& diagnostic=mtrx.searchDiagnostic;
+    diagnostic={}; diagnostic.requestedRank=mtrx.aflt.size();
+    diagnostic.stochasticRank=mtrx.aflt.size();
+    diagnostic.minimumFixCount=std::max(1,opt.min_lambda_fix_count);
+    diagnostic.effectiveSuccess=opt.sucthr; diagnostic.localAlpha=opt.lambda_candidate_nis_alpha;
+    diagnostic.mode=enum_to_string(opt.mode); diagnostic.reason="CANDIDATE_ENUMERATION_FAILED";
+    const int minimumFixCount = diagnostic.minimumFixCount;
+    if(mtrx.aflt.size()==0) {diagnostic.reason="NO_STOCHASTIC_DIRECTION";return 0;}
     mtrx.lambda_initial_fix_count       = 0;
     mtrx.lambda_selected_bootstrap_success = 0;
     mtrx.lambda_candidate_nis           = 0;
@@ -544,6 +551,7 @@ int lambda_search(
     int info = Ztrans_reduction(trace, mtrx);
     if (info < 0)
     {
+        diagnostic.reason="DECORRELATION_FAILED";
         tracepdeex(2, trace, "\n Matrix decorrelation failed ... ");
         return 0;
     }
@@ -778,6 +786,7 @@ int lambda_search(
                 retainedIntegerRows.transpose() *
                 ablated.lambda_dominant_original_loading;
         }
+        mtrx.searchDiagnostic=ablated.searchDiagnostic;
         mtrx.lambda_ablation_input_rows = inputRows;
         mtrx.lambda_ablation_support_rows = supportRows.size();
         mtrx.lambda_ablation_removed_rows = removedRows.size();
@@ -791,10 +800,16 @@ int lambda_search(
     }
 
     const int nmax = mtrx.Dtrs.size();
+    if(nmax==0) {diagnostic.reason="NO_STOCHASTIC_DIRECTION";return 0;}
+    if(!mtrx.Dtrs.allFinite() || mtrx.Dtrs.minCoeff()<=0)
+    {diagnostic.reason="NON_POSITIVE_REDUCED_VARIANCE";return 0;}
+    diagnostic.bootstrapFull=lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs,nmax);
+    diagnostic.bootstrapBest1d=lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs,1);
     int k = nmax - 1;
     double succ = erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
     if (succ < opt.sucthr)
     {
+        diagnostic.reason="BEST_1D_BOOTSTRAP_TOO_LOW";
         return 0;
     }
 
@@ -810,8 +825,10 @@ int lambda_search(
         }
         zsiz++;
     }
+    diagnostic.bootstrapEligibleRank=zsiz;
     if (zsiz < minimumFixCount)
     {
+        diagnostic.reason="ELIGIBLE_RANK_BELOW_REQUIRED";
         return 0;
     }
     mtrx.lambda_initial_fix_count = zsiz;
@@ -831,6 +848,7 @@ int lambda_search(
             break;
         }
 
+        diagnostic.localNisExecuted=true;
         boost::math::chi_squared distribution(zsiz);
         const double threshold = quantile(complement(
             distribution,
@@ -959,6 +977,7 @@ int lambda_search(
 
     if (zsiz < minimumFixCount || zfixList.empty())
     {
+        diagnostic.reason=zfixList.empty()?"CANDIDATE_ENUMERATION_FAILED":"LOCAL_NIS_REJECTED";
         mtrx.Ztrs.resize(0, nmax);
         mtrx.zfix.resize(0);
         return 0;
@@ -972,6 +991,7 @@ int lambda_search(
     mtrx.lambda_selected_bootstrap_success =
         lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs, zsiz);
 
+    diagnostic.reason="ACCEPTED";
     switch (opt.mode)
     {
         case E_ARmode::LAMBDA:
@@ -991,8 +1011,9 @@ int lambda_search(
                     break;
             }
 
+            diagnostic.ratioExecuted=true;
             if ((second / first) < opt.ratthr)
-                return 0;
+            { diagnostic.reason="RATIO_REJECTED"; return 0; }
             else
                 return zfix0.size();
         }
