@@ -1,0 +1,347 @@
+{
+  "experiment": "R48 UDUC user FLOAT versus AR paired control",
+  "work": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913",
+  "source_root": "/home/rx/GINAN/r48-continuity-bridge-20260912",
+  "server_source_commit": "94af7df19c5e5a153b5d8fb799c78a919e28892f",
+  "experiment_commit": "2c414d503f50c85b0c038f36bb14c59cfa662eb4",
+  "binary": "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "working_directory": "/mnt/d/GINAN_R20/inputData",
+  "first_epoch": 1405209780,
+  "last_epoch": 1405211070,
+  "end": "2024-07-17 00:24:30",
+  "expected_epochs": 44,
+  "stations": [
+    {
+      "station": "MARS",
+      "filename": "MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "43.086731",
+      "longitude": "5.353784",
+      "path": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "7e0af5de03234b41332ce9354b5842cdd0fea344d9591b8995ae21039cf306fb",
+      "in_server_network": false
+    },
+    {
+      "station": "DYNG",
+      "filename": "DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "37.891884",
+      "longitude": "23.932434",
+      "path": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "87ce687d6dca3a373e71ecd58c58a37f334e795666ded8c3c68a5ae6679ef177",
+      "in_server_network": false
+    },
+    {
+      "station": "NICO",
+      "filename": "NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "region": "europe_north_atlantic",
+      "latitude": "34.960051",
+      "longitude": "33.396433",
+      "path": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "1568aac7615df081762e61f6eecd64e06c2fd87ec691d6016990448bc56e8232",
+      "in_server_network": false
+    },
+    {
+      "station": "BREW",
+      "filename": "BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "region": "north_america_arctic",
+      "latitude": "47.940186",
+      "longitude": "-119.682634",
+      "path": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "1c78f5636d50d247dfcaa0eaebf81e946d9ac95396dd7c0efb4f03013fb39b42",
+      "in_server_network": false
+    },
+    {
+      "station": "JPLM",
+      "filename": "JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "region": "north_america_arctic",
+      "latitude": "34.026131",
+      "longitude": "-118.173229",
+      "path": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "sha256": "28a8f2f52f0ffc9c901603db65c1212b33147ece4236304b76fc59bffb6086ba",
+      "in_server_network": false
+    }
+  ],
+  "reference_sinex": {
+    "path": "/mnt/d/GINAN_R20/inputData/products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX",
+    "sha256": "3bf384a89d9589c24659b26b1ce667397ad447ad58cbe7956afbefd80f7881f3",
+    "reference": [
+      {
+        "station": "MARS",
+        "coordinates_m": {
+          "STAX": 4630532.50007753,
+          "STAY": 433946.68513361,
+          "STAZ": 4350142.94136138
+        }
+      },
+      {
+        "station": "DYNG",
+        "coordinates_m": {
+          "STAX": 4595220.07189335,
+          "STAY": 2039434.23486599,
+          "STAZ": 3912625.87502075
+        }
+      },
+      {
+        "station": "NICO",
+        "coordinates_m": {
+          "STAX": 4359415.36576401,
+          "STAY": 2874117.28318661,
+          "STAZ": 3650778.08020589
+        }
+      },
+      {
+        "station": "BREW",
+        "coordinates_m": {
+          "STAX": -2112007.43210056,
+          "STAY": -3705351.82129059,
+          "STAZ": 4726827.00013152
+        }
+      },
+      {
+        "station": "JPLM",
+        "coordinates_m": {
+          "STAX": -2493304.99028864,
+          "STAY": -4655214.77398551,
+          "STAZ": 3565497.67654098
+        }
+      }
+    ]
+  },
+  "snapshot": {
+    "zhang_internal_products.csv": {
+      "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_products.csv",
+      "path": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/products/zhang_internal_products.csv",
+      "sha256": "dcbaea1c77268d180124748543fd963486b6a7ec935954fd98fc872efee335fb",
+      "rows_per_epoch": {
+        "1405209780": 58,
+        "1405209810": 58,
+        "1405209840": 58,
+        "1405209870": 58,
+        "1405209900": 58,
+        "1405209930": 58,
+        "1405209960": 58,
+        "1405209990": 58,
+        "1405210020": 58,
+        "1405210050": 58,
+        "1405210080": 58,
+        "1405210110": 58,
+        "1405210140": 58,
+        "1405210170": 58,
+        "1405210200": 58,
+        "1405210230": 58,
+        "1405210260": 58,
+        "1405210290": 58,
+        "1405210320": 58,
+        "1405210350": 58,
+        "1405210380": 58,
+        "1405210410": 58,
+        "1405210440": 58,
+        "1405210470": 58,
+        "1405210500": 58,
+        "1405210530": 58,
+        "1405210560": 58,
+        "1405210590": 58,
+        "1405210620": 58,
+        "1405210650": 58,
+        "1405210680": 58,
+        "1405210710": 58,
+        "1405210740": 58,
+        "1405210770": 58,
+        "1405210800": 58,
+        "1405210830": 58,
+        "1405210860": 58,
+        "1405210890": 58,
+        "1405210920": 58,
+        "1405210950": 58,
+        "1405210980": 58,
+        "1405211010": 58,
+        "1405211040": 58,
+        "1405211070": 58
+      }
+    },
+    "zhang_internal_product_covariance.csv": {
+      "source": "/mnt/d/GINAN_R20/inputData/outputs/zhang_p3_exp3_G3_r48fix1_active_basis_2024199_180_003000_20260913/zhang_internal_product_covariance.csv",
+      "path": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/products/zhang_internal_product_covariance.csv",
+      "sha256": "2e5de382aa05db281c67f0a1f89c43694b4e376dafbb0496b977b6580ff0a4b2",
+      "rows_per_epoch": {
+        "1405209780": 3828,
+        "1405209810": 3828,
+        "1405209840": 3828,
+        "1405209870": 3828,
+        "1405209900": 3828,
+        "1405209930": 3828,
+        "1405209960": 3828,
+        "1405209990": 3828,
+        "1405210020": 3828,
+        "1405210050": 3828,
+        "1405210080": 3828,
+        "1405210110": 3828,
+        "1405210140": 3828,
+        "1405210170": 3828,
+        "1405210200": 3828,
+        "1405210230": 3828,
+        "1405210260": 3828,
+        "1405210290": 3828,
+        "1405210320": 3828,
+        "1405210350": 3828,
+        "1405210380": 3828,
+        "1405210410": 3828,
+        "1405210440": 3828,
+        "1405210470": 3828,
+        "1405210500": 3828,
+        "1405210530": 3828,
+        "1405210560": 3828,
+        "1405210590": 3828,
+        "1405210620": 3828,
+        "1405210650": 3828,
+        "1405210680": 3828,
+        "1405210710": 3828,
+        "1405210740": 3828,
+        "1405210770": 3828,
+        "1405210800": 3828,
+        "1405210830": 3828,
+        "1405210860": 3828,
+        "1405210890": 3828,
+        "1405210920": 3828,
+        "1405210950": 3828,
+        "1405210980": 3828,
+        "1405211010": 3828,
+        "1405211040": 3828,
+        "1405211070": 3828
+      }
+    }
+  },
+  "cases": [
+    {
+      "station": "MARS",
+      "mode": "float",
+      "case": "r48_uduc_20260913_MARS_float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_float.yaml",
+      "config_sha256": "26bb71908ef43f9f1707ff2170464db20809342be785c592da0388e9f4494cf3",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float",
+      "if_case": "r48_user_20260913_MARS_float_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_MARS_float_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_MARS_float_capture_if"
+    },
+    {
+      "station": "MARS",
+      "mode": "ar",
+      "case": "r48_uduc_20260913_MARS_ar",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_ar.yaml",
+      "config_sha256": "6f359c6b10dce3a5455c3c49cbd022ac1105bf1daa9890df817f9827de988d87",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar",
+      "if_case": "r48_user_20260913_MARS_ar_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_MARS_ar_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_MARS_ar_capture_if"
+    },
+    {
+      "station": "DYNG",
+      "mode": "float",
+      "case": "r48_uduc_20260913_DYNG_float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_DYNG_float.yaml",
+      "config_sha256": "d8b2b47e4a052a1fcf3a1f6ce97a98d6cba3b09be71ebe6ecaf672fc21571737",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float",
+      "if_case": "r48_user_20260913_DYNG_float_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_DYNG_float_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_DYNG_float_capture_if"
+    },
+    {
+      "station": "DYNG",
+      "mode": "ar",
+      "case": "r48_uduc_20260913_DYNG_ar",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_DYNG_ar.yaml",
+      "config_sha256": "0a2c780f181e833bbf7a3538178eec812d0e0788d67f44b1d0be5ee2cdcb666a",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/DYNG00GRC_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar",
+      "if_case": "r48_user_20260913_DYNG_ar_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_DYNG_ar_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_DYNG_ar_capture_if"
+    },
+    {
+      "station": "NICO",
+      "mode": "float",
+      "case": "r48_uduc_20260913_NICO_float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_NICO_float.yaml",
+      "config_sha256": "1bf5553e0531292e60d0ef4d3a244aac1c01fb22876a0ae2f2fca539a26887e6",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float",
+      "if_case": "r48_user_20260913_NICO_float_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_NICO_float_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_NICO_float_capture_if"
+    },
+    {
+      "station": "NICO",
+      "mode": "ar",
+      "case": "r48_uduc_20260913_NICO_ar",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_NICO_ar.yaml",
+      "config_sha256": "769b1849020896d429216ee34f521523eb5f4131eaba8c9fc53c7c782c26ecd1",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar",
+      "if_case": "r48_user_20260913_NICO_ar_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_NICO_ar_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_NICO_ar_capture_if"
+    },
+    {
+      "station": "BREW",
+      "mode": "float",
+      "case": "r48_uduc_20260913_BREW_float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_BREW_float.yaml",
+      "config_sha256": "b5d4bf73c3e84045b37979258d8f70bbe190d5bc8ed47adb059fdae51770dc94",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float",
+      "if_case": "r48_user_20260913_BREW_float_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_float_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_BREW_float_capture_if"
+    },
+    {
+      "station": "BREW",
+      "mode": "ar",
+      "case": "r48_uduc_20260913_BREW_ar",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_BREW_ar.yaml",
+      "config_sha256": "5e69431b4891946e3ad863e68dc0be50aceb617032420c2c00adcbb0bd4ae92b",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar",
+      "if_case": "r48_user_20260913_BREW_ar_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_ar_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_BREW_ar_capture_if"
+    },
+    {
+      "station": "JPLM",
+      "mode": "float",
+      "case": "r48_uduc_20260913_JPLM_float",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_JPLM_float.yaml",
+      "config_sha256": "7094ad98fe38f51f47eda238fd67eb49187a60c06700fb5710204e5a0c4114b4",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float",
+      "if_case": "r48_user_20260913_JPLM_float_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_JPLM_float_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_JPLM_float_capture_if"
+    },
+    {
+      "station": "JPLM",
+      "mode": "ar",
+      "case": "r48_uduc_20260913_JPLM_ar",
+      "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_JPLM_ar.yaml",
+      "config_sha256": "0bd2223de780f6a3651e8f104497483bbb0b32171e489379732cc97b223c23fb",
+      "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+      "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar",
+      "if_case": "r48_user_20260913_JPLM_ar_capture_if",
+      "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_JPLM_ar_capture_if.yaml",
+      "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_JPLM_ar_capture_if"
+    }
+  ],
+  "threads": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "claims": "Same 44 completed PRODUCT_FIXED epochs and five held-out users as IF. Full product covariance and factor replay audit retained. UDUC explicitly estimates STEC without extra ionosphere constraints. WL-only fixing must not be labelled full dual-frequency AR. Upstream DGEMV remains unresolved.",
+  "configuration_correction": "IF joint-noise transition callbacks require the E18 factor capture buffer in the current frozen binary. Enabled equally in FLOAT and AR; old failed run preserved.",
+  "if_design_correction": "Restore ion_stec.estimated=true required by Ginan to construct IF combinations from ionosphere design columns. Both controls identical. Earlier runs are failed preflight cases.",
+  "if_comparison_work": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix"
+}

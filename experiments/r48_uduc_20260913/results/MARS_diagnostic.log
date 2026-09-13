@@ -1,0 +1,164 @@
+PEA starting... (r48-continuity-bridge untagged-94af7df-dirty from 2026-09-13 01:37:28 +0800)
+
+Checking configuration file /mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_float_diagnostic.yaml
+Loading configuration from file products/boxwing.yaml
+Loading configuration from file /mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_float_diagnostic.yaml
+
+
+===============================
+Configuration Summary...
+===============================
+Inputs:
+	nav_files:                       ./products/BRDC00IGS_R_20241990000_01D_MN.rnx 
+	snx_files:                       ./products/tables/igs_satellite_metadata_2203_plus.snx ./products/tables/sat_yaw_bias_rate.snx ./products/tables/qzss_yaw_modes.snx ./products/tables/bds_yaw_modes.snx ./products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX 
+	atx_files:                       ./products/igs20_2303.atx 
+	clk_files:                       ./products/WUM0MGXFIN_20241990000_01D_30S_CLK.CLK 
+	ion_files:                       ./products/IGS0OPSFIN_20241990000_01D_02H_GIM.INX 
+	igrf_files:                      ./products/tables/igrf14coeffs.txt 
+	ocean_tide_loading_blq_files:    ./products/tables/OLOAD_ZHANG_2024199_180.BLQ 
+	atmos_tide_loading_blq_files:    ./products/tables/ALOAD_ZHANG_2024199_180.BLQ 
+	ocean_pole_tide_loading_files:   ./products/tables/opoleloadcoefcmcor.txt 
+	erp_files:                       ./products/WUM0MGXFIN_2024198_2024200_03D_01D_ERP.ERP 
+	sp3_files:                       ./products/WUM0MGXFIN_20241980000_01D_05M_ORB.SP3 ./products/WUM0MGXFIN_20241990000_01D_05M_ORB.SP3 ./products/WUM0MGXFIN_20242000000_01D_05M_ORB.SP3 
+	egm_files:                       ./products/tables/EGM2008.gfc 
+	planetary_ephemeris_files:       ./products/tables/DE436.1950.2050 
+	ocean_tide_potential_files:      ./products/tables/fes2014b_Cnm-Snm.dat 
+	gpt2grid_files:                  ./products/tables/gpt_25.grd 
+	rnx_inputs:                      /mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx 
+
+Outputs:
+	trace level:                   3
+	receiver trace filename:       ./outputs/r48_uduc_20260913_MARS_float_diagnostic/<RECEIVER>-r48_uduc_20260913_MARS_float_diagnostic-<YYYY><DDD><HH>.TRACE
+	network trace filename:        ./outputs/r48_uduc_20260913_MARS_float_diagnostic/Network-r48_uduc_20260913_MARS_float_diagnostic-<YYYY><DDD><HH>.TRACE
+	pos filename:                  ./outputs/r48_uduc_20260913_MARS_float_diagnostic/<RECEIVER>-r48_uduc_20260913_MARS_float_diagnostic-<YYYY><DDD><HH>.POS
+
+Process Modes:
+	Preprocessor:        1
+	SPP                  1
+	PPP:                 1
+	Minimum Constraints: 0
+	Ionospheric:         0
+	RTS Smoothing:       0
+	SBAS:                0
+
+Systems:
+	GPS:     1
+	GLONASS: 0
+	GALILEO: 0
+	BEIDOU:  0
+	QZSS:    0
+	LEO:     0
+
+Epochs:
+	epoch_interval: 30
+	epoch start:    2024-Jul-17 00:03:00
+	epoch end:      2024-Jul-17 00:03:30
+
+===============================
+...End Configuration Summary
+===============================
+
+
+Compilation details:
+====================
+Ginan branch:     r48-continuity-bridge
+Ginan version:    untagged-94af7df-dirty
+Commit date:      2026-09-13 01:37:28 +0800
+Operating system: "Ubuntu 22.04.5 LTS"
+Compiler version: GNU 11.4.0
+Boost version:    1.89.0
+Eigen version:    3.4.1
+Mongocxx version: 4.0.0
+
+
+Runtime details:
+================
+Logging at trace level3
+Threading with max 1 eigen threads
+Threading with max 1 omp threads
+
+
+
+
+Loading ATX file ./products/igs20_2303.atx
+Loading SP3 file ./products/WUM0MGXFIN_20241980000_01D_05M_ORB.SP3
+Loading SP3 file ./products/WUM0MGXFIN_20241990000_01D_05M_ORB.SP3
+Loading SP3 file ./products/WUM0MGXFIN_20242000000_01D_05M_ORB.SP3
+Loading NAV file ./products/BRDC00IGS_R_20241990000_01D_MN.rnx
+Loading ERP file ./products/WUM0MGXFIN_2024198_2024200_03D_01D_ERP.ERP
+Loading CLK file ./products/WUM0MGXFIN_20241990000_01D_30S_CLK.CLK
+Loading ION file ./products/IGS0OPSFIN_20241990000_01D_02H_GIM.INX
+Loading IGRF file ./products/tables/igrf14coeffs.txt
+Loading SNX file ./products/tables/igs_satellite_metadata_2203_plus.snx
+Loading SNX file ./products/tables/sat_yaw_bias_rate.snx
+Loading SNX file ./products/tables/qzss_yaw_modes.snx
+Loading SNX file ./products/tables/bds_yaw_modes.snx
+Loading SNX file ./products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX
+Loading GPT file ./products/tables/gpt_25.grd
+Loading Ocean Pole Tide file ./products/tables/opoleloadcoefcmcor.txt
+Loading Ocean Tide Loading BLQ file ./products/tables/OLOAD_ZHANG_2024199_180.BLQ
+Loading Atmos Tide Loading BLQ file ./products/tables/ALOAD_ZHANG_2024199_180.BLQ
+Loading EGM file ./products/tables/EGM2008.gfc
+Loading Tide file ./products/tables/fes2014b_Cnm-Snm.dat
+Loading planetary ephemeris file ./products/tables/DE436.1950.2050
+
+
+Starting to process epochs...
+Starting epoch #1
+ ------- PREPROCESSING STATIONS       --------
+
+[1;93mWarning: Attitude model not implemented for BLOCK IIIA in updateSatYaw; using GPS-IIR model instead. Check satellite metadata SINEX block types, for example that inputs.snx_files includes igs_satellite_metadata.snx and that it contains this satellite.[0m
+[1;93mWarning: No suitable data for bias interpolation, extrapolated bias in use.[0m
+ZHANG_FACTOR_CAPTURE_CALLBACK_LIFECYCLE runtime_id=r48_uduc_20260913_MARS_float_diagnostic status=INSTALLED buffer_preserved=false measurement_callback=true transition_callback=true exact_transform_callback=true transaction_callback=true
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=0 after_commit_sequence=1 source_states=1 destination_states=1 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+Loaded 2552 Zhang internal product records from /mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/products/zhang_internal_products.csv
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=1 after_commit_sequence=2 source_states=1 destination_states=30 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=2 after_commit_sequence=3 source_states=30 destination_states=30 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:00 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:03:00|/PPP|3 b13_prior_hash=503b09b6439e4a9e measurement_replay_prior_hash=503b09b6439e4a9e feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:03:00 event=MEASUREMENT status=ACCEPTED events=1 measurements=1 transitions=0 exact_transforms=0 measurement_rows=32 measurement_nnz=222 covariance_nnz=1024 before_commit_sequence=3 after_commit_sequence=4 measurement_replay_prior_hash=503b09b6439e4a9e replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=1.2327e-13 raw_square_root_covariance_relative_error=6.09225e-07 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:00 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:03:00|/PPP|3 model_generation=3 solve_generation=3 final_commit_sequence=4 measurement_count=1 feedback=0
+Processed epoch #1 - GPS time: 2323 259380 - 2024-07-17 00:03:00.00 (data handling took 00:00:00.38, processing took 00:00:00.59, epoch took 00:00:00.98)
+Starting epoch #2
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:30 kind=STATE_TRANSITION before_commit_sequence=4 after_commit_sequence=5 source_states=30 destination_states=30 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:30 kind=STATE_TRANSITION before_commit_sequence=5 after_commit_sequence=6 source_states=30 destination_states=30 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:30 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:03:30|/PPP|7 b13_prior_hash=9da2b9a0e4983a57 measurement_replay_prior_hash=9da2b9a0e4983a57 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:03:30 event=MEASUREMENT status=REJECTED events=3 measurements=1 transitions=2 exact_transforms=0 measurement_rows=32 measurement_nnz=222 covariance_nnz=1034 before_commit_sequence=6 after_commit_sequence=7 measurement_replay_prior_hash=503b09b6439e4a9e replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=1.27534e-08 raw_square_root_covariance_relative_error=0.0061983 failure_reason=RAW_SQUARE_ROOT_POSTERIOR_MISMATCH feedback=0
+[101mError: PPP epoch transaction failed closed at 2024-07-17 00:03:30.00[0m
+[101mError: E29 deterministic checkpoint run failed: AUTHORITATIVE_PPP_FACTOR_TRANSACTION_FAILED:2024-07-17 00:03:30[0m
+
+PEA started  processing at : 2026-09-13 03:32:01.08
+and finished processing at : 2026-09-13 03:32:06.00
+Total processing duration  : 00:00:04.92
+
+
+
+Finalising streams and post processing...
+
+PEA started  processing at : 2026-09-13 03:32:01.08
+and finished processing at : 2026-09-13 03:32:06.00
+Total processing duration  : 00:00:04.92
+
+
+PEA finished

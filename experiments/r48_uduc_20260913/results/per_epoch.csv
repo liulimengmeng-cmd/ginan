@@ -1,0 +1,11 @@
+station,mode,time,east_m,north_m,up_m,ambiguity_states,product_eligible_states,interpretation
+MARS,float,2024-07-17T00:03:00,-0.480117,0.384552,-1.67972,14,0,single committed startup epoch only; no convergence or performance claim
+MARS,ar,2024-07-17T00:03:00,-0.480117,0.384552,-1.67972,14,0,single committed startup epoch only; no convergence or performance claim
+DYNG,float,2024-07-17T00:03:00,-0.111905,1.00132,-2.02052,14,0,single committed startup epoch only; no convergence or performance claim
+DYNG,ar,2024-07-17T00:03:00,-0.111905,1.00132,-2.02052,14,0,single committed startup epoch only; no convergence or performance claim
+NICO,float,2024-07-17T00:03:00,-0.0392667,-0.293371,-1.4896,16,0,single committed startup epoch only; no convergence or performance claim
+NICO,ar,2024-07-17T00:03:00,-0.0392667,-0.293371,-1.4896,16,0,single committed startup epoch only; no convergence or performance claim
+BREW,float,2024-07-17T00:03:00,-0.554491,0.498603,-0.534786,16,0,single committed startup epoch only; no convergence or performance claim
+BREW,ar,2024-07-17T00:03:00,-0.554491,0.498603,-0.534786,16,0,single committed startup epoch only; no convergence or performance claim
+JPLM,float,2024-07-17T00:03:00,-1.12202,-0.186988,-4.77814,12,0,single committed startup epoch only; no convergence or performance claim
+JPLM,ar,2024-07-17T00:03:00,-1.12202,-0.186988,-4.77814,12,0,single committed startup epoch only; no convergence or performance claim

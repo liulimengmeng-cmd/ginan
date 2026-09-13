@@ -1,0 +1,202 @@
+[
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float/MARS-r48_uduc_20260913_MARS_float-202419900.POS",
+    "size": 2421,
+    "sha256": "e86e48c48e41ada0a6e91f9865cd7a4265e12fb3572a5018da75bf2fd429cefe"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float/MARS-r48_uduc_20260913_MARS_float-202419900.TRACE",
+    "size": 156045,
+    "sha256": "c0b84657010a8d0ba1989643adc98843f8e38d41092f4d273a86cb37bd850713"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float/Network-r48_uduc_20260913_MARS_float-202419900.TRACE",
+    "size": 62238,
+    "sha256": "c10d9344808485f39443b93da964e13451876893b7080f6620a03b249da2d5b6"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar/MARS-r48_uduc_20260913_MARS_ar-202419900.POS",
+    "size": 2421,
+    "sha256": "e86e48c48e41ada0a6e91f9865cd7a4265e12fb3572a5018da75bf2fd429cefe"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar/MARS-r48_uduc_20260913_MARS_ar-202419900.TRACE",
+    "size": 156033,
+    "sha256": "f03abebeded31a60c4d2cb66448a8d86d8aa93e60a9f5ec06bcf04a0e64a4bc6"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar/Network-r48_uduc_20260913_MARS_ar-202419900.TRACE",
+    "size": 66410,
+    "sha256": "efb48234215959e24c9e090b68d717ec043c51cc9b36bebc063a01b6254be4da"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float/DYNG-r48_uduc_20260913_DYNG_float-202419900.POS",
+    "size": 2425,
+    "sha256": "ca7c758c166932e0ea9d0dd4f58cad9c1e9d8ecd968a5a462f35e3240b4e8d8b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float/DYNG-r48_uduc_20260913_DYNG_float-202419900.TRACE",
+    "size": 157416,
+    "sha256": "efb58613a1887e35f3cc872e87e533f647ea8cd40410c3ab9c87da2d7999a1d7"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float/Network-r48_uduc_20260913_DYNG_float-202419900.TRACE",
+    "size": 61963,
+    "sha256": "6ccbf23b632063653290d5feb3d7f74ceef1e7ef3c726e60c56c2f058785bc6d"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar/DYNG-r48_uduc_20260913_DYNG_ar-202419900.POS",
+    "size": 2425,
+    "sha256": "ca7c758c166932e0ea9d0dd4f58cad9c1e9d8ecd968a5a462f35e3240b4e8d8b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar/DYNG-r48_uduc_20260913_DYNG_ar-202419900.TRACE",
+    "size": 157404,
+    "sha256": "8c477a5e4ecb1e5ee91e2be8382c508d1dae14ef74685ad47f9fec999af4fcfb"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar/Network-r48_uduc_20260913_DYNG_ar-202419900.TRACE",
+    "size": 66135,
+    "sha256": "5dde549f22ec3c092c6d3c546e5903cb9ef6b0126c36fa60ab44e83c8dcf65d9"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float/Network-r48_uduc_20260913_NICO_float-202419900.TRACE",
+    "size": 65151,
+    "sha256": "3a7daa2d205e71db0817c4e09aabaf35058912ecccc70aa3918f673ed5087512"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float/NICO-r48_uduc_20260913_NICO_float-202419900.POS",
+    "size": 2425,
+    "sha256": "a49f23f8b2c021ee4b41c586396cfece407b805649c536491812f1394e9278f0"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float/NICO-r48_uduc_20260913_NICO_float-202419900.TRACE",
+    "size": 162249,
+    "sha256": "7ba991bdc1d044bfb0115f13375c05c19cc020bff4861ba20d039d699c813395"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar/Network-r48_uduc_20260913_NICO_ar-202419900.TRACE",
+    "size": 69696,
+    "sha256": "4c0b5584e5a7a05d20ac8d825201b33b47dcf2e5d5783e68896d32818a82b2b0"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar/NICO-r48_uduc_20260913_NICO_ar-202419900.POS",
+    "size": 2425,
+    "sha256": "a49f23f8b2c021ee4b41c586396cfece407b805649c536491812f1394e9278f0"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar/NICO-r48_uduc_20260913_NICO_ar-202419900.TRACE",
+    "size": 162237,
+    "sha256": "86df6c443109349ba818c2128571e88e7ac52ee66a7527f7b91b5ad3a34fb8bc"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float/BREW-r48_uduc_20260913_BREW_float-202419900.POS",
+    "size": 2431,
+    "sha256": "84dd2fb5bfb0a339a61e985677a05c5228254b2d4f4e0a9e9e95e255d1c9e66c"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float/BREW-r48_uduc_20260913_BREW_float-202419900.TRACE",
+    "size": 158710,
+    "sha256": "0d6d2f50f1af09f124896b0ecf25e84ca0f8b242d82fd0e7ab536764d130a6de"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float/Network-r48_uduc_20260913_BREW_float-202419900.TRACE",
+    "size": 65432,
+    "sha256": "c90fe285ead364f141b2032ca230e969981025679ea9fd8552b4790951e4b30a"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar/BREW-r48_uduc_20260913_BREW_ar-202419900.POS",
+    "size": 2431,
+    "sha256": "84dd2fb5bfb0a339a61e985677a05c5228254b2d4f4e0a9e9e95e255d1c9e66c"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar/BREW-r48_uduc_20260913_BREW_ar-202419900.TRACE",
+    "size": 158698,
+    "sha256": "87350e03766957010ff6a14ce7d3ea8e87c28e4980a0ba0c21a7eed243de9308"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar/Network-r48_uduc_20260913_BREW_ar-202419900.TRACE",
+    "size": 69977,
+    "sha256": "724fe3ac70c9bee0c38c1f1a942c76ab4398ff62efbdc7e5e47ce91b337fe883"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar/run.log",
+    "size": 651,
+    "sha256": "2ba7b8a6d1bb2b5b6edff730330d74ccf16f64ad0a4dd02ddd65f4a1cc3c3f5b"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float/JPLM-r48_uduc_20260913_JPLM_float-202419900.POS",
+    "size": 2431,
+    "sha256": "4ad813251070cbd08416d3a5725b894adc79cef0c65ab67f2d2d831ae393ff38"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float/JPLM-r48_uduc_20260913_JPLM_float-202419900.TRACE",
+    "size": 142124,
+    "sha256": "e70e934da7694e0f6a29bc8adf64ab362ec70850579cd091eb89c21a103c2786"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float/Network-r48_uduc_20260913_JPLM_float-202419900.TRACE",
+    "size": 59071,
+    "sha256": "d4c9d1d8b148d07c5a37598ec6918bc82362e888914b97bbc537d4ffeae7a8e2"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float/run.log",
+    "size": 743,
+    "sha256": "31ec225ba5b9d52b234eb25a2ca3ef9ecd5397e81688cfddbc0a2edade8d2b17"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar/JPLM-r48_uduc_20260913_JPLM_ar-202419900.POS",
+    "size": 2431,
+    "sha256": "4ad813251070cbd08416d3a5725b894adc79cef0c65ab67f2d2d831ae393ff38"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar/JPLM-r48_uduc_20260913_JPLM_ar-202419900.TRACE",
+    "size": 142112,
+    "sha256": "9b5e1730b92c88813d058a2ff2be66041d1d248191e8e1011afbdd88ac8f6c51"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar/Network-r48_uduc_20260913_JPLM_ar-202419900.TRACE",
+    "size": 62870,
+    "sha256": "196b29ab7c6f6340b7733973fa1ceb3bc3ad0e6871c976c7345ca5c6c6ed61db"
+  },
+  {
+    "path": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar/run.log",
+    "size": 743,
+    "sha256": "31ec225ba5b9d52b234eb25a2ca3ef9ecd5397e81688cfddbc0a2edade8d2b17"
+  }
+]

@@ -1,0 +1,34 @@
+{
+  "station": "MARS",
+  "mode": "ar",
+  "case": "r48_uduc_20260913_MARS_ar",
+  "config": "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_ar.yaml",
+  "config_sha256": "6f359c6b10dce3a5455c3c49cbd022ac1105bf1daa9890df817f9827de988d87",
+  "observation": "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx",
+  "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar",
+  "if_case": "r48_user_20260913_MARS_ar_capture_if",
+  "if_config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_MARS_ar_capture_if.yaml",
+  "if_output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_MARS_ar_capture_if",
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-q",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_ar.yaml",
+    "-d",
+    "r48_uduc_20260913_MARS_ar",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "thread_environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "started_at": "2026-09-13T11:30:49.133993",
+  "runner_commit": "2c414d503f50c85b0c038f36bb14c59cfa662eb4",
+  "pid": 1252113,
+  "exit_code": 1,
+  "wall_seconds": 5.182848616037518,
+  "finished_at": "2026-09-13T11:30:54.318565"
+}

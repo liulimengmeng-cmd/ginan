@@ -1,0 +1,507 @@
+{
+  "cases": [
+    {
+      "station": "MARS",
+      "mode": "float",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.332808422972448,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float/Network-r48_uduc_20260913_MARS_float-202419900.TRACE"
+    },
+    {
+      "station": "MARS",
+      "mode": "ar",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.182848616037518,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_ar/Network-r48_uduc_20260913_MARS_ar-202419900.TRACE"
+    },
+    {
+      "station": "DYNG",
+      "mode": "float",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.132486409973353,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_float/Network-r48_uduc_20260913_DYNG_float-202419900.TRACE"
+    },
+    {
+      "station": "DYNG",
+      "mode": "ar",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.13181230193004,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_DYNG_ar/Network-r48_uduc_20260913_DYNG_ar-202419900.TRACE"
+    },
+    {
+      "station": "NICO",
+      "mode": "float",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.1823879149742424,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_float/Network-r48_uduc_20260913_NICO_float-202419900.TRACE"
+    },
+    {
+      "station": "NICO",
+      "mode": "ar",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.282318030949682,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_NICO_ar/Network-r48_uduc_20260913_NICO_ar-202419900.TRACE"
+    },
+    {
+      "station": "BREW",
+      "mode": "float",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.384581416030414,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_float/Network-r48_uduc_20260913_BREW_float-202419900.TRACE"
+    },
+    {
+      "station": "BREW",
+      "mode": "ar",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.232487624976784,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_BREW_ar/Network-r48_uduc_20260913_BREW_ar-202419900.TRACE"
+    },
+    {
+      "station": "JPLM",
+      "mode": "float",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.031907133990899,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_float/Network-r48_uduc_20260913_JPLM_float-202419900.TRACE"
+    },
+    {
+      "station": "JPLM",
+      "mode": "ar",
+      "exit_code": 1,
+      "expected_epochs": 44,
+      "committed_diagnostic_epochs": 1,
+      "attempted_epochs": 2,
+      "last_committed_epoch": "2024-07-17T00:03:00",
+      "failed_epoch": "2024-07-17 00:03:30",
+      "wall_seconds": 5.133778129937127,
+      "ar_summary_count": 0,
+      "ar_stage_count": 0,
+      "newly_fixed_total": 0,
+      "wl_selected_total": 0,
+      "l1_selected_total": 0,
+      "DGEMV_count": 0,
+      "transaction_rollback_count": 1,
+      "last_postfit_passed": true,
+      "raw_dual_frequency_measurements_verified": true,
+      "stec_states_present": true,
+      "trace": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_JPLM_ar/Network-r48_uduc_20260913_JPLM_ar-202419900.TRACE"
+    }
+  ],
+  "attempts_completed": 10,
+  "full_window_completed": 0,
+  "scientific_user_ar_comparison_available": false,
+  "products_unchanged": true,
+  "binary_unchanged": true,
+  "if_configuration_differences": [
+    {
+      "case": "r48_uduc_20260913_MARS_float",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_MARS_float_capture_if",
+          "r48_uduc_20260913_MARS_float"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_MARS_float_capture_if",
+          "r48_uduc_20260913_MARS_float"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_MARS_ar",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_MARS_ar_capture_if",
+          "r48_uduc_20260913_MARS_ar"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_MARS_ar_capture_if",
+          "r48_uduc_20260913_MARS_ar"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_DYNG_float",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_DYNG_float_capture_if",
+          "r48_uduc_20260913_DYNG_float"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_DYNG_float_capture_if",
+          "r48_uduc_20260913_DYNG_float"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_DYNG_ar",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_DYNG_ar_capture_if",
+          "r48_uduc_20260913_DYNG_ar"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_DYNG_ar_capture_if",
+          "r48_uduc_20260913_DYNG_ar"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_NICO_float",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_NICO_float_capture_if",
+          "r48_uduc_20260913_NICO_float"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_NICO_float_capture_if",
+          "r48_uduc_20260913_NICO_float"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_NICO_ar",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_NICO_ar_capture_if",
+          "r48_uduc_20260913_NICO_ar"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_NICO_ar_capture_if",
+          "r48_uduc_20260913_NICO_ar"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_BREW_float",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_BREW_float_capture_if",
+          "r48_uduc_20260913_BREW_float"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_BREW_float_capture_if",
+          "r48_uduc_20260913_BREW_float"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_BREW_ar",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_BREW_ar_capture_if",
+          "r48_uduc_20260913_BREW_ar"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_BREW_ar_capture_if",
+          "r48_uduc_20260913_BREW_ar"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_JPLM_float",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_JPLM_float_capture_if",
+          "r48_uduc_20260913_JPLM_float"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_JPLM_float_capture_if",
+          "r48_uduc_20260913_JPLM_float"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    },
+    {
+      "case": "r48_uduc_20260913_JPLM_ar",
+      "differences_from_if": {
+        "processing_options.ppp_filter.ionospheric_components.use_if_combo": [
+          true,
+          false
+        ],
+        "processing_options.ppp_filter.ionospheric_components.corr_mode": [
+          "iono_free_linear_combo",
+          "estimate"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_JPLM_ar_capture_if",
+          "r48_uduc_20260913_JPLM_ar"
+        ],
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_JPLM_ar_capture_if",
+          "r48_uduc_20260913_JPLM_ar"
+        ],
+        "processing_options.gnss_general.zhang_pppar.integer_strategy": [
+          "CANONICAL_USER_IF_WL_L1",
+          "CANONICAL_USER_SD_WL_L1"
+        ]
+      }
+    }
+  ],
+  "detailed_mars_rejection": {
+    "time": "2024-07-17T00:03:30",
+    "event": "MEASUREMENT",
+    "status": "REJECTED",
+    "events": "3",
+    "measurements": "1",
+    "transitions": "2",
+    "exact_transforms": "0",
+    "measurement_rows": "32",
+    "measurement_nnz": "222",
+    "covariance_nnz": "1034",
+    "before_commit_sequence": "6",
+    "after_commit_sequence": "7",
+    "measurement_replay_prior_hash": "503b09b6439e4a9e",
+    "replay_prior_mean_relative_error": "0",
+    "replay_prior_covariance_relative_error": "0",
+    "commit_mean_relative_error": "0",
+    "commit_covariance_relative_error": "0",
+    "raw_square_root_mean_relative_error": "1.27534e-08",
+    "raw_square_root_covariance_relative_error": "0.0061983",
+    "failure_reason": "RAW_SQUARE_ROOT_POSTERIOR_MISMATCH",
+    "feedback": "0"
+  },
+  "replay_covariance_tolerance": 0.0001,
+  "upstream_DGEMV_unresolved": true,
+  "claim": "All UDUC cases failed the second measurement transaction before useful AR. This is not evidence that UDUC positioning or fixing is intrinsically worse than IF."
+}

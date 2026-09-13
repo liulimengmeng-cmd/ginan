@@ -1,0 +1,17 @@
+{
+  "case": "r48_uduc_20260913_MARS_float_diagnostic",
+  "exit_code": 1,
+  "wall_seconds": 5.380934574990533,
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_uduc_work_20260913/config/r48_uduc_20260913_MARS_float_diagnostic.yaml",
+    "-d",
+    "r48_uduc_20260913_MARS_float_diagnostic",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/MARS00FRA_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "config_sha256": "41b7dabe2ce02c03c073c1d11643d0644e743bf366318a1cf6d457ed2abe6712",
+  "log": "/mnt/d/GINAN_R20/inputData/outputs/r48_uduc_20260913_MARS_float_diagnostic/run.log"
+}
