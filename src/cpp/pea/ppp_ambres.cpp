@@ -7741,6 +7741,14 @@ static int resolveCanonicalUserSdWideLaneL1(
 						trace, stage, time, stageName).sourceIndices.size();
 				}
 				const int candidateCount = rawMean.size();
+				// A rejected LAMBDA search may retain its decorrelation basis or
+				// rejected candidate. Neither is an accepted integer relation.
+				if (userJointIls && (fixed <= 0 || stage.Ztrs.rows() != stage.zfix.size()))
+				{
+					stage.Ztrs.resize(0, candidateCount);
+					stage.zfix.resize(0);
+					fixed = 0;
+				}
 				if(userJointIls) {
 					trace<<"\nZHANG_USER_ILS_RELATIONS time="<<time.to_string(0)
 						<<" receiver="<<receiver<<" stage="<<stageName
