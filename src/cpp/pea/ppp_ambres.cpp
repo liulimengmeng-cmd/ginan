@@ -1,3 +1,4 @@
+#include "common/zhangR49ConstraintNis.hpp"
 // #pragma GCC optimize ("O0")
 /**------------------------------------------------------------------------------
  * reference :
@@ -19280,8 +19281,8 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         trace<<" algebraic_parent_ids=";for(const auto& id:record.algebraicParentIds)trace<<id<<",";
     }
     const auto joint=numeric(selected.jointRows,dimension);
-    const auto nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(selected.jointValues)-joint*root.aflt,
-        joint*root.Paflt*joint.transpose(),nisAlpha);
+    const auto nis=zhangR49ConstraintNis(root.aflt,root.Paflt,joint,
+        zhangExactRowToDouble(selected.jointValues),nisAlpha);
     if(!selected.jointRows.empty() && (!nis.valid || nis.nis>nis.threshold)) return fail("R47_FINAL_JOINT_NIS_REJECTED");
     const double selectedRisk=zhangDecisionRiskClosure(selected.parents).bound+(selected.newRows.empty()?0:spent);
     auto constraints=zhangBuildProductConstraintSet(firstView,secondView,wlRows,wlValues,l1Rows,l1Values,

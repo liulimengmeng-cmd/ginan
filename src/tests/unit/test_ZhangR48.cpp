@@ -198,3 +198,18 @@ BOOST_AUTO_TEST_CASE(r49_partial_bridge_is_shadow_only_and_not_dual_certificate)
  BOOST_CHECK(zhangR47ProductConsequence(domain,{1,0},0,value));
  BOOST_CHECK(!zhangR47ProductConsequence(domain,{0,1},0,value));
 }
+
+#include "common/zhangR49ConstraintNis.hpp"
+BOOST_AUTO_TEST_CASE(r49_empty_product_domain_skips_blas_and_does_not_authorize) {
+ const VectorXd mean=VectorXd::Zero(2588);
+ const MatrixXd covariance=MatrixXd::Identity(2588,2588);
+ const auto empty=zhangR49ConstraintNis(mean,covariance,MatrixXd(0,2588),VectorXd(0),1e-6);
+ BOOST_CHECK(!empty.valid);
+ BOOST_CHECK_EQUAL(empty.status,"NOT_EVALUATED_EMPTY_DOMAIN");
+ MatrixXd row=MatrixXd::Zero(1,2588);row(0,0)=1;
+ VectorXd value(1);value<<0.1;
+ const auto actual=zhangR49ConstraintNis(mean,covariance,row,value,1e-6);
+ const auto reference=assessZhangIntegerCandidateNis(value-row*mean,row*covariance*row.transpose(),1e-6);
+ BOOST_REQUIRE(actual.valid);BOOST_CHECK_EQUAL(actual.nis,reference.nis);
+ BOOST_CHECK_EQUAL(actual.threshold,reference.threshold);
+}

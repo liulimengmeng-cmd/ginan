@@ -1,0 +1,9 @@
+{
+  "smoke_status": -6,
+  "matrix_rows": 0,
+  "matrix_columns": 2588,
+  "lda": 0,
+  "call_site": "zhangR47SolveWholeProducts final whole-domain NIS expression, inlined into solveZhangProductRelations",
+  "fix": "test empty domain before evaluating Eigen matrix-vector product; no certificate granted",
+  "preserved_log": "smoke_failed_empty_domain_smoke.log"
+}

@@ -18,7 +18,8 @@ Formal run: same 180 stations, 2024-07-17 00:00:00--00:30:00, 61 epochs,
 OMP=4 / BLAS=1, unique output/checkpoint roots, source and binary frozen.
 Do not begin formal run until compilation, numerical/contract tests and startup pass.
 
-A: implemented; production BLAS injection/replay and full tests pending build.
+A: implemented; the final production binary intercepts the invalid-DGEMV injection
+with exit 86 and a call stack. Runtime OpenBLAS reports LP64.
 
 B1: full-set exact feasibility fast path with unchanged greedy fallback;
 sparse incremental rational rank only after separate integer feasibility;
@@ -48,12 +49,24 @@ classifies WL/L1/mixed/full consequences. Never mutates formal domain or Ledger.
 Shadow timing and risk are separate; disabled for formal performance comparison.
 
 Audit completion: unique posterior serials; one optional binary network-root
-+snapshot (mean, column-major covariance, exact column order) per root; final
-+domain records include every ordinary-search and bridge row/RHS, source and
-+full statistical/algebraic dependency lists. Formal run enables root snapshots.
-+Actual PEA invalid-DGEMV injection returned 86 with argument values and call stack.
-+OpenBLAS runtime ABI is checked against USE64BITINT when that backend is linked.
-+Reference selector tests: 320 randomized cases + integer parity regressions pass.
-+Recorded R48 00:30 subset fixture: 128-row selections identical; full 845 rows
-+accepted by new selector. Timing is diagnostic under concurrent compilation.
-+
+snapshot (mean, column-major covariance, exact column order) per root; final
+domain records include every ordinary-search and bridge row/RHS, source and
+full statistical/algebraic dependency lists. Formal run enables root snapshots.
+Actual PEA invalid-DGEMV injection returned 86 with argument values and call stack.
+OpenBLAS runtime ABI is checked against USE64BITINT when that backend is linked.
+Reference selector tests: 320 randomized cases + integer parity regressions pass.
+Recorded R48 00:30 subset fixture: 128-row selections identical; full 845 rows
+accepted by new selector. Timing is diagnostic under concurrent compilation.
+
+
+Validation: 433/433 full regression cases and 9/9 checkpoint cases passed.
+All three standalone reference suites passed with EIGEN_USE_BLAS=1, the actual
+OpenBLAS archive and the DGEMV audit wrapper. A real 180-station first-epoch
+smoke is a separate mandatory gate before freezing and launching the formal run.
+These checks do not establish a full-window speedup or improved GNSS quality.
+
+Real startup caught DGEMV M=0, N=2588, LDA=0 in final product-domain NIS.
+The final NIS call now checks an empty domain before Eigen evaluates H*x;
+empty domains receive no statistical acceptance or certificate. The regression
+reproduces the 0x2588 shape under the BLAS audit and compares nonempty NIS.
+The failed smoke log is retained locally; a fresh output root is required for retry.
