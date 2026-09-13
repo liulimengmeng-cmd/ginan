@@ -7203,7 +7203,21 @@ static int resolveCanonicalUserSdWideLaneL1(
 	}
 
 	GinAR_opt namedOptions = options;
-	namedOptions.mode = E_ARmode::ROUND;
+	const bool userJointIls = std::getenv("ZHANG_USER_NAMED_ILS") != nullptr;
+	namedOptions.mode = userJointIls ? E_ARmode::LAMBDA_ALT : E_ARmode::ROUND;
+	if(userJointIls) {
+		// Respect the existing named failure-probability budget, with the
+		// configured ratio test. General integer rows never bypass named gates.
+		namedOptions.sucthr=std::max(options.sucthr,
+			1-acsConfig.zhangPppAr.canonical_user_target_max_perr);
+		namedOptions.min_lambda_fix_count=1;
+	}
+	trace<<"\nZHANG_USER_EFFECTIVE_SEARCH time="<<time.to_string(0)
+		<<" mode="<<(userJointIls?"LAMBDA_ALT":"ROUND")
+		<<" success_threshold="<<namedOptions.sucthr
+		<<" ratio_threshold="<<namedOptions.ratthr
+		<<" named_perr_limit="<<acsConfig.zhangPppAr.canonical_user_target_max_perr
+		<<" feedback="<<!shadowOnly;
 	for (const auto& [system, observables] :
 		 acsConfig.zhangPppAr.baseline_observables)
 	{
@@ -7727,7 +7741,19 @@ static int resolveCanonicalUserSdWideLaneL1(
 						trace, stage, time, stageName).sourceIndices.size();
 				}
 				const int candidateCount = rawMean.size();
+				if(userJointIls) {
+					trace<<"\nZHANG_USER_ILS_RELATIONS time="<<time.to_string(0)
+						<<" receiver="<<receiver<<" stage="<<stageName
+						<<" general_rows="<<stage.Ztrs.rows()<<" named_dimension="<<candidateCount
+						<<" full_covariance_used=1 general_rows_feedback=0";
+					for(int row=0;row<stage.Ztrs.rows();++row)
+						trace<<"\nZHANG_USER_ILS_ROW row="<<row<<" rhs="<<stage.zfix(row)
+							<<" coefficients="<<stage.Ztrs.row(row);
+				}
 				named = recoverNamedTargets(stage, candidateCount);
+				if(userJointIls)trace<<"\nZHANG_USER_ILS_NAMED_RECOVERY time="<<time.to_string(0)
+					<<" receiver="<<receiver<<" stage="<<stageName<<" named_recovered="<<named.size()
+					<<" general_rows="<<stage.Ztrs.rows()<<" final_named_gate_pending=1";
 				const auto provisionalNamed = named;
 				const std::size_t provisionalSelected = named.size();
 				double stageMaximumPerr = 0;
