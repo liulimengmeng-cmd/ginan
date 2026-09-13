@@ -1,0 +1,41 @@
+processing_options:
+  epoch_control:
+    start_epoch: 2024-07-17 00:00:00
+    end_epoch: 2024-07-17 00:15:30
+    epoch_interval: 30
+    wait_next_epoch: 3600
+    max_rec_latency: 1
+  gnss_general:
+    sys_options:
+      gps:
+        receiver_amb_pivot: true
+        code_priorities:
+        - L1C
+        - L2W
+    zhang_pppar:
+      product_mode: HOU_OSB_LIKE
+      integer_strategy: CANONICAL_USER_IF_WL_L1
+      product_solution: PRODUCT_FIXED
+      user_use_full_product_covariance: true
+      user_phase_product_temporal_sigma_m: 0
+      user_max_ambiguities_per_signal: 0
+      canonical_user_target_feedback: true
+      canonical_user_target_min_named_wl: 1
+      canonical_user_target_max_perr: 0.001
+      transactional_integer_fixing: true
+      held_constraint_nis_alpha: 1.0e-06
+      sys_options:
+        gps:
+          baseline_observables:
+          - L1C
+          - L2W
+  ppp_filter:
+    ionospheric_components:
+      common_ionosphere: true
+      use_gf_combo: false
+      use_if_combo: true
+      corr_mode: iono_free_linear_combo
+outputs: {}
+receiver_options:
+  global:
+    exclude: false
