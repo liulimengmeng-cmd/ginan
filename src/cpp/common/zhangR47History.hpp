@@ -2,6 +2,7 @@
 #include "common/zhangProductPhysicalCycleChart.hpp"
 #include "common/zhangIntegerDecisionProof.hpp"
 #include "common/zhangR47Candidate.hpp"
+#include "common/zhangR49ExactSelection.hpp"
 
 struct ZhangR47TransportedHistory
 {
@@ -66,7 +67,7 @@ struct ZhangR47HistorySubset
 };
 /** Greedy budget-feasible selection runs before conditioning. The gain is a
  * deterministic score supplied from one posterior, never a risk waiver. */
-inline ZhangR47HistorySubset zhangR47SelectHistorySubset(
+inline ZhangR47HistorySubset zhangR49SelectHistorySubsetReference(
     const ZhangExactMatrix& rows,const ZhangExactVector& values,
     const std::vector<ZhangDecisionProofs>& parents,const ZhangDecisionProofs& baseline,
     const std::vector<double>& gain,int dimension,double ceiling,double reserve)
@@ -94,6 +95,48 @@ inline ZhangR47HistorySubset zhangR47SelectHistorySubset(
         if(zhangExactRowHermiteNormalForm(candidateRows).basis.size()==out.rows.size())
         {out.reasons[index]="EXACT_REDUNDANCY_NOT_CONDITIONED";continue;}
         out.rows=std::move(candidateRows);out.values=std::move(candidateValues);
+        out.parents=merged;out.selected.push_back(index);out.reasons[index]="ADMITTED_BEFORE_CONDITIONING";
+    }
+    out.risk=zhangDecisionRiskClosure(out.parents).bound;out.valid=true;return out;
+}
+
+inline ZhangR47HistorySubset zhangR47SelectHistorySubset(
+    const ZhangExactMatrix& rows,const ZhangExactVector& values,
+    const std::vector<ZhangDecisionProofs>& parents,const ZhangDecisionProofs& baseline,
+    const std::vector<double>& gain,int dimension,double ceiling,double reserve)
+{
+    ZhangR47HistorySubset out;out.parents=baseline;
+    out.reasons.assign(rows.size(),"NOT_SELECTED");
+    if(rows.size()!=values.size() || rows.size()!=parents.size() || rows.size()!=gain.size() ||
+       !std::isfinite(ceiling) || !std::isfinite(reserve) || reserve<0 || reserve>ceiling) return out;
+    const auto base=zhangDecisionRiskClosure(baseline);
+    if(!base.valid || base.bound>ceiling-reserve) return out;
+    std::vector<int> order(rows.size());std::iota(order.begin(),order.end(),0);
+    std::stable_sort(order.begin(),order.end(),[&](int a,int b){return gain[a]>gain[b];});
+    // One proof of full integer feasibility licenses every subset. If it
+    // fails, retain the original greedy affine checks, never reject the batch.
+    const bool allFeasible=zhangR47AffineIntegerFeasible(rows,values,dimension);
+    ZhangR49IncrementalRank independent;
+    ZhangR49ProofCache proofCache;
+    for(const auto index:order)
+    {
+        if(parents[index].empty() || !proofCache.closure(parents[index]).valid)
+        {out.reasons[index]="RISK_PARENT_INCOMPLETE";continue;}
+        const auto merged=zhangMergeDecisionProofs(out.parents,parents[index]);
+        const auto closure=proofCache.closure(merged);
+        if(!closure.valid || closure.bound>ceiling-reserve)
+        {out.reasons[index]="BUDGET_RESERVED_FOR_NEW_SEARCH";continue;}
+        if(!allFeasible) {
+            auto candidateRows=out.rows; auto candidateValues=out.values;
+            candidateRows.push_back(rows[index]);candidateValues.push_back(values[index]);
+            if(!zhangR47AffineIntegerFeasible(candidateRows,candidateValues,dimension))
+            {out.reasons[index]="EXACT_AFFINE_CONFLICT";continue;}
+        }
+        // This sparse exact rank basis is NOT an integer lattice certificate.
+        // Integer feasibility was separately proved above.
+        if(!independent.append(rows[index]))
+        {out.reasons[index]="EXACT_REDUNDANCY_NOT_CONDITIONED";continue;}
+        out.rows.push_back(rows[index]);out.values.push_back(values[index]);
         out.parents=merged;out.selected.push_back(index);out.reasons[index]="ADMITTED_BEFORE_CONDITIONING";
     }
     out.risk=zhangDecisionRiskClosure(out.parents).bound;out.valid=true;return out;

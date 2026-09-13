@@ -28,6 +28,9 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  ZhangR48MarginalWorkspace* sharedWorkspace=nullptr)
 {
  ZhangR48BridgeResult out;const int n=mean.size();
+ if(!(allocation>0) || !std::isfinite(allocation)) {
+  out.status="NOT_EVALUATED_NO_SEARCH_BUDGET";return out;
+ }
  if(targets.size()!=2 || !zhangExactRectangularMatrix(targets,n))return out;
  out.frame=zhangR47CompileProductSearchFrame(targets,held,hv,n);
  if(!out.frame.valid){out.status=out.frame.reason;return out;}
@@ -41,7 +44,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  out.wlRank=residualRank(0);out.l1Rank=residualRank(1);
  if(out.rank==0){out.status="ALREADY_PROVEN";return out;}
  if(out.rank>2){out.status="INCONSISTENT_COMPONENT";return out;}
- if(allocation<=0){out.status="RISK_EXHAUSTED";return out;}
+
  std::unique_ptr<ZhangR48MarginalWorkspace> local;
  if(!sharedWorkspace){local=std::make_unique<ZhangR48MarginalWorkspace>(mean,covariance);sharedWorkspace=local.get();}
  auto p=zhangR48Numeric(out.frame.projector,n);

@@ -19,3 +19,8 @@ OMP=4 / BLAS=1, unique output/checkpoint roots, source and binary frozen.
 Do not begin formal run until compilation, numerical/contract tests and startup pass.
 
 A: implemented; production BLAS injection/replay and full tests pending build.
+
+B1: full-set exact feasibility fast path with unchanged greedy fallback;
+sparse incremental rational rank only after separate integer feasibility;
+immutable proof-vector closure cache; zero-budget bridge returns before compile.
+Original selector retained as a numerical/selection reference in tests.
