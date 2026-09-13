@@ -1,3 +1,4 @@
+#include "common/zhangUserMeasurementDump.hpp"
 #include "common/algebra.hpp"
 #include <algorithm>
 #include <boost/math/distributions/chi_squared.hpp>
@@ -3878,6 +3879,7 @@ KFFilterResult KFState::filterKalman(
         *finalMeasurementPrior_ptr = *this;
     }
 
+    zhangDumpUserMeasurement(x,P,kfMeas.H,kfMeas.V,kfMeas.R,xp,Pp,kfMeas.time.to_string(0)+"|"+suffix);
     bool factorAccepted = true;
     string factorFailureReason;
     try
