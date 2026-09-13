@@ -1,0 +1,6 @@
+station,complete_pair,matched_epochs,float_3d_rms_m,ar_3d_rms_m,max_paired_position_difference_m_at_trace_precision,wl_passed_epochs,first_wl_passed,wl_selected_peak,l1_passed_epochs,newly_fixed_total,held_integer_rank_peak
+MARS,True,44,6.791959785624914,6.791959785624914,0.0,5,2024-07-17T00:22:00,3,0,0,0
+DYNG,True,44,0.8662333564778428,0.8662333564778428,0.0,9,2024-07-17T00:20:30,2,0,0,0
+NICO,True,44,1.6062416602681513,1.6062416602681513,0.0,6,2024-07-17T00:21:30,2,0,0,0
+BREW,False,7,0.5814524478652763,0.5814524478652763,0.0,0,,0,0,0,0
+JPLM,True,44,1.5581243482542868,1.5581243482542868,0.0,0,,0,0,0,0

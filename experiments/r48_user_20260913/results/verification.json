@@ -1,0 +1,117 @@
+{
+  "actual_epoch_rows": 366,
+  "attempted_cases": 10,
+  "completed_cases": 8,
+  "failed_cases": 2,
+  "paired_configuration_audit": [
+    {
+      "station": "MARS",
+      "differences": {
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_MARS_float_capture_if",
+          "r48_user_20260913_MARS_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_MARS_float_capture_if",
+          "r48_user_20260913_MARS_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.canonical_user_target_feedback": [
+          false,
+          true
+        ],
+        "processing_options.ambiguity_resolution.mode": [
+          "OFF",
+          "LAMBDA"
+        ]
+      }
+    },
+    {
+      "station": "DYNG",
+      "differences": {
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_DYNG_float_capture_if",
+          "r48_user_20260913_DYNG_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_DYNG_float_capture_if",
+          "r48_user_20260913_DYNG_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.canonical_user_target_feedback": [
+          false,
+          true
+        ],
+        "processing_options.ambiguity_resolution.mode": [
+          "OFF",
+          "LAMBDA"
+        ]
+      }
+    },
+    {
+      "station": "NICO",
+      "differences": {
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_NICO_float_capture_if",
+          "r48_user_20260913_NICO_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_NICO_float_capture_if",
+          "r48_user_20260913_NICO_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.canonical_user_target_feedback": [
+          false,
+          true
+        ],
+        "processing_options.ambiguity_resolution.mode": [
+          "OFF",
+          "LAMBDA"
+        ]
+      }
+    },
+    {
+      "station": "BREW",
+      "differences": {
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_BREW_float_capture_if",
+          "r48_user_20260913_BREW_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_BREW_float_capture_if",
+          "r48_user_20260913_BREW_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.canonical_user_target_feedback": [
+          false,
+          true
+        ],
+        "processing_options.ambiguity_resolution.mode": [
+          "OFF",
+          "LAMBDA"
+        ]
+      }
+    },
+    {
+      "station": "JPLM",
+      "differences": {
+        "outputs.metadata.config_description": [
+          "r48_user_20260913_JPLM_float_capture_if",
+          "r48_user_20260913_JPLM_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.checkpoint_runtime_id": [
+          "r48_user_20260913_JPLM_float_capture_if",
+          "r48_user_20260913_JPLM_ar_capture_if"
+        ],
+        "processing_options.gnss_general.zhang_pppar.canonical_user_target_feedback": [
+          false,
+          true
+        ],
+        "processing_options.ambiguity_resolution.mode": [
+          "OFF",
+          "LAMBDA"
+        ]
+      }
+    }
+  ],
+  "snapshot_hashes_unchanged": true,
+  "final_configs_hashes_unchanged": true,
+  "source_algorithm_unchanged": "94af7df",
+  "checks_are_integrity_checks_not_scientific_acceptance": true
+}

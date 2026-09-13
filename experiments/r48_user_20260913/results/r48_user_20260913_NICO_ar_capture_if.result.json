@@ -1,0 +1,31 @@
+{
+  "station": "NICO",
+  "mode": "ar",
+  "case": "r48_user_20260913_NICO_ar_capture_if",
+  "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_NICO_ar_capture_if.yaml",
+  "config_sha256": "9c1ee643ff5a536d22eebe6e0b1f05fb512ea754451b41b71caf07960c823fc2",
+  "observation": "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx",
+  "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_NICO_ar_capture_if",
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-q",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_NICO_ar_capture_if.yaml",
+    "-d",
+    "r48_user_20260913_NICO_ar_capture_if",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/NICO00CYP_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "thread_environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "started_at": "2026-09-13T11:02:16.890232",
+  "runner_commit": "2c295103b888683ff31b4da61a6ba5215f2b84cc",
+  "pid": 1242199,
+  "exit_code": 0,
+  "wall_seconds": 8.540421330952086,
+  "finished_at": "2026-09-13T11:02:25.432503"
+}

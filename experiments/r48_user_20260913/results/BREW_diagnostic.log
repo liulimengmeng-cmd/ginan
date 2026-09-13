@@ -1,0 +1,286 @@
+PEA starting... (r48-continuity-bridge untagged-94af7df-dirty from 2026-09-13 01:37:28 +0800)
+
+Checking configuration file /mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_float_diagnostic.yaml
+Loading configuration from file products/boxwing.yaml
+Loading configuration from file /mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_float_diagnostic.yaml
+
+
+===============================
+Configuration Summary...
+===============================
+Inputs:
+	nav_files:                       ./products/BRDC00IGS_R_20241990000_01D_MN.rnx 
+	snx_files:                       ./products/tables/igs_satellite_metadata_2203_plus.snx ./products/tables/sat_yaw_bias_rate.snx ./products/tables/qzss_yaw_modes.snx ./products/tables/bds_yaw_modes.snx ./products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX 
+	atx_files:                       ./products/igs20_2303.atx 
+	clk_files:                       ./products/WUM0MGXFIN_20241990000_01D_30S_CLK.CLK 
+	ion_files:                       ./products/IGS0OPSFIN_20241990000_01D_02H_GIM.INX 
+	igrf_files:                      ./products/tables/igrf14coeffs.txt 
+	ocean_tide_loading_blq_files:    ./products/tables/OLOAD_ZHANG_2024199_180.BLQ 
+	atmos_tide_loading_blq_files:    ./products/tables/ALOAD_ZHANG_2024199_180.BLQ 
+	ocean_pole_tide_loading_files:   ./products/tables/opoleloadcoefcmcor.txt 
+	erp_files:                       ./products/WUM0MGXFIN_2024198_2024200_03D_01D_ERP.ERP 
+	sp3_files:                       ./products/WUM0MGXFIN_20241980000_01D_05M_ORB.SP3 ./products/WUM0MGXFIN_20241990000_01D_05M_ORB.SP3 ./products/WUM0MGXFIN_20242000000_01D_05M_ORB.SP3 
+	egm_files:                       ./products/tables/EGM2008.gfc 
+	planetary_ephemeris_files:       ./products/tables/DE436.1950.2050 
+	ocean_tide_potential_files:      ./products/tables/fes2014b_Cnm-Snm.dat 
+	gpt2grid_files:                  ./products/tables/gpt_25.grd 
+	rnx_inputs:                      /mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx 
+
+Outputs:
+	trace level:                   3
+	receiver trace filename:       ./outputs/r48_user_20260913_BREW_float_diagnostic/<RECEIVER>-r48_user_20260913_BREW_float_diagnostic-<YYYY><DDD><HH>.TRACE
+	network trace filename:        ./outputs/r48_user_20260913_BREW_float_diagnostic/Network-r48_user_20260913_BREW_float_diagnostic-<YYYY><DDD><HH>.TRACE
+	pos filename:                  ./outputs/r48_user_20260913_BREW_float_diagnostic/<RECEIVER>-r48_user_20260913_BREW_float_diagnostic-<YYYY><DDD><HH>.POS
+
+Process Modes:
+	Preprocessor:        1
+	SPP                  1
+	PPP:                 1
+	Minimum Constraints: 0
+	Ionospheric:         0
+	RTS Smoothing:       0
+	SBAS:                0
+
+Systems:
+	GPS:     1
+	GLONASS: 0
+	GALILEO: 0
+	BEIDOU:  0
+	QZSS:    0
+	LEO:     0
+
+Epochs:
+	epoch_interval: 30
+	epoch start:    2024-Jul-17 00:03:00
+	epoch end:      2024-Jul-17 00:06:30
+
+===============================
+...End Configuration Summary
+===============================
+
+
+Compilation details:
+====================
+Ginan branch:     r48-continuity-bridge
+Ginan version:    untagged-94af7df-dirty
+Commit date:      2026-09-13 01:37:28 +0800
+Operating system: "Ubuntu 22.04.5 LTS"
+Compiler version: GNU 11.4.0
+Boost version:    1.89.0
+Eigen version:    3.4.1
+Mongocxx version: 4.0.0
+
+
+Runtime details:
+================
+Logging at trace level3
+Threading with max 1 eigen threads
+Threading with max 1 omp threads
+
+
+
+
+Loading ATX file ./products/igs20_2303.atx
+Loading SP3 file ./products/WUM0MGXFIN_20241980000_01D_05M_ORB.SP3
+Loading SP3 file ./products/WUM0MGXFIN_20241990000_01D_05M_ORB.SP3
+Loading SP3 file ./products/WUM0MGXFIN_20242000000_01D_05M_ORB.SP3
+Loading NAV file ./products/BRDC00IGS_R_20241990000_01D_MN.rnx
+Loading ERP file ./products/WUM0MGXFIN_2024198_2024200_03D_01D_ERP.ERP
+Loading CLK file ./products/WUM0MGXFIN_20241990000_01D_30S_CLK.CLK
+Loading ION file ./products/IGS0OPSFIN_20241990000_01D_02H_GIM.INX
+Loading IGRF file ./products/tables/igrf14coeffs.txt
+Loading SNX file ./products/tables/igs_satellite_metadata_2203_plus.snx
+Loading SNX file ./products/tables/sat_yaw_bias_rate.snx
+Loading SNX file ./products/tables/qzss_yaw_modes.snx
+Loading SNX file ./products/tables/bds_yaw_modes.snx
+Loading SNX file ./products/IGS0OPSSNX_20241960000_07D_07D_CRD.SNX
+Loading GPT file ./products/tables/gpt_25.grd
+Loading Ocean Pole Tide file ./products/tables/opoleloadcoefcmcor.txt
+Loading Ocean Tide Loading BLQ file ./products/tables/OLOAD_ZHANG_2024199_180.BLQ
+Loading Atmos Tide Loading BLQ file ./products/tables/ALOAD_ZHANG_2024199_180.BLQ
+Loading EGM file ./products/tables/EGM2008.gfc
+Loading Tide file ./products/tables/fes2014b_Cnm-Snm.dat
+Loading planetary ephemeris file ./products/tables/DE436.1950.2050
+
+
+Starting to process epochs...
+Starting epoch #1
+ ------- PREPROCESSING STATIONS       --------
+
+[1;93mWarning: Attitude model not implemented for BLOCK IIIA in updateSatYaw; using GPS-IIR model instead. Check satellite metadata SINEX block types, for example that inputs.snx_files includes igs_satellite_metadata.snx and that it contains this satellite.[0m
+[1;93mWarning: No suitable data for bias interpolation, extrapolated bias in use.[0m
+ZHANG_FACTOR_CAPTURE_CALLBACK_LIFECYCLE runtime_id=r48_user_20260913_BREW_float_diagnostic status=INSTALLED buffer_preserved=false measurement_callback=true transition_callback=true exact_transform_callback=true transaction_callback=true
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=0 after_commit_sequence=1 source_states=1 destination_states=1 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+Loaded 2552 Zhang internal product records from /mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/products/zhang_internal_products.csv
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=1 after_commit_sequence=2 source_states=1 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:00 kind=STATE_TRANSITION before_commit_sequence=2 after_commit_sequence=3 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:00 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:03:00|/PPP|3 b13_prior_hash=498c601da6432ffb measurement_replay_prior_hash=498c601da6432ffb feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:03:00 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=120 posterior_covariance_relative_error=9.16904e-07 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:03:00 event=MEASUREMENT status=ACCEPTED events=1 measurements=1 transitions=0 exact_transforms=0 measurement_rows=18 measurement_nnz=107 covariance_nnz=324 before_commit_sequence=3 after_commit_sequence=4 measurement_replay_prior_hash=498c601da6432ffb replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=4.42065e-13 raw_square_root_covariance_relative_error=5.38397e-07 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:00 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:03:00|/PPP|3 model_generation=3 solve_generation=3 final_commit_sequence=4 measurement_count=1 feedback=0
+Processed epoch #1 - GPS time: 2323 259380 - 2024-07-17 00:03:00.00 (data handling took 00:00:00.32, processing took 00:00:00.53, epoch took 00:00:00.86)
+Starting epoch #2
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:30 kind=STATE_TRANSITION before_commit_sequence=4 after_commit_sequence=5 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:03:30 kind=STATE_TRANSITION before_commit_sequence=5 after_commit_sequence=6 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:30 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:03:30|/PPP|7 b13_prior_hash=31ab95e84f9170c6 measurement_replay_prior_hash=31ab95e84f9170c6 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:03:30 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=240 posterior_covariance_relative_error=8.06218e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:03:30 event=MEASUREMENT status=ACCEPTED events=4 measurements=2 transitions=2 exact_transforms=0 measurement_rows=36 measurement_nnz=214 covariance_nnz=650 before_commit_sequence=6 after_commit_sequence=7 measurement_replay_prior_hash=31ab95e84f9170c6 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=4.42065e-13 raw_square_root_covariance_relative_error=8.24468e-07 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:03:30 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:03:30|/PPP|7 model_generation=9 solve_generation=9 final_commit_sequence=7 measurement_count=1 feedback=0
+Processed epoch #2 - GPS time: 2323 259410 - 2024-07-17 00:03:30.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.07)
+Starting epoch #3
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:04:00 kind=STATE_TRANSITION before_commit_sequence=7 after_commit_sequence=8 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:04:00 kind=STATE_TRANSITION before_commit_sequence=8 after_commit_sequence=9 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:04:00 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:04:00|/PPP|10 b13_prior_hash=3b83fb134c145415 measurement_replay_prior_hash=3b83fb134c145415 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:04:00 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=360 posterior_covariance_relative_error=6.14644e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:04:00 event=MEASUREMENT status=ACCEPTED events=7 measurements=3 transitions=4 exact_transforms=0 measurement_rows=54 measurement_nnz=321 covariance_nnz=976 before_commit_sequence=9 after_commit_sequence=10 measurement_replay_prior_hash=3b83fb134c145415 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=7.18694e-13 raw_square_root_covariance_relative_error=1.25088e-06 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:04:00 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:04:00|/PPP|10 model_generation=9 solve_generation=9 final_commit_sequence=10 measurement_count=1 feedback=0
+Processed epoch #3 - GPS time: 2323 259440 - 2024-07-17 00:04:00.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.06)
+Starting epoch #4
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:04:30 kind=STATE_TRANSITION before_commit_sequence=10 after_commit_sequence=11 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:04:30 kind=STATE_TRANSITION before_commit_sequence=11 after_commit_sequence=12 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:04:30 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:04:30|/PPP|13 b13_prior_hash=962d7b97a59a571b measurement_replay_prior_hash=962d7b97a59a571b feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:04:30 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=480 posterior_covariance_relative_error=3.61668e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:04:30 event=MEASUREMENT status=ACCEPTED events=10 measurements=4 transitions=6 exact_transforms=0 measurement_rows=72 measurement_nnz=428 covariance_nnz=1302 before_commit_sequence=12 after_commit_sequence=13 measurement_replay_prior_hash=962d7b97a59a571b replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=7.18694e-13 raw_square_root_covariance_relative_error=1.70258e-06 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:04:30 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:04:30|/PPP|13 model_generation=9 solve_generation=9 final_commit_sequence=13 measurement_count=1 feedback=0
+Processed epoch #4 - GPS time: 2323 259470 - 2024-07-17 00:04:30.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.07)
+Starting epoch #5
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:05:00 kind=STATE_TRANSITION before_commit_sequence=13 after_commit_sequence=14 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:05:00 kind=STATE_TRANSITION before_commit_sequence=14 after_commit_sequence=15 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:05:00 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:05:00|/PPP|16 b13_prior_hash=df34b372d2b72dd9 measurement_replay_prior_hash=df34b372d2b72dd9 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:05:00 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=600 posterior_covariance_relative_error=3.32536e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:05:00 event=MEASUREMENT status=ACCEPTED events=13 measurements=5 transitions=8 exact_transforms=0 measurement_rows=90 measurement_nnz=535 covariance_nnz=1628 before_commit_sequence=15 after_commit_sequence=16 measurement_replay_prior_hash=df34b372d2b72dd9 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=7.18694e-13 raw_square_root_covariance_relative_error=2.16073e-06 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:05:00 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:05:00|/PPP|16 model_generation=9 solve_generation=9 final_commit_sequence=16 measurement_count=1 feedback=0
+Processed epoch #5 - GPS time: 2323 259500 - 2024-07-17 00:05:00.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.06)
+Starting epoch #6
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:05:30 kind=STATE_TRANSITION before_commit_sequence=16 after_commit_sequence=17 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:05:30 kind=STATE_TRANSITION before_commit_sequence=17 after_commit_sequence=18 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:05:30 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:05:30|/PPP|19 b13_prior_hash=09186b382eb21058 measurement_replay_prior_hash=09186b382eb21058 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:05:30 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=720 posterior_covariance_relative_error=1.91991e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:05:30 event=MEASUREMENT status=ACCEPTED events=16 measurements=6 transitions=10 exact_transforms=0 measurement_rows=108 measurement_nnz=642 covariance_nnz=1954 before_commit_sequence=18 after_commit_sequence=19 measurement_replay_prior_hash=09186b382eb21058 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=7.18694e-13 raw_square_root_covariance_relative_error=2.6198e-06 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:05:30 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:05:30|/PPP|19 model_generation=9 solve_generation=9 final_commit_sequence=19 measurement_count=1 feedback=0
+Processed epoch #6 - GPS time: 2323 259530 - 2024-07-17 00:05:30.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.06)
+Starting epoch #7
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:06:00 kind=STATE_TRANSITION before_commit_sequence=19 after_commit_sequence=20 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:06:00 kind=STATE_TRANSITION before_commit_sequence=20 after_commit_sequence=21 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:06:00 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:06:00|/PPP|22 b13_prior_hash=2140ba16c5cae5b8 measurement_replay_prior_hash=2140ba16c5cae5b8 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:06:00 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=840 posterior_covariance_relative_error=2.27173e-14 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:06:00 event=MEASUREMENT status=ACCEPTED events=19 measurements=7 transitions=12 exact_transforms=0 measurement_rows=126 measurement_nnz=749 covariance_nnz=2280 before_commit_sequence=21 after_commit_sequence=22 measurement_replay_prior_hash=2140ba16c5cae5b8 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=7.18694e-13 raw_square_root_covariance_relative_error=3.07754e-06 failure_reason=NONE feedback=0
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:06:00 boundary=B15 status=PACKET_VALIDATED transaction_id=2024-07-17 00:06:00|/PPP|22 model_generation=9 solve_generation=9 final_commit_sequence=22 measurement_count=1 feedback=0
+Processed epoch #7 - GPS time: 2323 259560 - 2024-07-17 00:06:00.00 (data handling took 00:00:00.00, processing took 00:00:00.06, epoch took 00:00:00.06)
+Starting epoch #8
+ ------- PREPROCESSING STATIONS       --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:06:30 kind=STATE_TRANSITION before_commit_sequence=22 after_commit_sequence=23 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- CALCULATING PPP MEASUREMENTS --------
+
+ ------- DOING STATE TRANSITION       --------
+
+ZHANG_FACTOR_COMMIT_PACKET time=2024-07-17 00:06:30 kind=STATE_TRANSITION before_commit_sequence=23 after_commit_sequence=24 source_states=15 destination_states=15 affine_offset_norm=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 status=ACCEPTED reason=NONE feedback=0
+ ------- DOING PPPPP KALMAN FILTER    --------
+
+ ------- FILTERING BY CHUNK 1         --------
+
+ZHANG_KF_MEASUREMENT_TRANSACTION time=2024-07-17 00:06:30 boundary=B14 status=CONSUMER_REPLAY transaction_id=2024-07-17 00:06:30|/PPP|25 b13_prior_hash=7ada6f1441dc34e6 measurement_replay_prior_hash=7ada6f1441dc34e6 feedback=0
+ZHANG_E27_JOINT_NOISE time=2024-07-17 00:06:30 event=ACCEPTED_MEASUREMENT accepted_rows=18 tracked_noise_factors=960 posterior_covariance_relative_error=1.02167e-10 feedback=0
+ZHANG_E18_FACTOR_CAPTURE time=2024-07-17 00:06:30 event=MEASUREMENT status=REJECTED events=21 measurements=7 transitions=14 exact_transforms=0 measurement_rows=126 measurement_nnz=749 covariance_nnz=2282 before_commit_sequence=24 after_commit_sequence=25 measurement_replay_prior_hash=2140ba16c5cae5b8 replay_prior_mean_relative_error=0 replay_prior_covariance_relative_error=0 commit_mean_relative_error=0 commit_covariance_relative_error=0 raw_square_root_mean_relative_error=4.22726e-09 raw_square_root_covariance_relative_error=0.000236645 failure_reason=RAW_SQUARE_ROOT_POSTERIOR_MISMATCH feedback=0
+[101mError: PPP epoch transaction failed closed at 2024-07-17 00:06:30.00[0m
+[101mError: E29 deterministic checkpoint run failed: AUTHORITATIVE_PPP_FACTOR_TRANSACTION_FAILED:2024-07-17 00:06:30[0m
+
+PEA started  processing at : 2026-09-13 03:06:47.29
+and finished processing at : 2026-09-13 03:06:52.27
+Total processing duration  : 00:00:04.97
+
+
+
+Finalising streams and post processing...
+
+PEA started  processing at : 2026-09-13 03:06:47.29
+and finished processing at : 2026-09-13 03:06:52.27
+Total processing duration  : 00:00:04.97
+
+
+PEA finished

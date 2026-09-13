@@ -1,0 +1,31 @@
+{
+  "station": "JPLM",
+  "mode": "float",
+  "case": "r48_user_20260913_JPLM_float_capture_if",
+  "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_JPLM_float_capture_if.yaml",
+  "config_sha256": "d1d302ac283f15107f6c90813b3b8ef21c3c044320578e35439907f991afa886",
+  "observation": "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx",
+  "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_JPLM_float_capture_if",
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-q",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_JPLM_float_capture_if.yaml",
+    "-d",
+    "r48_user_20260913_JPLM_float_capture_if",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/JPLM00USA_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "thread_environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "started_at": "2026-09-13T11:05:08.436020",
+  "runner_commit": "bebaf803c900a958579e0f48b045357b58352a39",
+  "pid": 1242990,
+  "exit_code": 0,
+  "wall_seconds": 7.738704191986471,
+  "finished_at": "2026-09-13T11:05:16.176285"
+}

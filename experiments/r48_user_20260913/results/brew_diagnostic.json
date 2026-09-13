@@ -1,0 +1,17 @@
+{
+  "case": "r48_user_20260913_BREW_float_diagnostic",
+  "exit_code": 1,
+  "wall_seconds": 5.38002745504491,
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_float_diagnostic.yaml",
+    "-d",
+    "r48_user_20260913_BREW_float_diagnostic",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "config_sha256": "7277d07440fe350119a52f574f125de726c45b7b4b9ecc047b4ca75436b75bf6",
+  "time": "2026-09-13T11:06:34.663605"
+}

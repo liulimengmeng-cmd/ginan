@@ -1,0 +1,31 @@
+{
+  "station": "BREW",
+  "mode": "ar",
+  "case": "r48_user_20260913_BREW_ar_capture_if",
+  "config": "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_ar_capture_if.yaml",
+  "config_sha256": "ec138178941fbcf986799efc932f666c4847f59677249e4cc72b3496de73452c",
+  "observation": "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx",
+  "output": "/mnt/d/GINAN_R20/inputData/outputs/r48_user_20260913_BREW_ar_capture_if",
+  "command": [
+    "/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea",
+    "-q",
+    "-y",
+    "/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix/config/r48_user_20260913_BREW_ar_capture_if.yaml",
+    "-d",
+    "r48_user_20260913_BREW_ar_capture_if",
+    "-r",
+    "/mnt/d/GINAN_R20/inputData/data/BREW00USA_R_20241990000_01D_30S_MO.rnx"
+  ],
+  "binary_sha256": "9b70f939569a72564f332f8ea22d1c9adc83b38d9be38c19a948ca1cd5e415d0",
+  "thread_environment": {
+    "OMP_NUM_THREADS": "1",
+    "OPENBLAS_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "started_at": "2026-09-13T11:04:44.680881",
+  "runner_commit": "bebaf803c900a958579e0f48b045357b58352a39",
+  "pid": 1242943,
+  "exit_code": 1,
+  "wall_seconds": 5.58869455405511,
+  "finished_at": "2026-09-13T11:04:50.271331"
+}
