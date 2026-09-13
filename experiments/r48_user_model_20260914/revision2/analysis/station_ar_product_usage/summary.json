@@ -1,0 +1,651 @@
+{
+  "definition": "Dual-frequency products applied during phase observation construction, intersected with strict PRODUCT_FIXED AR_VALID product flags and common L1C/L2W component; deduplicated across QC retries. This is product eligibility, not final measurement acceptance or integer fixing.",
+  "flags": [
+    "numeric_valid",
+    "branch_valid",
+    "continuity_valid",
+    "pppar_usable",
+    "integer_valid",
+    "integer_structure_valid",
+    "integer_datum_continuous",
+    "integer_precision_valid",
+    "dual_frequency_ar_valid",
+    "ar_valid"
+  ],
+  "summary": [
+    {
+      "case": "r48u_20260914_DYNG_IF_float_fix1",
+      "station": "DYNG",
+      "model": "IF",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 6,
+      "dual_products_max": 8,
+      "ar_min": 0,
+      "ar_max": 7,
+      "ar_mean": 3.6,
+      "ar_satellite_epochs": 198,
+      "ar_unique_satellites": 7,
+      "ar_positive_epochs": 38,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G32",
+      "runtime_ar_mean_excluding_reference": 2.672727272727273,
+      "runtime_ar_max_excluding_reference": 6,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_NICO_IF_float_fix1",
+      "station": "NICO",
+      "model": "IF",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 7,
+      "ar_mean": 3.7454545454545456,
+      "ar_satellite_epochs": 206,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 39,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G32",
+      "runtime_ar_mean_excluding_reference": 2.890909090909091,
+      "runtime_ar_max_excluding_reference": 8,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_BREW_IF_float_fix1",
+      "station": "BREW",
+      "model": "IF",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 9,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 9,
+      "ar_mean": 4.890909090909091,
+      "ar_satellite_epochs": 269,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 41,
+      "first_ar_epoch": "2024-07-17T00:10:00",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G02;G10;G21;G25;G28;G31;G32",
+      "runtime_ar_mean_excluding_reference": 2.4545454545454546,
+      "runtime_ar_max_excluding_reference": 5,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_MARS_IF_float_fix1",
+      "station": "MARS",
+      "model": "IF",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 8,
+      "ar_mean": 3.8181818181818183,
+      "ar_satellite_epochs": 210,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 38,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 8,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G28;G32",
+      "runtime_ar_mean_excluding_reference": 2.709090909090909,
+      "runtime_ar_max_excluding_reference": 7,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_JPLM_IF_float_fix1",
+      "station": "JPLM",
+      "model": "IF",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 8,
+      "ar_min": 0,
+      "ar_max": 8,
+      "ar_mean": 4.654545454545454,
+      "ar_satellite_epochs": 256,
+      "ar_unique_satellites": 8,
+      "ar_positive_epochs": 41,
+      "first_ar_epoch": "2024-07-17T00:10:00",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G02;G10;G21;G26;G28;G31;G32",
+      "runtime_ar_mean_excluding_reference": 2.2363636363636363,
+      "runtime_ar_max_excluding_reference": 4,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_DYNG_UDUC_float_fix1",
+      "station": "DYNG",
+      "model": "UDUC",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 6,
+      "dual_products_max": 8,
+      "ar_min": 0,
+      "ar_max": 7,
+      "ar_mean": 3.6,
+      "ar_satellite_epochs": 198,
+      "ar_unique_satellites": 7,
+      "ar_positive_epochs": 38,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G32",
+      "runtime_ar_mean_excluding_reference": 2.672727272727273,
+      "runtime_ar_max_excluding_reference": 6,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_NICO_UDUC_float_fix1",
+      "station": "NICO",
+      "model": "UDUC",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 7,
+      "ar_mean": 3.7454545454545456,
+      "ar_satellite_epochs": 206,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 39,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G32",
+      "runtime_ar_mean_excluding_reference": 2.9272727272727272,
+      "runtime_ar_max_excluding_reference": 8,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_BREW_UDUC_float_fix1",
+      "station": "BREW",
+      "model": "UDUC",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 9,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 9,
+      "ar_mean": 4.890909090909091,
+      "ar_satellite_epochs": 269,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 41,
+      "first_ar_epoch": "2024-07-17T00:10:00",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G02;G10;G21;G25;G28;G31;G32",
+      "runtime_ar_mean_excluding_reference": 2.4,
+      "runtime_ar_max_excluding_reference": 5,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_MARS_UDUC_float_fix1",
+      "station": "MARS",
+      "model": "UDUC",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 9,
+      "ar_min": 0,
+      "ar_max": 8,
+      "ar_mean": 3.8181818181818183,
+      "ar_satellite_epochs": 210,
+      "ar_unique_satellites": 9,
+      "ar_positive_epochs": 38,
+      "first_ar_epoch": "2024-07-17T00:10:30",
+      "last_ar_count": 8,
+      "last_ar_satellites": "G06;G11;G12;G19;G24;G25;G28;G32",
+      "runtime_ar_mean_excluding_reference": 2.709090909090909,
+      "runtime_ar_max_excluding_reference": 7,
+      "search_common_max": 0
+    },
+    {
+      "case": "r48u_20260914_JPLM_UDUC_float_fix1",
+      "station": "JPLM",
+      "model": "UDUC",
+      "mode": "float",
+      "epochs": 55,
+      "dual_products_min": 7,
+      "dual_products_max": 8,
+      "ar_min": 0,
+      "ar_max": 8,
+      "ar_mean": 4.654545454545454,
+      "ar_satellite_epochs": 256,
+      "ar_unique_satellites": 8,
+      "ar_positive_epochs": 41,
+      "first_ar_epoch": "2024-07-17T00:10:00",
+      "last_ar_count": 7,
+      "last_ar_satellites": "G02;G10;G21;G26;G28;G31;G32",
+      "runtime_ar_mean_excluding_reference": 2.2,
+      "runtime_ar_max_excluding_reference": 4,
+      "search_common_max": 0
+    }
+  ],
+  "cross_case_consistency": [
+    {
+      "station": "MARS",
+      "same_product_eligibility_across_all_ten_cases": true
+    },
+    {
+      "station": "DYNG",
+      "same_product_eligibility_across_all_ten_cases": true
+    },
+    {
+      "station": "NICO",
+      "same_product_eligibility_across_all_ten_cases": true
+    },
+    {
+      "station": "BREW",
+      "same_product_eligibility_across_all_ten_cases": true
+    },
+    {
+      "station": "JPLM",
+      "same_product_eligibility_across_all_ten_cases": true
+    }
+  ],
+  "hashes": [
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_float_fix1/DYNG-r48u_20260914_DYNG_IF_float_fix1-202419900.TRACE",
+      "sha256": "61c9b7e39cf10196656f46e990ca662e827bc6ffd4cefba4f1dccb0972d5fe7b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_float_fix1/Network-r48u_20260914_DYNG_IF_float_fix1-202419900.TRACE",
+      "sha256": "ea758f8119c55efa4b9636ca68fbf78aa4948691010f8f570756f3ad52e1c2ec"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_shadow_fix1/DYNG-r48u_20260914_DYNG_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "8a97d6045670e3d62b2854b0b0e6b7eaf2ddc95d8cfaf54c78a921400582d105"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_shadow_fix1/Network-r48u_20260914_DYNG_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "4c60ee52e966e9cbc028aedebec797151a9d974c4d61405169838d4325086919"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_feedback_fix1/DYNG-r48u_20260914_DYNG_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "25136aa5668d936d0d938b55ab8fa62441a04bbfed83d27c258df6db41c5e2f7"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_round_feedback_fix1/Network-r48u_20260914_DYNG_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "a7f8d4a579ce8831ac531668527b4c4bbb69e215faafe289f072c508271eaa42"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_shadow_fix1/DYNG-r48u_20260914_DYNG_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "72662ad60fef47e9c35618b9a56930ca078ff1924315812d509ac2e4ded30664"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_shadow_fix1/Network-r48u_20260914_DYNG_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "6872a8cb9776c1df3815479f360a1e11d3855aefdbef7990a266d997b9906956"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_feedback_fix1/DYNG-r48u_20260914_DYNG_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "2a24556d36a88b593976fde499c526f8423a0137b6927a1c462980ea27ac0913"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_IF_ils_feedback_fix1/Network-r48u_20260914_DYNG_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "f2c08a44bd912bad89b3e0103c49333d1d34d4e3b7b81a00c737a0ed84651d44"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_float_fix1/NICO-r48u_20260914_NICO_IF_float_fix1-202419900.TRACE",
+      "sha256": "5f0591e5bd835dee4df2f168bc5c163d4ee5640348b2109573c8111bec22bcac"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_float_fix1/Network-r48u_20260914_NICO_IF_float_fix1-202419900.TRACE",
+      "sha256": "cd87ec2f8dc560ab22a4330eb776301e62cdd9a6bf4c58304d6c047df3a7acd8"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_shadow_fix1/NICO-r48u_20260914_NICO_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "faf1293a701ff10366d5160c019112c4ae8669080c4c540880a322f1cd5c9c83"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_shadow_fix1/Network-r48u_20260914_NICO_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "c1667f2fc80148b85e025df69d0bf7b0611a00fa2320ddf99b5ba99a34285281"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_feedback_fix1/NICO-r48u_20260914_NICO_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "7d37c2bab60c2c9e55954d4bb5dba67c7b424a6c1b287b541f9996e99252d006"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_round_feedback_fix1/Network-r48u_20260914_NICO_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "90f3aeeb60fd452f715ae000eb6879ac56eb55cdd08ee75941ed3af48985049a"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_shadow_fix1/NICO-r48u_20260914_NICO_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "b42d424d74886f346df5a6b675fb5b75e07ac6aa467f2c6eab33f167b1b72e19"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_shadow_fix1/Network-r48u_20260914_NICO_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "0dbd97fffa89ea5eadab1cd849d1edda9c8fcffd496a25b8cc9580f163e7d6db"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_feedback_fix1/NICO-r48u_20260914_NICO_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "ee0ec7f87357bdfcb0faca683bbc3518cc884f8269f50cdd022a9b4aaffdae1c"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_IF_ils_feedback_fix1/Network-r48u_20260914_NICO_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "060e11e2eb6bc6957e48a5d53548985ff08771b363aa0ecffe7683c60887b707"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_float_fix1/BREW-r48u_20260914_BREW_IF_float_fix1-202419900.TRACE",
+      "sha256": "5551fb34e36411021fcd90ff74822a0f9d80cc4e62f3d5549201c95024877932"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_float_fix1/Network-r48u_20260914_BREW_IF_float_fix1-202419900.TRACE",
+      "sha256": "77209ae2486dd82719d3543b235baa1c48c4cd1950206206778a74594d53d3aa"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_shadow_fix1/BREW-r48u_20260914_BREW_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "bf70fdba8b4bb499ba670d2ca8f01cc9f22ee01b8d6ab70c22f33a1300c8bda9"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_shadow_fix1/Network-r48u_20260914_BREW_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "8d856318a273e5689c7db33959e4fd68daaefa832c452352111638497c13b3a7"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_feedback_fix1/BREW-r48u_20260914_BREW_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "97ab897b460221b149a6a846f80624dd9971789a7d6028f23bfb9eef2cf51997"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_round_feedback_fix1/Network-r48u_20260914_BREW_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "fcd4775b45af72742db7529ce9d98bbfd280c4e4f36f84fa9c90caa587fc581b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_shadow_fix1/BREW-r48u_20260914_BREW_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "f9de2c3255cecf6bb167e75285cb460a5da7c4b18bf8e60f74ad3b9c669db53c"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_shadow_fix1/Network-r48u_20260914_BREW_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "4530a3c26eb518519cbbc1a134094e3beb9a11156ac0adc2bffb3bc2826cd74d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_feedback_fix1/BREW-r48u_20260914_BREW_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "5664e04b64678342bde9b7695d9cddecfe5c32ae20265f2692c281e1a37c2698"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_IF_ils_feedback_fix1/Network-r48u_20260914_BREW_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "66c1c60b02e1a4978a45bcdbecaa692154adbb38a4a029ddb6ba5713b97f7a66"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_float_fix1/MARS-r48u_20260914_MARS_IF_float_fix1-202419900.TRACE",
+      "sha256": "f15a21de9a9940900fd1e1e8b540a6a87746ac07ac7016990162256ff0af0878"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_float_fix1/Network-r48u_20260914_MARS_IF_float_fix1-202419900.TRACE",
+      "sha256": "f429c61874c474efd00f8d23d3f5f7c6166af395e203f27566a8ccc1c0358c5f"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_shadow_fix1/MARS-r48u_20260914_MARS_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "f8cdd6e844db68c543e690ef9df72547fa6cdb98f3921b1b93e1db9e6fa9e5d4"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_shadow_fix1/Network-r48u_20260914_MARS_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "c5eaaf6e974bfdb4c44e35dc26fbfb81b091018b67c971626bf8897ffaf29ba5"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_feedback_fix1/MARS-r48u_20260914_MARS_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "f3c8d768e7b74ebdc4c0b31b1ff285d2d4e9b2e6967aac5b6beb6c51ed462f65"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_round_feedback_fix1/Network-r48u_20260914_MARS_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "21f3f0c47eed9826d613275cc11d3e7717966b314d45e82374634a4a9275235e"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_shadow_fix1/MARS-r48u_20260914_MARS_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "c400899f9bb71f8d0c72eee5ffbb529d39ec78298655eea7be185228373ba07d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_shadow_fix1/Network-r48u_20260914_MARS_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "e7cd58f943fd08835fc47fc5201188211a8124bb5b99f3ae715066e080c7bf28"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_feedback_fix1/MARS-r48u_20260914_MARS_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "0e03cfba8aea4f47b9b0be7ca7ff69a0faaa07c1d82e8c8b565a9b5f0daf7286"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_IF_ils_feedback_fix1/Network-r48u_20260914_MARS_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "cd0a6038a263dae73e9602ac4aad91b1cd6d2263db337020c7cd4b2ded8d126d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_float_fix1/JPLM-r48u_20260914_JPLM_IF_float_fix1-202419900.TRACE",
+      "sha256": "09e5b848f71d7b36f71df375e97eb67e218f2ce7f3d1d29d4f893b72380a9cf8"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_float_fix1/Network-r48u_20260914_JPLM_IF_float_fix1-202419900.TRACE",
+      "sha256": "e86d7884be9b61ade43a26877e7e93f2165a3b14a0d9252daf3286b3f9bcd825"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_shadow_fix1/JPLM-r48u_20260914_JPLM_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "cd71e27d4daeef088466352c6a84f3bfea89c84e0bb4bb4f205c73d803c1ad06"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_shadow_fix1/Network-r48u_20260914_JPLM_IF_round_shadow_fix1-202419900.TRACE",
+      "sha256": "c5baf81bab7917d6bcb6cc15b8a1f9224ae8a26d6dfc57b5241eafbb95120766"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_feedback_fix1/JPLM-r48u_20260914_JPLM_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "78e91b11e7b723c6c24a308357b1eb33569722c71b358f63c1178e9e42d9938f"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_round_feedback_fix1/Network-r48u_20260914_JPLM_IF_round_feedback_fix1-202419900.TRACE",
+      "sha256": "b90cee12d0ec7f77349e25bfc9a5c755d43fb7f7ef2b9eb79d6b11a9133cdff2"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_shadow_fix1/JPLM-r48u_20260914_JPLM_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "1910ba74f6ddaad04dfb6206c0fcac3eca02955c569a1cbc3d0610345bb89152"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_shadow_fix1/Network-r48u_20260914_JPLM_IF_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "fcf97fd6b8ad9b35cad7f0400895de8bb4803d13265bd258933a465a22ff6119"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_feedback_fix1/JPLM-r48u_20260914_JPLM_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "a204dbfeb9532c476ae3d1ffe63bc11eab5267cf0091c92694e948ab880b326e"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_IF_ils_feedback_fix1/Network-r48u_20260914_JPLM_IF_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "8b6fa92febd2510766e07d6aec1284fc407dd3756bcbf995e5afd41b7844a4c2"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_float_fix1/DYNG-r48u_20260914_DYNG_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "1ab2d5b73cf0d7ec8a98a63478b681e09d06382bdf431e1088aef42a8a1ed7ec"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_float_fix1/Network-r48u_20260914_DYNG_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "79f6e305ea23cd0999f89a52b088d455a0dca60ceadcca15ea8e8bf75b6d8a11"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_shadow_fix1/DYNG-r48u_20260914_DYNG_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "e2ec8046e9bd3346edab6d5c418d3b47e1e4878ded66c44d670558da5ef8bb4b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_shadow_fix1/Network-r48u_20260914_DYNG_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "6bd23ca5086727a39e353bbc9c9096c99b2e08bd6c86a05182e70521729e9b38"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_feedback_fix1/DYNG-r48u_20260914_DYNG_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "2d5192752344950215eed685d7288d70ab5157ff2e7457229c0447fdbaf5f08b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_round_feedback_fix1/Network-r48u_20260914_DYNG_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "7f8941d7f347df3629b72080470e3e147b13dfe4376dbb688e1b224c36a9d72b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_shadow_fix1/DYNG-r48u_20260914_DYNG_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "60f7bafccbdd64978a26ac1d3700e28c1833ceef5c19cd64d4e7dd336e6ea0ff"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_shadow_fix1/Network-r48u_20260914_DYNG_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "7d7a84006c3b5d35a4a77a7003718bbb9c661c85e2e958b943e17b51743ebe43"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_feedback_fix1/DYNG-r48u_20260914_DYNG_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "3d9dc07aae1102f62b3ea290967ffa48af5044967fb36d1488ca845051ef2869"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_DYNG_UDUC_ils_feedback_fix1/Network-r48u_20260914_DYNG_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "7ab9865fc9688703e92284e3b34d039fd6e1fc54a181f6e88ef98e5152b4da12"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_float_fix1/NICO-r48u_20260914_NICO_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "0314192c6cf45b608c5e6d2164ffb2f678cd77904f794fcbb99514b778dd7a0c"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_float_fix1/Network-r48u_20260914_NICO_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "0e584684c901556607673d2b61443c2738fea69247de7e9aebff016749640ac1"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_shadow_fix1/NICO-r48u_20260914_NICO_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "7b81436aa83c05ba9b8bc1747ba4e9eb93695ca17cec933e47c0ddeadef71914"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_shadow_fix1/Network-r48u_20260914_NICO_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "4e803dacc38d7813182d50f222f5d731b94b9a5d77f1964a91a08c26465c2e4c"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_feedback_fix1/NICO-r48u_20260914_NICO_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "78371518c2c9612137eb7d4c0371de13197280c839bd0c4eebbd4beda954ce25"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_round_feedback_fix1/Network-r48u_20260914_NICO_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "1f9f8313002c77a9fd9a55e0bc558184d52d849b7831f70ff268ee6f262da6c1"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_shadow_fix1/NICO-r48u_20260914_NICO_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "34413e8d171ab5369115767a9233a2e243f660c4f145f7789023e91cc036db38"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_shadow_fix1/Network-r48u_20260914_NICO_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "2a4f922aad21e906ab99975085f00642d7463f37a951e24852fe0dc9b51c3837"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_feedback_fix1/NICO-r48u_20260914_NICO_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "4471db03442ceb4509c21b81f0b1685d83678d7bf6ae9ca5b476c39c3be1bfda"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_NICO_UDUC_ils_feedback_fix1/Network-r48u_20260914_NICO_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "4963c4f8b289e0d8e55b7b4e0029d1140ee7eab55ebe793585cd956ac0e7499b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_float_fix1/BREW-r48u_20260914_BREW_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "71bb261837249bf46f20fa0fd7b8c08b490f77848d4a6619e15c590d4a39b6ed"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_float_fix1/Network-r48u_20260914_BREW_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "66a34a15d10843a334af1c90c18d6c80c1fb77229390eb4ac8cd84134245c676"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_shadow_fix1/BREW-r48u_20260914_BREW_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "cce9a04d45b35a1fc539cf0094ff27c1f9f6e6a4c7321880db61aab37d368746"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_shadow_fix1/Network-r48u_20260914_BREW_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "8004e6504e8962b15c13782622f7b561fb956e26c2150e3e0e2d948cb32fb9f3"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_feedback_fix1/BREW-r48u_20260914_BREW_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "0e40f201302d6f6abf4413dcda6b1deb8e2b2a81b066a30c2a96b32443c82bbb"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_round_feedback_fix1/Network-r48u_20260914_BREW_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "bdf408fcf1a9997816e8d50ae01ca101d5033dacced3a80d0f353760987770b9"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_shadow_fix1/BREW-r48u_20260914_BREW_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "554f600b32dff3c0cf064d40cf0a3b954d49e15dec2dc5e59a33cda39baed100"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_shadow_fix1/Network-r48u_20260914_BREW_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "e66ca50d212379ab1e8ee50e381f63250a9e33104217afbb6597c48c6287e722"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_feedback_fix1/BREW-r48u_20260914_BREW_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "2984bdb6ae09dfa710cd5854ab5b724386cc4fcfef604d80f78f030d5b014bd6"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_BREW_UDUC_ils_feedback_fix1/Network-r48u_20260914_BREW_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "da0d86ff219fcffeb36264dea4c8708dc921771171c5ade56451b139fa3dc588"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_float_fix1/MARS-r48u_20260914_MARS_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "12994f4b672d753b5c4bd28c3a3840212c8937f219ed019098fa03fb716e32cf"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_float_fix1/Network-r48u_20260914_MARS_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "323699635ab248d8e3910f1e50a0d983943e90bb3987f08a690d332b3595428d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_shadow_fix1/MARS-r48u_20260914_MARS_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "23db9166284b3643579e20a15d6e3f4c62f9d7bbb93cd4f473e3aa40bb028e90"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_shadow_fix1/Network-r48u_20260914_MARS_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "1c537427e618faf5a756e34c255b429c3fb8cb54b00456854499d59c634a6527"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_feedback_fix1/MARS-r48u_20260914_MARS_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "f79ac1b0d51185a9d7e9231dde428273f19850e8701aa5ae76d83ee97abd8b3d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_round_feedback_fix1/Network-r48u_20260914_MARS_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "b525cdd011c450431d500da8c42a5e4fbc67e73bb660c1f365546ee5c5a07186"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_shadow_fix1/MARS-r48u_20260914_MARS_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "783be71f8ab578a7443efc47d493f33479318a8a55c656c9c5b3110691482cc4"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_shadow_fix1/Network-r48u_20260914_MARS_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "ed4d8a8dc4998268ede64dc70e51f4985497411f6e2e121442b5132f4ec8c4ca"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_feedback_fix1/MARS-r48u_20260914_MARS_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "a8d2605664e18f45795470541d4ce3829e0a34a433fee7fbc6cae50b1b3a1e5a"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_MARS_UDUC_ils_feedback_fix1/Network-r48u_20260914_MARS_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "a5ee0744d676cf9ceb7865c56e359e625590496ed9f811f29d0c8d864611e14d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_float_fix1/JPLM-r48u_20260914_JPLM_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "0fe170f273e377f2be6a2a7206a9713993adac31acb895e3bd78bfa2a9c3744a"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_float_fix1/Network-r48u_20260914_JPLM_UDUC_float_fix1-202419900.TRACE",
+      "sha256": "2964fd195f3db45e17e536db1b686baf2ed1d6633bf0bf91eb64928d578f1d4b"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_shadow_fix1/JPLM-r48u_20260914_JPLM_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "e13e2228a21f2a5b5eab7725200fc2156e776cca7a228a9e856df9ac81d5578d"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_shadow_fix1/Network-r48u_20260914_JPLM_UDUC_round_shadow_fix1-202419900.TRACE",
+      "sha256": "b45d96e1bbd720f0a174f3b6884a9243ae0d0c150f66eaa9cadbe80fdd0bc422"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_feedback_fix1/JPLM-r48u_20260914_JPLM_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "a5ba28536990ad58d8c0d1b6f84b80c7409eb23a54ffe864cec6e0db3face358"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_round_feedback_fix1/Network-r48u_20260914_JPLM_UDUC_round_feedback_fix1-202419900.TRACE",
+      "sha256": "b84d6e3793078ed1a95d93a0c1266a851bdaa413f9ff814983b241edb25f636a"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_shadow_fix1/JPLM-r48u_20260914_JPLM_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "69eb2dde879576939f8dd8afc993281a4450a4028ac6c45014ec566001e6ceb5"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_shadow_fix1/Network-r48u_20260914_JPLM_UDUC_ils_shadow_fix1-202419900.TRACE",
+      "sha256": "137aea310cb4be4c264f108d53664d73e0e78ad1573b51c62c17a6046cce0607"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_feedback_fix1/JPLM-r48u_20260914_JPLM_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "9d6b7274d4cf170bb335e39bbc0292326580ac65bea3b9d9075533c6d4661816"
+    },
+    {
+      "path": "/mnt/d/GINAN_R20/inputData/outputs/r48u_20260914_JPLM_UDUC_ils_feedback_fix1/Network-r48u_20260914_JPLM_UDUC_ils_feedback_fix1-202419900.TRACE",
+      "sha256": "7b48081688fa3416ca8766a2e54f9d4c93d4daeb83c05a70650b6cf2c727c019"
+    }
+  ]
+}
