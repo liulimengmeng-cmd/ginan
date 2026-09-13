@@ -6,13 +6,13 @@ from pathlib import Path
 import yaml
 import numpy as np
 HERE=Path(__file__).resolve().parent
-WORK=Path('/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913')
+WORK=Path('/mnt/c/Users/rx/Documents/GINAN/r48_user_work_20260913_prefix')
 DATA=Path('/mnt/d/GINAN_R20/inputData')
 SOURCE=HERE.parent.parent
 SERVER=Path('/mnt/c/Users/rx/Documents/GINAN/r48fix1_work_20260913')
 BINARY=Path('/home/rx/GINAN/frozen-r48fix1-active-basis-20260913/bin/pea')
-FIRST=1405209600
-LAST=FIRST+1470
+FIRST=1405209780
+LAST=1405211070
 END='2024-07-17 00:24:30'
 
 def sha(p):
@@ -45,7 +45,7 @@ def main():
    rd=csv.DictReader(fi);wr=csv.DictWriter(fo,fieldnames=rd.fieldnames);wr.writeheader()
    for row in rd:
     epoch=int(float(row['gpst_seconds']))
-    if epoch>LAST:continue
+    if epoch>LAST or epoch<FIRST:continue
     if row['solution']!='PRODUCT_FIXED':continue
     assert FIRST<=epoch<=LAST and (epoch-FIRST)%30==0
     assert None not in row and all(v is not None for v in row.values())
@@ -91,7 +91,7 @@ def main():
  for file in ['base.yaml','user_base.yaml','user_if.yaml']:merge(config,yaml.safe_load((HERE/file).read_text()))
  zp=config['processing_options']['gnss_general']['zhang_pppar']
  zp.update(product_filename=str(WORK/'products/zhang_internal_products.csv'),product_covariance_filename=str(WORK/'products/zhang_internal_product_covariance.csv'),product_solution='PRODUCT_FIXED',user_adapter=True,output_products=False,deterministic_checkpoint=False,checkpoint_runtime_id='R48-USER',canonical_user_target_feedback=True)
- config['processing_options']['epoch_control'].update(start_epoch='2024-07-17 00:00:00',end_epoch=END,epoch_interval=30,wait_next_epoch=3600)
+ config['processing_options']['epoch_control'].update(start_epoch='2024-07-17 00:03:00',end_epoch=END,epoch_interval=30,wait_next_epoch=3600)
  # IF processing does not estimate an unused STEC state.
  config['estimation_parameters']['receivers']['global']['ion_stec']['estimated']=[False]
  config['receiver_options']['global']['exclude']=False
@@ -109,8 +109,8 @@ def main():
    path=WORK/'config'/f'{case}.yaml';path.write_text(yaml.safe_dump(cfg,sort_keys=False))
    assert not (DATA/'outputs'/case).exists()
    cases.append({'station':station['station'],'mode':mode,'case':case,'config':str(path),'config_sha256':sha(path),'observation':station['path'],'output':str(DATA/'outputs'/case)})
- spec={'experiment':'R48 independent user PPP-AR paired prefix','work':str(WORK),'source_root':str(SOURCE),'server_source_commit':'94af7df19c5e5a153b5d8fb799c78a919e28892f','experiment_commit':subprocess.check_output(['git','-C',str(SOURCE),'rev-parse','HEAD'],text=True).strip(),'binary':str(BINARY),'binary_sha256':sha(BINARY),'working_directory':str(DATA),'first_epoch':FIRST,'last_epoch':LAST,'end':END,'expected_epochs':50,'stations':stations,'reference_sinex':{'path':str(snx),'sha256':sha(snx),'reference':reference},'snapshot':snapshot,'cases':cases,'threads':{'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'},'claims':'Independent of the 180-station product estimation; ENU is relative to IGS weekly SINEX apriori, not external ambiguity truth. Upstream DGEMV count 5 remains unresolved. Prefix only, not a full 30-minute or long-term validation.'}
+ spec={'experiment':'R48 independent user PPP-AR paired prefix','work':str(WORK),'source_root':str(SOURCE),'server_source_commit':'94af7df19c5e5a153b5d8fb799c78a919e28892f','experiment_commit':subprocess.check_output(['git','-C',str(SOURCE),'rev-parse','HEAD'],text=True).strip(),'binary':str(BINARY),'binary_sha256':sha(BINARY),'working_directory':str(DATA),'first_epoch':FIRST,'last_epoch':LAST,'end':END,'expected_epochs':44,'stations':stations,'reference_sinex':{'path':str(snx),'sha256':sha(snx),'reference':reference},'snapshot':snapshot,'cases':cases,'threads':{'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','MKL_NUM_THREADS':'1'},'claims':'Independent of the 180-station product estimation; ENU is relative to IGS weekly SINEX apriori, not external ambiguity truth. Upstream DGEMV count 5 remains unresolved. Prefix only, not a full 30-minute or long-term validation.'}
  (WORK/'experiment.json').write_text(json.dumps(spec,indent=2))
  for f in (WORK/'products').iterdir():f.chmod(0o444)
- print(json.dumps({'work':str(WORK),'cases':len(cases),'epochs':50,'end':END,'covariance_epochs':len(cov_audit)},indent=2))
+ print(json.dumps({'work':str(WORK),'cases':len(cases),'epochs':44,'end':END,'covariance_epochs':len(cov_audit)},indent=2))
 if __name__=='__main__':main()
