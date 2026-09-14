@@ -552,18 +552,20 @@ static std::multimap<double, VectorXd> lambdaSearchReducedSuffixRatio(
                 VectorXd zcut     = zfix.tail(zsiz);
                 zfixList.emplace(newdist, zcut);
                 ncand             = zfixList.size();
-                double maxd       = maxdist;
+                double maxd       = newdist * opt.ratthr;
 
                 if (ncand > 1 && maxd < maxdist)
                     maxdist = maxd;
 
+                if (ncand > opt.nset)
+                    break;
 
-                if (2 > 0 && (ncand >= 2))
+                if (opt.nset > 0 && (ncand >= opt.nset))
                 {
                     int ntot = 0;
                     for (auto it = zfixList.begin(); it != zfixList.end();)
                     {
-                        if (ntot++ >= 2)
+                        if (ntot++ >= opt.nset)
                             it = zfixList.erase(it);
                         else
                         {
