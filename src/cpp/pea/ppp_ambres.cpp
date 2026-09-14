@@ -27792,7 +27792,9 @@ static int resolveLayeredWideLaneL1(
             const auto admissionBefore=zhangProductRelationAdmissionStateRegistry();
             ZhangProductRelationFixResult baseline;
             auto* destination=productRelationResult;productRelationResult=&baseline;
-            zhangR51HistoryOnly=true;r51ProductClosure();zhangR51HistoryOnly=false;
+            zhangR51HistoryOnly=true;
+            if(!physicalBefore.rows.empty())r51ProductClosure();
+            zhangR51HistoryOnly=false;
             productRelationResult=destination;frontendBefore();
             zhangProductIntegerLedgerRegistry()=integerBefore;
             zhangProductGaugeCertificateLedgerRegistry()=gaugeBefore;

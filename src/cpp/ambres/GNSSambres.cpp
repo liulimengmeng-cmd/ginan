@@ -1789,6 +1789,11 @@ int GNSS_AR(
     GinAR_opt  opt     ///< Object containing processing options
 )
 {
+    if(zhangR51Enabled() && zhangR51HistoryOnly) {
+        mtrx.Ztrs.resize(0,mtrx.aflt.size());mtrx.zfix.resize(0);
+        mtrx.searchDiagnostic={};mtrx.searchDiagnostic.reason="HISTORY_BASELINE_NO_NEW_DECISIONS";
+        return 0;
+    }
     switch (opt.mode)
     {
         case E_ARmode::OFF:
