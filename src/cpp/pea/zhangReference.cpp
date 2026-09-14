@@ -2951,8 +2951,8 @@ void updateZhangGraphBasis(
             <<" reason="<<reason<<" old_healthy="<<proposal.oldHealthy
             <<" proposed_changed="<<(oldProduct.treeEdges!=nextProduct.treeEdges)
             <<" hard_invalid_edges="<<hardInvalid.size()
-            <<" integer_transport_proven="<<proposal.identityTransport
-            <<" numeric_frontend_consistency_valid="<<proposal.identityTransport
+            <<" integer_transport_proven="<<proposal.transportProven()
+            <<" numeric_frontend_consistency_valid="<<proposal.transportProven()
             <<" status="<<proposal.status;
         // First mutation remains below, after the candidate has been audited.
         nextProduct=commitProductDatum(proposal);
@@ -3051,11 +3051,11 @@ void updateZhangGraphBasis(
                 slippedOldProductEdges.empty();
         }
         const bool graphContinuity=preserved;
-        preserved=preserved && proposal.identityTransport;
+        preserved=preserved && proposal.transportProven();
         BOOST_LOG_TRIVIAL(info)<<"R48_DATUM_CONTINUITY time="<<kfState.time.to_string(0)
             <<" graph_continuity_valid="<<graphContinuity
             <<" arc_segment_continuity_valid="<<hardInvalid.empty()
-            <<" integer_transport_proven="<<proposal.identityTransport
+            <<" integer_transport_proven="<<proposal.transportProven()
             <<" preserve_integer_component_requested="<<preserveIntegerComponent;
         if (runtime.productInitialized && !preserved)
         {

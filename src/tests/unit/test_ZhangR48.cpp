@@ -36,7 +36,7 @@ BOOST_AUTO_TEST_CASE(r48_c2_healthy_tree_identity_and_hard_rebuild) {
  auto old=zhangBuildSpanningTree(edges,"A");
  auto replacement=zhangBuildSpanningTree(edges,"A",{{"B",SatSys("G02")}});
  auto p=proposeProductDatum(old,replacement,{},true);auditProductDatumTransport(p,old);
- BOOST_REQUIRE(p.identityTransport);BOOST_CHECK(commitProductDatum(p).treeEdges==old.treeEdges);
+ BOOST_REQUIRE(zhangR51Enabled()?p.exactBasisTransport:p.identityTransport);BOOST_CHECK(commitProductDatum(p).treeEdges==(zhangR51Enabled()?replacement.treeEdges:old.treeEdges));
  auto e=*old.treeEdges.begin();p=proposeProductDatum(old,replacement,{e},true);auditProductDatumTransport(p,old);
  BOOST_CHECK(!p.identityTransport);BOOST_CHECK_EQUAL(p.status,"TRANSPORT_UNPROVEN");
 }

@@ -678,11 +678,19 @@ public:
 	}
 
     struct Preflight {
-        ZhangProductIntegerLedgerUpdate update;
-        std::string root,physicalEpoch,baseIdentity,proposedIdentity;
-        long int epoch=0;
-        int requiredConfirmations=1;
-        std::vector<ProductIntegerLedgerRow> proposed;
+        const ZhangProductIntegerLedgerUpdate update;
+        const std::string root,physicalEpoch,baseIdentity,proposedIdentity;
+        const long int epoch;
+        const int requiredConfirmations;
+        const std::vector<ProductIntegerLedgerRow> proposed;
+    private:
+        friend class ProductIntegerLedger;
+        Preflight(ZhangProductIntegerLedgerUpdate result,std::string rootId,std::string physicalId,
+            std::string baseId,std::string proposalId,long int time,int confirmations,
+            std::vector<ProductIntegerLedgerRow> rows)
+            :update(std::move(result)),root(std::move(rootId)),physicalEpoch(std::move(physicalId)),
+             baseIdentity(std::move(baseId)),proposedIdentity(std::move(proposalId)),epoch(time),
+             requiredConfirmations(confirmations),proposed(std::move(rows)){}
     };
     static std::string snapshotIdentity(const std::vector<ProductIntegerLedgerRow>& rows) {
         std::ostringstream out;
@@ -691,23 +699,31 @@ public:
                <<":"<<row.lastConfirmed<<":"<<row.confirmationEpochs<<":"<<row.certified
                <<":"<<row.backendBasisGeneration<<":"<<row.phaseSegmentFingerprint
                <<":"<<zhangProductPhysicalRowFingerprint(row.physicalExpansion)<<"|";
-            for(const auto& proof:row.decisionProofs) if(proof) out<<proof->id<<",";
+            out<<std::setprecision(17)<<":"<<int(row.system)<<":"<<int(row.firstObservable)<<":"<<int(row.secondObservable)
+               <<":"<<row.physicalExpansionExact<<":"<<row.coordinate<<":"<<row.firstSatellite<<":"<<row.secondSatellite
+               <<":"<<row.admissionFailureProbabilityBound<<":"<<row.firstCertified<<":"<<int(row.source)
+               <<":"<<row.conditioningOnly<<":"<<row.pairCertificate<<":";
+            for(const auto& value:row.productRow)out<<value<<",";
+            out<<":"<<zhangProductPhysicalRowFingerprint(row.canonicalProductExpansion)<<":";
+            const auto closure=zhangDecisionRiskClosure(row.decisionProofs);
+            out<<closure.valid<<":"<<closure.reason<<":";
+            for(const auto& [id,proof]:closure.atoms) {
+                out<<std::quoted(id)<<std::quoted(proof->originalStatement)<<std::quoted(proof->observationProvenance)
+                   <<proof->conditionalFailureBound;
+                for(const auto& parent:proof->parents)out<<std::quoted(parent?parent->id:"NULL");
+            }
         }
         return out.str();
     }
     Preflight preflight(long int epoch,const std::vector<ProductIntegerLedgerRow>& candidates,
         int confirmations,const std::string& root,const std::string& physicalEpoch) const {
-        Preflight receipt;receipt.root=root;receipt.physicalEpoch=physicalEpoch;
-        receipt.epoch=epoch;receipt.requiredConfirmations=confirmations;
-        receipt.baseIdentity=snapshotIdentity(rows_);
         ProductIntegerLedger trial=*this;
-        receipt.update=trial.observe(epoch,candidates,confirmations);
-        receipt.proposed=std::move(trial.rows_);
-        receipt.proposedIdentity=snapshotIdentity(receipt.proposed);
+        auto result=trial.observe(epoch,candidates,confirmations);
         if(root.empty() || physicalEpoch.empty()) {
-            receipt.update.valid=false;receipt.update.failureReason="R51_PREFLIGHT_IDENTITY_EMPTY";
+            result.valid=false;result.failureReason="R51_PREFLIGHT_IDENTITY_EMPTY";
         }
-        return receipt;
+        const auto base=snapshotIdentity(rows_),proposal=snapshotIdentity(trial.rows_);
+        return Preflight(std::move(result),root,physicalEpoch,base,proposal,epoch,confirmations,std::move(trial.rows_));
     }
     ZhangProductIntegerLedgerUpdate commit(const Preflight& receipt,
         const std::string& root,const std::string& physicalEpoch) {

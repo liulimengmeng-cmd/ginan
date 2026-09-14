@@ -1,3 +1,4 @@
+#include "common/zhangR51Integrity.hpp"
 #include "ambres/GNSSambres.hpp"
 #include <algorithm>
 #include <limits>
@@ -404,11 +405,16 @@ int integer_bootst(
 }
 
 static map<double, VectorXd> lambdaSearchReducedSuffix(
-    const GinAR_mtx& mtrx,
+    GinAR_mtx& mtrx,
     int               zsiz,
-    const GinAR_opt&  opt
+    const GinAR_opt&  opt,
+    int nodeLimit = 2000000
 )
 {
+    const bool completeTopTwo=zhangR51Enabled() && zhangR51SingleBlock;
+    auto& searchAudit=mtrx.searchDiagnostic;
+    ++searchAudit.ilsCalls;searchAudit.ilsComplete=false;
+    int nodes=0;
     int nmax = mtrx.Dtrs.size();
     int kmax = nmax - 1;
     int kmin = kmax - zsiz + 1;
@@ -430,6 +436,7 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
 
     while (search)
     {
+        if(completeTopTwo && ++nodes>nodeLimit) break;
         double newdist = dist(k) + zdif(k) * zdif(k) / mtrx.Dtrs(k);
 
         if (newdist < maxdist)
@@ -450,17 +457,24 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
             else
             {
                 VectorXd zcut     = zfix.tail(zsiz);
-                zfixList[newdist] = zcut;
+                double orderingDistance=newdist;
+                if(completeTopTwo) while(zfixList.contains(orderingDistance))
+                    orderingDistance=std::nextafter(orderingDistance,std::numeric_limits<double>::infinity());
+                zfixList[orderingDistance] = zcut;
                 ncand             = zfixList.size();
                 double maxd       = newdist * opt.ratthr;
+                if(completeTopTwo) {
+                    while(zfixList.size()>2) zfixList.erase(std::prev(zfixList.end()));
+                    if(zfixList.size()==2) maxdist=std::prev(zfixList.end())->first;
+                }
 
-                if (ncand > 1 && maxd < maxdist)
+                if (!completeTopTwo && ncand > 1 && maxd < maxdist)
                     maxdist = maxd;
 
-                if (ncand > opt.nset)
+                if (!completeTopTwo && ncand > opt.nset)
                     break;
 
-                if (opt.nset > 0 && (ncand >= opt.nset))
+                if (!completeTopTwo && opt.nset > 0 && (ncand >= opt.nset))
                 {
                     int ntot = 0;
                     for (auto it = zfixList.begin(); it != zfixList.end();)
@@ -487,8 +501,9 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
         }
         else
         {
-            if (k == kmax)
-                break;
+            if (k == kmax) {
+                searchAudit.ilsComplete=true;break;
+            }
             else
             {
                 k++;
@@ -499,6 +514,16 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
         }
     }
 
+    if(!zfixList.empty()) {
+        searchAudit.bestSquaredDistance=zfixList.begin()->first;
+        if(zfixList.size()>1) {
+            searchAudit.secondSquaredDistance=std::next(zfixList.begin())->first;
+            searchAudit.ratio=searchAudit.bestSquaredDistance>0
+                ?searchAudit.secondSquaredDistance/searchAudit.bestSquaredDistance
+                :std::numeric_limits<double>::infinity();
+        }
+    }
+    if(completeTopTwo && !searchAudit.ilsComplete) zfixList.clear();
     return zfixList;
 }
 

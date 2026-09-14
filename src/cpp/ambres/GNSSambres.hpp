@@ -39,7 +39,7 @@ inline double lambdaSelectedSuffixBootstrapSuccess(
     return success;
 }
 
-inline constexpr std::uint32_t ZHANG_AMBRES_CHECKPOINT_SCHEMA_VERSION = 2;
+inline constexpr std::uint32_t ZHANG_AMBRES_CHECKPOINT_SCHEMA_VERSION = 3;
 inline constexpr const char* ZHANG_AMBRES_CHECKPOINT_SECTION_NAME =
     "zhang_ambres_runtime";
 
@@ -120,6 +120,8 @@ struct GinAR_mtx
         int requestedRank=0, stochasticRank=0, minimumFixCount=0, bootstrapEligibleRank=0;
         double bootstrapBest1d=0, bootstrapFull=0, effectiveSuccess=0, localAlpha=0;
         bool ratioExecuted=false, localNisExecuted=false;
+        bool ilsComplete=false;int ilsCalls=0;
+        double bestSquaredDistance=0,secondSquaredDistance=0,ratio=0;
         string mode="NOT_EVALUATED", reason="NOT_EVALUATED";
     } searchDiagnostic;
     int    lambda_initial_fix_count          = 0;

@@ -578,6 +578,17 @@ struct AmbresWhitenedAccumulatorCheckpoint
     }
 };
 
+struct R51ProofAtomCheckpoint {
+    string id,statement,provenance;double risk=1;vector<string> parents;
+    template<class Archive>void serialize(Archive& ar,const unsigned int){ar&id&statement&provenance&risk&parents;}
+};
+struct R51PhysicalArchiveCheckpoint {
+    string owner;E_Sys system=E_Sys::NONE;bool valid=false;
+    vector<map<string,string>> rows;vector<string> values,roots;
+    vector<R51ProofAtomCheckpoint> proofs;
+    template<class Archive>void serialize(Archive& ar,const unsigned int){ar&owner&system&valid&rows&values&roots&proofs;}
+};
+
 struct AmbresCheckpointEnvelope
 {
     std::uint32_t schemaVersion = ZHANG_AMBRES_CHECKPOINT_SCHEMA_VERSION;
@@ -587,6 +598,7 @@ struct AmbresCheckpointEnvelope
     string transactionalConditioningReason;
     bool arVerbose = false;
     double fixedAmbiguityVariance = 0;
+    vector<R51PhysicalArchiveCheckpoint> r51Archives;
     vector<AmbresE27RuntimeCheckpoint> e27Runtimes;
     vector<AmbresHeldLatticeCheckpoint> heldLattices;
     vector<AmbresHeldEvidenceCheckpoint> heldEvidence;
@@ -608,6 +620,7 @@ struct AmbresCheckpointEnvelope
         ar & transactionalConditioningReason;
         ar & arVerbose;
         ar & fixedAmbiguityVariance;
+        ar & r51Archives;
         ar & e27Runtimes;
         ar & heldLattices;
         ar & heldEvidence;
@@ -1210,6 +1223,20 @@ ZhangAmbresCheckpointResult exportZhangAmbresCheckpointSection(
     snapshot.arVerbose = AR_VERBO;
     snapshot.fixedAmbiguityVariance = FIXED_AMB_VAR;
 
+    if(zhangR51Enabled())for(const auto& [key,store]:r51PhysicalArchives) {
+        if(!zhangAmbresRuntimeBelongsTo(key.first,runtimeId))continue;
+        R51PhysicalArchiveCheckpoint item;item.owner=key.first;item.system=key.second;item.valid=store.valid;
+        for(const auto& row:store.rows){map<string,string> terms;for(const auto& [id,x]:row)terms[id]=x.convert_to<string>();item.rows.push_back(terms);}
+        for(const auto& x:store.values)item.values.push_back(x.convert_to<string>());
+        const auto closure=zhangDecisionRiskClosure(store.parents);
+        if(!closure.valid){result.failureReason="R51_ARCHIVE_PROOF_INVALID";return result;}
+        for(const auto& root:store.parents)item.roots.push_back(root->id);
+        for(const auto& [id,proof]:closure.atoms){R51ProofAtomCheckpoint atom;
+            atom.id=id;atom.statement=proof->originalStatement;atom.provenance=proof->observationProvenance;atom.risk=proof->conditionalFailureBound;
+            for(const auto& parent:proof->parents)atom.parents.push_back(parent->id);item.proofs.push_back(atom);}
+        snapshot.r51Archives.push_back(std::move(item));
+    }
+
     for (const auto& [key, runtime] : zhangE27WideLaneRuntimes)
     {
         if (!zhangAmbresRuntimeBelongsTo(key.runtimeId, runtimeId))
@@ -1566,6 +1593,28 @@ ZhangAmbresCheckpointResult importZhangAmbresCheckpointSection(
         return result;
     }
 
+    decltype(r51PhysicalArchives) restoredR51;
+    try {
+        for(const auto& item:snapshot.r51Archives) {
+            if(!zhangAmbresRuntimeBelongsTo(item.owner,runtimeId) || item.rows.size()!=item.values.size() ||
+                item.rows.size()>ZHANG_AMBRES_MAX_CONTAINER || item.proofs.size()>ZHANG_AMBRES_MAX_CONTAINER)
+                throw std::runtime_error("R51_ARCHIVE_INVALID");
+            std::map<string,std::shared_ptr<ZhangIntegerDecisionProof>> atoms;
+            for(const auto& dto:item.proofs){auto atom=std::make_shared<ZhangIntegerDecisionProof>();
+                atom->id=dto.id;atom->originalStatement=dto.statement;atom->observationProvenance=dto.provenance;atom->conditionalFailureBound=dto.risk;
+                if(!atoms.emplace(dto.id,atom).second)throw std::runtime_error("R51_PROOF_DUPLICATE");}
+            for(const auto& dto:item.proofs)for(const auto& parent:dto.parents)atoms.at(dto.id)->parents.push_back(atoms.at(parent));
+            ZhangR51PhysicalStore store;store.valid=item.valid;
+            for(const auto& id:item.roots)store.parents.push_back(atoms.at(id));
+            if(!zhangDecisionRiskClosure(store.parents).valid)throw std::runtime_error("R51_PROOF_CLOSURE_INVALID");
+            for(int i=0;i<item.rows.size();++i){map<string,ZhangExactInteger> row;
+                for(const auto& [id,x]:item.rows[i])row[id]=ZhangExactInteger(x);
+                store.rows.push_back(row);store.values.push_back(ZhangExactInteger(item.values[i]));}
+            if(!restoredR51.emplace(std::make_pair(item.owner,item.system),std::move(store)).second)
+                throw std::runtime_error("R51_ARCHIVE_DUPLICATE");
+        }
+    } catch(const std::exception& error){result.failureReason=error.what();return result;}
+
     AmbresRestoredRuntime restored;
     if (!ambresRestoreEnvelope(snapshot, runtimeId, restored, result))
     {
@@ -1593,6 +1642,7 @@ ZhangAmbresCheckpointResult importZhangAmbresCheckpointSection(
         return result;
     }
 
+    if(zhangR51Enabled())r51PhysicalArchives.swap(restoredR51);
     zhangE27WideLaneRuntimes.swap(committed.e27Runtimes);
     zhangPersistentHeldLattices.swap(committed.heldLattices);
     zhangPersistentHeldEvidence.swap(committed.heldEvidence);

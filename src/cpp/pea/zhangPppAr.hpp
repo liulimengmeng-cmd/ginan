@@ -1,3 +1,4 @@
+#include <functional>
 #pragma once
 
 #include <cstdint>
@@ -778,3 +779,5 @@ void traceZhangPppArUserDiagnostics(
     ReceiverMap& receiverMap,
     KFState&     kfState
 );
+
+std::function<void()> zhangR51CaptureProductRuntime();

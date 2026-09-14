@@ -168,3 +168,6 @@ inline std::string zhangR51NumericRoot(const VectorXd& x,const MatrixXd& p) {
     add(reinterpret_cast<const char*>(p.data()),p.size()*sizeof(double));
     return std::to_string(x.size())+"x"+std::to_string(p.rows())+"x"+std::to_string(p.cols())+":"+std::to_string(h);
 }
+
+inline thread_local bool zhangR51HistoryOnly=false;
+inline thread_local bool zhangR51SingleBlock=false;

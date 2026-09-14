@@ -9325,6 +9325,49 @@ void writeZhangFloatOnlyProductsNoLifecycle(
           << " sidecar_mutation=0";
 }
 
+std::function<void()> zhangR51CaptureProductRuntime() {
+    auto saved_continuityMap=continuityMap;
+    auto saved_houProductDatumVersionTrackers=houProductDatumVersionTrackers;
+    auto saved_houProductPhysicalFunctionalIdentities=houProductPhysicalFunctionalIdentities;
+    auto saved_houProductPhysicalFunctionals=houProductPhysicalFunctionals;
+    auto saved_houProductSBasisFingerprints=houProductSBasisFingerprints;
+    auto saved_houProductPhaseSegmentIdentities=houProductPhaseSegmentIdentities;
+    auto saved_houProductTreeAlignmentCycles=houProductTreeAlignmentCycles;
+    auto saved_houProductSnapshotIdentities=houProductSnapshotIdentities;
+    auto saved_pendingProductTransitions=pendingProductTransitions;
+    auto saved_pendingSnapshotPins=pendingSnapshotPins;
+    auto saved_globalContinuityMap=globalContinuityMap;
+    auto saved_satelliteDatumManagers=satelliteDatumManagers;
+    auto saved_hybridRealGaugeTransports=hybridRealGaugeTransports;
+    auto saved_e18PersistentProductDatumRegistries=e18PersistentProductDatumRegistries;
+    auto saved_promotionEvidence=promotionEvidence;
+    auto saved_relinkEvidence=relinkEvidence;
+    auto saved_productHistoryMap=productHistoryMap;
+    auto saved_productMap=productMap;
+    auto saved_e18FactorCaptureBuffers=e18FactorCaptureBuffers;
+    return [saved_continuityMap=std::move(saved_continuityMap),saved_houProductDatumVersionTrackers=std::move(saved_houProductDatumVersionTrackers),saved_houProductPhysicalFunctionalIdentities=std::move(saved_houProductPhysicalFunctionalIdentities),saved_houProductPhysicalFunctionals=std::move(saved_houProductPhysicalFunctionals),saved_houProductSBasisFingerprints=std::move(saved_houProductSBasisFingerprints),saved_houProductPhaseSegmentIdentities=std::move(saved_houProductPhaseSegmentIdentities),saved_houProductTreeAlignmentCycles=std::move(saved_houProductTreeAlignmentCycles),saved_houProductSnapshotIdentities=std::move(saved_houProductSnapshotIdentities),saved_pendingProductTransitions=std::move(saved_pendingProductTransitions),saved_pendingSnapshotPins=std::move(saved_pendingSnapshotPins),saved_globalContinuityMap=std::move(saved_globalContinuityMap),saved_satelliteDatumManagers=std::move(saved_satelliteDatumManagers),saved_hybridRealGaugeTransports=std::move(saved_hybridRealGaugeTransports),saved_e18PersistentProductDatumRegistries=std::move(saved_e18PersistentProductDatumRegistries),saved_promotionEvidence=std::move(saved_promotionEvidence),saved_relinkEvidence=std::move(saved_relinkEvidence),saved_productHistoryMap=std::move(saved_productHistoryMap),saved_productMap=std::move(saved_productMap),saved_e18FactorCaptureBuffers=std::move(saved_e18FactorCaptureBuffers)]() {
+        continuityMap=saved_continuityMap;
+        houProductDatumVersionTrackers=saved_houProductDatumVersionTrackers;
+        houProductPhysicalFunctionalIdentities=saved_houProductPhysicalFunctionalIdentities;
+        houProductPhysicalFunctionals=saved_houProductPhysicalFunctionals;
+        houProductSBasisFingerprints=saved_houProductSBasisFingerprints;
+        houProductPhaseSegmentIdentities=saved_houProductPhaseSegmentIdentities;
+        houProductTreeAlignmentCycles=saved_houProductTreeAlignmentCycles;
+        houProductSnapshotIdentities=saved_houProductSnapshotIdentities;
+        pendingProductTransitions=saved_pendingProductTransitions;
+        pendingSnapshotPins=saved_pendingSnapshotPins;
+        globalContinuityMap=saved_globalContinuityMap;
+        satelliteDatumManagers=saved_satelliteDatumManagers;
+        hybridRealGaugeTransports=saved_hybridRealGaugeTransports;
+        e18PersistentProductDatumRegistries=saved_e18PersistentProductDatumRegistries;
+        promotionEvidence=saved_promotionEvidence;
+        relinkEvidence=saved_relinkEvidence;
+        productHistoryMap=saved_productHistoryMap;
+        productMap=saved_productMap;
+        e18FactorCaptureBuffers=saved_e18FactorCaptureBuffers;
+    };
+}
+
 void writeZhangInternalProducts(
     Trace&         trace,
     const KFState& integerLedgerState,
@@ -11558,10 +11601,27 @@ void writeZhangInternalProducts(
 			auto& ledger = zhangProductIntegerLedgerRegistry()[
 				{integerLedgerRuntimeId, productCertification->system}];
             ZhangProductIntegerLedgerUpdate update;
-            if (productLedgerWriterAuthorized)
-                update = ledger.observe(
+            if (productLedgerWriterAuthorized) {
+                if(zhangR51Enabled()) {
+                    const auto root=zhangR51NumericRoot(floatState.x,floatState.P);
+                    const auto physicalEpoch=std::to_string(productCertification->backendBasisGeneration)+"|"+fixedState.time.to_string(0);
+                    const auto receipt=ledger.preflight(static_cast<long int>(fixedState.time.bigTime),candidates,
+                        std::max(1,acsConfig.zhangPppAr.stabilization_epochs),root,physicalEpoch);
+                    update=ledger.commit(receipt,root,physicalEpoch);
+                    trace<<"\nZHANG_R51_LEDGER_PREFLIGHT time="<<fixedState.time.to_string(0)
+                        <<" valid="<<receipt.update.valid<<" same_rows_commit=1 root="<<root;
+                    if(update.exactConflict.valid && !update.exactConflict.feasible) {
+                        const auto& w=update.exactConflict;
+                        trace<<"\nZHANG_R51_CONFLICT_WITNESS time="<<fixedState.time.to_string(0)
+                            <<" kind="<<w.kind<<" modulus="<<w.modulus<<" rhs="<<w.rhs<<" remainder="<<w.remainder;
+                        for(int i=0;i<w.combination.size();++i) if(w.combination[i]!=0)
+                            trace<<"\nZHANG_R51_CONFLICT_WITNESS_ROW index="<<i<<" multiplier="<<w.combination[i]
+                                <<" physical="<<update.conflictRows.at(i);
+                    }
+                } else update = ledger.observe(
                     static_cast<long int>(fixedState.time.bigTime), candidates,
                     std::max(1, acsConfig.zhangPppAr.stabilization_epochs));
+            }
             else
                 update.failureReason = productLedgerWriterFailureReason;
             if (update.conflictingCandidateIndex >= 0)
