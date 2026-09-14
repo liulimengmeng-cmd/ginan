@@ -31641,6 +31641,17 @@ void fixAndHoldAmbiguities(
         ARmtx.aflt.size() > 0 &&
         heldIntegerRank == ARmtx.aflt.size();
     bool r51UsedBaseline=false;
+    const auto r51HeldBefore=zhangPersistentHeldLattices;
+    const auto r51HeldEvidenceBefore=zhangPersistentHeldEvidence;
+    bool r51NetworkTrialReady=true;
+    if(zhangR51Enabled() && nfix>0 && fixedBranchValid) {
+        const auto admission=appendPersistentHeldRows(trace,kfState,*workingState,ARmtx);
+        r51NetworkTrialReady=admission.second==0;
+        for(const auto& [identity,lattice]:zhangPersistentHeldLattices)
+            if(identity.first==zhangAmbresRuntimeId(kfState))r51NetworkTrialReady &= lattice.consistent;
+        trace<<"\nZHANG_R51_HELD_TRIAL time="<<kfState.time.to_string(0)<<" ready="<<r51NetworkTrialReady
+            <<" rejected="<<admission.second<<" publication_pending=1";
+    }
     auto writeSelectedProduct=[&]() {
     writeZhangInternalProducts(
         trace,
@@ -31681,10 +31692,11 @@ void fixAndHoldAmbiguities(
         };
         {
             ZhangR51OutputBundle bundle(kfState.time.to_string(0),"ENHANCED",root);
-            writeSelectedProduct();
+            if(r51NetworkTrialReady)writeSelectedProduct();
             if(r47ProductTransactionCommitted)bundle.publish(certificateText(productRelationFix),true);
         }
         if(!r47ProductTransactionCommitted) {
+            zhangPersistentHeldLattices=r51HeldBefore;zhangPersistentHeldEvidence=r51HeldEvidenceBefore;
             r51PppRuntimeBefore();zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
             zhangProductGaugeCertificateLedgerRegistry()=r47GaugeLedgerBefore;
             zhangProductRelationAdmissionStateRegistry()=r51AdmissionBefore;
@@ -31737,8 +31749,6 @@ void fixAndHoldAmbiguities(
             }
         }
     }
-    if(zhangR51Enabled() && r47ProductTransactionCommitted && nfix>0 && fixedBranchValid)
-        appendPersistentHeldRows(trace,kfState,*workingState,ARmtx);
     if(!r47ProductTransactionCommitted)
     {
         zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
