@@ -30675,7 +30675,11 @@ void fixAndHoldAmbiguities(
         traceZhangE18RawIntegerDatumWindow(trace, kfState, kfState.time);
         if (acsConfig.zhangPppAr.output_products)
         {
-            writeZhangFloatOnlyProductsNoLifecycle(trace, kfState);
+            if(zhangR51Enabled()) {
+                ZhangR51OutputBundle bundle(kfState.time.to_string(0),"QC_FLOAT_ONLY",zhangR51NumericRoot(kfState.x,kfState.P));
+                writeZhangFloatOnlyProductsNoLifecycle(trace,kfState);
+                bundle.publish("reason=CURRENT_PPP_AUTHORITY_GATE_FAILED\n",false);
+            } else writeZhangFloatOnlyProductsNoLifecycle(trace,kfState);
         }
         return;
     }
