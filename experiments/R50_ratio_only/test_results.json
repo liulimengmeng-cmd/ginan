@@ -1,0 +1,10 @@
+{
+  "zhang_full_rank_tests": {
+    "status": 0,
+    "seconds": 3.590947389602661
+  },
+  "zhang_checkpoint_infra0_tests": {
+    "status": 0,
+    "seconds": 0.08924174308776855
+  }
+}

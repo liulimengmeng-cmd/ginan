@@ -1,0 +1,32 @@
+[
+  {
+    "file": "case.yaml",
+    "identical": false,
+    "sha256": "c36838d99e0bbd901f3ba6fcd7a850d9b4cfcacc130090eb306a4e9f3119b33a"
+  },
+  {
+    "file": "zhang_global_2024199_180_base.yaml",
+    "identical": true,
+    "sha256": "3dfc6bdeb11c68935faa28487ebe00933c58a40ffb6b272ae657d8e5c153304e"
+  },
+  {
+    "file": "zhang_global_2024199_180_e29_180network_product_1h.yaml",
+    "identical": true,
+    "sha256": "b81885b7068ae7b9a1ac248b6307f9a8bcaf4560e5578e6b1be0f4071de3c99e"
+  },
+  {
+    "file": "zhang_global_2024199_180_e29_service_30s_1h.yaml",
+    "identical": true,
+    "sha256": "a1dffb39fbf3541a5aa8a69d01c5cf072dd8ef070f4aa8ecdcc27c44a5687706"
+  },
+  {
+    "file": "zhang_global_2024199_180_inputs.yaml",
+    "identical": true,
+    "sha256": "aebe8b93c15b62aa9df9cdbcbdb3089d6c82fb23d405c951601ad70daac798d3"
+  },
+  {
+    "file": "zhang_global_2024199_180_product.yaml",
+    "identical": true,
+    "sha256": "5136d101b58334e1fd4c93d238a8a44d8e24299bfff1ccab8e5234e8eb0d0026"
+  }
+]

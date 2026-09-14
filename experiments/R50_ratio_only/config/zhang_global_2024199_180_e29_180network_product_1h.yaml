@@ -1,0 +1,51 @@
+# One-hour 180-station Hybrid Layer-1 product run.  The authoritative filter is
+# float; WL/PAR/FULL are disposable same-epoch branches.  E29-A2/B2 is audited
+# at 00:37 without fixed-lag factor capture or integer feedback.
+processing_options:
+  epoch_control:
+    start_epoch: 2024-07-17 00:00:00
+    end_epoch: 2024-07-17 01:00:00
+    epoch_interval: 60
+    wait_next_epoch: 3600
+  gnss_general:
+    zhang_full_rank:
+      sys_options:
+        gps:
+          state_edge_grace_epochs: 10
+          prefer_historical_edges: true
+          core_skeleton: false
+          product_core_min_satellite_support: 2
+    zhang_pppar:
+      integer_strategy: LAYERED_WL_L1
+      product_mode: HOU_OSB_LIKE
+      hou_product_coordinate: PRODUCT_TREE
+      temporal_product_transition_shadow: true
+      fixed_lag_factor_capture_shadow: false
+      l1_candidate_shadow_ablation: NONE
+      l1_multibranch_par_shadow: true
+      l1_canonical_physical_search: true
+      l1_multibranch_core_max_dimension: 20
+      l1_multibranch_reserve_dimension: 100
+      l1_multibranch_branch_factor: 4
+      l1_multibranch_beam_width: 12
+      l1_multibranch_maximum_depth: 20
+      l1_multibranch_minimum_rank: 3
+      l1_multibranch_evaluate_all_tiers: true
+      l1_multibranch_product_objective: USER_QUOTIENT
+      l1_iar_gain_audit_shadow: true
+      l1_iar_gain_audit_target_epoch: 2024-07-17 00:37:00
+      e29_real_math_closure_shadow: true
+      e29_real_math_closure_target_epoch: 2024-07-17 00:37:00
+      l1_subset_oracle_shadow: false
+      deterministic_checkpoint: false
+      product_filename: ./outputs/zhang_global_2024199_180_e29_180network_product_1h/zhang_internal_products.csv
+      product_covariance_filename: ./outputs/zhang_global_2024199_180_e29_180network_product_1h/zhang_internal_product_covariance.csv
+
+outputs:
+  outputs_root: ./outputs/zhang_global_2024199_180_e29_180network_product_1h
+  trace:
+    level: 1
+    output_residuals: false
+  metadata:
+    config_description: zhang_global_2024199_180_e29_180network_product_1h
+
