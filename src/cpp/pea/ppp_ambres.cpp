@@ -25850,7 +25850,16 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         if(x!=0 && !columns.contains(id))columns[id]=columns.size();
     auto dense=[&](const auto& group){ZhangExactMatrix out(group.size(),ZhangExactVector(columns.size()));
         for(int i=0;i<group.size();++i)for(const auto& [id,x]:group[i])if(x!=0)out[i][columns.at(id)]=x;return out;};
-    const auto frame=zhangR51PhysicalImage(dense(physicalTargets),dense(store.rows),store.values,targets,columns.size());
+    trace<<"\nZHANG_R51_DOMAIN_COMPILE_START time="<<owner.time.to_string(0)<<" stage="<<stage
+        <<" physical_rows="<<store.rows.size()<<" targets="<<targets.size()<<std::flush;
+    const auto frame=[&]() {
+        ZhangPhaseTimer timer(trace,"R51_PHYSICAL_AFFINE_IMAGE");
+        if(store.rows.empty()) {
+            auto unit=zhangR51UnconstrainedUnitImage(physicalTargets,targets);
+            if(unit.valid)return unit;
+        }
+        return zhangR51PhysicalImage(dense(physicalTargets),dense(store.rows),store.values,targets,columns.size());
+    }();
     const int searchRank=frame.projector.size();
     trace<<"\nZHANG_R51_FREE_INTEGER_DOMAIN time="<<owner.time.to_string(0)<<" stage="<<stage
         <<" physical_rows="<<store.rows.size()<<" physical_variables="<<columns.size()

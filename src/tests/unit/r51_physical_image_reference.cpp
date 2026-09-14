@@ -4,6 +4,10 @@
 #include <stdexcept>
 void check(bool x,const char* msg){if(!x)throw std::runtime_error(msg);}
 int main(){
+    auto unit=zhangR51UnconstrainedUnitImage({{{"u",1},{"v",-1}},{{"w",-1},{"v",1}}},{{1,-1,0},{0,1,-1}});
+    check(unit.valid && unit.projector.size()==2,"private unit-column right inverse");
+    check(!zhangR51UnconstrainedUnitImage({{{"u",2}}},{{1}}).valid,"nonprimitive target cannot use unit shortcut");
+    check(!zhangR51UnconstrainedUnitImage({{{"u",1}},{{"u",1}}},{{1},{1}}).valid,"dependent target cannot use unit shortcut");
     // Hidden integer r imposes parity on visible a; it must not disappear.
     auto parity=zhangR51PhysicalImage({{1,0}},{{1,-2}},{0},{{1}},2);
     check(parity.valid && parity.projector.size()==1,"parity image");

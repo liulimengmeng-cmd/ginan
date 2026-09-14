@@ -8,6 +8,28 @@ struct ZhangR51PhysicalImage {
     ZhangR51RationalRow offsets;
     ZhangExactMatrix generators;ZhangExactVector particularTarget;
 };
+// A sparse exact right-inverse witness proves an unconstrained target is
+// already primitive: choose a private unit column for each target row.
+// No floating rank test and no relaxation of a nonprimitive image is used.
+inline ZhangR51PhysicalImage zhangR51UnconstrainedUnitImage(
+    const std::vector<std::map<std::string,ZhangExactInteger>>& physical,
+    const ZhangExactMatrix& numerical)
+{
+    ZhangR51PhysicalImage out;
+    if(physical.empty() || physical.size()!=numerical.size())return out;
+    std::map<std::string,int> counts;
+    for(const auto& row:physical)for(const auto& [id,x]:row)if(x!=0)++counts[id];
+    for(const auto& row:physical) {
+        bool unit=false;for(const auto& [id,x]:row)unit |= (x==1 || x==-1) && counts[id]==1;
+        if(!unit){out.reason="NO_PRIVATE_UNIT_COLUMN_WITNESS";return out;}
+    }
+    const int m=numerical.size(),n=numerical.front().size();
+    if(!zhangExactRectangularMatrix(numerical,n))return out;
+    out.projector.assign(m,ZhangR51RationalRow(n));out.offsets.resize(m);out.particularTarget.resize(m);
+    out.generators=zhangExactIdentityMatrix(m);
+    for(int i=0;i<m;++i)for(int c=0;c<n;++c)if(numerical[i][c]!=0)out.projector[i][c]=numerical[i][c];
+    out.valid=true;out.reason="EXACT_PRIVATE_UNIT_COLUMN_RIGHT_INVERSE";return out;
+}
 // The old physical variables are existential integers, including variables no
 // longer in the KF. The image of their affine solution is an integer lattice,
 // which can be nonprimitive in the visible target coordinates.
