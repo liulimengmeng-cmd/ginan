@@ -81,6 +81,7 @@
     "integer_solver": "same LAMBDA Z reduction and depth-first enumeration; existing candidate-limit termination retained; distinct returned candidates for ratio",
     "partial_order": "same reduced suffix order, ratio instead of bootstrap/NIS rejects suffix",
     "tree_and_integer_transport": "unchanged exact mappings and algebraic rules",
-    "historical_rechecks": "same identity, segments, maturation, proof provenance and numerical validity; statistical gates diagnostic only"
+    "historical_rechecks": "same identity, segments, maturation, proof provenance and numerical validity; statistical gates diagnostic only",
+    "candidate_set_size": 200
   }
 }

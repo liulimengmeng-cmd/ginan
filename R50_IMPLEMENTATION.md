@@ -15,4 +15,4 @@ Ratio = second-best weighted squared distance / best weighted squared distance, 
 
 Validation includes top-two brute-force reference checks, default-off regression suite, R50 numerical/identity/risk policy tests, checkpoint tests, protected algorithm byte comparison and a one-epoch real PEA smoke run before formal launch.
 
-Reference caveat: one of 18 two-dimensional fixtures did not return the global top two under R49 candidate-limit termination. This known baseline search limitation is preserved intentionally to isolate the requested validation ablation; the experiment must not be presented as a globally complete ILS/Ratio benchmark.
+Reference caveat: at a two-candidate test cap, one of 18 two-dimensional fixtures did not return the global top two under R49 candidate-limit termination. The formal R49/R50 configuration retains its candidate set size of 200; the reference harness also tests that setting. This known baseline search limitation is preserved intentionally to isolate the requested validation ablation; the experiment must not be presented as a globally complete ILS/Ratio benchmark.

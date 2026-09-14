@@ -1,5 +1,5 @@
 from pathlib import Path
-import subprocess,tempfile
+import subprocess,tempfile,sys
 root=Path(__file__).resolve().parents[3]
 s=(root/'src/cpp/ambres/GNSSambres.cpp').read_text()
 a=s.index('static std::multimap<double, VectorXd> lambdaSearchReducedSuffixRatio(')
@@ -45,6 +45,10 @@ int main(){
  cout<<"PASS R50 ratio boundary cases and 18 R49 candidate-enumeration equivalence fixtures with brute-force diagnostics; equal-cost candidates retained\n";
 }
 '''
+cap=int(sys.argv[1]) if len(sys.argv)>1 else 2
+assert cap>=2
+harness=harness.replace('int nset=2;',f'int nset={cap};')
+print(f'candidate_set_size={cap}',flush=True)
 with tempfile.TemporaryDirectory(prefix='r50_ratio_') as d:
  p=Path(d);(p/'test.cpp').write_text(harness)
  subprocess.run(['g++','-std=c++20','-O1','-I'+str(root/'src/cpp'),'-I/home/rx/GINAN/vcpkg_installed/linux/x64-linux/include/eigen3',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
