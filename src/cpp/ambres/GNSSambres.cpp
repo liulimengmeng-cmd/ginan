@@ -1,3 +1,4 @@
+#include "common/zhangR50Validation.hpp"
 #include "ambres/GNSSambres.hpp"
 #include <algorithm>
 #include <limits>
@@ -502,6 +503,103 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
     return zfixList;
 }
 
+static std::multimap<double, VectorXd> lambdaSearchReducedSuffixRatio(
+    const GinAR_mtx& mtrx,
+    int               zsiz,
+    const GinAR_opt&  opt
+)
+{
+    int nmax = mtrx.Dtrs.size();
+    int kmax = nmax - 1;
+    int kmin = kmax - zsiz + 1;
+    std::multimap<double, VectorXd> zfixList;
+    VectorXd dist = VectorXd::Zero(nmax);
+    VectorXd zadj = VectorXd::Zero(nmax);
+    VectorXd zfix = VectorXd::Zero(nmax);
+    VectorXd zdif = VectorXd::Zero(nmax);
+    VectorXd step = VectorXd::Zero(nmax);
+
+    int k          = kmax;
+    zadj(k)        = mtrx.zflt(k);
+    zfix(k)        = ROUND(zadj(k));
+    zdif(k)        = zadj(k) - zfix(k);
+    step(k)        = zdif(k) < 0 ? -1 : 1;
+    bool   search  = true;
+    double maxdist = 1e99;
+    int    ncand   = 0;
+
+    while (search)
+    {
+        double newdist = dist(k) + zdif(k) * zdif(k) / mtrx.Dtrs(k);
+
+        if (newdist < maxdist)
+        {
+            if (k != kmin)
+            {
+                k--;
+                dist(k) = newdist;
+
+                zadj(k) = mtrx.zflt(k);
+                for (int j = k + 1; j < nmax; j++)
+                    zadj(k) -= zdif(j) * mtrx.Ltrs(j, k);
+
+                zfix(k) = ROUND(zadj(k));
+                zdif(k) = zadj(k) - zfix(k);
+                step(k) = zdif(k) < 0 ? -1 : 1;
+            }
+            else
+            {
+                VectorXd zcut     = zfix.tail(zsiz);
+                zfixList.emplace(newdist, zcut);
+                ncand             = zfixList.size();
+                double maxd       = maxdist;
+
+                if (ncand > 1 && maxd < maxdist)
+                    maxdist = maxd;
+
+
+                if (2 > 0 && (ncand >= 2))
+                {
+                    int ntot = 0;
+                    for (auto it = zfixList.begin(); it != zfixList.end();)
+                    {
+                        if (ntot++ >= 2)
+                            it = zfixList.erase(it);
+                        else
+                        {
+                            maxd = it->first;
+                            ++it;
+                        }
+                    }
+
+                    if (maxd < maxdist)
+                        maxdist = maxd;
+
+                    ncand = zfixList.size();
+                }
+
+                zfix(kmin) += step(kmin);
+                zdif(kmin) = zadj(kmin) - zfix(kmin);
+                step(kmin) = -step(kmin) + (step(kmin) < 0 ? 1 : -1);
+            }
+        }
+        else
+        {
+            if (k == kmax)
+                break;
+            else
+            {
+                k++;
+                zfix(k) += step(k);
+                zdif(k) = zadj(k) - zfix(k);
+                step(k) = -step(k) + (step(k) < 0 ? 1 : -1);
+            }
+        }
+    }
+
+    return zfixList;
+}
+
 /** Lambda algorithm and its variations (ILQ, Common set, BIE) */
 int lambda_search(
     Trace&     trace,  ///< Debug trace
@@ -807,7 +905,7 @@ int lambda_search(
     diagnostic.bootstrapBest1d=lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs,1);
     int k = nmax - 1;
     double succ = erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
-    if (succ < opt.sucthr)
+    if (!zhangR50RatioOnly() && succ < opt.sucthr)
     {
         diagnostic.reason="BEST_1D_BOOTSTRAP_TOO_LOW";
         return 0;
@@ -819,7 +917,7 @@ int lambda_search(
             zsiz < opt.max_lambda_fix_count))
     {
         succ *= erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
-        if (succ < opt.sucthr)
+        if (!zhangR50RatioOnly() && succ < opt.sucthr)
         {
             break;
         }
@@ -833,13 +931,28 @@ int lambda_search(
     }
     mtrx.lambda_initial_fix_count = zsiz;
 
-    map<double, VectorXd> zfixList;
+    std::multimap<double, VectorXd> zfixList;
     while (zsiz >= minimumFixCount)
     {
-        zfixList = lambdaSearchReducedSuffix(mtrx, zsiz, opt);
+        if (zhangR50RatioOnly()) zfixList=lambdaSearchReducedSuffixRatio(mtrx,zsiz,opt);
+        else {auto legacy=lambdaSearchReducedSuffix(mtrx,zsiz,opt);zfixList={legacy.begin(),legacy.end()};}
         if (zfixList.empty())
         {
             break;
+        }
+        if (zhangR50RatioOnly())
+        {
+            diagnostic.ratioExecuted=true;
+            auto best=zfixList.begin();auto next=std::next(best);
+            const auto ratio=next==zfixList.end() ? ZhangR50RatioResult{} :
+                zhangR50AssessRatio(best->first,next->first,opt.ratthr);
+            trace << "\nR50_RATIO_TEST rank=" << zsiz << " best=" << best->first
+                  << " second=" << (next==zfixList.end() ? -1 : next->first)
+                  << " ratio=" << ratio.ratio << " threshold=" << opt.ratthr
+                  << " accepted=" << ratio.accepted << " bootstrap_gate=0 nis_gate=0 perr_gate=0";
+            if (ratio.accepted) break;
+            --zsiz;
+            continue;
         }
         const double mindist = zfixList.begin()->first;
         if (!(opt.lambda_candidate_nis_alpha > 0 &&
@@ -977,7 +1090,7 @@ int lambda_search(
 
     if (zsiz < minimumFixCount || zfixList.empty())
     {
-        diagnostic.reason=zfixList.empty()?"CANDIDATE_ENUMERATION_FAILED":"LOCAL_NIS_REJECTED";
+        diagnostic.reason=zfixList.empty()?"CANDIDATE_ENUMERATION_FAILED":(zhangR50RatioOnly()?"RATIO_REJECTED":"LOCAL_NIS_REJECTED");
         mtrx.Ztrs.resize(0, nmax);
         mtrx.zfix.resize(0);
         return 0;
@@ -992,6 +1105,7 @@ int lambda_search(
         lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs, zsiz);
 
     diagnostic.reason="ACCEPTED";
+    if (zhangR50RatioOnly()) return zfix0.size();
     switch (opt.mode)
     {
         case E_ARmode::LAMBDA:
