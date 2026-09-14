@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangR50Validation.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR47Candidate.hpp"
 #include <iomanip>
@@ -42,7 +43,7 @@ inline ZhangSequentialShadowResult zhangR48SafePrefix(
    <<" null_residual="<<nis.nullResidual<<" min_eigenvalue="<<nis.minEigenvalue
    <<" max_eigenvalue="<<nis.maxEigenvalue<<" tolerance="<<nis.rankTolerance;
   emit(s.str());
-  if(!nis.valid || nis.nis>nis.threshold)return false;
+  if(!nis.valid || zhangR50StatisticalReject(nis.nis>nis.threshold))return false;
   accepted=std::move(h.basis);rhs=std::move(h.values);return true;
  };
  if(!baseline.empty()) {
@@ -84,7 +85,7 @@ inline ZhangSequentialShadowResult zhangR48SafePrefix(
    emit(e.str());
    if(!candidate.valid || candidate.rows.empty() || candidate.rows.size()!=candidate.values.size() ||
       !std::isfinite(candidate.failureProbability) || candidate.failureProbability<0 ||
-      candidate.failureProbability>allocation || (merge && candidate.rows.size()!=coords.size()))return false;
+      zhangR50StatisticalReject(candidate.failureProbability>allocation) || (merge && candidate.rows.size()!=coords.size()))return false;
    ZhangExactMatrix selector(coords.size(),ZhangExactVector(qm.size()));
    for(int i=0;i<coords.size();++i)selector[i][coords[i]]=1;
    for(const auto& row:candidate.rows)if(row.size()!=coords.size())return false;

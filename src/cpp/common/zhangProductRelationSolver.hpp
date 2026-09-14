@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangR50Validation.hpp"
 #include "common/zhangR48ExactAudit.hpp"
 
 
@@ -1568,7 +1569,7 @@ zhangBuildPersistentCertificateSnapshot(
 		posteriorNullity > ambientDimension || rows.size() != values.size() ||
 		result.posteriorMomentId.empty() ||
 		!std::isfinite(currentCertificateRisk) || currentCertificateRisk < 0 ||
-		currentCertificateRisk > 1 || !std::isfinite(lifetimeBroadcastRisk) ||
+		zhangR50StatisticalReject(currentCertificateRisk > 1) || !std::isfinite(lifetimeBroadcastRisk) ||
 		lifetimeBroadcastRisk < 0 || lifetimeBroadcastRisk > 1)
 	{
 		result.failureReason = "PERSISTENT_SNAPSHOT_INPUT_INVALID";
@@ -2095,7 +2096,7 @@ inline int zhangFinalizeHistoricalProductPairAuthorization(
 		!constraints.currentReauthorizedHistoricalExactTransport ||
 		constraints.currentReauthorizedHistoricalDecisionProofs.empty() ||
 		!proofClosure.valid || !std::isfinite(chargedRisk) || chargedRisk < 0 ||
-		chargedRisk > totalFailureProbabilityBudget + 1e-12)
+		zhangR50StatisticalReject(chargedRisk > totalFailureProbabilityBudget + 1e-12))
 		return 0;
 	std::vector<std::string> familyIds =
 		constraints.currentReauthorizedHistoricalFamilyIds;

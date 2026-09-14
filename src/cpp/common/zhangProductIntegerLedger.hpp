@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangR50Validation.hpp"
 
 #include "common/zhangIntegerDecisionProof.hpp"
 
@@ -96,7 +97,7 @@ inline double zhangProductLedgerPosteriorFailureBudget(
 		1e-12, 1.0);
 	if (!std::isfinite(row.admissionFailureProbabilityBound) ||
 		row.admissionFailureProbabilityBound < 0 ||
-		row.admissionFailureProbabilityBound > 1)
+		zhangR50StatisticalReject(row.admissionFailureProbabilityBound > 1))
 	{
 		// An invalid admission receipt cannot be repaired with the current
 		// configured budget: that would silently replace historical evidence
@@ -220,12 +221,12 @@ zhangRecheckProductIntegerOnPosterior(
 	result.nis = nis.nis;
 	result.nisThreshold = nis.threshold;
 	result.reliable = result.sameInteger && nis.valid &&
-		nis.nis <= nis.threshold &&
-		result.failureProbability <= maximumFailureProbability + 1e-12;
+		zhangR50StatisticalAccept(nis.nis <= nis.threshold) &&
+		zhangR50StatisticalAccept(result.failureProbability <= maximumFailureProbability + 1e-12);
 	result.failureReason = result.reliable ? "NONE" :
 		(!result.sameInteger ? "INTEGER_CHANGED" :
 		 (!nis.valid ? "NIS_INVALID" :
-		  (nis.nis > nis.threshold ? "NIS_REJECTED" :
+		  (zhangR50StatisticalReject(nis.nis > nis.threshold) ? "NIS_REJECTED" :
 		   "FAILURE_PROBABILITY_EXCEEDED")));
 	return result;
 }
@@ -517,7 +518,7 @@ public:
 			}
 			if (!std::isfinite(candidate.admissionFailureProbabilityBound) ||
 				candidate.admissionFailureProbabilityBound < 0 ||
-				candidate.admissionFailureProbabilityBound > 1)
+				zhangR50StatisticalReject(candidate.admissionFailureProbabilityBound > 1))
 			{
 				result.failureReason =
 					"PRODUCT_LEDGER_ADMISSION_FAILURE_BOUND_INVALID";
