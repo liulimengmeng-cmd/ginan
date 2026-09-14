@@ -16,6 +16,7 @@
 #include "common/zhangIntegerCandidateNis.hpp"
 #include "common/zhangIntegerProductGainFrontier.hpp"
 #include "common/zhangIntegerAudit.hpp"
+#include "common/zhangR51Integrity.hpp"
 
 enum class ZhangProductIntegerLedgerSource
 {
@@ -122,6 +123,8 @@ inline bool zhangProductLedgerPresearchAllowsFreshWithoutHistory(
 
 struct ZhangProductIntegerLedgerUpdate
 {
+    ZhangR51ConflictWitness exactConflict;
+    std::vector<std::string> conflictRows;
 	bool valid = false;
 	int inputRows = 0;
 	int freshRows = 0;
@@ -659,6 +662,11 @@ public:
                 result.activeRankAfter=result.activeRankBefore;
                 result.conflictingRows++;
                 result.failureReason="PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT";
+                if(zhangR51Enabled()) {
+                    result.exactConflict=zhangR51ExactConflictWitness(physical,values);
+                    for(const auto& row:proposedRows) if(row.physicalExpansionExact)
+                        result.conflictRows.push_back(zhangProductPhysicalRowFingerprint(row.physicalExpansion));
+                }
                 return result;
             }
         }
@@ -669,6 +677,49 @@ public:
 		return result;
 	}
 
+    struct Preflight {
+        ZhangProductIntegerLedgerUpdate update;
+        std::string root,physicalEpoch,baseIdentity,proposedIdentity;
+        long int epoch=0;
+        int requiredConfirmations=1;
+        std::vector<ProductIntegerLedgerRow> proposed;
+    };
+    static std::string snapshotIdentity(const std::vector<ProductIntegerLedgerRow>& rows) {
+        std::ostringstream out;
+        for(const auto& row:rows) {
+            out<<zhangProductLedgerIdentityFingerprint(row)<<"="<<row.integerValue
+               <<":"<<row.lastConfirmed<<":"<<row.confirmationEpochs<<":"<<row.certified
+               <<":"<<row.backendBasisGeneration<<":"<<row.phaseSegmentFingerprint
+               <<":"<<zhangProductPhysicalRowFingerprint(row.physicalExpansion)<<"|";
+            for(const auto& proof:row.decisionProofs) if(proof) out<<proof->id<<",";
+        }
+        return out.str();
+    }
+    Preflight preflight(long int epoch,const std::vector<ProductIntegerLedgerRow>& candidates,
+        int confirmations,const std::string& root,const std::string& physicalEpoch) const {
+        Preflight receipt;receipt.root=root;receipt.physicalEpoch=physicalEpoch;
+        receipt.epoch=epoch;receipt.requiredConfirmations=confirmations;
+        receipt.baseIdentity=snapshotIdentity(rows_);
+        ProductIntegerLedger trial=*this;
+        receipt.update=trial.observe(epoch,candidates,confirmations);
+        receipt.proposed=std::move(trial.rows_);
+        receipt.proposedIdentity=snapshotIdentity(receipt.proposed);
+        if(root.empty() || physicalEpoch.empty()) {
+            receipt.update.valid=false;receipt.update.failureReason="R51_PREFLIGHT_IDENTITY_EMPTY";
+        }
+        return receipt;
+    }
+    ZhangProductIntegerLedgerUpdate commit(const Preflight& receipt,
+        const std::string& root,const std::string& physicalEpoch) {
+        auto result=receipt.update;
+        if(!zhangProductLedgerWriterCommitAuthorized(result)) return result;
+        if(root!=receipt.root || physicalEpoch!=receipt.physicalEpoch ||
+           snapshotIdentity(rows_)!=receipt.baseIdentity ||
+           snapshotIdentity(receipt.proposed)!=receipt.proposedIdentity) {
+            result.valid=false;result.failureReason="R51_PREFLIGHT_RECEIPT_STALE";return result;
+        }
+        rows_=receipt.proposed;return result;
+    }
 	const std::vector<ProductIntegerLedgerRow>& rows() const { return rows_; }
 
 	std::vector<ProductIntegerLedgerRow> rowsForGeneration(
