@@ -1,4 +1,4 @@
-"""One-shot validation of frozen inputs and final R49 outputs. Never polls."""
+"""One-shot validation of frozen inputs and final R50 outputs. Never polls."""
 from pathlib import Path
 import argparse,json,csv,hashlib,subprocess,re,collections,itertools
 from metrics import quality,metrics
@@ -61,9 +61,9 @@ def final(status):
      if line.startswith('ZHANG_AR_PHASE_TIMER'):
       fields=dict(re.findall(r'(\w+)=([^\s]+)',line))
       if 'exclusive_ms' in fields:timers[fields['phase']]+=float(fields['exclusive_ms'])/1000
-  result['alarms']=dict(alarms);result['r49_event_counts']=dict(events);result['exclusive_timer_seconds']=dict(timers)
+  result['alarms']=dict(alarms);result['r50_event_counts']=dict(events);result['exclusive_timer_seconds']=dict(timers)
   if alarms:result['failures'].append('CONTRACT_OR_NUMERICAL_ALARM')
-  (W/'r49_event_records.txt').write_text('\n'.join(records)+'\n')
+  (W/'r50_event_records.txt').write_text('\n'.join(records)+'\n')
   result['matched_comparison']={}
   for key in ['r47','r48fix1','r49']:
    baseline=enrich(quality(Path(SPEC['baseline_outputs'][key])/'zhang_internal_products.csv'))
@@ -71,8 +71,8 @@ def final(status):
    bm=metrics([b[e] for e in common]);cm=metrics([c[e] for e in common])
    bm['certified_pair_epoch_integral']=sum(b[e]['certified_pair_count'] for e in common)
    cm['certified_pair_epoch_integral']=sum(c[e]['certified_pair_count'] for e in common)
-   result['matched_comparison'][key]={'epoch_count':len(common),'baseline':bm,'r49':cm}
-  lines=['# R49 completion audit','',f'PEA exit: {status}. Completed epochs: {len(epochs)}/61.','',
+   result['matched_comparison'][key]={'epoch_count':len(common),'baseline':bm,'r50':cm}
+  lines=['# R50 completion audit','',f'PEA exit: {status}. Completed epochs: {len(epochs)}/61.','',
     '|Epoch|Strict dual AR satellites|Largest component|Components|Certified satellite pairs|','|---|---:|---:|---:|---:|']
   lines += [f"|{e['time']}|{e['strict_ar']}|{e['largest_component']}|{e['component_count']}|{e['certified_pair_count']}|" for e in epochs]
   lines += ['', 'Failures: '+(', '.join(result['failures']) or 'NONE'),'',SPEC['claims']]

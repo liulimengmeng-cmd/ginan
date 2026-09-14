@@ -12,7 +12,7 @@ flock -n 8 || exit 88
 pgrep -x pea >/dev/null && exit 90
 [[ ! -e /mnt/d/GINAN_R20/r50_root_snapshots_20260914 && ! -e "$output" && ! -e "$log" && ! -e "$state" && ! -e /mnt/d/GINAN_R20/r50_checkpoints_20260914 ]] || exit 89
 cd "$frozen"
-sha256sum -c SHA256SUMS >"$audit/r49_preflight_hashes.log" || exit 93
+sha256sum -c SHA256SUMS >"$audit/r50_preflight_hashes.log" || exit 93
 root_source=$(findmnt -nro SOURCE /)
 root_options=$(findmnt -nro OPTIONS /)
 [[ ",$root_options," == *,rw,* ]] || exit 92
@@ -20,7 +20,7 @@ mem_available_kib=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
 [[ "$mem_available_kib" -ge 11500000 ]] || exit 94
 record() { printf '%s %s\n' "$(date --iso-8601=seconds)" "$*" | tee -a "$state" "$log"; }
 trap 'rc=$?; record "RUNNER_EXIT status=$rc"' EXIT
-python3 "$audit/verify_r50.py" --preflight >"$audit/r49_root_preflight.json"
+python3 "$audit/verify_r50.py" --preflight >"$audit/r50_root_preflight.json"
 python3 - "$audit" <<'PY'
 import json,sys
 from pathlib import Path
@@ -51,8 +51,8 @@ pea_status=$?
 set -e
 record "FINISH pea_status=$pea_status output_preserved=1"
 set +e
-python3 "$audit/verify_r50.py" --pea-status "$pea_status" >"$audit/r49_final_verification.json"
+python3 "$audit/verify_r50.py" --pea-status "$pea_status" >"$audit/r50_final_verification.json"
 verification_status=$?
 set -e
-record "FINAL_VERIFICATION status=$verification_status report=$audit/r49_final_verification.json"
+record "FINAL_VERIFICATION status=$verification_status report=$audit/r50_final_verification.json"
 exit "$verification_status"
