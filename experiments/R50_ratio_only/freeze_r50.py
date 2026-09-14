@@ -3,6 +3,14 @@ import subprocess,json,shutil,hashlib,datetime,re
 w=Path(__file__).resolve().parent;spec=json.loads((w/'experiment.json').read_text());r=Path(spec['source_root']);f=Path(spec['frozen_root']);assert not f.exists()
 test=json.loads((w/'test_results.json').read_text());assert all(v['status']==0 for v in test.values())
 smoke=json.loads((w/'smoke_result.json').read_text());assert smoke['status']==0
+manifests=list(Path(smoke['checkpoint_directory']).glob('*/checkpoint_manifest.json'))
+assert len(manifests)==1
+checkpoint=json.loads(manifests[0].read_text())
+assert checkpoint['runtime_id']=='R50-NETWORK' and checkpoint['state_dimension']>0
+assert checkpoint['binary_sha256']==hashlib.sha256((r/'bin/pea').read_bytes()).hexdigest()
+assert checkpoint['binary_sha256']==json.loads((w/'smoke_binary_identity.json').read_text())['running_binary_sha256']
+assert list(Path(smoke['root_snapshot_directory']).glob('*.bin'))
+
 log=(w/'smoke.log').read_text();assert 'illegal value' not in log and 'R49_INVALID_DGEMV_ARGUMENT' not in log
 trace='\n'.join(p.read_text(errors='replace') for p in Path(smoke['output']).glob('*.TRACE'))
 assert 'R50_VALIDATION_POLICY ratio_only=1 ratio_threshold=3' in trace
@@ -29,6 +37,7 @@ f.mkdir();shutil.copytree(r/'src',f/'source/src');shutil.copytree(w/'config',f/'
 for n in ['pea','zhang_full_rank_tests','zhang_checkpoint_infra0_tests']:shutil.copy2(r/'bin'/n,f/'bin'/n)
 for p in w.iterdir():
  if p.is_file() and p.suffix in ['.py','.json','.log','.md','.sh','.txt']:shutil.copy2(p,f/'evidence'/p.name)
+shutil.copy2(manifests[0],f/'evidence/smoke_checkpoint_manifest.json')
 shutil.copy2(w/'INPUTS_SHA256SUMS',f/'evidence/INPUTS_SHA256SUMS');shutil.copy2(r/'R50_IMPLEMENTATION.md',f/'evidence/R50_IMPLEMENTATION.md')
 (f/'evidence/source_diff_from_r49.patch').write_text(git('diff',spec['baseline_snapshot_commit'],'--','src'))
 (f/'evidence/runtime.json').write_text(json.dumps({'source_commit':commit,'records_commit':records_commit,'ldd':subprocess.check_output(['ldd',str(f/'bin/pea')],text=True),'policy':spec['r50_policy']},indent=2)+'\n')
