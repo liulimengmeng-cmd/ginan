@@ -87,6 +87,7 @@
 #include "common/zhangR49BridgeScheduler.hpp"
 #include "common/zhangR49RouteFusion.hpp"
 #include "common/zhangR49RootSnapshot.hpp"
+#include "common/zhangR51Warmup.hpp"
 
 
 static bool filterError = false;
@@ -30688,6 +30689,29 @@ void fixAndHoldAmbiguities(
     {
         return;
     }
+
+    static const long double scheduledArStart = zhangR51ParseArStart(
+        std::getenv("ZHANG_R51_AR_START_GPST_SECONDS"));
+    if (scheduledArStart>0 && (!zhangR51Enabled() || !acsConfig.zhangFullRank.enable ||
+        acsConfig.zhangPppAr.user_adapter || !acsConfig.zhangPppAr.transactional_integer_fixing))
+        throw std::runtime_error("R51 scheduled AR requires transactional network FLOAT authority");
+    if (zhangR51FloatWarmup(kfState.time.bigTime,scheduledArStart))
+    {
+        trace << "\nR51_AR_SCHEDULE time=" << kfState.time.to_string(0)
+              << " phase=FLOAT_WARMUP search_calls=0 history_applied=0 authoritative_feedback=0";
+        traceZhangE18RawIntegerDatumWindow(trace,kfState,kfState.time);
+        if (acsConfig.zhangPppAr.output_products)
+        {
+            ZhangR51OutputBundle bundle(kfState.time.to_string(0),"WARMUP_FLOAT_ONLY",
+                zhangR51NumericRoot(kfState.x,kfState.P));
+            writeZhangFloatOnlyProductsNoLifecycle(trace,kfState);
+            bundle.publish("reason=SCHEDULED_FLOAT_WARMUP\n",false);
+        }
+        return;
+    }
+    if (scheduledArStart>0)
+        trace << "\nR51_AR_SCHEDULE time=" << kfState.time.to_string(0)
+              << " phase=AR_ENABLED float_state_reset=0";
 
     const bool zhangAuthorityRequired =
         acsConfig.zhangFullRank.enable ||
