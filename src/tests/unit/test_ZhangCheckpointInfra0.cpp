@@ -534,3 +534,81 @@ BOOST_AUTO_TEST_CASE(r48_controller_30_second_checkpoint_roundtrip) {
  BOOST_CHECK(!preflightZhangPeaControllerCheckpointSection(payload,60,plan).valid);
  BOOST_CHECK_SMALL(double((restoreZhangCheckpointTime(state.nextTsync)-completed).to_double())-30,1e-9);
 }
+
+BOOST_AUTO_TEST_CASE(unread_daily_rinex_stream_roundtrips_with_active_stream)
+{
+    RinexFixture active;
+    auto file = std::make_unique<FileStream>(active.input.path.string());
+    file->sourceString = "rinex://R0-next-day";
+    auto parser = std::make_unique<RinexParser>();
+    parser->rnxRec.id = "R0";
+    auto pending = std::make_shared<ObsStream>(std::move(file), std::move(parser));
+    active.streams.emplace("R0", pending);
+    active.done["rinex://R0-next-day"] = true;
+    std::string payload;
+    auto exported = exportZhangRinexFileStreamsCheckpointSection(
+        active.streams, active.done, payload);
+    BOOST_REQUIRE_MESSAGE(exported.valid, exported.failureReason);
+    BOOST_CHECK_EQUAL(exported.streamCount, 2);
+    auto& pendingFile = dynamic_cast<FileStream&>(pending->stream);
+    auto& pendingParser = dynamic_cast<RinexParser&>(pending->parser);
+    pendingFile.filePos = 5;
+    pendingParser.ctype = 'O'; pendingParser.version = 3.04;
+    pendingParser.time_system = E_TimeSys::GPST;
+    pendingParser.nav_system = E_Sys::GPS;
+    pendingParser.rnxRec.marker = "changed-after-capture";
+    pending->interval = 30;
+    ZhangRinexFileStreamsCheckpointRestorePlan plan;
+    auto preflight = preflightZhangRinexFileStreamsCheckpointSection(
+        active.streams, active.done, payload, plan);
+    BOOST_REQUIRE_MESSAGE(preflight.valid, preflight.failureReason);
+    auto committed = commitZhangRinexFileStreamsCheckpointSection(
+        active.streams, active.done, plan);
+    BOOST_REQUIRE_MESSAGE(committed.valid, committed.failureReason);
+    BOOST_CHECK_EQUAL(pendingFile.filePos, 0);
+    BOOST_CHECK_EQUAL(pendingParser.ctype, 0);
+    BOOST_CHECK_EQUAL(pendingParser.version, 0);
+    BOOST_CHECK(pendingParser.time_system == E_TimeSys::NONE);
+    BOOST_CHECK(pendingParser.rnxRec.marker.empty());
+    BOOST_CHECK_EQUAL(pendingParser.rnxRec.id, "R0");
+    BOOST_CHECK_EQUAL(pending->interval, 0);
+    std::string roundtrip;
+    BOOST_REQUIRE(exportZhangRinexFileStreamsCheckpointSection(
+        active.streams, active.done, roundtrip).valid);
+    BOOST_CHECK_EQUAL(roundtrip, payload);
+}
+
+BOOST_AUTO_TEST_CASE(unread_rinex_stream_rejects_partially_initialized_states)
+{
+    for (int mutation = 0; mutation < 10; ++mutation)
+    {
+        RinexFixture fixture;
+        auto& parser = fixture.parser();
+        parser.ctype = 0; parser.version = 0;
+        parser.nav_system = E_Sys::NONE; parser.time_system = E_TimeSys::NONE;
+        parser.rnxRec = {}; parser.rnxRec.id = "R0";
+        parser.tempObsList.clear(); parser.obsListList.clear(); parser.sysCodeTypes.clear();
+        fixture.file().filePos = 0;
+        fixture.observationStream->obsAgeCode = E_ObsAgeCode::CURRENT_OBS;
+        fixture.observationStream->lastReadTime = GTime::noTime();
+        fixture.observationStream->interval = 0;
+        switch (mutation)
+        {
+            case 0: fixture.file().filePos = 1; break;
+            case 1: parser.version = 3.04; break;
+            case 2: parser.ctype = 'O'; break;
+            case 3: parser.time_system = E_TimeSys::GPST; break;
+            case 4: parser.rnxRec.marker = "unexpected"; break;
+            case 5: fixture.observationStream->interval = 30; break;
+            case 6: parser.obsListList.emplace_back(); break;
+            case 7: parser.rnxRec.pos(0) = 1; break;
+            case 8: parser.rnxRec.id = "WRONG"; break;
+            case 9: fixture.observationStream->lastReadTime.bigTime = 1; break;
+        }
+        std::string payload;
+        auto result = exportZhangRinexFileStreamsCheckpointSection(
+            fixture.streams, fixture.done, payload);
+        BOOST_CHECK_MESSAGE(!result.valid, "accepted malformed unread state " << mutation);
+        BOOST_CHECK(payload.empty());
+    }
+}

@@ -1183,11 +1183,42 @@ bool validRinexStreamState(
         failureReason = "RINEX_STREAM_CHECKPOINT_INVALID_OBS_STREAM_STATE";
         return false;
     }
+    // A later daily file is registered before its first parse.  Its zero
+    // header is a valid resumable state only when the entire parser/cursor is
+    // pristine.  Preserve it verbatim so restore reads the header normally.
+    // This uses the existing serialized fields; parsed-stream rules stay strict.
+    if (state.rinexContentType == 0 && state.rinexVersion == 0)
+    {
+        const auto& station = state.station;
+        const bool pristine = !state.dead && state.filePosition == 0
+            && state.observationAgeCode == static_cast<int>(E_ObsAgeCode::CURRENT_OBS)
+            && checkpointTimesEqual(state.lastReadTime,
+                captureZhangCheckpointTime(GTime::noTime()))
+            && state.observationInterval == 0
+            && state.navigationSystem == static_cast<int>(E_Sys::NONE)
+            && state.timeSystem == static_cast<int>(E_TimeSys::NONE)
+            && state.systemCodeTypes.empty()
+            && state.temporaryObservations.empty()
+            && state.futureObservationQueue.empty()
+            && station.id == state.receiverId
+            && station.marker.empty() && station.antennaDescription.empty()
+            && station.antennaSerial.empty() && station.receiverType.empty()
+            && station.receiverFirmware.empty() && station.receiverSerial.empty()
+            && station.antennaDelta.isZero(0)
+            && station.approximatePosition.isZero(0);
+        if (!pristine)
+            failureReason = "RINEX_STREAM_CHECKPOINT_INVALID_UNREAD_STATE:" +
+                state.receiverId + ":" + state.canonicalPath;
+        return pristine;
+    }
     if (state.rinexContentType != 'O'
         || !std::isfinite(state.rinexVersion)
         || state.rinexVersion < 2 || state.rinexVersion >= 5)
     {
-        failureReason = "RINEX_STREAM_CHECKPOINT_UNSUPPORTED_RINEX_HEADER";
+        failureReason = "RINEX_STREAM_CHECKPOINT_UNSUPPORTED_RINEX_HEADER:" +
+            state.receiverId + ":" + state.canonicalPath +
+            ":version=" + std::to_string(state.rinexVersion) +
+            ":type=" + std::to_string(static_cast<int>(state.rinexContentType));
         return false;
     }
     if (!magic_enum::enum_contains(static_cast<E_Sys>(state.navigationSystem))
