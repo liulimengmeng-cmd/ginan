@@ -11,6 +11,20 @@ struct ZhangR49PosteriorWorkspace {
  std::string epoch,reason="NOT_EVALUATED";
  bool valid=false;
  std::uint64_t generation=0,hits=0,decompositions=0;
+ // Retain a root we have just conditioned, keyed by the exact covariance
+ // formed here. Do not accept a caller-supplied (possibly mismatched) P/root
+ // pair. The next factor() still requires identical P, ordering and epoch.
+ bool formGram(MatrixXd root,const std::vector<std::string>& order,const std::string& time) {
+  valid=false;
+  if(root.rows()==0 || root.rows()!=root.cols() || order.size()!=root.rows() || !root.allFinite()) {
+   reason="CONDITIONED_ROOT_INVALID";return false;
+  }
+  MatrixXd gram=root*root.transpose();
+  gram=(0.5*(gram+gram.transpose())).eval();
+  if(!gram.allFinite()){reason="CONDITIONED_GRAM_INVALID";return false;}
+  covariance=std::move(gram);squareRoot=std::move(root);stateOrder=order;epoch=time;
+  ++generation;valid=true;reason="NONE";return true;
+ }
  bool factor(const MatrixXd& p,const std::vector<std::string>& order,const std::string& time) {
   if(valid && epoch==time && stateOrder==order && p.rows()==covariance.rows() &&
      p.cols()==covariance.cols() && (p.array()==covariance.array()).all()) {++hits;return true;}

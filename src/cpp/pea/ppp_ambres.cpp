@@ -5007,7 +5007,11 @@ static bool conditionZhangAmbiguitiesExactly(
     std::vector<std::string> order(kfState.x.size());
     for(const auto& [key,index]:kfState.kfIndexMap)order.at(index)=(string)key;
     const auto oldHits=priorWorkspace.hits;
-    if(!priorWorkspace.factor(kfState.P,order,kfState.time.to_string(0))) {
+    const bool rootReady=[&]() {
+        ZhangPhaseTimer timer(trace,"KF_ROOT_FACTOR");
+        return priorWorkspace.factor(kfState.P,order,kfState.time.to_string(0));
+    }();
+    if(!rootReady) {
         zhangTransactionalConditioningReason=priorWorkspace.reason;
         zhangTransactionalConditioningFailed=true;return false;
     }
@@ -5038,10 +5042,20 @@ static bool conditionZhangAmbiguitiesExactly(
         conditionedSquareRoot -=
             (priorSquareRoot * activeBasis) * activeBasis.transpose();
     }
-    MatrixXd conditionedCovariance =
-        conditionedSquareRoot * conditionedSquareRoot.transpose();
-    conditionedCovariance =
-        0.5 * (conditionedCovariance + conditionedCovariance.transpose());
+    MatrixXd conditionedCovariance;
+    {
+        ZhangPhaseTimer timer(trace,"KF_COVARIANCE_GRAM");
+        if(zhangR51Enabled()) {
+            if(!priorWorkspace.formGram(std::move(conditionedSquareRoot),order,kfState.time.to_string(0))) {
+                zhangTransactionalConditioningReason=priorWorkspace.reason;
+                zhangTransactionalConditioningFailed=true;return false;
+            }
+            conditionedCovariance=priorWorkspace.covariance;
+        } else {
+            conditionedCovariance=conditionedSquareRoot*conditionedSquareRoot.transpose();
+            conditionedCovariance=(0.5*(conditionedCovariance+conditionedCovariance.transpose())).eval();
+        }
+    }
     double closure = (A * conditionedState - mtrx.zfix)
                          .lpNorm<Eigen::Infinity>();
     double diagonalScale = std::max(
@@ -24236,6 +24250,7 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 	double newNetworkFailureProbability = 1,
 	ZhangDecisionProofPtr newNetworkProof = {})
 {
+	ZhangPhaseTimer phaseTimer(trace,"PRODUCT_SEARCH_BASE_BUILD");
 	ZhangProductSearchBase result;
 	result.posterior = floatState;
 	// Keep the complete successfully-conditioned evidence domain. Missing
@@ -25852,6 +25867,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         for(int i=0;i<group.size();++i)for(const auto& [id,x]:group[i])if(x!=0)out[i][columns.at(id)]=x;return out;};
     trace<<"\nZHANG_R51_DOMAIN_COMPILE_START time="<<owner.time.to_string(0)<<" stage="<<stage
         <<" physical_rows="<<store.rows.size()<<" targets="<<targets.size()<<std::flush;
+    const auto exactMetricsBefore=zhangR48ExactMetrics;
     const auto frame=[&]() {
         ZhangPhaseTimer timer(trace,"R51_PHYSICAL_AFFINE_IMAGE");
         if(store.rows.empty()) {
@@ -25860,19 +25876,32 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         }
         return zhangR51PhysicalImage(dense(physicalTargets),dense(store.rows),store.values,targets,columns.size());
     }();
+    // Report before the later product closure resets the generic counters.
+    // These are nested inclusive counters, not additive phase percentages.
+    for(const auto& [phase,metric]:zhangR48ExactMetrics) {
+        const auto before=exactMetricsBefore.find(phase);
+        const auto calls=metric.calls-(before==exactMetricsBefore.end()?0:before->second.calls);
+        if(calls)trace<<"\nR51_EXACT_TIMING time="<<owner.time.to_string(0)<<" stage="<<stage
+            <<" phase="<<phase<<" inclusive_seconds="
+            <<metric.seconds-(before==exactMetricsBefore.end()?0:before->second.seconds)<<" calls="<<calls;
+    }
     const int searchRank=frame.projector.size();
     trace<<"\nZHANG_R51_FREE_INTEGER_DOMAIN time="<<owner.time.to_string(0)<<" stage="<<stage
         <<" physical_rows="<<store.rows.size()<<" physical_variables="<<columns.size()
         <<" free_rank="<<searchRank<<" status="<<frame.reason;
     if(!frame.valid || searchRank==0 || zhangR51HistoryOnly)return result;
-    MatrixXd projection(searchRank,n);VectorXd offset(searchRank);
-    for(int i=0;i<searchRank;++i) {
-        for(int c=0;c<n;++c)projection(i,c)=frame.projector[i][c].convert_to<double>();
-        offset(i)=frame.offsets[i].convert_to<double>();
+    VectorXd qmean;MatrixXd qcov;
+    {
+        ZhangPhaseTimer timer(trace,"R51_BLOCK_NUMERIC_PROJECTION");
+        MatrixXd projection(searchRank,n);VectorXd offset(searchRank);
+        for(int i=0;i<searchRank;++i) {
+            for(int c=0;c<n;++c)projection(i,c)=frame.projector[i][c].convert_to<double>();
+            offset(i)=frame.offsets[i].convert_to<double>();
+        }
+        // Q_BB is always a marginal of the current accepted posterior.
+        qmean=projection*current.aflt+offset;
+        qcov=projection*current.Paflt*projection.transpose();
     }
-    // Q_BB is always a marginal of the current accepted posterior.
-    VectorXd qmean=projection*current.aflt+offset;
-    MatrixXd qcov=projection*current.Paflt*projection.transpose();
     std::set<int> fixed;std::map<std::vector<int>,int> attemptedVersion;
     int version=0;ZhangExactMatrix acceptedRows;ZhangExactVector acceptedValues;
     auto parents=zhangMergeDecisionProofs(current.decisionProofs,store.parents);
