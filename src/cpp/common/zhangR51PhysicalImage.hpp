@@ -39,7 +39,8 @@ inline ZhangR51PhysicalImage zhangR51PhysicalImage(
 {
     ZhangR51PhysicalImage out;
     if(physicalTargets.empty() || physicalTargets.size()!=numericalTargets.size())return out;
-    const auto frame=zhangR47CompileProductSearchFrame(physicalTargets,history,values,physicalDimension);
+    const auto frame=zhangR47CompileProductSearchFrame(physicalTargets,history,values,physicalDimension,
+        ZhangProductFrameWork::IMAGE_GENERATORS_ONLY);
     if(!frame.valid || !frame.affine.valid){out.reason=frame.reason;return out;}
     const int m=physicalTargets.size(),n=numericalTargets.front().size(),rank=frame.searchRank;
     out.particularTarget.resize(m);

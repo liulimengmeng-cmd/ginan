@@ -16,9 +16,12 @@ struct ZhangR47ProductSearchFrame
  * Only columns touched by the products/conditioners enter exact elimination;
  * ILS dimension is rank(T K), never the number of network cycles. HNF column
  * image generators retain all Smith divisibility without treating 2Z as Z. */
+enum class ZhangProductFrameWork { INTEGER_PROJECTOR, IMAGE_GENERATORS_ONLY };
+
 inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     const ZhangExactMatrix& targets,const ZhangExactMatrix& conditioners,
-    const ZhangExactVector& values,int dimension)
+    const ZhangExactVector& values,int dimension,
+    ZhangProductFrameWork work=ZhangProductFrameWork::INTEGER_PROJECTOR)
 {
     ZhangR48ExactTimer productTimer("R48_PRODUCT_IMAGE",targets,dimension);
     ZhangR47ProductSearchFrame out;
@@ -40,7 +43,8 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
         return result;
     };
     const auto t=compact(targets),h=compact(conditioners);
-    out.targetRank=zhangExactRowHermiteNormalForm(t).basis.size();
+    if(work==ZhangProductFrameWork::INTEGER_PROJECTOR)
+        out.targetRank=zhangExactRowHermiteNormalForm(t).basis.size();
     out.affine=zhangExactAffineIntegerQuotient(h,values,out.columns.size(),ZhangExactQuotientWork::PARTICULAR_AND_KERNEL);
     if(!out.affine.valid) {out.reason=out.affine.failureReason;return out;}
     out.conditionerRank=out.affine.deterministicRank;
@@ -53,6 +57,15 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     if(!image.valid) {out.reason="PRODUCT_IMAGE_COORDINATES_FAILED";return out;}
     out.imageGenerators=image.imageGenerators;
     out.searchRank=image.primitiveRows.size();
+    // R51 constructs and audits its own rational left inverse of this exact
+    // image. It does not consume targetRank, the network integer projector or
+    // its offsets. Preserve the same affine kernel/image and their ordering,
+    // but avoid computing a second, unused lift through the full network.
+    if(work==ZhangProductFrameWork::IMAGE_GENERATORS_ONLY) {
+        out.valid=true;
+        out.reason=out.searchRank?"EXACT_PRODUCT_IMAGE_QUOTIENT":"PRODUCT_FULLY_DETERMINED";
+        return out;
+    }
     // Solve only the product-image coordinate RHS, never construct the
     // entire network quotient left inverse. K is saturated, so these rows
     // have exact integer lifts. Audit each lift before exposing it to ILS.
