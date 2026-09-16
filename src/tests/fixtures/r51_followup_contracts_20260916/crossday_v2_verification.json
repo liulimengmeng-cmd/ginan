@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "continuous_epochs": 4,
+  "restored_epochs": 3,
+  "checks": [
+    {
+      "epoch": "2024-07-17 23:59:30",
+      "root_identical": true,
+      "byte_identical": [
+        "products.csv",
+        "covariance.csv"
+      ]
+    },
+    {
+      "epoch": "2024-07-18 00:00:00",
+      "root_identical": true,
+      "byte_identical": [
+        "products.csv",
+        "covariance.csv"
+      ]
+    },
+    {
+      "epoch": "2024-07-18 00:00:30",
+      "root_identical": true,
+      "byte_identical": [
+        "products.csv",
+        "covariance.csv"
+      ]
+    }
+  ],
+  "binary_sha256": "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38",
+  "checkpoint": "/mnt/c/Users/rx/Documents/GINAN/r51_followup_contracts_20260916/crossday_v2_checkpoints/E29-20240717235900-e1-r74d9bd229117/checkpoint.bundle",
+  "reference": "/mnt/d/GINAN_R20/inputData/outputs/zhang_r51_followup_crossday_v2_20260916_continuous_reference",
+  "restored": "/mnt/d/GINAN_R20/inputData/outputs/zhang_r51_followup_crossday_v2_20260916"
+}

@@ -1,0 +1,29 @@
+[
+  {
+    "label": "followup",
+    "case": "r51_contracts_followup_20260916_v1",
+    "command": [
+      "/usr/bin/time",
+      "-v",
+      "/home/rx/GINAN/r51-graph-speed-fix-20260916/bin/pea",
+      "-q",
+      "-y",
+      "/home/rx/GINAN/frozen-r51opt-float24h-ar24h-restart1-20260915/config/zhang_global_2024199_180_base.yaml",
+      "/home/rx/GINAN/frozen-r51opt-float24h-ar24h-restart1-20260915/config/zhang_global_2024199_180_inputs.yaml",
+      "/home/rx/GINAN/frozen-r51opt-float24h-ar24h-restart1-20260915/config/zhang_global_2024199_180_product.yaml",
+      "/home/rx/GINAN/frozen-r51opt-float24h-ar24h-restart1-20260915/config/zhang_global_2024199_180_e29_180network_product_1h.yaml",
+      "/home/rx/GINAN/frozen-r51opt-float24h-ar24h-restart1-20260915/config/zhang_global_2024199_180_e29_service_30s_1h.yaml",
+      "/mnt/c/Users/rx/Documents/GINAN/r51_followup_contracts_20260916/network_regression/followup_short.yaml",
+      "-d",
+      "r51_contracts_followup_20260916_v1"
+    ],
+    "binary_sha256": "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38",
+    "started": "2026-09-17T00:06:18.521088",
+    "output": "/mnt/d/GINAN_R20/inputData/outputs/r51_contracts_followup_20260916_v1",
+    "status": "COMPLETE",
+    "wrapper_pid": 2080021,
+    "exit": 0,
+    "wall_seconds": 543.4945766809396,
+    "committed_epochs": 20
+  }
+]
