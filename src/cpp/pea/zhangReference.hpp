@@ -15,7 +15,7 @@ struct KFState;
 struct ReceiverMap;
 using Trace = std::ostream;
 
-inline constexpr std::uint32_t ZHANG_GRAPH_CHECKPOINT_SCHEMA_VERSION = 2;
+inline constexpr std::uint32_t ZHANG_GRAPH_CHECKPOINT_SCHEMA_VERSION = 3;
 inline constexpr const char* ZHANG_GRAPH_CHECKPOINT_SECTION_NAME =
     "zhang_graph_runtime";
 

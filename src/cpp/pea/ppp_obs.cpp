@@ -482,6 +482,16 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
 
         satClk_m += init.x;
 
+        if (acsConfig.zhangFullRank.enable && !acsConfig.zhangPppAr.user_adapter)
+        {
+            if (kfState.stateTransitionMap.contains(kfKey))
+            {
+                // Existing effective Q/tau/mu belongs to the process layer.
+                // Legacy InitialState zero means no overwrite on this path.
+                init.Q=0; init.tau=0; init.mu=0;
+            }
+            else { init.tau=-1; init.mu=0; }
+        }
         measEntry.addDsgnEntry(kfKey, -1, init);
         measEntry.addDsgnEntry(
             kfKey,
@@ -2152,6 +2162,11 @@ void receiverUducGnss(
 
                     const bool zhangCodeRow = measType == CODE &&
                         zhangGraphOwnsAmbiguityLifecycle(obs.Sat.sys, sig.code);
+                    if (zhangGraphOwnsAmbiguityLifecycle(obs.Sat.sys, sig.code) &&
+                        ((measType==CODE && preprocSigStat.codeQuarantined) ||
+                         (measType==PHAS && (preprocSigStat.phaseQuarantined ||
+                                            preprocSigStat.tracking.halfCycle || (sig.LLI & 2)))))
+                        continue;
                     if (preprocSigStat.slip.any)
                     {
                         auto& ast = autoSenderTemplate;
@@ -2162,7 +2177,7 @@ void receiverUducGnss(
                             ast.pushValueKVP(2, {"excludeSlip", "LLI"});
                             continue;
                         }
-                        if (acsConfig.exclude.retrack && preprocSigStat.slip.retrack)
+                        if (!zhangCodeRow && acsConfig.exclude.retrack && preprocSigStat.slip.retrack)
                         {
                             tracepdeex(2, trace, " - Retrack slip excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "retrack"});
@@ -2174,7 +2189,7 @@ void receiverUducGnss(
                             ast.pushValueKVP(2, {"excludeSlip", "GF"});
                             continue;
                         }
-                        if (acsConfig.exclude.MW && preprocSigStat.slip.MW)
+                        if (!zhangCodeRow && acsConfig.exclude.MW && preprocSigStat.slip.MW)
                         {
                             tracepdeex(2, trace, " - MW slip excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "MW"});
@@ -2186,7 +2201,7 @@ void receiverUducGnss(
                             ast.pushValueKVP(2, {"excludeSlip", "SCDIA"});
                             continue;
                         }
-                        if (acsConfig.exclude.single_freq && preprocSigStat.slip.singleFreq)
+                        if (!zhangCodeRow && acsConfig.exclude.single_freq && preprocSigStat.slip.singleFreq)
                         {
                             tracepdeex(2, trace, " - single freqency data excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "singleFreq"});

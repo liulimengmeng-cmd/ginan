@@ -529,6 +529,20 @@ bool KFState::addKFState(
     return true;
 }
 
+bool KFState::setProcessModel(const KFKey& key, std::optional<double> varianceRate,
+    std::optional<double> mean, std::optional<double> tau)
+{
+    lock_guard guard(kfStateMutex);
+    if (!stateTransitionMap.contains(key) ||
+        (varianceRate && (!std::isfinite(*varianceRate) || *varianceRate < 0)) ||
+        (mean && !std::isfinite(*mean)) ||
+        (tau && (!std::isfinite(*tau) || *tau == 0))) return false;
+    if (varianceRate) procNoiseMap[key] = *varianceRate;
+    if (mean) gaussMarkovMuMap[key] = *mean;
+    if (tau) gaussMarkovTauMap[key] = *tau;
+    return true;
+}
+
 /** Create a pseudo state that represents the linear combination of two or more perfectly correlated
  * states. The configuration of the states that are combined are added according to the coefficients
  * of correlation, which may not be appropriate for things like process noise or max sigmas, and
@@ -810,6 +824,36 @@ bool KFState::applyStateTransform(
     }
 
     const int oldStateCount = x.rows();
+    auto unchanged = [&](const KFKey& key)
+    {
+        auto row = transformMap.find(key);
+        return row != transformMap.end() && row->second.size() == 1 &&
+            row->second.begin()->first == key && row->second.begin()->second == 1;
+    };
+    // Until general dynamic F/Q transport is implemented, reject every route
+    // which mixes a dynamic coordinate. Exact and augmented paths share this
+    // contract; unrelated clock/rate dynamics are retained verbatim below.
+    std::set<KFKey> reusedInOtherCoordinates;
+    for (const auto& [destination, row] : transformMap)
+        for (const auto& [source, coefficient] : row)
+            if (coefficient != 0 && destination != source) reusedInOtherCoordinates.insert(source);
+    for (const auto& [key, index] : kfIndexMap)
+    {
+        const bool mixed = !unchanged(key) || reusedInOtherCoordinates.contains(key);
+        if (mixed)
+        {
+            if ((procNoiseMap.contains(key) && procNoiseMap.at(key) != 0) ||
+                (gaussMarkovTauMap.contains(key) && gaussMarkovTauMap.at(key) > 0))
+            { lastFactorTransactionFailureReason = "DYNAMIC_COORDINATE_TRANSPORT_UNSUPPORTED"; return false; }
+        }
+        const auto transition = stateTransitionMap.find(key);
+        if (transition == stateTransitionMap.end()) continue;
+        for (const auto& [source, orders] : transition->second)
+            for (const auto& [order, coefficient] : orders)
+                if (coefficient != 0 && (source != key || order != 0 || coefficient != 1) &&
+                    (mixed || !unchanged(source)))
+                { lastFactorTransactionFailureReason = "COUPLED_DYNAMIC_TRANSPORT_UNSUPPORTED"; return false; }
+    }
     const int newStateCount = transformMap.size();
 
     SparseMatrix<double> transform(newStateCount, oldStateCount);
@@ -975,8 +1019,8 @@ bool KFState::applyStateTransform(
     prefitRatios  = VectorXd::Zero(newStateCount);
     postfitRatios = VectorXd::Zero(newStateCount);
 
-    // Measurement construction later in this epoch refreshes the configured process models.
-    // Retain only identity persistence here so no old datum key survives into the next transition.
+    // Preserve transitions of untouched coordinates, including clock + rate
+    // links. Changed phase coordinates have passed the common static-model guard.
     stateTransitionMap.clear();
     for (auto& [key, index] : kfIndexMap)
     {
@@ -993,7 +1037,10 @@ bool KFState::applyStateTransform(
                   << " action=PRESERVE_PENDING_REMOVAL";
             continue;
         }
-        stateTransitionMap[key][key][0] = 1;
+        if (unchangedCoordinate && operationEntry.stateTransitionMap.contains(key))
+            stateTransitionMap[key] = operationEntry.stateTransitionMap.at(key);
+        else
+            stateTransitionMap[key][key][0] = 1;
     }
 
     auto eraseAbsentKeys = [&](auto& keyedMap)

@@ -468,6 +468,11 @@ struct SlrOptions
 struct PreprocOptions
 {
     double slip_threshold = 0.05;
+    double zhang_gf_sigma_gate = 4;
+    double zhang_gf_variance_rate = 1e-6; // m^2/s, detector trend allowance
+    double zhang_mw_sigma_gate = 4;
+    double zhang_mw_variance_rate = 1e-4; // cycles^2/s
+    double zhang_detector_max_gap = 90; // seconds, not main STEC Q
     double mw_proc_noise  = 0;
 
     bool preprocess_all_data = true;

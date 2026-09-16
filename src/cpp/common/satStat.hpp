@@ -6,6 +6,7 @@
 #include "common/eigenIncluder.hpp"
 #include "common/enums.h"
 #include "common/linearCombo.hpp"
+#include "common/zhangPhaseArcDecision.hpp"
 
 using std::map;
 
@@ -31,6 +32,10 @@ struct SigStat
     SlipStat slip;
 
     unsigned int phaseRejectCount = 0;
+    ZhangSignalTracking tracking;
+    bool phaseQuarantined = false;
+    bool codeQuarantined = false;
+    bool previousPhaseQuarantined = false;
 };
 
 struct IonoStat
@@ -61,6 +66,8 @@ struct QC
     int     amb[3]  = {};  ///< repaired integer cycle slip
     double  mw      = 0;   ///< MW-LC (m)
     double  gf      = 0;
+    ZhangCombinationDetector acceptedGf;
+    ZhangCombinationDetector acceptedMw;
     flt_t   flt     = {};  ///< cycle slip repair filter
     lc_t    lc_pre  = {};  ///< lc information
     lc_t    lc_new  = {};  ///< lc information

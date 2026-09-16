@@ -108,10 +108,31 @@ struct GraphRuntimeState
     int                      eventCounter = 0;
     int                      productDatumVersion = 0;
     bool                     productInitialized = false;
+    // Product authorization is bound to a component revision; the product
+    // gauge and integer component are distinct histories, not equal counters.
+    int productAuthorityComponentVersion = -1;
+    map<ZhangGraphEdge, map<int, int>> phaseArcVersions;
+    map<ZhangGraphEdge, map<int, int>> phaseAdmissions;
+    string phaseAdmissionTime;
+    int phaseAdmissionChart = -1;
     int                      treeSlipShadowEvents = 0;
 };
 
 map<ZhangGraphRuntimeKey, GraphRuntimeState> graphStateMap;
+
+void invalidateZhangProduct(GraphRuntimeState& runtime, const string& reason)
+{
+    if (runtime.productInitialized || !runtime.productBasis.edges.empty() ||
+        !runtime.productArcVersions.empty() || !runtime.productCoreReceivers.empty())
+        runtime.integerComponentVersion++;
+    runtime.productInitialized = false;
+    runtime.productBasis = {};
+    runtime.productArcVersions.clear();
+    runtime.productCoreReceivers.clear();
+    runtime.productAuthorityComponentVersion = -1;
+    runtime.lastProductEventCause = reason;
+}
+
 
 string zhangGraphRuntimeId(const KFState& state)
 {
@@ -269,6 +290,11 @@ struct ZhangGraphCheckpointRuntimeState
     int    eventCounter = 0;
     int    productDatumVersion = 0;
     bool   productInitialized = false;
+    int productAuthorityComponentVersion = -1;
+    map<ZhangGraphCheckpointEdge, map<int, int>> phaseArcVersions;
+    map<ZhangGraphCheckpointEdge, map<int, int>> phaseAdmissions;
+    string phaseAdmissionTime;
+    int phaseAdmissionChart = -1;
 
     template <class ARCHIVE>
     void serialize(ARCHIVE& archive, const unsigned int& version)
@@ -294,6 +320,11 @@ struct ZhangGraphCheckpointRuntimeState
         archive & eventCounter;
         archive & productDatumVersion;
         archive & productInitialized;
+        archive & productAuthorityComponentVersion;
+        archive & phaseArcVersions;
+        archive & phaseAdmissions;
+        archive & phaseAdmissionTime;
+        archive & phaseAdmissionChart;
     }
 };
 
@@ -486,9 +517,11 @@ bool zhangGraphCheckpointBasisValid(
         }
         return true;
     }
+    // A FLOAT forest may retain an external historical reference. Its local
+    // roots are uncertain states, not new hard-zero datums. Product charts
+    // still require their reference to be a node of the authorized graph.
     if (snapshot.rootReceiver.empty() ||
-        snapshot.receivers.find(snapshot.rootReceiver) ==
-            snapshot.receivers.end())
+        (field == "productBasis" && !snapshot.receivers.contains(snapshot.rootReceiver)))
     {
         failureReason =
             "ZHANG_GRAPH_CHECKPOINT_INVALID_BASIS_ROOT:" + field;
@@ -558,7 +591,10 @@ bool zhangGraphCheckpointRuntimeValid(
         return false;
     }
     if (snapshot.floatGaugeVersion != snapshot.datumVersion ||
-        snapshot.integerComponentVersion != snapshot.productDatumVersion)
+        snapshot.integerComponentVersion < snapshot.productDatumVersion ||
+        (snapshot.productInitialized && snapshot.productAuthorityComponentVersion !=
+            snapshot.integerComponentVersion) ||
+        (!snapshot.productInitialized && snapshot.productAuthorityComponentVersion != -1))
     {
         failureReason = "ZHANG_GRAPH_CHECKPOINT_VERSION_SEMANTICS_MISMATCH";
         return false;
@@ -569,6 +605,24 @@ bool zhangGraphCheckpointRuntimeValid(
         return false;
     }
 
+    for (const auto& [edge, signals] : snapshot.phaseArcVersions)
+    {
+        if (!zhangGraphCheckpointEdgeValid(edge, snapshot.system, failureReason, "phaseArcVersions"))
+            return false;
+        for (const auto& [code, serial] : signals)
+            if (code <= 0 || serial < 0)
+            { failureReason = "ZHANG_GRAPH_INVALID_SIGNAL_ARC"; return false; }
+    }
+    for (const auto& [edge, signals] : snapshot.phaseAdmissions)
+    {
+        const auto arcs = snapshot.phaseArcVersions.find(edge);
+        if (!snapshot.observationEdges.contains(edge) || arcs == snapshot.phaseArcVersions.end() ||
+            snapshot.phaseAdmissionTime.empty() || snapshot.phaseAdmissionChart != snapshot.representationVersion)
+        { failureReason = "ZHANG_GRAPH_STALE_PHASE_ADMISSION"; return false; }
+        for (const auto& [code, serial] : signals)
+            if (!arcs->second.contains(code) || arcs->second.at(code) != serial)
+            { failureReason = "ZHANG_GRAPH_PHASE_ARC_IDENTITY_MISMATCH"; return false; }
+    }
     for (const auto& edge : snapshot.observationEdges)
     {
         if (!zhangGraphCheckpointEdgeValid(
@@ -704,7 +758,7 @@ bool zhangGraphCheckpointRuntimeValid(
         }
     }
     else if (!snapshot.productArcVersions.empty() ||
-             !snapshot.productCoreReceivers.empty())
+             !snapshot.productCoreReceivers.empty() || !snapshot.productBasis.edges.empty())
     {
         failureReason =
             "ZHANG_GRAPH_CHECKPOINT_UNINITIALIZED_PRODUCT_HAS_STATE";
@@ -871,7 +925,7 @@ bool signalIsUsable(const GObs& obs, E_ObsCode code)
 {
     for (auto& [frequency, signal] : obs.sigs)
     {
-        if (signal.code != code || signal.L == 0 || signal.invalid)
+        if (signal.code != code || signal.L == 0 || signal.invalid || (signal.LLI & 2))
         {
             continue;
         }
@@ -880,7 +934,8 @@ bool signalIsUsable(const GObs& obs, E_ObsCode code)
         {
             auto slipIt = obs.satStat_ptr->sigStatMap.find(ft2string(frequency));
             if (slipIt != obs.satStat_ptr->sigStatMap.end() &&
-                slipIsExcluded(slipIt->second.slip))
+                (slipIt->second.phaseQuarantined || slipIt->second.tracking.halfCycle ||
+                 slipIsExcluded(slipIt->second.slip)))
             {
                 continue;
             }
@@ -916,7 +971,7 @@ bool signalRequiresArcRetirement(const GObs& obs, E_ObsCode code)
 
         auto slipIt = obs.satStat_ptr->sigStatMap.find(ft2string(frequency));
         if (slipIt != obs.satStat_ptr->sigStatMap.end() &&
-            (slipRequiresArcRetirement(slipIt->second.slip) ||
+            (slipIt->second.tracking.pendingBreak || slipRequiresArcRetirement(slipIt->second.slip) ||
              slipRequiresArcRetirement(slipIt->second.savedSlip)))
         {
             return true;
@@ -2019,6 +2074,7 @@ bool transportZhangGraphComponents(
     Trace& trace, KFState& state, E_Sys system,
     const vector<E_ObsCode>& observables, const ZhangGraphBasis& oldBasis,
     const set<ZhangGraphEdge>& eligible, const set<ZhangGraphEdge>& retired,
+    const map<ZhangGraphEdge, set<E_ObsCode>>& retiredSignals,
     ZhangGraphBasis& transported, ZhangGraphCoordinatePlan& plan)
 {
     const auto reconstructible = zhangStateReconstructibleEdges(
@@ -2045,7 +2101,7 @@ bool transportZhangGraphComponents(
             auto& options = acsConfig.getRecOpts(
                 receiver, {SatSys(system, 0).sysName(), enum_to_string(code)});
             return initialStateFromConfig(options.phase_bias).P;
-        });
+        }, &retiredSignals);
     if (!plan.valid)
     {
         trace << "\nZHANG_COMPONENT_TRANSPORT_REJECT time=" << state.time.to_string(0)
@@ -2680,6 +2736,47 @@ void updateZhangGraphBasis(
         history.continuousEpochs = 0;
         history.outageEpochs = options.state_edge_grace_epochs + 1;
     }
+    struct PhaseAdmissionGuard
+    {
+        GraphRuntimeState& runtime;
+        const KFState& state;
+        const ReferenceAvailability& availability;
+        const map<ZhangGraphEdge, int>& previous;
+        const vector<E_ObsCode>& codes;
+        ~PhaseAdmissionGuard()
+        {
+            runtime.phaseAdmissions.clear();
+            runtime.phaseAdmissionTime = state.time.to_string(9);
+            runtime.phaseAdmissionChart = runtime.representationVersion;
+            for (const auto& [edge, signals] : availability.discontinuitySignals)
+            {
+                auto before = previous.find(edge);
+                auto after = runtime.edgeHistory.find(edge);
+                if (before != previous.end() && after != runtime.edgeHistory.end() &&
+                    after->second.arcVersion > before->second)
+                    for (const auto code : signals) runtime.phaseArcVersions[edge][int(code)]++;
+            }
+            set<ZhangGraphEdge> safe;
+            for (const auto& edge : runtime.observationEdges)
+            {
+                if (!availability.edges.contains(edge) || !runtime.basis.edges.contains(edge)) continue;
+                const auto before = previous.find(edge);
+                const auto after = runtime.edgeHistory.find(edge);
+                const bool retiredButUncommitted = availability.discontinuousEdges.contains(edge) &&
+                    (before == previous.end() || after == runtime.edgeHistory.end() ||
+                     after->second.arcVersion <= before->second);
+                for (const auto code : codes)
+                {
+                    const auto changed = availability.discontinuitySignals.find(edge);
+                    if (retiredButUncommitted && (changed == availability.discontinuitySignals.end() ||
+                        changed->second.contains(code))) continue;
+                    runtime.phaseAdmissions[edge][int(code)] = runtime.phaseArcVersions[edge][int(code)];
+                    safe.insert(edge);
+                }
+            }
+            runtime.observationEdges = std::move(safe);
+        }
+    } admissionGuard{runtime, kfState, availability, preEventArcVersions, options.baseline_observables};
     struct ArcEventConsumptionGuard
     {
         GraphRuntimeState& runtime;
@@ -2697,6 +2794,7 @@ void updateZhangGraphBasis(
                 for (auto* stat : stats->second)
                 {
                     stat->savedSlip.any = false;
+                    stat->tracking.pendingBreak = false;
                     stat->phaseRejectCount = 0;
                 }
             }
@@ -2864,7 +2962,7 @@ void updateZhangGraphBasis(
         // formed; code observations still have their independent admission.
         runtime.observationEdges.clear();
         runtime.stateEdges.clear();
-        runtime.productInitialized = false;
+        invalidateZhangProduct(runtime, "NO_CURRENT_PHASE_SUPPORT");
         trace << "\nZHANG_GRAPH_EMPTY_SUPPORT time=" << kfState.time.to_string(0)
               << " pending_physical_events=" << availability.discontinuousEdges.size()
               << " action=HOLD_POSTERIOR_NO_PHASE_ROWS product_authorized=0";
@@ -2943,6 +3041,8 @@ void updateZhangGraphBasis(
         const string& reason,
         bool preserveIntegerComponent = false)
     {
+        if (!candidate.connected || !candidate.receivers.contains(candidate.rootReceiver))
+            return false;
         const ZhangGraphBasis oldProduct = runtime.productBasis;
         const map<ZhangGraphEdge, int> oldProductArcVersions =
             runtime.productArcVersions;
@@ -3372,6 +3472,7 @@ void updateZhangGraphBasis(
         runtime.productArcVersions = std::move(nextProductArcVersions);
         runtime.productCoreReceivers = std::move(nextProductCoreReceivers);
         runtime.productInitialized = true;
+        runtime.productAuthorityComponentVersion = runtime.integerComponentVersion;
         if (changed)
         {
             std::ostringstream eventCause;
@@ -3553,48 +3654,10 @@ void updateZhangGraphBasis(
             return false;
         }
 
-        set<ZhangGraphEdge> survivingProductEdges;
-        std::set_difference(
-            runtime.productBasis.edges.begin(),
-            runtime.productBasis.edges.end(),
-            retiredEdges.begin(),
-            retiredEdges.end(),
-            std::inserter(survivingProductEdges,
-                          survivingProductEdges.begin()));
-        const int oldComponentCount = std::max(
-            1, runtime.productBasis.componentCount);
-        const auto survivingProduct = zhangBuildSpanningTree(
-            survivingProductEdges,
-            runtime.productBasis.rootReceiver,
-            runtime.productBasis.treeEdges);
-        const bool anyFunctionalSurvives = !survivingProduct.edges.empty();
-        const bool componentSplit = anyFunctionalSurvives &&
-            survivingProduct.componentCount > oldComponentCount;
-        runtime.productBasis = survivingProduct;
-        for (const auto& edge : retiredEdges)
-        {
-            runtime.productArcVersions.erase(edge);
-        }
-        for (auto receiver = runtime.productCoreReceivers.begin();
-             receiver != runtime.productCoreReceivers.end();)
-        {
-            if (!runtime.productBasis.receivers.contains(*receiver))
-                receiver = runtime.productCoreReceivers.erase(receiver);
-            else
-                ++receiver;
-        }
-        runtime.productInitialized = anyFunctionalSurvives;
-        if (componentSplit || !anyFunctionalSurvives)
-        {
-            runtime.integerComponentVersion++;
-        }
-        if (!anyFunctionalSurvives)
-        {
-            runtime.productDatumVersion++;
-            runtime.floatGaugeVersion++;
-        }
-        runtime.lastProductEventCause = reason;
-
+        const int oldComponentCount = runtime.productBasis.componentCount;
+        invalidateZhangProduct(runtime, reason);
+        const bool anyFunctionalSurvives = false;
+        const bool componentSplit = oldComponentCount > 1;
         if (acsConfig.zhangPppAr.output_diagnostics)
         {
             trace << "\nZHANG_INTEGER_CONTINUITY_EVENT time="
@@ -3654,7 +3717,7 @@ void updateZhangGraphBasis(
         ZhangGraphCoordinatePlan plan;
         if (!transportZhangGraphComponents(trace, kfState, sys,
                 options.baseline_observables, oldBasis, eligible,
-                availability.discontinuousEdges, transported, plan))
+                availability.discontinuousEdges, availability.discontinuitySignals, transported, plan))
         {
             runtime = savedRuntime;
             return false;
@@ -3669,6 +3732,9 @@ void updateZhangGraphBasis(
                 // An expired/missing coordinate cannot inherit authorization
                 // from an old integer simply because its endpoint names match.
                 runtime.edgeHistory[edge].arcVersion++;
+                for (const auto code : options.baseline_observables)
+                    if (!plan.survivingPhysicalRows.contains({code,edge}))
+                        runtime.phaseArcVersions[edge][int(code)]++;
                 retiredCoordinates.insert(edge);
             }
         candidate = transported;
@@ -3677,17 +3743,14 @@ void updateZhangGraphBasis(
         std::set_intersection(availability.edges.begin(), availability.edges.end(),
             transported.edges.begin(), transported.edges.end(),
             std::inserter(observationEdges, observationEdges.begin()));
-        if (candidate.connected)
+        if (candidate.connected && candidate.receivers.contains(candidate.rootReceiver))
         {
             if (!updateProductDatum("component_reparameterise"))
-                runtime.productInitialized = false;
+                invalidateZhangProduct(runtime, "COMPONENT_PRODUCT_DATUM_UNAVAILABLE");
         }
         else
         {
-            runtime.productInitialized = false;
-            runtime.productBasis = {};
-            runtime.productArcVersions.clear();
-            runtime.integerComponentVersion++;
+            invalidateZhangProduct(runtime, "FLOAT_COMPONENT_SPLIT");
         }
         // FLOAT transport alone never certifies a new inter-component bridge.
         invalidateRetiredProductArcs(retiredCoordinates,
@@ -3716,10 +3779,20 @@ void updateZhangGraphBasis(
         return true;
     };
 
+    bool partialSignalRetirement = false;
+    for (const auto& [edge, codes] : availability.discontinuitySignals)
+        partialSignalRetirement |= !codes.empty() && codes.size() < options.baseline_observables.size();
+    if (runtime.initialized && hasEstimatedPhaseState && partialSignalRetirement)
+    {
+        if (!localReinitialise("SIGNAL_LEVEL_ARC_RETIREMENT"))
+            retainOldTreeRootComponent();
+        return;
+    }
     if (!runtime.initialized || !hasEstimatedPhaseState)
     {
         advanceDiscontinuousArcVersions();
-        updateProductDatum("initialise");
+        if (!updateProductDatum("initialise"))
+            invalidateZhangProduct(runtime, "INITIALISE_PRODUCT_UNAVAILABLE");
         runtime.basis            = candidate;
         runtime.activeBasis      = candidate;
         runtime.observationEdges = observationEdges;
@@ -3836,9 +3909,7 @@ void updateZhangGraphBasis(
                       << " coordinate_tree_unchanged=1 observation_eligibility_unchanged=1";
                 if (!updateProductDatum("chord_arc_retire"))
                 {
-                    invalidateRetiredProductArcs(
-                        retiredChordEdges,
-                        "PENDING_BRIDGE_AFTER_CHORD_ARC_RETIRE");
+                    invalidateZhangProduct(runtime, "PENDING_BRIDGE_AFTER_CHORD_ARC_RETIRE");
                 }
                 runtime.representationVersion++;
                 runtime.basis = zhangRepresentedBasisAfterAugmentation(retainedBasis, candidate);
@@ -3878,7 +3949,8 @@ void updateZhangGraphBasis(
     if (brokenTreeEdges.empty() &&
         candidate.treeEdges == runtime.basis.treeEdges)
     {
-        updateProductDatum("graph_update");
+        if (!updateProductDatum("graph_update"))
+            invalidateZhangProduct(runtime, "GRAPH_UPDATE_PRODUCT_UNAVAILABLE");
         runtime.activeBasis      = candidate;
         runtime.observationEdges = observationEdges;
         runtime.stateEdges       = stateEdges;
@@ -3926,7 +3998,8 @@ void updateZhangGraphBasis(
             runtime.basis.treeEdges.end(),
             std::inserter(addedTreeEdges, addedTreeEdges.begin())
         );
-        updateProductDatum("leaf_extension");
+        if (!updateProductDatum("leaf_extension"))
+            invalidateZhangProduct(runtime, "LEAF_EXTENSION_PRODUCT_UNAVAILABLE");
         runtime.basis            = candidate;
         runtime.activeBasis      = candidate;
         runtime.observationEdges = observationEdges;
@@ -4137,7 +4210,8 @@ void updateZhangGraphBasis(
         const size_t preservedSatellites =
             runtime.basis.satellites.size() - affectedSatellites.size();
 
-        updateProductDatum("local_reinitialise");
+        if (!updateProductDatum("local_reinitialise"))
+            invalidateZhangProduct(runtime, "LOCAL_REINITIALISE_PRODUCT_UNAVAILABLE");
         runtime.basis            = candidate;
         runtime.activeBasis      = candidate;
         runtime.observationEdges = observationEdges;
@@ -4183,7 +4257,7 @@ void updateZhangGraphBasis(
         if (!localReinitialise("FLOAT_COMPONENT_SPLIT_OR_REJOIN"))
         {
             runtime.observationEdges.clear();
-            runtime.productInitialized = false;
+            invalidateZhangProduct(runtime, "FLOAT_COMPONENT_TRANSPORT_FAILED");
         }
         return;
     }
@@ -4433,7 +4507,7 @@ void updateZhangGraphBasis(
             const int floatGaugeBefore = runtime.floatGaugeVersion;
             const int integerComponentBefore =
                 runtime.integerComponentVersion;
-            const GraphRuntimeState transactionRuntime = runtime;
+
             KFState transactionKfState;
             ZhangStateTransformAudit authoritativeAudit;
             if (transformZhangGraphBasis(
@@ -4458,23 +4532,8 @@ void updateZhangGraphBasis(
 				candidate.componentCount = 1;
 				candidate.connected = true;
 				modelledEdges = pivot.survivingRepresentedEdges;
-				if (!updateProductDatum("pivot_before_retire", true))
-				{
-					// Product provenance is part of the same transaction as the
-					// KF S-transform and arc-version retirement.  A failed product
-					// update must not leave the transformed posterior committed.
-					kfState = std::move(transactionKfState);
-					runtime = transactionRuntime;
-					trace << "\nZHANG_TREE_SLIP_TRANSACTION time="
-						  << kfState.time.to_string(0)
-						  << " system=" << enum_to_string(sys)
-						  << " exact_state_transform=1"
-						  << " transaction_committed=0"
-						  << " rollback=KF_STATE,ARC_VERSIONS,PRODUCT_PROVENANCE"
-						  << " status=TRANSACTION_ABORTED_POSTERIOR_PRESERVED"
-						  << " reason=PRODUCT_DATUM_UPDATE_FAILED";
-					return;
-				}
+                if (!updateProductDatum("pivot_before_retire", true))
+                    invalidateZhangProduct(runtime, "PIVOT_PRODUCT_DATUM_UNAVAILABLE");
                 for (const auto& edge : availability.discontinuousEdges)
                 {
                     if (availability.edges.find(edge) ==
@@ -4687,7 +4746,8 @@ void updateZhangGraphBasis(
         std::inserter(replacementEdges, replacementEdges.begin())
     );
 
-    updateProductDatum("tree_exchange");
+    if (!updateProductDatum("tree_exchange"))
+        invalidateZhangProduct(runtime, "TREE_EXCHANGE_PRODUCT_UNAVAILABLE");
     runtime.basis            = transformedBasis;
     runtime.activeBasis      = candidate;
     runtime.observationEdges = observationEdges;
@@ -4987,8 +5047,16 @@ bool zhangGraphModelsObservation(
         return false;
     }
 
-    return stateIt->second.observationEdges.find({receiver, satellite}) !=
-           stateIt->second.observationEdges.end();
+    const auto& runtime = stateIt->second;
+    const ZhangGraphEdge edge{receiver, satellite};
+    if (runtime.phaseAdmissionTime != kfState.time.to_string(9) ||
+        runtime.phaseAdmissionChart != runtime.representationVersion ||
+        !runtime.observationEdges.contains(edge)) return false;
+    const auto token = runtime.phaseAdmissions.find(edge);
+    const auto arc = runtime.phaseArcVersions.find(edge);
+    return token != runtime.phaseAdmissions.end() && arc != runtime.phaseArcVersions.end() &&
+        token->second.contains(int(code)) && arc->second.contains(int(code)) &&
+        token->second.at(int(code)) == arc->second.at(int(code));
 }
 
 bool zhangGraphRetainsAmbiguity(
@@ -5033,12 +5101,13 @@ bool zhangGraphProductSatelliteActive(
 
     const string runtimeId = zhangGraphRuntimeId(kfState);
     auto stateIt = graphStateMap.find({runtimeId, satellite.sys});
-    if (stateIt == graphStateMap.end() || !stateIt->second.initialized)
+    if (stateIt == graphStateMap.end() || !stateIt->second.initialized || !stateIt->second.productInitialized ||
+        stateIt->second.productAuthorityComponentVersion != stateIt->second.integerComponentVersion)
     {
         return false;
     }
 
-    for (const auto& edge : stateIt->second.stateEdges)
+    for (const auto& edge : stateIt->second.productBasis.edges)
     {
         if (edge.satellite == satellite)
         {
@@ -5068,7 +5137,7 @@ bool zhangGraphIntegerContext(
     // FLOAT forests retain component-local information and uncertain offsets.
     // This API serves the existing single-datum integer contract; a forest is
     // not an authorization to search or publish cross-component integers.
-    if (!context.basis.connected) return false;
+    if (!context.basis.connected || !context.basis.receivers.contains(context.basis.rootReceiver)) return false;
     context.productBasis = stateIt->second.productBasis;
     context.eventId = stateIt->second.eventCounter;
     context.productDatumVersion = stateIt->second.productDatumVersion;
@@ -5353,6 +5422,13 @@ bool exportZhangGraphCheckpointSection(
         output.eventCounter = runtime.eventCounter;
         output.productDatumVersion = runtime.productDatumVersion;
         output.productInitialized = runtime.productInitialized;
+        output.productAuthorityComponentVersion = runtime.productAuthorityComponentVersion;
+        output.phaseAdmissionTime = runtime.phaseAdmissionTime;
+        output.phaseAdmissionChart = runtime.phaseAdmissionChart;
+        for (const auto& [edge, signals] : runtime.phaseArcVersions)
+            output.phaseArcVersions[zhangGraphCheckpointEdge(edge)] = signals;
+        for (const auto& [edge, signals] : runtime.phaseAdmissions)
+            output.phaseAdmissions[zhangGraphCheckpointEdge(edge)] = signals;
         snapshot.graphStates.push_back(std::move(output));
     }
 
@@ -5477,6 +5553,13 @@ bool importZhangGraphCheckpointSection(
             output.eventCounter = input.eventCounter;
             output.productDatumVersion = input.productDatumVersion;
             output.productInitialized = input.productInitialized;
+            output.productAuthorityComponentVersion = input.productAuthorityComponentVersion;
+            output.phaseAdmissionTime = input.phaseAdmissionTime;
+            output.phaseAdmissionChart = input.phaseAdmissionChart;
+            for (const auto& [edge, signals] : input.phaseArcVersions)
+                output.phaseArcVersions[zhangGraphCheckpointEdge(edge)] = signals;
+            for (const auto& [edge, signals] : input.phaseAdmissions)
+                output.phaseAdmissions[zhangGraphCheckpointEdge(edge)] = signals;
             restoredGraphs.emplace_back(
                 static_cast<E_Sys>(input.system), std::move(output));
         }

@@ -2362,7 +2362,7 @@ ObservationValues parseObservationValues(char* buff, int position)
     size_t bufferLength = strlen(buff);
     result.value        = str2num(buff, position, 14);
     result.lli          = str2num(buff, position + 14, 1);
-    result.lli          = (unsigned char)result.lli & 0x03;  // Extract LLI bits
+    result.lli          = (unsigned char)result.lli & 0x07;  // Extract LLI bits
     return result;
 }
 

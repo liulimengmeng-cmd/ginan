@@ -76,7 +76,7 @@ struct ZhangRinexCheckpointSignal
     double phase = 0;
     double pseudorange = 0;
     double doppler = 0;
-    bool lossOfLock = false;
+    unsigned int lossOfLock = 0;
     double snr = 0;
     bool invalid = false;
     double codeVariance = 0;
@@ -714,6 +714,8 @@ bool validSignal(
         failureReason = "RINEX_STREAM_CHECKPOINT_INVALID_SIGNAL_CODE";
         return false;
     }
+    if (signal.lossOfLock>7)
+    { failureReason="RINEX_STREAM_CHECKPOINT_INVALID_LLI_BITS"; return false; }
     if (!std::isfinite(signal.phase)
         || !std::isfinite(signal.pseudorange)
         || !std::isfinite(signal.doppler)

@@ -9,7 +9,7 @@
 #include "common/zhangCheckpoint.hpp"
 
 inline constexpr std::uint32_t ZHANG_PEA_CONTROLLER_CHECKPOINT_SCHEMA_VERSION = 1;
-inline constexpr std::uint32_t ZHANG_RINEX_FILE_STREAMS_CHECKPOINT_SCHEMA_VERSION = 1;
+inline constexpr std::uint32_t ZHANG_RINEX_FILE_STREAMS_CHECKPOINT_SCHEMA_VERSION = 2;
 
 inline constexpr const char* ZHANG_PEA_CONTROLLER_CHECKPOINT_SECTION_NAME =
     "pea.controller.v1";

@@ -658,7 +658,8 @@ void recordZhangSatellitePhaseDiscontinuity(
  * productCertification is supplied. */
 void writeZhangFloatOnlyProductsNoLifecycle(
     Trace&         trace,
-    const KFState& floatState
+    const KFState& floatState,
+    const std::string& contextReason = "NO_PRODUCT_LIFECYCLE"
 );
 
 /** Write the complete stateful product family.  Callers that do not have a

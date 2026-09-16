@@ -73,7 +73,7 @@ struct RawSig
     double    L    = 0;                ///< Carrier phase (cycles)
     double    P    = 0;                ///< Pseudorange (meters)
     double    D    = 0;                ///< Doppler
-    bool      LLI  = false;            ///< Loss of lock indicator
+    unsigned char LLI = 0;            ///< Loss of lock indicator
     double    snr  = 0;                ///< Signal to Noise ratio (dB-Hz)
 
     bool invalid = false;              // Eugene: not used?

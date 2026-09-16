@@ -10,6 +10,7 @@
 #include <map>
 #include <math.h>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -944,6 +945,9 @@ struct KFState : KFState_
     bool getKFSigma(const KFKey& key, double& sigma);
 
     bool addKFState(const KFKey& kfKey, const InitialState& initialState = {});
+    // nullopt leaves metadata unchanged; zero is a real, assignable value.
+    bool setProcessModel(const KFKey& key, std::optional<double> varianceRate,
+        std::optional<double> mean, std::optional<double> tau);
 
     bool addPseudoState(const KFKey& kfKey, const map<KFKey, double>& coeffMap);
 

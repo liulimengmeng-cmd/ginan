@@ -1,3 +1,4 @@
+#include "common/zhangRatioGate.hpp"
 #include "common/zhangR51Integrity.hpp"
 #include "ambres/GNSSambres.hpp"
 #include <algorithm>
@@ -411,7 +412,8 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
     int nodeLimit = 2000000
 )
 {
-    const bool completeTopTwo=zhangR51Enabled() && zhangR51SingleBlock;
+    const bool completeTopTwo=zhangR51Enabled() && (zhangR51SingleBlock ||
+        opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT);
     auto& searchAudit=mtrx.searchDiagnostic;
     ++searchAudit.ilsCalls;searchAudit.ilsComplete=false;
     int nodes=0;
@@ -1002,7 +1004,9 @@ int lambda_search(
 
     if (zsiz < minimumFixCount || zfixList.empty())
     {
-        diagnostic.reason=zfixList.empty()?"CANDIDATE_ENUMERATION_FAILED":"LOCAL_NIS_REJECTED";
+        diagnostic.reason=zfixList.empty() ?
+            (diagnostic.ilsCalls>0 && !diagnostic.ilsComplete ? "ILS_SEARCH_INCOMPLETE" : "CANDIDATE_ENUMERATION_FAILED") :
+            "LOCAL_NIS_REJECTED";
         mtrx.Ztrs.resize(0, nmax);
         mtrx.zfix.resize(0);
         return 0;
@@ -1017,6 +1021,22 @@ int lambda_search(
         lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs, zsiz);
 
     diagnostic.reason="ACCEPTED";
+    if (zhangR51Enabled() && (opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT))
+    {
+        const auto best=zfixList.begin();
+        const auto second=std::next(best);
+        const bool distinct=second!=zfixList.end() &&
+            (best->second-second->second).cwiseAbs().maxCoeff()>0.5;
+        const auto gate=zhangEvaluateRatioGate(diagnostic.ilsComplete,distinct,best->first,
+            second!=zfixList.end() ? second->first : std::numeric_limits<double>::quiet_NaN(),opt.ratthr);
+        diagnostic.ratioExecuted=gate.executed;diagnostic.ratio=gate.ratio;diagnostic.reason=gate.reason;
+        trace << "\nZHANG_RATIO_GATE complete=" << diagnostic.ilsComplete
+              << " two_distinct=" << distinct << " executed=" << gate.executed
+              << " first=" << best->first << " ratio=" << gate.ratio
+              << " threshold=" << opt.ratthr << " accepted=" << gate.accepted
+              << " reason=" << gate.reason;
+        return gate.accepted ? zfix0.size() : 0;
+    }
     switch (opt.mode)
     {
         case E_ARmode::LAMBDA:

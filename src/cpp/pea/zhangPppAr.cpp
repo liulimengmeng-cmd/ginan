@@ -9088,7 +9088,8 @@ ZhangTemporalSnapshotLifecycle maintainZhangTemporalProductSnapshots(
 
 void writeZhangFloatOnlyProductsNoLifecycle(
     Trace&         trace,
-    const KFState& floatState
+    const KFState& floatState,
+    const std::string& contextReason
 )
 {
     if (!acsConfig.zhangPppAr.output_products)
@@ -9227,7 +9228,9 @@ void writeZhangFloatOnlyProductsNoLifecycle(
             product.datum_version = 0;
             product.valid_from = GTime::noTime();
             product.product_iod = 0;
-            product.reset_reason = "ROBUST_QC_NOT_CONVERGED";
+            product.reset_reason = !floatState.lastPppTransactionCommitted
+                ? "PPP_TRANSACTION_NOT_COMMITTED" : !floatState.lastPppQcConverged
+                ? "ROBUST_QC_NOT_CONVERGED" : contextReason;
             product.persistent_relation_known = false;
             product.current_alignment_state = "CURRENT_ALIGNMENT_PENDING";
             product.integer_structure_valid = false;
@@ -9244,7 +9247,7 @@ void writeZhangFloatOnlyProductsNoLifecycle(
             product.continuity_valid = false;
             product.ppp_usable = false;
             product.pppar_usable = false;
-            product.invalid_reason = "ROBUST_QC_NOT_CONVERGED";
+            product.invalid_reason = product.reset_reason;
             product.phase_product_segment_id = "UNRESOLVED";
             product.integer_component_version = 0;
             product.integer_alignment_generation = 0;

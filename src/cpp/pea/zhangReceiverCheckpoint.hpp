@@ -8,7 +8,7 @@ struct Navigation;
 struct ReceiverMap;
 
 inline constexpr std::uint32_t
-	ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 1;
+	ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 2;
 inline constexpr std::uint32_t
 	ZHANG_SATELLITE_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 1;
 

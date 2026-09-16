@@ -55,7 +55,8 @@ inline ZhangGraphCoordinatePlan zhangPlanGraphCoordinateTransport(
     const std::set<ZhangGraphEdge>& retiredArcs,
     const std::map<E_ObsCode, double>& wavelengths,
     const std::function<double(const ZhangGraphEdge&, E_ObsCode)>& freshArcVariance,
-    const std::function<double(const std::string&, E_ObsCode)>& freshGaugeVariance)
+    const std::function<double(const std::string&, E_ObsCode)>& freshGaugeVariance,
+    const std::map<ZhangGraphEdge, std::set<E_ObsCode>>* retiredSignals = nullptr)
 {
     ZhangGraphCoordinatePlan plan;
     auto target = [&](const KFKey& key)
@@ -102,7 +103,8 @@ inline ZhangGraphCoordinatePlan zhangPlanGraphCoordinateTransport(
             const bool receiverKnown = edge.receiver == oldBasis.rootReceiver || sourcePresent(receiver);
             const bool satelliteKnown = sourcePresent(satellite);
             const bool represented = oldBasis.edges.contains(edge) &&
-                !retiredArcs.contains(edge) && receiverKnown && satelliteKnown &&
+                (!retiredArcs.contains(edge) || (retiredSignals && retiredSignals->contains(edge) &&
+                 !retiredSignals->at(edge).contains(code))) && receiverKnown && satelliteKnown &&
                 (oldBasis.treeEdges.contains(edge) || sourcePresent(ambiguity));
             auto& row = physical[edge];
             if (edge.receiver != oldBasis.rootReceiver && receiverKnown) row[receiver] = 1;

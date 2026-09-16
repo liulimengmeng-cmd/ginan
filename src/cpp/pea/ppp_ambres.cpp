@@ -30704,7 +30704,7 @@ void fixAndHoldAmbiguities(
         {
             ZhangR51OutputBundle bundle(kfState.time.to_string(0),"WARMUP_FLOAT_ONLY",
                 zhangR51NumericRoot(kfState.x,kfState.P));
-            writeZhangFloatOnlyProductsNoLifecycle(trace,kfState);
+            writeZhangFloatOnlyProductsNoLifecycle(trace,kfState,"SCHEDULED_FLOAT_WARMUP");
             bundle.publish("reason=SCHEDULED_FLOAT_WARMUP\n",false);
         }
         return;

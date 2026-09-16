@@ -1147,6 +1147,65 @@ void updateAvgClocks(
     KFState& kfState  ///< Kalman filter object containing the network state parameters
 )
 {
+    if (acsConfig.zhangFullRank.enable && !acsConfig.zhangPppAr.user_adapter)
+    {
+        struct Sample { SatSys sat; double difference; int iod; };
+        map<E_Sys, vector<Sample>> samples;
+        // Resolve effective dynamics before the positive-time transition,
+        // including the first transition after checkpoint restore.
+        for (const auto& [key, index] : kfState.kfIndexMap)
+        {
+            if (key.type != KF::SAT_CLOCK || !kfState.stateTransitionMap.contains(key)) continue;
+            const auto init = initialStateFromConfig(acsConfig.getSatOpts(key.Sat).clk, key.num);
+            if (!kfState.setProcessModel(key, init.Q, 0.0, -1.0))
+                throw std::runtime_error("ZHANG_SAT_CLOCK_PROCESS_MODEL_UPDATE_FAILED");
+            trace << "\nZHANG_SAT_CLOCK_MODEL time=" << time.to_string(0)
+                  << " satellite=" << key.Sat.id() << " q_variance_rate=" << init.Q
+                  << " tau=-1 mu=0 mode=RANDOM_WALK broadcast_constraint=0";
+            if (key.num != 0) continue;
+            SatPos external; external.Sat = key.Sat;
+            // Compare the old posterior and broadcast at the same epoch, not
+            // a k-1 posterior against the upcoming k ephemeris.
+            if (satClkBroadcast(trace, kfState.time, kfState.time, external, nav))
+                samples[key.Sat.sys].push_back({key.Sat,
+                    kfState.x(index) - external.satClk * CLIGHT, external.iodeClk});
+        }
+        for (const auto& [system, values] : samples)
+        {
+            if (values.empty()) continue;
+            vector<double> differences;
+            for (const auto& v : values) differences.push_back(v.difference);
+            std::sort(differences.begin(), differences.end());
+            const double common = differences[differences.size()/2];
+            const auto& reference = values.front();
+            for (const auto& v : values)
+            {
+                // Rows e_s-e_ref form a full-row-rank contrast D, D*1=0.
+                const double relative = v.difference-reference.difference;
+                const string metadataKey = "ZHANG_CLOCK_DIAGNOSTIC/"+v.sat.id();
+                double oldTime=0, oldRelative=0; string oldRef; int oldIod=-1, oldRefIod=-1;
+                std::istringstream previous(kfState.metaDataMap[metadataKey]);
+                const bool decoded=bool(previous>>oldTime>>oldRef>>oldIod>>oldRefIod>>oldRelative);
+                const double now=static_cast<double>(kfState.time.bigTime);
+                const double dt=now-oldTime;
+                const bool temporal=decoded && oldRef==reference.sat.id() && oldIod==v.iod &&
+                    oldRefIod==reference.iod && v.iod>=0 && reference.iod>=0 &&
+                    dt>0 && dt<=2*acsConfig.epoch_interval;
+                trace << "\nZHANG_CLOCK_DATUM_DIAGNOSTIC estimate_epoch=" << kfState.time.to_string(0)
+                      << " satellite=" << v.sat.id() << " reference=" << reference.sat.id()
+                      << " raw_difference_m=" << v.difference << " median_common_m=" << common
+                      << " relative_difference_m=" << relative << " iod=" << v.iod
+                      << " temporal_valid=" << temporal
+                      << " relative_increment_m=" << (temporal ? relative-oldRelative : 0)
+                      << " constraint_applied=0 independent_truth=0";
+                std::ostringstream stored;
+                stored << std::setprecision(17) << now << ' ' << reference.sat.id() << ' '
+                       << v.iod << ' ' << reference.iod << ' ' << relative;
+                kfState.metaDataMap[metadataKey]=stored.str();
+            }
+        }
+        return;
+    }
     if (acsConfig.minimise_sat_clock_offsets.enable == false)
     {
         return;

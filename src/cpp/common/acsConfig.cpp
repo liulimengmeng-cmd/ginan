@@ -9039,6 +9039,16 @@ bool ACSConfig::parse(
                         {"@ slip_threshold"},
                         "Value used to determine when a slip has occurred"
                     );
+                    tryGetFromYaml(preprocOpts.zhang_gf_sigma_gate, cycle_slips,
+                        {"zhang_gf_sigma_gate"}, "Zhang GF predictive innovation sigma gate; requires calibration");
+                    tryGetFromYaml(preprocOpts.zhang_gf_variance_rate, cycle_slips,
+                        {"zhang_gf_variance_rate"}, "GF detector trend variance rate in m^2/s, separate from STEC Q");
+                    tryGetFromYaml(preprocOpts.zhang_mw_sigma_gate, cycle_slips,
+                        {"zhang_mw_sigma_gate"}, "Zhang MW predictive innovation sigma gate");
+                    tryGetFromYaml(preprocOpts.zhang_mw_variance_rate, cycle_slips,
+                        {"zhang_mw_variance_rate"}, "MW detector trend variance rate in cycles^2/s");
+                    tryGetFromYaml(preprocOpts.zhang_detector_max_gap, cycle_slips,
+                        {"zhang_detector_max_gap"}, "Maximum gap for accepted-history combination prediction, seconds");
                     tryGetFromYaml(
                         preprocOpts.mw_proc_noise,
                         cycle_slips,

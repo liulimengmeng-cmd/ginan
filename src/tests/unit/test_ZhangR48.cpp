@@ -401,3 +401,109 @@ BOOST_AUTO_TEST_CASE(r49_empty_product_domain_skips_blas_and_does_not_authorize)
  BOOST_REQUIRE(actual.valid);BOOST_CHECK_EQUAL(actual.nis,reference.nis);
  BOOST_CHECK_EQUAL(actual.threshold,reference.threshold);
 }
+
+#include "common/zhangPhaseArcDecision.hpp"
+#include "common/zhangRatioGate.hpp"
+BOOST_AUTO_TEST_CASE(r51_followup_lli_masks_half_cycle_and_recovery)
+{
+    for (unsigned lli : {0u,1u,2u,3u,4u}) {
+        ZhangSignalTracking state;
+        zhangDecidePhaseTracking(state,0,true,1,0,90);
+        auto result=zhangDecidePhaseTracking(state,lli,true,1,30,90);
+        BOOST_CHECK_EQUAL(result.breakArc,(lli&3)!=0);
+        BOOST_CHECK_EQUAL(result.useCurrentPhase,(lli&2)==0);
+        BOOST_CHECK(result.useCurrentCode);
+        if (lli&2) {
+            auto sequence=state.eventSequence;
+            result=zhangDecidePhaseTracking(state,lli,true,1,60,90);
+            BOOST_CHECK(!result.breakArc);BOOST_CHECK_EQUAL(state.eventSequence,sequence);
+            result=zhangDecidePhaseTracking(state,0,true,1,90,90);
+            BOOST_CHECK(result.breakArc && result.useCurrentPhase);
+        }
+    }
+}
+BOOST_AUTO_TEST_CASE(r51_followup_tracking_is_per_signal)
+{
+    ZhangSignalTracking l1,l2;
+    zhangDecidePhaseTracking(l1,0,true,1,0,90);
+    zhangDecidePhaseTracking(l2,0,true,2,0,90);
+    BOOST_CHECK(zhangDecidePhaseTracking(l1,1,true,1,30,90).breakArc);
+    BOOST_CHECK(!zhangDecidePhaseTracking(l2,0,true,2,30,90).breakArc);
+    BOOST_CHECK(!zhangDecidePhaseTracking(l2,0,false,2,60,90).useCurrentPhase);
+    BOOST_CHECK(!zhangDecidePhaseTracking(l2,0,true,2,90,90).breakArc);
+    BOOST_CHECK(zhangDecidePhaseTracking(l2,0,true,2,210,90).gap);
+}
+BOOST_AUTO_TEST_CASE(r51_followup_predictor_isolated_spike_does_not_poison_history)
+{
+    ZhangCombinationDetector detector;
+    for(int i=0;i<4;i++) BOOST_REQUIRE(zhangInspectCombination(detector,i*30,100,1e-4,1e-6,4,90).useSample);
+    auto spike=zhangInspectCombination(detector,120,100.3,1e-4,1e-6,4,90);
+    BOOST_CHECK(spike.suspect && !spike.breakArc && !spike.useSample);
+    BOOST_CHECK_EQUAL(detector.accepted.size(),4);
+    auto returned=zhangInspectCombination(detector,150,100,1e-4,1e-6,4,90);
+    BOOST_CHECK(returned.useSample && !returned.breakArc && !returned.suspect);
+    BOOST_CHECK_EQUAL(detector.accepted.size(),5);
+}
+BOOST_AUTO_TEST_CASE(r51_followup_predictor_persistent_step_and_irregular_sampling)
+{
+    ZhangCombinationDetector detector;
+    for(double t : {0.,20.,55.,80.})
+        BOOST_REQUIRE(zhangInspectCombination(detector,t,100+.0001*t,1e-4,1e-6,4,90).useSample);
+    auto first=zhangInspectCombination(detector,110,100+.011+.4,1e-4,1e-6,4,90);
+    auto second=zhangInspectCombination(detector,155,100+.0155+.4,1e-4,1e-6,4,90);
+    BOOST_CHECK(first.suspect && !first.breakArc);
+    BOOST_CHECK(second.breakArc && second.useSample);
+    BOOST_CHECK_EQUAL(detector.accepted.size(),1);
+    ZhangCombinationDetector noisy;
+    zhangInspectCombination(noisy,0,100,.04,1e-6,4,90);
+    auto low=zhangInspectCombination(noisy,30,100.08,.04,1e-6,4,90);
+    BOOST_CHECK(low.useSample && !low.breakArc);
+}
+BOOST_AUTO_TEST_CASE(r51_followup_gf_mw_complementary_integer_slips)
+{
+    const double l1=.190293672798,l2=.244210213425;
+    for (auto [n1,n2] : {std::pair{1,1},std::pair{9,7}}) {
+        ZhangCombinationDetector gf,mw;
+        for(int i=0;i<4;i++) {
+            zhangInspectCombination(gf,i*30,0,1e-6,0,4,90);
+            zhangInspectCombination(mw,i*30,0,.01,0,4,90);
+        }
+        const double dg=l1*n1-l2*n2,dm=n1-n2;
+        zhangInspectCombination(gf,120,dg,1e-6,0,4,90);
+        zhangInspectCombination(mw,120,dm,.01,0,4,90);
+        auto a=zhangInspectCombination(gf,150,dg,1e-6,0,4,90);
+        auto b=zhangInspectCombination(mw,150,dm,.01,0,4,90);
+        BOOST_CHECK(a.breakArc || b.breakArc);
+        if(n1==n2) BOOST_CHECK(!b.breakArc);
+        if(n1==9) BOOST_CHECK(b.breakArc);
+    }
+}
+BOOST_AUTO_TEST_CASE(r51_followup_ratio_boundary_contract)
+{
+    BOOST_CHECK(zhangEvaluateRatioGate(true,true,1,3,3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,true,1,2.99,3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(false,true,0,1,3).executed);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,false,0,1,3).accepted);
+    BOOST_CHECK(zhangEvaluateRatioGate(true,true,0,1,3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,true,0,0,3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,true,1,1,3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,true,1,std::numeric_limits<double>::infinity(),3).accepted);
+    BOOST_CHECK(!zhangEvaluateRatioGate(true,true,1,3,1).accepted);
+}
+BOOST_AUTO_TEST_CASE(r51_followup_l1_retirement_preserves_l2_physical_covariance)
+{
+    const ZhangGraphEdge a1{"A",SatSys("G01")},a2{"A",SatSys("G02")},
+        b1{"B",SatSys("G01")},b2{"B",SatSys("G02")};
+    auto basis=zhangBuildSpanningTree({a1,a2,b1,b2},"A");
+    auto state=coordinateFixture(basis);
+    std::map<ZhangGraphEdge,std::set<E_ObsCode>> signals{{a1,{E_ObsCode::L1C}}};
+    auto plan=zhangPlanGraphCoordinateTransport(state,E_Sys::GPS,basis,basis,{a1},
+        {{E_ObsCode::L1C,.1902936728},{E_ObsCode::L2W,.2442102134}},
+        [](const auto&,auto){return 100.;},[](const auto&,auto){return 25.;},&signals);
+    BOOST_REQUIRE_MESSAGE(plan.valid,plan.failureReason);
+    BOOST_CHECK_EQUAL(plan.survivingPhysicalRows.size(),7);
+    BOOST_CHECK(plan.survivingPhysicalRows.contains({E_ObsCode::L2W,a1}));
+    BOOST_CHECK(!plan.survivingPhysicalRows.contains({E_ObsCode::L1C,a1}));
+    BOOST_CHECK_EQUAL(plan.independentSourceVariances.size(),1);
+    evaluatePlan(state,plan,basis);
+}

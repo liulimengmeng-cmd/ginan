@@ -186,6 +186,8 @@ struct ZhangRuntimeSignalStatus
 	unsigned int savedSlipFlags = 0;
 	unsigned int slipFlags = 0;
 	unsigned int phaseRejectCount = 0;
+    ZhangSignalTracking tracking;
+    bool phaseQuarantined=false, codeQuarantined=false, previousPhaseQuarantined=false;
 
 	template <class ARCHIVE>
 	void serialize(ARCHIVE& ar, const unsigned int& version)
@@ -193,6 +195,7 @@ struct ZhangRuntimeSignalStatus
 		ar & savedSlipFlags;
 		ar & slipFlags;
 		ar & phaseRejectCount;
+        ar & tracking & phaseQuarantined & codeQuarantined & previousPhaseQuarantined;
 	}
 };
 
@@ -211,6 +214,7 @@ struct ZhangRuntimeSatelliteStatus
 	array<int, 3> repairedAmbiguity{};
 	double melbourneWubbena = 0;
 	double geometryFree = 0;
+    ZhangCombinationDetector acceptedGf, acceptedMw;
 	ZhangRuntimeSlipFilter slipFilter;
 	ZhangRuntimeLcState previousCombination;
 	ZhangRuntimeLcState currentCombination;
@@ -244,6 +248,7 @@ struct ZhangRuntimeSatelliteStatus
 		ar & repairedAmbiguity;
 		ar & melbourneWubbena;
 		ar & geometryFree;
+        ar & acceptedGf & acceptedMw;
 		ar & slipFilter;
 		ar & previousCombination;
 		ar & currentCombination;
@@ -1309,6 +1314,7 @@ ZhangRuntimeSatelliteStatus captureSatelliteStatus(const SatStat& input)
 	}
 	output.melbourneWubbena = input.mw;
 	output.geometryFree = input.gf;
+    output.acceptedGf=input.acceptedGf; output.acceptedMw=input.acceptedMw;
 	output.slipFilter.slip = input.flt.slip;
 	output.slipFilter.epochCount = input.flt.ne;
 	output.slipFilter.previousCombination = captureLcState(input.flt.lc_pre);
@@ -1331,7 +1337,8 @@ ZhangRuntimeSatelliteStatus captureSatelliteStatus(const SatStat& input)
 		output.signalStatuses[signal] = {
 			status.savedSlip.any,
 			status.slip.any,
-			status.phaseRejectCount};
+			status.phaseRejectCount, status.tracking, status.phaseQuarantined,
+            status.codeQuarantined, status.previousPhaseQuarantined};
 	}
 	return output;
 }
@@ -1358,6 +1365,7 @@ SatStat restoreSatelliteStatus(const ZhangRuntimeSatelliteStatus& input)
 	}
 	output.mw = input.melbourneWubbena;
 	output.gf = input.geometryFree;
+    output.acceptedGf=input.acceptedGf; output.acceptedMw=input.acceptedMw;
 	output.flt.slip = input.slipFilter.slip;
 	output.flt.ne = input.slipFilter.epochCount;
 	output.flt.lc_pre = restoreLcState(input.slipFilter.previousCombination);
@@ -1382,6 +1390,10 @@ SatStat restoreSatelliteStatus(const ZhangRuntimeSatelliteStatus& input)
 		restored.savedSlip.any = status.savedSlipFlags;
 		restored.slip.any = status.slipFlags;
 		restored.phaseRejectCount = status.phaseRejectCount;
+        restored.tracking=status.tracking;
+        restored.phaseQuarantined=status.phaseQuarantined;
+        restored.codeQuarantined=status.codeQuarantined;
+        restored.previousPhaseQuarantined=status.previousPhaseQuarantined;
 		output.sigStatMap[signal] = restored;
 	}
 	return output;
@@ -1392,6 +1404,21 @@ bool validSatelliteStatus(
 	const ZhangRuntimeSatelliteStatus& input,
 	string& failureReason)
 {
+    for (const auto* detector : {&input.acceptedGf, &input.acceptedMw})
+    {
+        bool valid=detector->accepted.size()<=8 &&
+            std::isfinite(detector->suspectTime) && std::isfinite(detector->suspectInnovation) &&
+            std::isfinite(detector->suspectVariance) && std::isfinite(detector->lastRawValue) &&
+            (!detector->suspect || detector->suspectVariance>0);
+        double previous=-std::numeric_limits<double>::infinity();
+        for (const auto& sample : detector->accepted)
+        {
+            valid &= std::isfinite(sample.time) && sample.time>previous &&
+                std::isfinite(sample.value) && std::isfinite(sample.variance) && sample.variance>0;
+            previous=sample.time;
+        }
+        if (!valid) { failureReason="RECEIVER_RUNTIME_CHECKPOINT_INVALID_DETECTOR_HISTORY"; return false; }
+    }
 	const double values[] = {
 		input.ambiguityVariance,
 		input.geometryFreeAmbiguity,
@@ -1465,6 +1492,8 @@ bool validSatelliteStatus(
 	for (const auto& [signal, status] : input.signalStatuses)
 	{
 		if (signal.empty()
+            || !std::isfinite(status.tracking.lastPhaseTime)
+            || (status.tracking.seen && status.tracking.lastCode<=0)
 			|| (status.savedSlipFlags & ~0x3Fu) != 0
 			|| (status.slipFlags & ~0x3Fu) != 0)
 		{

@@ -2,12 +2,16 @@
 // No KFState stubs: these checks exercise algebra.cpp's real transaction path.
 #include "common/algebra.hpp"
 #include "common/acsConfig.hpp"
+#include "common/common.hpp"
 #include "common/constants.hpp"
 #include "common/zhangGraphCoordinateTransport.hpp"
 #include "common/zhangCheckpoint.hpp"
 #include "common/receiver.hpp"
 #include "common/observations.hpp"
 #include "pea/zhangReference.hpp"
+#include "ambres/GNSSambres.hpp"
+#include "pea/zhangReceiverCheckpoint.hpp"
+void assignObservationValue(RawSig&,char,double,double);
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -16,6 +20,25 @@ static void check(bool ok,const char* message) { if(!ok) throw std::runtime_erro
 int main()
 {
     std::ostringstream trace;
+    for(unsigned lli : {1u,2u,3u,4u,7u}) {
+        RawSig raw;
+        assignObservationValue(raw,'L',12345,lli);
+        check(raw.LLI==lli,"RINEX assignment collapsed LLI bit mask");
+    }
+    for(auto mode : {E_ARmode::LAMBDA,E_ARmode::LAMBDA_ALT}) {
+        for(double value : {0.,.01,.49,.5}) {
+            GinAR_mtx matrix;matrix.aflt=VectorXd::Constant(1,value);
+            matrix.Paflt=MatrixXd::Constant(1,1,.12*.12);
+            GinAR_opt opt;opt.mode=mode;opt.min_lambda_fix_count=1;
+            opt.lambda_candidate_nis_alpha=1e-6;
+            const int count=GNSS_AR(trace,matrix,opt);
+            check(matrix.searchDiagnostic.ilsComplete,"production ILS did not complete top two");
+            check(matrix.searchDiagnostic.ratioExecuted,"production LAMBDA skipped ratio");
+            check(matrix.searchDiagnostic.localNisExecuted,"production LAMBDA skipped local NIS");
+            check((count==1)==(value<.1),"production ratio accepted ambiguous or rejected clear candidate");
+        }
+    }
+
     KFKey a,b,z; a.type=KF::IONO_STEC; a.str="A";
     b.type=KF::IONO_STEC; b.str="B"; z.type=KF::AMBIGUITY; z.str="fresh";
     KFState source; source.kfIndexMap={{a,0},{b,1}};
@@ -33,6 +56,23 @@ int main()
     check(!removed.kfIndexMap.contains(b),"expired STEC persisted at next transition");
     check(std::abs(removed.P(removed.kfIndexMap.at(a),removed.kfIndexMap.at(a))-4)<1e-12,
         "retirement conditioned instead of marginalized surviving covariance");
+
+    auto dynamic=source;
+    check(dynamic.setProcessModel(a,.5,123.,600.),"explicit process model setter rejected valid model");
+    check(dynamic.setProcessModel(a,0.,0.,-1.),"explicit zero model setter failed");
+    check(dynamic.procNoiseMap.at(a)==0 && dynamic.gaussMarkovMuMap.at(a)==0 &&
+        dynamic.gaussMarkovTauMap.at(a)==-1,"explicit zeros did not replace prior GM metadata");
+    dynamic.stateTransitionMap[a][b][1]=1;
+    check(dynamic.applyStateTransform(trace,{{a,{{a,1}}},{b,{{b,1}}}},"untouched_clock_rate"),
+        "identity transport rejected unrelated clock/rate dynamics");
+    check(dynamic.stateTransitionMap.at(a).at(b).at(1)==1,"transport erased clock/rate transition");
+    auto beforeDynamic=dynamic;
+    check(!dynamic.applyStateTransform(trace,{{a,{{a,1},{b,1}}},{b,{{b,1}}}},"coupled_reject"),
+        "mixed dynamic coordinate was accepted without F/Q transport");
+    check((dynamic.P-beforeDynamic.P).norm()==0,"dynamic rejection modified covariance");
+    dynamic=source;dynamic.setProcessModel(a,.01,0.,-1.);
+    check(!dynamic.applyStateTransform(trace,{{a,{{a,1},{b,1}}},{b,{{b,1}}}},"phase_q_reject"),
+        "nonzero phase Q accepted by exact transport");
 
     auto state=source;
     bool exactCalled=false,transitionCalled=false;
@@ -157,9 +197,116 @@ int main()
     check(trace.str().find("ZHANG_COMPONENT_TRANSPORT_COMMIT")!=std::string::npos,
         "all-arc restart did not commit component transport");
     eraseZhangGraphRuntime(network);
+    auto initialiseNetwork=[&](const std::string& id) {
+        for(auto& [name,rec]:receivers) for(auto& obs:only<GObs>(rec.obsList)) {
+            obs.excludeElevation=false;
+            auto& stat=*obs.satStat_ptr;
+            stat.sigStatMap.clear();
+        }
+        KFState fresh;fresh.metaDataMap[ZHANG_CHECKPOINT_RUNTIME_ID_METADATA]=id;
+        updateZhangFullRankReferences(trace,receivers,fresh);
+        fresh=original;fresh.time=fresh.time+30;
+        fresh.metaDataMap[ZHANG_CHECKPOINT_RUNTIME_ID_METADATA]=id;
+        return fresh;
+    };
+    // Rejection must quarantine a replacement arc even when its endpoints
+    // remain in the previous chart and the old tree could still model a row.
+    auto failed=initialiseNetwork("R51_ADMISSION_REJECTION");
+    auto failedBefore=failed;
+    failed.exactStateTransformCallback=[](auto const&...){return false;};
+    failed.stateTransitionFactorCallback=[](auto const&...){return false;};
+    for(auto& [name,rec]:receivers) for(auto& [sat,stat]:rec.satStatMap) {
+        auto& signal=stat.sigStatMap[ft2string(code2Freq[E_Sys::GPS][E_ObsCode::L1C])];
+        signal.slip.LLI=true;signal.savedSlip.LLI=true;signal.tracking.pendingBreak=true;
+    }
+    updateZhangFullRankReferences(trace,receivers,failed);
+    for(const auto& edge:graph.edges)
+        check(!zhangGraphModelsObservation(failed,edge.receiver,edge.satellite,E_ObsCode::L1C),
+            "rejected new arc was admitted through old endpoints");
+    check((failed.x-failedBefore.x).norm()==0 && (failed.P-failedBefore.P).norm()==0,
+        "rejected controller changed numerical posterior");
+    for(auto& [name,rec]:receivers) for(auto& [sat,stat]:rec.satStatMap)
+        check(stat.sigStatMap[ft2string(code2Freq[E_Sys::GPS][E_ObsCode::L1C])].tracking.pendingBreak,
+            "rejected retirement consumed a pending event");
+    eraseZhangGraphRuntime(failed);
+    auto productFailure=initialiseNetwork("R51_PRODUCT_REJECTION_FLOAT_PRESERVED");
+    options.product_core_min_satellite_support=1000;
+    options.product_integer_support_core=true;
+    for(auto& [name,rec]:receivers) for(auto& [sat,stat]:rec.satStatMap) {
+        auto& status=stat.sigStatMap[ft2string(code2Freq[E_Sys::GPS][E_ObsCode::L1C])];
+        status.slip.LLI=true;status.savedSlip.LLI=true;status.tracking.pendingBreak=true;
+    }
+    updateZhangFullRankReferences(trace,receivers,productFailure);
+    for(const auto& edge:graph.edges) {
+        check(zhangGraphModelsObservation(productFailure,edge.receiver,edge.satellite,E_ObsCode::L1C),
+            "product rejection rolled back an accepted FLOAT arc");
+        check(!zhangGraphProductSatelliteActive(productFailure,edge.satellite),
+            "failed product transaction retained current authority");
+    }
+    std::string rejectedProductPayload,productWhy;
+    check(exportZhangGraphCheckpointSection(productFailure,"R51_PRODUCT_REJECTION_FLOAT_PRESERVED",
+        rejectedProductPayload,productWhy),productWhy.c_str());
+    productFailure.time=productFailure.time+30;
+    check(!zhangGraphModelsObservation(productFailure,"A",SatSys("G01"),E_ObsCode::L1C),
+        "previous-epoch phase admission remained usable");
+    eraseZhangGraphRuntime(productFailure);
+    options.product_core_min_satellite_support=0;
+    for(bool removeRoot : {false,true}) {
+        const std::string id=removeRoot?"R51_ROOT_ABSENT_RESTORE":"R51_SPLIT_RESTORE";
+        auto forest=initialiseNetwork(id);
+        for(auto& [name,rec]:receivers) for(auto& obs:only<GObs>(rec.obsList)) {
+            bool keep=(!removeRoot && name=="A" && obs.Sat==SatSys("G01")) ||
+                (name=="B" && obs.Sat==SatSys("G02"));
+            if(!keep) {
+                obs.excludeElevation=true;
+                auto& status=obs.satStat_ptr->sigStatMap[ft2string(code2Freq[E_Sys::GPS][E_ObsCode::L1C])];
+                status.slip.LLI=true;status.savedSlip.LLI=true;status.tracking.pendingBreak=true;
+            }
+        }
+        updateZhangFullRankReferences(trace,receivers,forest);
+        ZhangGraphIntegerContext unauthorized;
+        check(!zhangGraphIntegerContext(forest,E_Sys::GPS,unauthorized),
+            "local FLOAT chart incorrectly authorized a global integer search");
+        std::string payload,why;
+        check(exportZhangGraphCheckpointSection(forest,id,payload,why),why.c_str());
+        check(validateZhangGraphCheckpointSection(id,payload,why),why.c_str());
+        KFState restored=forest;
+        eraseZhangGraphRuntime(forest);
+        check(importZhangGraphCheckpointSection(restored,id,payload,why),why.c_str());
+        check(zhangGraphModelsObservation(restored,"B",SatSys("G02"),E_ObsCode::L1C),
+            "surviving local FLOAT component was not restored");
+        check(!zhangGraphProductSatelliteActive(restored,SatSys("G02")),
+            "local FLOAT forest was promoted to current product authority");
+        auto later=restored.time+30;
+        check(restored.stateTransition(trace,later),"restored forest positive-time propagation failed");
+        updateZhangFullRankReferences(trace,receivers,restored);
+        check(restored.x.allFinite() && restored.P.allFinite(),"restored update produced nonfinite posterior");
+        check(zhangGraphModelsObservation(restored,"B",SatSys("G02"),E_ObsCode::L1C),
+            "restored component lost observation admission after positive-time update");
+        KFMeas row;
+        const auto rk=zhangTransportReceiverKey(E_Sys::GPS,E_ObsCode::L1C,"B");
+        const auto sk=zhangTransportSatelliteKey(E_ObsCode::L1C,SatSys("G02"));
+        row.H=MatrixXd::Zero(1,restored.x.size());
+        row.H(0,restored.kfIndexMap.at(rk))=1;row.H(0,restored.kfIndexMap.at(sk))=1;
+        row.Y=row.H*restored.x+VectorXd::Constant(1,.01);row.R=MatrixXd::Constant(1,1,.001);
+        row.V=VectorXd::Zero(1);row.VV=VectorXd::Zero(1);
+        row.prefitRatios=VectorXd::Zero(1);row.postfitRatios=VectorXd::Zero(1);
+        row.obsKeys={sk};row.metaDataMaps.resize(1);row.componentsMaps.resize(1);
+        restored.prefitOpts.sigma_check=false;restored.prefitOpts.omega_test=false;
+        restored.postfitOpts.sigma_check=false;restored.postfitOpts.omega_test=false;
+        const double varianceBefore=(row.H*restored.P*row.H.transpose())(0,0);
+        check(restored.filterKalman(trace,row,"RESTORED_COMPONENT_UPDATE")==KFFilterResult::COMMITTED,
+            "restored component's real KF observation update failed");
+        check((row.H*restored.P*row.H.transpose())(0,0)<varianceBefore,
+            "restored local physical observation did not reduce uncertainty");
+        eraseZhangGraphRuntime(restored);
+    }
+    std::cout<<trace.str()<<"\n";
     std::cout<<"PASS production algebra: pending retirement, marginal covariance, fresh correlated priors, "
         "callback routing, factor sequence, rejection rollback, exact-only rejection, "
         "retired-chord audit, retired-tree rejection before commit, converged-generation skip, "
-        "last-iteration reconciliation, production controller all-arc restart\n";
+        "last-iteration reconciliation, production controller all-arc restart, explicit zero process model, "
+        "dynamic F/Q guards, LLI bit preservation, production LAMBDA ratio and NIS, failed arc admission, "
+        "product invalidation without FLOAT rollback, split and root-absent checkpoint restore/update\n";
     return 0;
 }

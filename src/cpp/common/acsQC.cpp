@@ -403,8 +403,30 @@ void detslp_ll(
                 continue;
             }
 
-            // removed unused variable 'f'
-            if (sig.L == 0 || (sig.LLI & 0x03) == 0)
+            if (acsConfig.zhangFullRank.enable)
+            {
+                auto& status=obs.satStat_ptr->sigStatMap[ft2string(ft)];
+                const auto decision=zhangDecidePhaseTracking(status.tracking,
+                    sig.LLI, sig.L!=0, int(sig.code), double(obs.time.bigTime),
+                    1.5*acsConfig.epoch_interval);
+                status.phaseQuarantined = !decision.useCurrentPhase;
+                if (decision.breakArc)
+                {
+                    if (decision.gap) {status.slip.retrack=true;status.savedSlip.retrack=true;}
+                    else {status.slip.LLI=true;status.savedSlip.LLI=true;}
+                }
+                if (decision.breakArc || !decision.halfCycleResolved)
+                    trace << "\nZHANG_PHASE_TRACKING time=" << obs.time.to_string(0)
+                          << " receiver=" << obs.mount << " satellite=" << obs.Sat.id()
+                          << " code=" << enum_to_string(sig.code) << " lli=" << int(sig.LLI)
+                          << " break_arc=" << decision.breakArc
+                          << " use_phase=" << decision.useCurrentPhase << " use_code=1"
+                          << " half_cycle_resolved=" << decision.halfCycleResolved
+                          << " gap_continuity_unproven=" << decision.gap
+                          << " event_sequence=" << status.tracking.eventSequence;
+                continue;
+            }
+            if (sig.L == 0 || (sig.LLI & 0x01) == 0)
             {
                 continue;
             }
@@ -504,6 +526,36 @@ void detslp_gf(
             continue;
         }
 
+        if (acsConfig.zhangFullRank.enable)
+        {
+            auto& status=*obs.satStat_ptr;
+            auto& first=status.sigStatMap[ft2string(frq1)];
+            auto& second=status.sigStatMap[ft2string(frq2)];
+            if (first.tracking.halfCycle || second.tracking.halfCycle) continue;
+            const auto& opts=acsConfig.preprocOpts;
+            const double variance=obs.sigs.at(frq1).phasVar+obs.sigs.at(frq2).phasVar;
+            const auto decision=zhangInspectCombination(status.acceptedGf,
+                double(obs.time.bigTime),gf1,variance,opts.zhang_gf_variance_rate,
+                opts.zhang_gf_sigma_gate,opts.zhang_detector_max_gap,
+                first.slip.LLI || second.slip.LLI || first.slip.retrack || second.slip.retrack);
+            first.phaseQuarantined |= !decision.useSample;
+            second.phaseQuarantined |= !decision.useSample;
+            if (decision.breakArc)
+            {
+                first.slip.GF=second.slip.GF=true;
+                first.savedSlip.GF=second.savedSlip.GF=true;
+                first.tracking.pendingBreak=second.tracking.pendingBreak=true;
+            }
+            if (decision.useSample) status.gf=gf1;
+            trace << "\nZHANG_GF_PREDICTION time=" << obs.time.to_string(0)
+                  << " receiver=" << obs.mount << " satellite=" << obs.Sat.id()
+                  << " value_m=" << gf1 << " prediction_m=" << decision.prediction
+                  << " innovation_m=" << decision.innovation << " variance_m2=" << decision.variance
+                  << " statistic=" << decision.statistic << " sigma_gate=" << opts.zhang_gf_sigma_gate
+                  << " suspect=" << decision.suspect << " break_arc=" << decision.breakArc
+                  << " accepted=" << decision.useSample << " cross_frequency_noise_assumed_independent=1";
+            continue;
+        }
         double gf0          = obs.satStat_ptr->gf;
         obs.satStat_ptr->gf = gf1;
 
@@ -640,6 +692,43 @@ void detslp_mw(
             continue;
         }
 
+        if (acsConfig.zhangFullRank.enable)
+        {
+            auto& status=*obs.satStat_ptr;
+            auto& first=status.sigStatMap[ft2string(frq1)];
+            auto& second=status.sigStatMap[ft2string(frq2)];
+            if (first.tracking.halfCycle || second.tracking.halfCycle) continue;
+            const auto& a=obs.sigs.at(frq1);const auto& b=obs.sigs.at(frq2);
+            const double sum=lc.lam_A+lc.lam_B;
+            if (lc.lam_A<=0 || lc.lam_B<=0 || lc.lam_WL==0 || sum==0) continue;
+            const double variance=a.phasVar/SQR(lc.lam_A)+b.phasVar/SQR(lc.lam_B)+
+                (SQR(lc.lam_B/sum)*a.codeVar+SQR(lc.lam_A/sum)*b.codeVar)/SQR(lc.lam_WL);
+            const auto& opts=acsConfig.preprocOpts;
+            const auto decision=zhangInspectCombination(status.acceptedMw,
+                double(obs.time.bigTime),mw1,variance,opts.zhang_mw_variance_rate,
+                opts.zhang_mw_sigma_gate,opts.zhang_detector_max_gap,
+                first.slip.LLI || second.slip.LLI || first.slip.retrack || second.slip.retrack);
+            // MW alone cannot identify whether code or phase caused a spike.
+            // Quarantine the suspect samples, without retiring a continuous arc.
+            first.phaseQuarantined |= !decision.useSample;
+            second.phaseQuarantined |= !decision.useSample;
+            first.codeQuarantined |= !decision.useSample;
+            second.codeQuarantined |= !decision.useSample;
+            if (decision.breakArc)
+            {
+                first.slip.MW=second.slip.MW=true;
+                first.savedSlip.MW=second.savedSlip.MW=true;
+                first.tracking.pendingBreak=second.tracking.pendingBreak=true;
+            }
+            if (decision.useSample) status.mw=mw1;
+            trace << "\nZHANG_MW_PREDICTION time=" << obs.time.to_string(0)
+                  << " receiver=" << obs.mount << " satellite=" << obs.Sat.id()
+                  << " innovation_cycles=" << decision.innovation << " variance_cycles2=" << decision.variance
+                  << " statistic=" << decision.statistic << " suspect=" << decision.suspect
+                  << " break_arc=" << decision.breakArc << " accepted=" << decision.useSample
+                  << " source_identified=0 gf_and_mw_and_gate=0";
+            continue;
+        }
         double mw0          = obs.satStat_ptr->mw;
         obs.satStat_ptr->mw = mw1;
 
@@ -1453,8 +1542,11 @@ void detectslip(
     )  // was zero, now not.
     {
         /* set slip flag for L5 (introduce new ambiguity for L5) */
-        satStat.sigStatMap[ft2string(frq3)].slip.retrack      = true;
-        satStat.sigStatMap[ft2string(frq3)].savedSlip.retrack = true;
+        if (!acsConfig.zhangFullRank.enable)
+        {
+            satStat.sigStatMap[ft2string(frq3)].slip.retrack = true;
+            satStat.sigStatMap[ft2string(frq3)].savedSlip.retrack = true;
+        }
         traceSlipEvent(
             trace,
             "PDE",
@@ -1534,8 +1626,8 @@ void detectslip(
         satStat.flt.ne   = 0;
         for (auto& [key, sigStat] : satStat.sigStatMap)
         {
-            sigStat.slip.retrack      = true;
-            sigStat.savedSlip.retrack = true;
+            if (!acsConfig.zhangFullRank.enable)
+            { sigStat.slip.retrack=true; sigStat.savedSlip.retrack=true; }
         }
 
         tracepdeex(
@@ -1566,8 +1658,8 @@ void detectslip(
         satStat.flt.ne   = 0;
         for (auto& [key, sigStat] : satStat.sigStatMap)
         {
-            sigStat.slip.singleFreq      = true;
-            sigStat.savedSlip.singleFreq = true;
+            if (!acsConfig.zhangFullRank.enable)
+            { sigStat.slip.singleFreq=true; sigStat.savedSlip.singleFreq=true; }
         }
 
         tracepdeex(
@@ -1617,6 +1709,9 @@ void clearSlips(ObsList& obsList)
 
             satStat.slip     = false;  // todo? is this used?
             sigStat.slip.any = 0;
+            sigStat.previousPhaseQuarantined=sigStat.phaseQuarantined;
+            sigStat.phaseQuarantined=false;
+            sigStat.codeQuarantined=false;
         }
     }
 }
@@ -1652,7 +1747,15 @@ void detectslips(
 
         SatStat& satStat = *(obs.satStat_ptr);
 
-        detectslip(trace, satStat, satStat.lc_new, satStat.lc_pre, obs);
+        bool cleanForLegacyPredictor=true;
+        if (acsConfig.zhangFullRank.enable)
+            for (const auto& [ft,sig]:obs.sigs)
+            {
+                const auto& status=satStat.sigStatMap[ft2string(ft)];
+                cleanForLegacyPredictor &= !status.phaseQuarantined && !status.previousPhaseQuarantined;
+            }
+        if (cleanForLegacyPredictor)
+            detectslip(trace, satStat, satStat.lc_new, satStat.lc_pre, obs);
 
         for (auto& [ft, sig] : obs.sigs)
         {

@@ -1587,7 +1587,7 @@ ObsList RtcmDecoder::decodeMSM(vector<unsigned char>& data)
         Sig& sig = *signalPointer;
 
         if (half_cycle_ambiguity > 0)
-            sig.LLI = true;
+            sig.LLI |= 0x02;
     }
 
     for (auto& [indx, signalPointer] : signalPointermap)
