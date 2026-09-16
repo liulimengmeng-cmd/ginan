@@ -54,6 +54,18 @@ terminal reconciliations falling from seven to one. Final boundary fixes then
 passed the production controller test and a fresh single-epoch smoke test with
 the same first-epoch posterior digest.
 
+The final executable subsequently completed all 20 epochs with BLAS=4 and
+OMP=4 in 517.45 s, compared with 1127.56 s for the frozen parent with BLAS=1
+(54.1% less wall time). Its last 18 mean commit intervals were 16.52 s versus
+34.78 s for the parent. It performed five component reparameterizations, no
+local resets, one terminal reconciliation and one nonconverged QC epoch.
+This comparison changes both code and the BLAS setting; it is not a pure
+thread-scaling benchmark or a day-long runtime prediction. The final program
+and the repaired BLAS=1 run have the same 1160 product keys and validity flags;
+correction differences are at most 0.867 mm (0.110 mm RMS), not truth errors.
+All comparison runs disable checkpoint writing. The original 48-hour run
+remains stopped.
+
 The full local evidence is under `r51_graph_speed_fix_20260916`, outside this
 checkout, including the source conversation, configuration, commands, hashes,
 logs, per-epoch comparison, and any subsequent threading experiment. Long-term
