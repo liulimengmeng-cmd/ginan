@@ -3656,7 +3656,6 @@ void updateZhangGraphBasis(
 
         const int oldComponentCount = runtime.productBasis.componentCount;
         invalidateZhangProduct(runtime, reason);
-        const bool anyFunctionalSurvives = false;
         const bool componentSplit = oldComponentCount > 1;
         if (acsConfig.zhangPppAr.output_diagnostics)
         {
@@ -3676,7 +3675,7 @@ void updateZhangGraphBasis(
                   << " surviving_component_count="
                   << runtime.productBasis.componentCount
                   << " component_split=" << componentSplit
-                  << " float_gauge_continuous=" << anyFunctionalSurvives
+                  << " float_gauge_continuous=1 product_authority_revoked=1"
                   << " ar_valid=0"
                   << " pending_component_gauge_bridge=1"
                   << " pending_besd_bridge=1"

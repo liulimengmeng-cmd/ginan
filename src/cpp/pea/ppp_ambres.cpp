@@ -27087,7 +27087,11 @@ static int resolveLayeredWideLaneL1(
 							<< " observable=" << enum_to_string(basis.observable)
 							<< " satellite=" << basis.namedRelations[n].satellite.id()
 							<< " reference=" << basis.namedRelations[n].referenceSatellite.id()
-							<< " status=" << basis.wholeLattice.namedStatus[n]
+							<< " status=" << (n < basis.wholeLattice.namedStatus.size()
+                                ? basis.wholeLattice.namedStatus[n] : "UNAVAILABLE_UNCOMPILED_LATTICE")
+                            << " basis_valid=" << basis.valid
+                            << " whole_lattice_valid=" << basis.wholeLattice.valid
+                            << " basis_reason=" << (basis.failureReason.empty() ? "NONE" : basis.failureReason)
 							<< " structural_identity_is_ar_certificate=0";
 					trace << "\nZHANG_PRODUCT_RELATION_AVAILABLE_GRAPH_REBASE time="
 						  << time.to_string(0)
