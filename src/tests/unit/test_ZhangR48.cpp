@@ -1,4 +1,192 @@
 #include <boost/test/unit_test.hpp>
+#include "common/zhangActiveGraphBasis.hpp"
+#include "common/zhangGraphCoordinateTransport.hpp"
+
+namespace {
+KFState coordinateFixture(const ZhangGraphBasis& basis)
+{
+    KFState state;
+    state.kfIndexMap.clear();
+    auto add = [&](const KFKey& key) {
+        if (!state.kfIndexMap.contains(key))
+            state.kfIndexMap[key] = state.kfIndexMap.size();
+        state.stateTransitionMap[key][key][0] = 1;
+    };
+    KFKey external; external.type=KF::IONO_STEC; external.str="external"; add(external);
+    for (auto code : {E_ObsCode::L1C,E_ObsCode::L2W})
+    {
+        for (const auto& receiver : basis.receivers)
+            if(receiver!=basis.rootReceiver) add(zhangTransportReceiverKey(E_Sys::GPS,code,receiver));
+        for (const auto& satellite : basis.satellites) add(zhangTransportSatelliteKey(code,satellite));
+        for (const auto& edge : basis.edges)
+            if(!basis.treeEdges.contains(edge)) add(zhangTransportAmbiguityKey(code,edge));
+    }
+    int n=state.kfIndexMap.size();
+    state.x=Eigen::VectorXd::LinSpaced(n,-3,4); state.dx=Eigen::VectorXd::Zero(n);
+    Eigen::MatrixXd lower=Eigen::MatrixXd::Identity(n,n);
+    for(int i=0;i<n;i++) for(int j=0;j<i;j++) lower(i,j)=0.07*(1+(i+j)%5);
+    state.P=lower*lower.transpose();
+    return state;
+}
+ZhangGraphCoordinatePlan planFixture(const KFState& state,const ZhangGraphBasis& old,
+    const ZhangGraphBasis& next,const std::set<ZhangGraphEdge>& retired={})
+{
+    return zhangPlanGraphCoordinateTransport(state,E_Sys::GPS,old,next,retired,
+        {{E_ObsCode::L1C,0.1902936728},{E_ObsCode::L2W,0.2442102134}},
+        [](const auto&,auto){return 100.;},[](const auto&,auto){return 25.;});
+}
+KFState evaluatePlan(const KFState& old,const ZhangGraphCoordinatePlan& plan,
+    const ZhangGraphBasis& basis)
+{
+    BOOST_REQUIRE_MESSAGE(plan.valid,plan.failureReason);
+    KFState next; next.kfIndexMap.clear(); next.stateTransitionMap.clear();
+    const int n=plan.transform.size();
+    Eigen::MatrixXd t=Eigen::MatrixXd::Zero(n,old.x.size());
+    Eigen::MatrixXd g=Eigen::MatrixXd::Zero(n,plan.independentSourceVariances.size());
+    std::map<KFKey,int> independent; for(const auto& [key,v]:plan.independentSourceVariances)
+        independent[key]=independent.size();
+    for(const auto& [key,row]:plan.transform) {
+        int i=next.kfIndexMap.size(); next.kfIndexMap[key]=i; next.stateTransitionMap[key][key][0]=1;
+        for(const auto& [source,c]:row) {
+            if(old.kfIndexMap.contains(source)) t(i,old.kfIndexMap.at(source))=c;
+            else g(i,independent.at(source))=c*std::sqrt(plan.independentSourceVariances.at(source));
+        }
+    }
+    next.x=t*old.x; next.dx=t*old.dx; next.P=t*old.P*t.transpose()+g*g.transpose();
+    int count=plan.survivingPhysicalRows.size();
+    Eigen::MatrixXd oldH=Eigen::MatrixXd::Zero(count,old.x.size());
+    Eigen::MatrixXd newH=Eigen::MatrixXd::Zero(count,n);
+    int i=0;
+    for(const auto& [id,row]:plan.survivingPhysicalRows) {
+        const auto& [code,edge]=id;
+        for(const auto& [key,c]:row) oldH(i,old.kfIndexMap.at(key))=c;
+        if(edge.receiver!=basis.rootReceiver)
+            newH(i,next.kfIndexMap.at(zhangTransportReceiverKey(E_Sys::GPS,code,edge.receiver)))=1;
+        newH(i,next.kfIndexMap.at(zhangTransportSatelliteKey(code,edge.satellite)))=1;
+        if(!basis.treeEdges.contains(edge)) newH(i,next.kfIndexMap.at(zhangTransportAmbiguityKey(code,edge)))=
+            code==E_ObsCode::L1C?0.1902936728:0.2442102134;
+        i++;
+    }
+    BOOST_CHECK_SMALL((newH*t-oldH).norm(),1e-10);
+    BOOST_CHECK_SMALL((newH*g).norm(),1e-10);
+    BOOST_CHECK_SMALL((newH*next.x-oldH*old.x).norm(),1e-10);
+    BOOST_CHECK_SMALL((newH*next.P*newH.transpose()-oldH*old.P*oldH.transpose()).norm(),1e-9);
+    // Full cross covariance with the independent non-phase state is conserved.
+    KFKey external; external.type=KF::IONO_STEC; external.str="external";
+    BOOST_CHECK_SMALL((newH*next.P.col(next.kfIndexMap.at(external))-
+        oldH*old.P.col(old.kfIndexMap.at(external))).norm(),1e-10);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(next.P);
+    BOOST_CHECK(eig.eigenvalues().minCoeff()>-1e-10);
+    return next;
+}
+}
+
+BOOST_AUTO_TEST_CASE(r51_component_transport_preserves_physical_rows_and_full_covariance)
+{
+    const ZhangGraphEdge a1{"A",SatSys("G01")},a2{"A",SatSys("G02")},
+        b1{"B",SatSys("G01")},b2{"B",SatSys("G02")},
+        c2{"C",SatSys("G02")},c3{"C",SatSys("G03")},
+        d2{"D",SatSys("G02")},d3{"D",SatSys("G03")};
+    auto old=zhangBuildSpanningTree({a1,a2,b1,b2,c2,c3,d2,d3},"A");
+    auto state=coordinateFixture(old);
+    auto pivot=zhangBuildSpanningTree(old.edges,"A",{a1,b1,b2,c2,c3,d3});
+    auto plan=planFixture(state,old,pivot);
+    BOOST_CHECK(plan.independentSourceVariances.empty());
+    evaluatePlan(state,plan,pivot);
+    // Physical removal of both edges to G02 splits A/B/G01 from C/D/G02/G03.
+    auto split=zhangBuildSpanningTree({a1,b1,c2,c3,d2,d3},"A");
+    BOOST_REQUIRE(!split.connected);
+    plan=planFixture(state,old,split,{a2,b2});
+    auto splitState=evaluatePlan(state,plan,split);
+    BOOST_CHECK_EQUAL(plan.survivingPhysicalRows.size(),12);
+    BOOST_CHECK(plan.independentSourceVariances.empty());
+    auto rootKey=zhangTransportReceiverKey(E_Sys::GPS,E_ObsCode::L1C,"C");
+    BOOST_CHECK(splitState.P(splitState.kfIndexMap.at(rootKey),splitState.kfIndexMap.at(rootKey))>0);
+    BOOST_CHECK_EQUAL(split.edges.size()-split.treeEdges.size(),1); // internal cycle survives
+    auto rejoin=zhangBuildSpanningTree(old.edges,"A");
+    plan=planFixture(splitState,split,rejoin);
+    BOOST_CHECK(plan.freshEdges==std::set<ZhangGraphEdge>({a2,b2}));
+    BOOST_CHECK_EQUAL(plan.independentSourceVariances.size(),4);
+    evaluatePlan(splitState,plan,rejoin);
+}
+
+BOOST_AUTO_TEST_CASE(r51_component_transport_new_node_retirement_and_dynamic_guard)
+{
+    const ZhangGraphEdge a1{"A",SatSys("G01")},a2{"A",SatSys("G02")},
+        b1{"B",SatSys("G01")},b2{"B",SatSys("G02")},c2{"NEW",SatSys("G02")};
+    auto old=zhangBuildSpanningTree({a1,a2,b1,b2},"A"); auto state=coordinateFixture(old);
+    auto next=zhangBuildSpanningTree({a1,a2,b1,b2,c2},"A",{a1,b1,b2,c2});
+    auto plan=planFixture(state,old,next,{a2});
+    BOOST_CHECK_EQUAL(plan.survivingPhysicalRows.size(),6);
+    BOOST_CHECK(plan.freshEdges==std::set<ZhangGraphEdge>({a2,c2}));
+    evaluatePlan(state,plan,next);
+    // A complete physical restart still has a valid destination chart. It
+    // carries independent priors for every arc and certifies no old relation.
+    auto restarted=planFixture(state,old,old,old.edges);
+    BOOST_REQUIRE(restarted.valid);
+    BOOST_CHECK(restarted.survivingPhysicalRows.empty());
+    BOOST_CHECK_EQUAL(restarted.independentSourceVariances.size(),2*old.edges.size());
+    evaluatePlan(state,restarted,old);
+    auto chord=*std::find_if(old.edges.begin(),old.edges.end(),[&](auto e){return !old.treeEdges.contains(e);});
+    auto key=zhangTransportAmbiguityKey(E_ObsCode::L1C,chord);
+    state.stateTransitionMap.erase(key); // pending retirement must never be reused
+    plan=planFixture(state,old,old);
+    BOOST_CHECK(!plan.survivingPhysicalRows.contains({E_ObsCode::L1C,chord}));
+    BOOST_CHECK(plan.freshEdges.contains(chord));
+    state.procNoiseMap[key]=0.1;
+    plan=planFixture(state,old,old);
+    BOOST_CHECK(!plan.valid);
+    BOOST_CHECK_EQUAL(plan.failureReason,"NONCONSTANT_PHASE_PROCESS_REQUIRES_FULL_MODEL_TRANSPORT");
+}
+
+BOOST_AUTO_TEST_CASE(r51_pivot_and_new_leaf_are_separate_chart_operations)
+{
+    const ZhangGraphEdge a1{"A", SatSys("G01")}, a2{"A", SatSys("G02")};
+    const ZhangGraphEdge b1{"B", SatSys("G01")}, b2{"B", SatSys("G02")};
+    const ZhangGraphEdge c1{"NEW", SatSys("G01")};
+    const auto old = zhangBuildSpanningTree({a1,a2,b1,b2}, "A", {a1,b1,b2});
+    const auto transported = zhangBuildSpanningTree({a1,a2,b2}, "A", {a1,a2,b2});
+    BOOST_REQUIRE(old.connected);
+    const std::set<ZhangGraphEdge> eligible{a1,a2,b2,c1};
+    BOOST_CHECK(!zhangActiveGraphBasisAfterTransform(transported, eligible).valid);
+    const auto parts = partitionZhangEligibility(transported, eligible);
+    BOOST_CHECK(parts.requiresAugmentation == std::set<ZhangGraphEdge>{c1});
+    const auto extended = zhangActiveGraphBasisWithAugmentation(transported, eligible);
+    BOOST_REQUIRE(extended.valid);
+    BOOST_CHECK(extended.basis.edges.contains(a2)); // replacement bridge survives
+    BOOST_CHECK(extended.basis.treeEdges.contains(c1));
+    BOOST_CHECK_EQUAL(extended.basis.treeEdges.size(), transported.treeEdges.size()+1);
+    for (const auto& edge : transported.treeEdges)
+        BOOST_CHECK(extended.basis.treeEdges.contains(edge));
+}
+
+BOOST_AUTO_TEST_CASE(r51_simultaneous_tree_and_chord_slips_cannot_supply_replacement_paths)
+{
+    const ZhangGraphEdge a1{"A",SatSys("G01")},a2{"A",SatSys("G02")},
+        b1{"B",SatSys("G01")},b2{"B",SatSys("G02")};
+    auto old=zhangBuildSpanningTree({a1,a2,b1,b2},"A",{a1,a2,b1});
+    auto incompleteEvent=zhangPlanPivotBeforeRetire(old,old.edges,{b1});
+    BOOST_REQUIRE(incompleteEvent.connected);
+    BOOST_CHECK(incompleteEvent.replacementEdges.contains(b2));
+    auto completeEvent=zhangPlanPivotBeforeRetire(old,old.edges,{b1,b2});
+    BOOST_CHECK(!completeEvent.connected);
+    BOOST_CHECK(!completeEvent.survivingRepresentedEdges.contains(b2));
+}
+
+BOOST_AUTO_TEST_CASE(r51_new_nodes_cannot_silently_exchange_an_old_tree)
+{
+    const ZhangGraphEdge a1{"A", SatSys("G01")}, a2{"A", SatSys("G02")};
+    const ZhangGraphEdge b1{"B", SatSys("G01")}, b2{"B", SatSys("G02")};
+    auto represented = zhangBuildSpanningTree({a1,a2,b1,b2}, "A", {a1,b1,b2});
+    auto extended = zhangActiveGraphBasisWithAugmentation(
+        represented, {a1,a2,b2,{"NEW",SatSys("G02")},{"NEW",SatSys("G03")}});
+    BOOST_REQUIRE(extended.valid);
+    BOOST_CHECK(extended.retainedDatumOnlyEdges.contains(b1));
+    BOOST_CHECK(extended.basis.treeEdges.contains(b1));
+    represented.edges.erase(b1);
+    BOOST_CHECK(!zhangActiveGraphBasisWithAugmentation(represented,{a1,a2,b2}).valid);
+}
+
 #include "common/zhangIntegerCandidateNis.hpp"
 BOOST_AUTO_TEST_CASE(r48_c0_covariance_safety) {
  Eigen::MatrixXd q=Eigen::MatrixXd::Identity(2,2);q(1,1)=-1;

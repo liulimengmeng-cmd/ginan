@@ -777,16 +777,17 @@ bool KFState::manualStateTransition(
     return true;
 }
 
-/** Apply a deterministic linear coordinate transform to the complete filter state.
+/** Reparameterise the complete filter state, optionally augmenting independent priors.
  *
- * Unlike manualStateTransition(), this function supports a changed state dimension and replaces
- * the KFKey index map.  It deliberately adds no process noise: an S-transform changes the datum,
- * not the information content of the estimate.
+ * Empty independentSourceVariances gives an exact S-transform: x'=Tx, P'=TPT'.
+ * Named independent zero-mean sources add G D G' and require a state-transition
+ * factor consumer, never an exact integer-coordinate transport callback.
  */
 bool KFState::applyStateTransform(
     Trace&                                trace,
     const map<KFKey, map<KFKey, double>>& transformMap,
-    const string&                         label
+    const string&                         label,
+    const map<KFKey, double>&              independentSourceVariances
 )
 {
     lock_guard guard(kfStateMutex);
@@ -812,6 +813,17 @@ bool KFState::applyStateTransform(
     const int newStateCount = transformMap.size();
 
     SparseMatrix<double> transform(newStateCount, oldStateCount);
+    SparseMatrix<double> noiseInjection(newStateCount, independentSourceVariances.size());
+    map<KFKey, int> noiseIndex;
+    for (const auto& [key, variance] : independentSourceVariances)
+    {
+        if (!std::isfinite(variance) || variance <= 0 || kfIndexMap.contains(key))
+        {
+            lastFactorTransactionFailureReason = "INVALID_INDEPENDENT_TRANSFORM_SOURCE";
+            return false;
+        }
+        noiseIndex.emplace(key, noiseIndex.size());
+    }
     map<KFKey, int>      newIndexMap;
 
     int row = 0;
@@ -836,6 +848,13 @@ bool KFState::applyStateTransform(
             auto sourceIt = kfIndexMap.find(source);
             if (sourceIt == kfIndexMap.end())
             {
+                const auto independent = noiseIndex.find(source);
+                if (independent != noiseIndex.end())
+                {
+                    noiseInjection.coeffRef(row, independent->second) += coefficient *
+                        std::sqrt(independentSourceVariances.at(source));
+                    continue;
+                }
                 BOOST_LOG_TRIVIAL(error)
                     << "KF state transform source is absent: " << source << " -> " << destination;
                 return false;
@@ -852,6 +871,13 @@ bool KFState::applyStateTransform(
     VectorXd transformedX  = transform * x;
     VectorXd transformedDx = transform * dx;
     MatrixXd transformedP  = transform * P * transform.transpose();
+    MatrixXd independentCovariance;
+    if (!independentSourceVariances.empty())
+    {
+        noiseInjection.makeCompressed();
+        independentCovariance = MatrixXd(noiseInjection * noiseInjection.transpose());
+        transformedP += independentCovariance;
+    }
 
     // Suppress round-off asymmetry before subsequent LDLT/Cholesky operations.
     transformedP = (0.5 * (transformedP + transformedP.transpose())).eval();
@@ -878,7 +904,21 @@ bool KFState::applyStateTransform(
     bool factorAccepted = true;
     try
     {
-        if (exactStateTransformCallback)
+        if (!independentSourceVariances.empty() && stateTransitionFactorCallback)
+        {
+            // New physical arcs are independent prior sources, not exact
+            // integer transports. Publish the complete correlated Q = G D G'.
+            factorAccepted = stateTransitionFactorCallback(
+                *this, time, kfIndexMap, newIndexMap, transform,
+                independentCovariance, label, transformedX, transformedP,
+                beforeCommitSequence, afterCommitSequence);
+        }
+        else if (!independentSourceVariances.empty() && exactStateTransformCallback)
+        {
+            lastFactorTransactionFailureReason = "STOCHASTIC_TRANSFORM_REQUIRES_TRANSITION_CONSUMER";
+            factorAccepted = false;
+        }
+        else if (exactStateTransformCallback)
         {
             factorAccepted = exactStateTransformCallback(
                 *this,
@@ -940,6 +980,19 @@ bool KFState::applyStateTransform(
     stateTransitionMap.clear();
     for (auto& [key, index] : kfIndexMap)
     {
+        // removeState() schedules marginalisation for the next transition.
+        // A datum transform must not resurrect an unchanged, retired state
+        // while rebuilding identity persistence (notably expired STEC).
+        const auto& sources = transformMap.at(key);
+        const bool unchangedCoordinate = sources.size() == 1 &&
+            sources.begin()->first == key && sources.begin()->second == 1;
+        if (unchangedCoordinate && operationEntry.kfIndexMap.contains(key) &&
+            !operationEntry.stateTransitionMap.contains(key))
+        {
+            trace << "\nKF_TRANSFORM_PENDING_RETIREMENT key=" << key
+                  << " action=PRESERVE_PENDING_REMOVAL";
+            continue;
+        }
         stateTransitionMap[key][key][0] = 1;
     }
 
@@ -3703,11 +3756,11 @@ KFFilterResult KFState::filterKalman(
         }
     }
 
-    // Once any rejection callback has changed the prior/noise model, finish
-    // with one serial solve over the final model and do not invoke rejection
-    // callbacks again.  This closes the stale-posterior hole when the last
-    // allowed robust iteration itself changes P or R.
-    if (transaction.modelGeneration > 0 || modelSolveMismatch)
+    // Reconcile only chunks whose posterior predates the final prior/noise
+    // model. A converged robust iteration already solved that model. Keep the
+    // reconciliation when the last allowed callback changed P/R, or another
+    // chunk changed the shared model after this chunk was solved.
+    if (modelSolveMismatch)
     {
         trace << "\nZHANG_KF_MEASUREMENT_TRANSACTION"
               << " time=" << transaction.time.to_string(0)

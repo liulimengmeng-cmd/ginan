@@ -2150,11 +2150,13 @@ void receiverUducGnss(
                     SigStat& sigStat        = satStat.sigStatMap[sigName];
                     SigStat& preprocSigStat = satStat.sigStatMap[ft2string(ft)];
 
+                    const bool zhangCodeRow = measType == CODE &&
+                        zhangGraphOwnsAmbiguityLifecycle(obs.Sat.sys, sig.code);
                     if (preprocSigStat.slip.any)
                     {
                         auto& ast = autoSenderTemplate;
 
-                        if (acsConfig.exclude.LLI && preprocSigStat.slip.LLI)
+                        if (!zhangCodeRow && acsConfig.exclude.LLI && preprocSigStat.slip.LLI)
                         {
                             tracepdeex(2, trace, " - LLI slip excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "LLI"});
@@ -2166,7 +2168,7 @@ void receiverUducGnss(
                             ast.pushValueKVP(2, {"excludeSlip", "retrack"});
                             continue;
                         }
-                        if (acsConfig.exclude.GF && preprocSigStat.slip.GF)
+                        if (!zhangCodeRow && acsConfig.exclude.GF && preprocSigStat.slip.GF)
                         {
                             tracepdeex(2, trace, " - GF slip excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "GF"});
@@ -2178,7 +2180,7 @@ void receiverUducGnss(
                             ast.pushValueKVP(2, {"excludeSlip", "MW"});
                             continue;
                         }
-                        if (acsConfig.exclude.SCDIA && preprocSigStat.slip.SCDIA)
+                        if (!zhangCodeRow && acsConfig.exclude.SCDIA && preprocSigStat.slip.SCDIA)
                         {
                             tracepdeex(2, trace, " - SCDIA slip excluded");
                             ast.pushValueKVP(2, {"excludeSlip", "SCDIA"});
@@ -2206,7 +2208,7 @@ void receiverUducGnss(
                     auto   code   = sig.code;
 
                     auto zhangOptions = zhangFullRankSystemOptions(sys, code);
-                    if (zhangOptions &&
+                    if (measType == PHAS && zhangOptions &&
                         zhangOptions->use_spanning_tree &&
                         !zhangGraphModelsObservation(kfState, rec.id, Sat, code))
                     {

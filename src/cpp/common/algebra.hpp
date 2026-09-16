@@ -991,17 +991,18 @@ struct KFState : KFState_
         const string& label = "KF_MANUAL_STATE_TRANSITION"
     );
 
-    /** Apply an exact linear change of state coordinates.
+    /** Apply a linear change of state coordinates, optionally adding fresh priors.
      *
      * Each destination state is expressed as a linear combination of states in the current
      * coordinate system.  The full covariance, including all cross-covariances, is transformed
-     * with P' = T P T^T.  This is intended for datum/S-basis changes where no stochastic
-     * information is added or removed.
+     * with P' = T P T^T. Independent zero-mean named sources add G D G^T, using
+     * a stochastic transition callback rather than an exact-transform callback.
      */
     bool applyStateTransform(
         Trace&                                  trace,
         const map<KFKey, map<KFKey, double>>&   transformMap,
-        const string&                           label = ""
+        const string&                           label = "",
+        const map<KFKey, double>&                independentSourceVariances = {}
     );
 
     void leastSquareSigmaChecks(

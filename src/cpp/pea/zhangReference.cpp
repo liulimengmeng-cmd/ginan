@@ -3,6 +3,7 @@
 #include "common/zhangActiveGraphBasis.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <exception>
 #include <limits>
@@ -31,6 +32,7 @@
 #include "common/trace.hpp"
 #include "common/zhangCheckpoint.hpp"
 #include "common/zhangFullRank.hpp"
+#include "common/zhangGraphCoordinateTransport.hpp"
 #include "common/zhangIntegerSupportResidualAudit.hpp"
 #include "common/zhangIntegerAudit.hpp"
 #include "pea/zhangPppAr.hpp"
@@ -47,9 +49,11 @@ struct ReferenceAvailability
     map<string, set<SatSys>> satellitesByReceiver;
     map<SatSys, double>      elevationScore;
     set<ZhangGraphEdge>      edges;
+    set<ZhangGraphEdge>      codeEdges;
     set<ZhangGraphEdge>      rawEdges;
     set<ZhangGraphEdge>      discontinuousEdges;
     map<ZhangGraphEdge, set<E_ObsCode>> discontinuitySignals;
+    map<ZhangGraphEdge, vector<SigStat*>> discontinuityStats;
     set<ZhangGraphEdge>      qcExcludedEdges;
     set<ZhangGraphEdge>      elevationExcludedEdges;
     set<ZhangGraphEdge>      signalUnavailableEdges;
@@ -867,7 +871,7 @@ bool signalIsUsable(const GObs& obs, E_ObsCode code)
 {
     for (auto& [frequency, signal] : obs.sigs)
     {
-        if (signal.code != code || signal.P == 0 || signal.L == 0 || signal.invalid)
+        if (signal.code != code || signal.L == 0 || signal.invalid)
         {
             continue;
         }
@@ -888,7 +892,15 @@ bool signalIsUsable(const GObs& obs, E_ObsCode code)
     return false;
 }
 
-bool signalHasExcludedSlip(const GObs& obs, E_ObsCode code)
+bool slipRequiresArcRetirement(const SigStat::SlipStat& slip)
+{
+    const auto& reset = acsConfig.ambErrors.resetOnSlip;
+    return (reset.LLI && slip.LLI) || (reset.retrack && slip.retrack) ||
+        (reset.GF && slip.GF) || (reset.MW && slip.MW) ||
+        (reset.SCDIA && slip.SCDIA) || (reset.single_freq && slip.singleFreq);
+}
+
+bool signalRequiresArcRetirement(const GObs& obs, E_ObsCode code)
 {
     if (!obs.satStat_ptr)
     {
@@ -904,7 +916,8 @@ bool signalHasExcludedSlip(const GObs& obs, E_ObsCode code)
 
         auto slipIt = obs.satStat_ptr->sigStatMap.find(ft2string(frequency));
         if (slipIt != obs.satStat_ptr->sigStatMap.end() &&
-            slipIsExcluded(slipIt->second.slip))
+            (slipRequiresArcRetirement(slipIt->second.slip) ||
+             slipRequiresArcRetirement(slipIt->second.savedSlip)))
         {
             return true;
         }
@@ -941,10 +954,21 @@ ReferenceAvailability referenceAvailability(
             bool hardDiscontinuity = false;
             for (E_ObsCode code : baselineObservables)
             {
-                if (signalHasExcludedSlip(obs, code))
+                const auto phase = obs.satStat_ptr
+                    ? obs.satStat_ptr->sigStatMap.find(enum_to_string(code))
+                    : decltype(obs.satStat_ptr->sigStatMap)::iterator{};
+                const bool rejectedPhase = obs.satStat_ptr &&
+                    phase != obs.satStat_ptr->sigStatMap.end() &&
+                    phase->second.phaseRejectCount >= acsConfig.ambErrors.phase_reject_limit;
+                if (signalRequiresArcRetirement(obs, code) || rejectedPhase)
                 {
                     hardDiscontinuity = true;
                     availability.discontinuitySignals[edge].insert(code);
+                    const auto frequency = code2Freq[obs.Sat.sys][code];
+                    availability.discontinuityStats[edge].push_back(
+                        &obs.satStat_ptr->sigStatMap[ft2string(frequency)]);
+                    availability.discontinuityStats[edge].push_back(
+                        &obs.satStat_ptr->sigStatMap[enum_to_string(code)]);
                 }
             }
             if (hardDiscontinuity)
@@ -969,6 +993,13 @@ ReferenceAvailability referenceAvailability(
                 availability.elevationExcludedEdges.insert(edge);
                 continue;
             }
+
+            // Code support has its own signal/QC requirements. Absence of a
+            // carrier or a phase chart must not erase a valid code row.
+            for (const auto& [frequency, signal] : obs.sigs)
+                if (signal.P != 0 && !signal.invalid &&
+                    zhangFullRankUsesObservable(signal.code, baselineObservables))
+                    availability.codeEdges.insert(edge);
 
             bool usable = true;
             for (E_ObsCode code : baselineObservables)
@@ -1354,6 +1385,9 @@ set<ZhangGraphEdge> zhangStateReconstructibleEdges(
     const ZhangGraphBasis&         oldBasis,
     const set<ZhangGraphEdge>&     representedEdges)
 {
+    auto present = [&](const KFKey& key) {
+        return kfState.kfIndexMap.contains(key) && kfState.stateTransitionMap.contains(key);
+    };
     vector<set<ZhangGraphEdge>> perObservableEdges;
     for (E_ObsCode code : baselineObservables)
     {
@@ -1365,21 +1399,16 @@ set<ZhangGraphEdge> zhangStateReconstructibleEdges(
                 continue;
             }
             if (edge.receiver != oldBasis.rootReceiver &&
-                kfState.kfIndexMap.find(
-                    zhangReceiverPhaseKey(sys, code, edge.receiver)) ==
-                    kfState.kfIndexMap.end())
+                !present(zhangReceiverPhaseKey(sys, code, edge.receiver)))
             {
                 continue;
             }
-            if (kfState.kfIndexMap.find(
-                    zhangSatellitePhaseKey(code, edge.satellite)) ==
-                    kfState.kfIndexMap.end())
+            if (!present(zhangSatellitePhaseKey(code, edge.satellite)))
             {
                 continue;
             }
             if (!oldBasis.isTreeEdge(edge.receiver, edge.satellite) &&
-                kfState.kfIndexMap.find(zhangAmbiguityKey(code, edge)) ==
-                    kfState.kfIndexMap.end())
+                !present(zhangAmbiguityKey(code, edge)))
             {
                 continue;
             }
@@ -1448,6 +1477,9 @@ bool transformZhangGraphBasis(
     };
     vector<map<KFKey, double>> preObservableRows;
     vector<map<KFKey, double>> postObservableRows;
+    for (const auto& edge : newTree.treeEdges)
+        if (retiredEdges.contains(edge))
+            return fail("RETIRED_ARC_CANNOT_SUPPLY_NEW_TREE", E_ObsCode::NONE, &edge);
     map<std::pair<SatSys, E_ObsCode>, double> oldSatellitePhases;
     for (const auto& [key, index] : kfState.kfIndexMap)
     {
@@ -1700,6 +1732,7 @@ bool transformZhangGraphBasis(
         {
             for (const auto& edge : newTree.edges)
             {
+                if (retiredEdges.contains(edge)) continue;
                 auto preExpression = edgeExpressions.find(edge);
                 if (preExpression == edgeExpressions.end())
                 {
@@ -1820,6 +1853,25 @@ bool transformZhangGraphBasis(
         }
     }
 
+    // Validate every audit destination and its pullback before committing any
+    // KF/factor mutation. In particular, retired chords have no destination.
+    // A failed post-commit lookup must never leave a new posterior with an old graph.
+    for (std::size_t i = 0; i < postObservableRows.size(); i++)
+    {
+        map<KFKey, double> pulledBack;
+        for (const auto& [key, coefficient] : postObservableRows[i])
+        {
+            const auto destination = transform.find(key);
+            if (destination == transform.end())
+                return fail("AUDIT_DESTINATION_MISSING_BEFORE_COMMIT", E_ObsCode::NONE, nullptr, &key);
+            addExpression(pulledBack, destination->second, coefficient);
+        }
+        addExpression(pulledBack, preObservableRows[i], -1);
+        for (const auto& [key, coefficient] : pulledBack)
+            if (std::abs(coefficient) > 1e-10)
+                return fail("AUDIT_PULLBACK_MISMATCH_BEFORE_COMMIT", E_ObsCode::NONE, nullptr, &key);
+    }
+
     string label =
         "Zhang graph " + enum_to_string(sys) +
         (retiredEdges.empty()
@@ -1865,6 +1917,8 @@ bool transformZhangGraphBasis(
             !indexRows(kfState, postObservableRows, postRows) ||
             preRows.size() != postRows.size())
         {
+            if (auditPreTransformState)
+                static_cast<KFState_&>(kfState) = static_cast<const KFState_&>(*auditPreTransformState);
             return fail("POST_AUDIT_EXPRESSION_MISSING");
         }
 
@@ -1958,6 +2012,57 @@ bool transformZhangGraphBasis(
         }
     }
 
+    return true;
+}
+
+bool transportZhangGraphComponents(
+    Trace& trace, KFState& state, E_Sys system,
+    const vector<E_ObsCode>& observables, const ZhangGraphBasis& oldBasis,
+    const set<ZhangGraphEdge>& eligible, const set<ZhangGraphEdge>& retired,
+    ZhangGraphBasis& transported, ZhangGraphCoordinatePlan& plan)
+{
+    const auto reconstructible = zhangStateReconstructibleEdges(
+        state, system, observables, oldBasis, oldBasis.edges);
+    auto edges = eligible;
+    for (const auto& edge : reconstructible)
+        if (!retired.contains(edge)) edges.insert(edge);
+    auto preferred = oldBasis.treeEdges;
+    for (const auto& edge : retired) preferred.erase(edge);
+    transported = zhangBuildSpanningTree(
+        edges, oldBasis.rootReceiver, preferred, {}, reconstructible);
+    map<E_ObsCode, double> wavelengths;
+    for (const auto code : observables) wavelengths[code] = zhangWavelength(system, code);
+    plan = zhangPlanGraphCoordinateTransport(
+        state, system, oldBasis, transported, retired, wavelengths,
+        [&](const ZhangGraphEdge& edge, E_ObsCode code)
+        {
+            auto& options = acsConfig.getRecOpts(
+                edge.receiver, {edge.satellite.sysName(), enum_to_string(code)});
+            return initialStateFromConfig(options.ambiguity).P;
+        },
+        [&](const string& receiver, E_ObsCode code)
+        {
+            auto& options = acsConfig.getRecOpts(
+                receiver, {SatSys(system, 0).sysName(), enum_to_string(code)});
+            return initialStateFromConfig(options.phase_bias).P;
+        });
+    if (!plan.valid)
+    {
+        trace << "\nZHANG_COMPONENT_TRANSPORT_REJECT time=" << state.time.to_string(0)
+              << " reason=" << plan.failureReason << " posterior_preserved=1";
+        return false;
+    }
+    if (!state.applyStateTransform(trace, plan.transform,
+            "ZHANG_COMPONENT_REPARAMETERISATION", plan.independentSourceVariances))
+        return false;
+    trace << "\nZHANG_COMPONENT_TRANSPORT time=" << state.time.to_string(0)
+          << " component_count=" << transported.componentCount
+          << " retained_physical_rows=" << plan.survivingPhysicalRows.size()
+          << " fresh_edges=" << plan.freshEdges.size()
+          << " independent_prior_sources=" << plan.independentSourceVariances.size()
+          << " component_root_count=" << plan.componentRoots.size()
+          << " symbolic_prediction_identity=1 full_cross_covariance_preserved=1"
+          << " integer_certification=0 observation_used_for_initialisation=0";
     return true;
 }
 
@@ -2370,6 +2475,27 @@ void updateZhangGraphBasis(
     }
     auto& runtime = graphStateMap[{runtimeId, sys}];
     runtime.epochIndex++;
+    struct GraphTiming
+    {
+        Trace& trace;
+        const KFState& state;
+        const GraphRuntimeState& runtime;
+        const ReferenceAvailability& availability;
+        std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        ~GraphTiming()
+        {
+            if (!acsConfig.zhangPppAr.output_diagnostics) return;
+            trace << "\nZHANG_GRAPH_TIMING time=" << state.time.to_string(0)
+                  << " seconds=" << std::chrono::duration<double>(
+                        std::chrono::steady_clock::now()-start).count()
+                  << " states=" << state.x.size()
+                  << " raw_edges=" << availability.rawEdges.size()
+                  << " eligible_phase_edges=" << availability.edges.size()
+                  << " eligible_code_edges=" << availability.codeEdges.size()
+                  << " admitted_phase_edges=" << runtime.observationEdges.size()
+                  << " float_components=" << runtime.basis.componentCount;
+        }
+    } graphTiming{trace, kfState, runtime, availability};
 
     auto traceCanonicalAudit = [&](const ZhangGraphBasis& basis,
                                    const string&           action,
@@ -2554,6 +2680,28 @@ void updateZhangGraphBasis(
         history.continuousEpochs = 0;
         history.outageEpochs = options.state_edge_grace_epochs + 1;
     }
+    struct ArcEventConsumptionGuard
+    {
+        GraphRuntimeState& runtime;
+        const ReferenceAvailability& availability;
+        const map<ZhangGraphEdge, int>& previous;
+        ~ArcEventConsumptionGuard()
+        {
+            for (const auto& [edge, version] : previous)
+            {
+                const auto current = runtime.edgeHistory.find(edge);
+                if (current == runtime.edgeHistory.end() || current->second.arcVersion <= version)
+                    continue;
+                const auto stats = availability.discontinuityStats.find(edge);
+                if (stats == availability.discontinuityStats.end()) continue;
+                for (auto* stat : stats->second)
+                {
+                    stat->savedSlip.any = false;
+                    stat->phaseRejectCount = 0;
+                }
+            }
+        }
+    } consumeCommittedArcEvents{runtime, availability, preEventArcVersions};
     bool arcVersionsAdvanced = false;
     auto advanceDiscontinuousArcVersions = [&]()
     {
@@ -2623,10 +2771,12 @@ void updateZhangGraphBasis(
             <<" branch_id="<<zhangGraphRuntimeId(kfState);
     }
     set<ZhangGraphEdge> stateCandidates = availability.edges;
+    const auto liveRepresentedEdges = zhangStateReconstructibleEdges(
+        kfState, sys, options.baseline_observables, runtime.basis, modelledEdges);
     for (const auto& edge : modelledEdges)
     {
         auto historyIt = runtime.edgeHistory.find(edge);
-        if (historyIt != runtime.edgeHistory.end() &&
+        if (liveRepresentedEdges.contains(edge) && historyIt != runtime.edgeHistory.end() &&
             historyIt->second.outageEpochs <= options.state_edge_grace_epochs)
         {
             stateCandidates.insert(edge);
@@ -2638,8 +2788,7 @@ void updateZhangGraphBasis(
     for (const auto& edge : availability.discontinuousEdges)
         stateCandidates.erase(edge);
 
-    set<ZhangGraphEdge> stateEdges =
-        zhangRootComponentEdges(stateCandidates, options.reference_receiver);
+    set<ZhangGraphEdge> stateEdges = stateCandidates;
     set<ZhangGraphEdge> observationEdges;
     std::set_intersection(
         availability.edges.begin(),
@@ -2699,55 +2848,26 @@ void updateZhangGraphBasis(
             );
         };
 
+    if (stateEdges.empty() && !availability.edges.empty())
+    {
+        // All old arcs may have retired together. These are destination-only
+        // fresh arcs: the pivot planner still excludes the complete retirement
+        // set from old-coordinate transport. Holding here would leave saved
+        // slip events pending forever and prevent the network from restarting.
+        stateEdges = availability.edges;
+        observationEdges = availability.edges;
+    }
     if (stateEdges.empty())
     {
-        advanceDiscontinuousArcVersions();
-        set<ZhangGraphEdge> brokenTreeEdges;
-        std::set_intersection(
-            runtime.basis.treeEdges.begin(),
-            runtime.basis.treeEdges.end(),
-            availability.discontinuousEdges.begin(),
-            availability.discontinuousEdges.end(),
-            std::inserter(brokenTreeEdges, brokenTreeEdges.begin())
-        );
-        if (runtime.initialized && !brokenTreeEdges.empty())
-        {
-            advanceDiscontinuousArcVersions();
-            set<string> affectedReceivers = runtime.basis.receivers;
-            affectedReceivers.erase(runtime.basis.rootReceiver);
-            set<SatSys> affectedSatellites = runtime.basis.satellites;
-            if (resetZhangGraphPhaseCoordinates(
-                    trace,
-                    kfState,
-                    sys,
-                    options.baseline_observables,
-                    affectedReceivers,
-                    affectedSatellites
-                ))
-            {
-                recordZhangPhaseReinitialisation(
-                    kfState.time,
-                    sys,
-                    options.baseline_observables,
-                    "root_component_arc_break",
-                    affectedSatellites
-                );
-                runtime.basis = {};
-                runtime.activeBasis = {};
-                runtime.initialized = false;
-                runtime.deferredEpochs = 0;
-                runtime.datumVersion++;
-                runtime.representationVersion++;
-                runtime.floatGaugeVersion++;
-            }
-        }
-
-        BOOST_LOG_TRIVIAL(warning)
-            << "ZHANG_GRAPH_BASIS sys=" << enum_to_string(sys)
-            << " skipped: root receiver " << options.reference_receiver
-            << " has no retained baseline-observable state component";
+        // No admissible carrier rows does not justify destroying the previous
+        // posterior. Keep pending physical events until a legal chart can be
+        // formed; code observations still have their independent admission.
         runtime.observationEdges.clear();
         runtime.stateEdges.clear();
+        runtime.productInitialized = false;
+        trace << "\nZHANG_GRAPH_EMPTY_SUPPORT time=" << kfState.time.to_string(0)
+              << " pending_physical_events=" << availability.discontinuousEdges.size()
+              << " action=HOLD_POSTERIOR_NO_PHASE_ROWS product_authorized=0";
         return;
     }
 
@@ -2803,16 +2923,6 @@ void updateZhangGraphBasis(
 		options.prefer_historical_edges ? modelledEdges : set<ZhangGraphEdge>{},
 		options.prefer_historical_edges ? persistence : map<ZhangGraphEdge, int>{}
 	);
-
-    if (!candidate.connected)
-    {
-        BOOST_LOG_TRIVIAL(warning)
-            << "ZHANG_GRAPH_BASIS sys=" << enum_to_string(sys)
-            << " skipped: retained root component did not yield a spanning tree";
-        runtime.observationEdges.clear();
-        runtime.stateEdges.clear();
-        return;
-    }
 
     // A tree transaction is triggered by every physical edge invalidation,
     // not only a confirmed dual-frequency slip.  The old implementation used
@@ -3531,6 +3641,81 @@ void updateZhangGraphBasis(
         }
     }
 
+    auto localReinitialise = [&](const string& reason)
+    {
+        const auto savedRuntime = runtime;
+        int removedColumns = 0;
+        const auto oldIndex = kfState.kfIndexMap;
+        ZhangGraphBasis oldBasis = runtime.basis;
+        oldBasis.edges = modelledEdges;
+        auto eligible = stateCandidates;
+        eligible.insert(availability.edges.begin(), availability.edges.end());
+        ZhangGraphBasis transported;
+        ZhangGraphCoordinatePlan plan;
+        if (!transportZhangGraphComponents(trace, kfState, sys,
+                options.baseline_observables, oldBasis, eligible,
+                availability.discontinuousEdges, transported, plan))
+        {
+            runtime = savedRuntime;
+            return false;
+        }
+        // The covariance transform and all independent fresh priors have one
+        // accepted factor transaction. Only now consume physical arc events.
+        advanceDiscontinuousArcVersions();
+        auto retiredCoordinates = availability.discontinuousEdges;
+        for (const auto& edge : plan.freshEdges)
+            if (oldBasis.edges.contains(edge) && !retiredCoordinates.contains(edge))
+            {
+                // An expired/missing coordinate cannot inherit authorization
+                // from an old integer simply because its endpoint names match.
+                runtime.edgeHistory[edge].arcVersion++;
+                retiredCoordinates.insert(edge);
+            }
+        candidate = transported;
+        stateEdges = eligible;
+        observationEdges.clear();
+        std::set_intersection(availability.edges.begin(), availability.edges.end(),
+            transported.edges.begin(), transported.edges.end(),
+            std::inserter(observationEdges, observationEdges.begin()));
+        if (candidate.connected)
+        {
+            if (!updateProductDatum("component_reparameterise"))
+                runtime.productInitialized = false;
+        }
+        else
+        {
+            runtime.productInitialized = false;
+            runtime.productBasis = {};
+            runtime.productArcVersions.clear();
+            runtime.integerComponentVersion++;
+        }
+        // FLOAT transport alone never certifies a new inter-component bridge.
+        invalidateRetiredProductArcs(retiredCoordinates,
+            "PHYSICAL_ARC_RETIRED_DURING_COMPONENT_TRANSPORT");
+        runtime.basis = transported;
+        // The observation basis must never select a different chart from the
+        // committed one: keep datum-only tree edges out of observationEdges.
+        runtime.activeBasis = transported;
+        runtime.observationEdges = observationEdges;
+        runtime.stateEdges = stateEdges;
+        runtime.deferredEpochs = 0;
+        runtime.representationVersion++;
+        for (const auto& [key, index] : oldIndex)
+            removedColumns += key.type == KF::AMBIGUITY && !kfState.kfIndexMap.contains(key);
+        traceGraphEvent("component_reparameterise", reason,
+            brokenTreeEdges, plan.freshEdges, {}, {},
+            removedColumns, false);
+        trace << "\nZHANG_COMPONENT_TRANSPORT_COMMIT time=" << kfState.time.to_string(0)
+              << " raw_phase_edges=" << availability.edges.size()
+              << " raw_code_edges=" << availability.codeEdges.size()
+              << " admitted_phase_edges=" << observationEdges.size()
+              << " retained_physical_rows=" << plan.survivingPhysicalRows.size()
+              << " retired_arc_coordinates=" << retiredCoordinates.size()
+              << " fresh_edges=" << plan.freshEdges.size()
+              << " node_rectangle_reset=0 integer_bridge_certified=0";
+        return true;
+    };
+
     if (!runtime.initialized || !hasEstimatedPhaseState)
     {
         advanceDiscontinuousArcVersions();
@@ -3608,13 +3793,16 @@ void updateZhangGraphBasis(
                     retainedBasis.receivers.contains(edge.receiver) &&
                     retainedBasis.satellites.contains(edge.satellite))
                     postRetirementStateEdges.insert(edge);
-            const auto activeAfterRetirement = zhangActiveGraphBasisAfterTransform(
+            const auto eligibilityParts = partitionZhangEligibility(
+                retainedBasis, postRetirementStateEdges);
+            const auto activeAfterRetirement = zhangActiveGraphBasisWithAugmentation(
                 retainedBasis, postRetirementStateEdges);
             if (!activeAfterRetirement.valid)
             {
                 trace << "\nR48_ACTIVE_BASIS_REJECT time=" << kfState.time.to_string(0)
                       << " phase=CHORD_RETIRE reason=" << activeAfterRetirement.failureReason;
-                retainOldTreeRootComponent();
+                if (!localReinitialise("CHORD_RETIRE_CHART_AUGMENTATION"))
+                    retainOldTreeRootComponent();
                 return;
             }
             if (transformZhangGraphBasis(
@@ -3653,7 +3841,11 @@ void updateZhangGraphBasis(
                         "PENDING_BRIDGE_AFTER_CHORD_ARC_RETIRE");
                 }
                 runtime.representationVersion++;
-                runtime.basis = retainedBasis;
+                runtime.basis = zhangRepresentedBasisAfterAugmentation(retainedBasis, candidate);
+                trace << "\nZHANG_GRAPH_NODE_AUGMENTATION time="
+                      << kfState.time.to_string(0) << " phase=CHORD_RETIRE"
+                      << " pending_edges=" << edgeList(eligibilityParts.requiresAugmentation)
+                      << " old_chart_transported_first=1 integer_certification=0";
                 runtime.activeBasis = candidate;
                 runtime.observationEdges = observationEdges;
                 runtime.stateEdges = stateEdges;
@@ -3702,7 +3894,7 @@ void updateZhangGraphBasis(
         runtime.basis.treeEdges.begin(),
         runtime.basis.treeEdges.end()
     );
-    bool leafExtension = oldTreeRetained;
+    bool leafExtension = brokenTreeEdges.empty() && oldTreeRetained;
     if (brokenTreeEdges.empty() && leafExtension)
     {
         for (const auto& edge : candidate.treeEdges)
@@ -3799,7 +3991,7 @@ void updateZhangGraphBasis(
         return std::make_pair(affectedReceivers, affectedSatellites);
     };
 
-    auto localReinitialise = [&](const string& reason)
+    auto legacyLocalReinitialise = [&](const string& reason)
     {
         advanceDiscontinuousArcVersions();
         auto [affectedReceivers, affectedSatellites] = detachedNodes();
@@ -3984,6 +4176,18 @@ void updateZhangGraphBasis(
         return true;
     };
 
+    // A disconnected FLOAT forest keeps each component's internal rows and
+    // historical cross-covariances. It is not a globally certified AR chart.
+    if (!candidate.connected || !runtime.basis.connected)
+    {
+        if (!localReinitialise("FLOAT_COMPONENT_SPLIT_OR_REJOIN"))
+        {
+            runtime.observationEdges.clear();
+            runtime.productInitialized = false;
+        }
+        return;
+    }
+
     if (!brokenTreeEdges.empty())
     {
         const set<ZhangGraphEdge> stateReconstructibleEdges =
@@ -4002,7 +4206,7 @@ void updateZhangGraphBasis(
         const auto pivot = zhangPlanPivotBeforeRetire(
             runtime.basis,
             stateReconstructibleEdges,
-            brokenTreeEdges);
+            availability.discontinuousEdges);
         if (acsConfig.zhangPppAr.tree_slip_shadow_replay &&
             runtime.treeSlipShadowEvents <
                 acsConfig.zhangPppAr.tree_slip_shadow_max_events)
@@ -4161,7 +4365,7 @@ void updateZhangGraphBasis(
 
             // Experiment 4 must not exercise the new authoritative branch.
             // Preserve the legacy component-reset behaviour on the real state.
-            if (localReinitialise("tree_edge_arc_break"))
+            if (legacyLocalReinitialise("tree_edge_arc_break"))
             {
                 return;
             }
@@ -4180,7 +4384,7 @@ void updateZhangGraphBasis(
                       << " float_gauge_continuous=0"
                       << " integer_cross_component_valid=0";
             }
-            if (localReinitialise("tree_edge_arc_break"))
+            if (legacyLocalReinitialise("tree_edge_arc_break"))
             {
                 return;
             }
@@ -4213,13 +4417,16 @@ void updateZhangGraphBasis(
                     transformedBasis.receivers.contains(edge.receiver) &&
                     transformedBasis.satellites.contains(edge.satellite))
                     postPivotStateEdges.insert(edge);
-            const auto activeAfterPivot = zhangActiveGraphBasisAfterTransform(
+            const auto eligibilityParts = partitionZhangEligibility(
+                transformedBasis, postPivotStateEdges);
+            const auto activeAfterPivot = zhangActiveGraphBasisWithAugmentation(
                 transformedBasis, postPivotStateEdges);
             if (!activeAfterPivot.valid)
             {
                 trace << "\nR48_ACTIVE_BASIS_REJECT time=" << kfState.time.to_string(0)
                       << " phase=PIVOT reason=" << activeAfterPivot.failureReason;
-                retainOldTreeRootComponent();
+                if (!localReinitialise("PIVOT_CHART_AUGMENTATION"))
+                    retainOldTreeRootComponent();
                 return;
             }
             const int representationBefore = runtime.representationVersion;
@@ -4288,7 +4495,11 @@ void updateZhangGraphBasis(
                       << edgeList(activeAfterPivot.retainedDatumOnlyEdges)
                       << " coordinate_tree_unchanged=1 observation_eligibility_unchanged=1";
                 runtime.representationVersion++;
-                runtime.basis = transformedBasis;
+                runtime.basis = zhangRepresentedBasisAfterAugmentation(transformedBasis, candidate);
+                trace << "\nZHANG_GRAPH_NODE_AUGMENTATION time="
+                      << kfState.time.to_string(0) << " phase=PIVOT"
+                      << " pending_edges=" << edgeList(eligibilityParts.requiresAugmentation)
+                      << " old_chart_transported_first=1 integer_certification=0";
                 runtime.activeBasis = candidate;
                 runtime.observationEdges = observationEdges;
                 runtime.stateEdges = stateEdges;
@@ -4354,6 +4565,7 @@ void updateZhangGraphBasis(
                   << " abstract_represented_edge_count=" << modelledEdges.size()
                   << " state_reconstructible_edge_count="
                   << stateReconstructibleEdges.size();
+            if (localReinitialise("CONNECTED_CHART_EXACT_TRANSPORT_UNAVAILABLE")) return;
             retainOldTreeRootComponent();
             BOOST_LOG_TRIVIAL(error)
                 << "ZHANG_GRAPH_BASIS sys=" << enum_to_string(sys)
@@ -4390,6 +4602,7 @@ void updateZhangGraphBasis(
     if (options.core_skeleton)
     {
         runtime.deferredEpochs = 0;
+        if (localReinitialise("CORE_SKELETON_PHYSICAL_SUPPORT_CHANGE")) return;
         retainOldTreeRootComponent();
         BOOST_LOG_TRIVIAL(warning)
             << "ZHANG_GRAPH_BASIS sys=" << enum_to_string(sys)
@@ -4408,8 +4621,7 @@ void updateZhangGraphBasis(
     if (!newTreeRepresented)
     {
         runtime.deferredEpochs++;
-        if (runtime.deferredEpochs >= std::max(1, options.reference_outage_epochs) &&
-            localReinitialise("replacement_edge_without_prior_state"))
+        if (localReinitialise("replacement_edge_without_prior_state"))
         {
             return;
         }
@@ -4445,8 +4657,7 @@ void updateZhangGraphBasis(
         ))
     {
         runtime.deferredEpochs++;
-        if (runtime.deferredEpochs >= std::max(1, options.reference_outage_epochs) &&
-            localReinitialise("exact_state_transform_unavailable"))
+        if (localReinitialise("exact_state_transform_unavailable"))
         {
             return;
         }
@@ -4506,6 +4717,19 @@ void updateZhangGraphBasis(
         << " cycles=" << modelledEdges.size() - transformedBasis.treeEdges.size();
 }
 }  // namespace
+
+bool applyZhangGraphRetirementForAudit(
+    Trace& trace, KFState& state, E_Sys system,
+    const vector<E_ObsCode>& codes, const ZhangGraphBasis& oldBasis,
+    const ZhangGraphBasis& newBasis, const set<ZhangGraphEdge>& retired,
+    string& failureReason)
+{
+    ZhangStateTransformAudit audit;
+    const bool accepted = transformZhangGraphBasis(
+        trace, state, system, codes, oldBasis, newBasis, false, retired, &audit);
+    failureReason = audit.failureReason;
+    return accepted;
+}
 
 bool applyZhangGraphBasisTransformForAudit(
     Trace&                        trace,
@@ -4727,6 +4951,15 @@ void updateZhangFullRankReferences(
     }
 }
 
+bool zhangGraphOwnsAmbiguityLifecycle(E_Sys system, E_ObsCode code)
+{
+    if (!acsConfig.zhangFullRank.enable) return false;
+    const auto options = acsConfig.zhangFullRank.sysOpts.find(system);
+    return options != acsConfig.zhangFullRank.sysOpts.end() &&
+        options->second.use_spanning_tree &&
+        zhangFullRankUsesObservable(code, options->second.baseline_observables);
+}
+
 bool zhangGraphModelsObservation(
     const KFState&     kfState,
     const std::string& receiver,
@@ -4832,6 +5065,10 @@ bool zhangGraphIntegerContext(
     context.basis   = stateIt->second.activeBasis.connected
         ? stateIt->second.activeBasis
         : stateIt->second.basis;
+    // FLOAT forests retain component-local information and uncertain offsets.
+    // This API serves the existing single-datum integer contract; a forest is
+    // not an authorization to search or publish cross-component integers.
+    if (!context.basis.connected) return false;
     context.productBasis = stateIt->second.productBasis;
     context.eventId = stateIt->second.eventCounter;
     context.productDatumVersion = stateIt->second.productDatumVersion;

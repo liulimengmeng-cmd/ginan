@@ -66,8 +66,9 @@ void updateZhangFullRankReferences(
 
 /** Whether the active general-tree controller models this baseline edge.
  *
- * Fixed-star mode always returns true.  General-tree mode returns false for
- * edges outside the root receiver's active connected component.
+ * Fixed-star mode always returns true. General-tree mode uses the committed
+ * phase observation set, which may span several uncertain FLOAT components.
+ * This does not authorize integer products between those components.
  */
 bool zhangGraphModelsObservation(
     const KFState&    kfState,
@@ -75,6 +76,17 @@ bool zhangGraphModelsObservation(
     const SatSys&      satellite,
     E_ObsCode          code
 );
+
+// The Zhang graph transaction owns baseline physical arc retirement, including
+// tree arcs which have no independent AMBIGUITY state for generic cleanup.
+bool zhangGraphOwnsAmbiguityLifecycle(E_Sys system, E_ObsCode code);
+
+// Disposable-state regression entry point for the production pivot/retirement audit.
+bool applyZhangGraphRetirementForAudit(
+    Trace& trace, KFState& state, E_Sys system,
+    const std::vector<E_ObsCode>& codes, const ZhangGraphBasis& oldBasis,
+    const ZhangGraphBasis& newBasis, const std::set<ZhangGraphEdge>& retired,
+    std::string& failureReason);
 
 /** Whether this edge owns an integer fundamental-cycle ambiguity state. */
 bool zhangGraphRetainsAmbiguity(

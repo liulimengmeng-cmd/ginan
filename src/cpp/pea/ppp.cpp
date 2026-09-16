@@ -22,6 +22,7 @@
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
 #include "common/zhangIntegerSupportResidualAudit.hpp"
+#include "pea/zhangReference.hpp"
 #include "orbprop/coordinates.hpp"
 
 using std::vector;
@@ -867,6 +868,14 @@ void removeBadAmbiguities(
                 continue;
             }
 
+            if (acsConfig.process_ppp && zhangGraphOwnsAmbiguityLifecycle(
+                    key.Sat.sys, int_to_enum<E_ObsCode>(key.num)))
+            {
+                // Preserve the immutable old chart until pivot/retirement
+                // commits; generic deletion misses tree arcs and races it.
+                continue;
+            }
+
             if (key.rec_ptr == nullptr)
             {
                 continue;
@@ -1013,6 +1022,15 @@ void removeBadAmbiguities(
         for (auto& [sat, satStat] : rec.satStatMap)
             for (auto& [sig, sigStat] : satStat.sigStatMap)
             {
+                bool graphOwned = false;
+                const auto options = acsConfig.zhangFullRank.sysOpts.find(sat.sys);
+                if (acsConfig.process_ppp && acsConfig.zhangFullRank.enable &&
+                    options != acsConfig.zhangFullRank.sysOpts.end() &&
+                    options->second.use_spanning_tree)
+                    for (const auto code : options->second.baseline_observables)
+                        graphOwned |= sig == enum_to_string(code) ||
+                            sig == ft2string(code2Freq[sat.sys][code]);
+                if (graphOwned) continue; // graph clears only committed events
                 sigStat.savedSlip.any = false;
             }
 }
