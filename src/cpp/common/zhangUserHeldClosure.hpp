@@ -31,7 +31,10 @@ inline ZhangUserHeldClosure zhangAssessUserHeldClosure(
     const MatrixXd bounds=rows.cwiseAbs()*covariance.cwiseAbs();
     // Account for cancellation in A*P using the unprojected summands. Cap the
     // absolute allowance so large initial variances cannot certify a FLOAT row.
-    out.tolerance=std::min(1e-8,std::max(1e-12,
+    // A propagated posterior also contains accumulated conditioning/Joseph
+    // roundoff, not just this final matrix multiply. Use a 1e-10 cycles^2
+    // absolute floor (stricter than the exact-update 1e-8 closure contract).
+    out.tolerance=std::min(1e-8,std::max(1e-10,
         64*std::numeric_limits<double>::epsilon()*mean.size()*std::max(1.0,bounds.maxCoeff())));
     out.residual=(rows*mean-integers).cwiseAbs().maxCoeff();
     out.covarianceResidual=ap.cwiseAbs().maxCoeff();

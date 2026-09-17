@@ -15,6 +15,8 @@ BOOST_AUTO_TEST_CASE(user_held_integer_closure_survives_projection_roundoff)
     VectorXd z=VectorXd::Constant(1,5);
     auto accepted=zhangAssessUserHeldClosure(x,p,a,z,true);
     BOOST_CHECK(accepted.valid);
+    p(0,0)-=2.5e-11; // accumulated exact-conditioning/propagation roundoff
+    BOOST_CHECK(zhangAssessUserHeldClosure(x,p,a,z,true).valid);
     BOOST_CHECK(!zhangAssessUserHeldClosure(x,p,a,z,false).valid);
     z(0)=6;
     BOOST_CHECK_EQUAL(zhangAssessUserHeldClosure(x,p,a,z,true).reason,"INTEGER_VALUE_CONFLICT");
