@@ -1719,6 +1719,43 @@ int main(int argc, char** argv)
                     << " source_epoch=2024-07-17_01:59:30 target_binary_sha256=" << e29StartupBinarySha256
                     << " policy_change=RATIO_ONLY source_payload_unchanged=1";
             }
+            const char* ratioReuseEnvironment = std::getenv("ZHANG_R51_REUSE_RATIO_20240717");
+            if (ratioReuseEnvironment && std::string(ratioReuseEnvironment)=="1")
+            {
+                if (reuseAuditedFloat)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_CHECKPOINT_MIGRATION_MODE_CONFLICT";
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                // The complete new-format config and input manifest must match
+                // byte-for-byte. Only this audited executable transition differs.
+                restoreProvenance.binaryPath =
+                    "/home/rx/GINAN/frozen-r51-ratioonly3-float2h-ar1h-20260917/bin/pea";
+                std::map<std::string,std::string> environment;
+                for (const char* name : {"ZHANG_R51_REUSE_RATIO_20240717", "ZHANG_R51_ENABLE",
+                        "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_AR_START_GPST_SECONDS",
+                        "ZHANG_R49_FUSION_WEIGHT", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
+                        "MKL_NUM_THREADS"})
+                {
+                    const char* value=std::getenv(name);
+                    environment[name]=value?value:"UNSET";
+                }
+                const auto sourceSha=zhangCheckpointFileSha256(
+                    (std::filesystem::path(e29RestoreDirectory)/"checkpoint.bundle").string());
+                if (!zhangR51AuditedRatioReuseAllowed(sourceSha,
+                        zhangCheckpointFileSha256(restoreProvenance.binaryPath),
+                        zhangCheckpointSha256(restoreProvenance.configText),
+                        zhangCheckpointSha256(restoreProvenance.inputManifestText),environment))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_RATIO_REUSE_PINNED_IDENTITY_REJECTED";
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "R51_RATIO_REUSE_AUDITED source_bundle_sha256=" << sourceSha
+                    << " source_epoch=2024-07-17_02:00:00 target_binary_sha256=" << e29StartupBinarySha256
+                    << " policy_unchanged=RATIO_ONLY source_payload_unchanged=1";
+            }
             ZhangCheckpointBundle checkpointBundle;
             auto readResult = readZhangE29CheckpointDirectory(
                 e29RestoreDirectory,
