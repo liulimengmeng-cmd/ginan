@@ -1,4 +1,5 @@
 #include "common/zhangRatioOnly.hpp"
+#include "common/zhangUserHeldClosure.hpp"
 #include "common/zhangR49ConstraintNis.hpp"
 // #pragma GCC optimize ("O0")
 /**------------------------------------------------------------------------------
@@ -101,6 +102,9 @@ struct ZhangHeldUserWideLane
 {
 	SatSys reference;
 	map<SatSys, ZhangExactInteger> integers;
+	map<SatSys, string> committedIdentity;
+	int receiverSlipCount = -1;
+	GTime lastVerified;
 };
 using ZhangHeldUserWideLaneKey = tuple<string, string, E_Sys, bool>;
 static map<ZhangHeldUserWideLaneKey, ZhangHeldUserWideLane>
@@ -7930,21 +7934,77 @@ static int resolveCanonicalUserSdWideLaneL1(
 			map<std::size_t, ZhangExactInteger> fixedWideLane;
 			const string wideLaneStage = ifAcceptance
 				? "USER_IF_WL_SD" : "USER_WL_SD";
-			int wideLaneFixed = resolveStage(
-				wideLaneStage, wideLaneTransform, wideLane, fixedWideLane,
-				ifWideLaneEstimate ? &ifWideLaneEstimate->mean : nullptr,
-				ifWideLaneEstimate ? &ifWideLaneEstimate->covariance : nullptr);
 			const ZhangHeldUserWideLaneKey heldKey{
 				userRuntimeId, receiver, system, ifAcceptance};
 			auto& heldWideLane = zhangHeldUserWideLaneRegistry[heldKey];
-			if (heldWideLane.reference != reference)
+			Receiver* heldReceiver = ambiguityResolution.ambmap.at(first->second.begin()->second).rec_ptr;
+			const int slipCount = heldReceiver ? heldReceiver->slipCount : -1;
+			if (heldWideLane.reference != reference || (!ifAcceptance &&
+				(slipCount < 0 || heldWideLane.receiverSlipCount != slipCount ||
+				 (!heldWideLane.integers.empty() && (time-heldWideLane.lastVerified).to_double()>45))))
 			{
 				heldWideLane = {};
 				heldWideLane.reference = reference;
 			}
-			string wideLaneSource = "NEW_FIX";
+			// Both endpoints and both signals must retain their published datum.
+			auto heldIdentity = [&](const SatSys& satellite) -> string
+			{
+				string identity;
+				for (const auto& sat : {reference, satellite})
+				for (const auto code : {firstCode, secondCode})
+				{
+					ZhangInternalProduct product;
+					if (!queryZhangInternalProduct(time,sat,code,product) || !product.pppar_usable ||
+						!zhangPppArUserAmbiguityIntegerValid(kfState,receiver,sat,code)) return {};
+					identity += sat.id()+":"+std::to_string(static_cast<int>(code))+":"+
+						product.phase_product_segment_id+":"+std::to_string(product.discontinuity_counter)+":"+
+						std::to_string(product.datum_version)+":"+product.integer_component_id+":"+
+						std::to_string(product.integer_component_version)+":"+
+						std::to_string(product.integer_alignment_generation)+";";
+				}
+				return identity;
+			};
+			auto heldProvenance = [&](const SatSys& satellite)
+			{
+				auto old = heldWideLane.committedIdentity.find(satellite);
+				return old != heldWideLane.committedIdentity.end() && !old->second.empty() &&
+					old->second == heldIdentity(satellite);
+			};
+			bool heldAlreadyApplied = false;
+			ZhangUserHeldClosure heldClosure;
+			if (!ifAcceptance && !shadowOnly && !heldWideLane.integers.empty())
+			{
+				bool complete = true;
+				VectorXd values(dimension);
+				for (int row=0; row<dimension; ++row)
+				{
+					auto old=heldWideLane.integers.find(targets[row]);
+					if (old==heldWideLane.integers.end() || !heldProvenance(targets[row])) { complete=false; break; }
+					values(row)=old->second.convert_to<double>();
+				}
+				if (complete) heldClosure=zhangAssessUserHeldClosure(ambiguityResolution.aflt,
+					ambiguityResolution.Paflt,wideLaneTransform,values,true);
+				if (heldClosure.valid)
+				{
+					heldAlreadyApplied=true;
+					wideLane.Ztrs=MatrixXd::Identity(dimension,dimension);
+					wideLane.zfix=values;
+					for(int row=0;row<dimension;++row) fixedWideLane[row]=heldWideLane.integers.at(targets[row]);
+					trace << "\n" << tracePrefix << "HELD_WL time=" << time.to_string(0)
+						<< " receiver=" << receiver << " available=" << dimension << " accepted=1"
+						<< " reason=" << heldClosure.reason << " mean_closure=" << heldClosure.residual
+						<< " covariance_closure=" << heldClosure.covarianceResidual << " tolerance=" << heldClosure.tolerance
+						<< " new_integer_decisions=0 feedback_reapplied=0 provenance_valid=1";
+				}
+			}
+			int wideLaneFixed = heldAlreadyApplied ? dimension : resolveStage(
+				wideLaneStage, wideLaneTransform, wideLane, fixedWideLane,
+				ifWideLaneEstimate ? &ifWideLaneEstimate->mean : nullptr,
+				ifWideLaneEstimate ? &ifWideLaneEstimate->covariance : nullptr);
+			string wideLaneSource = heldAlreadyApplied ? "COMMITTED_HISTORY" : "NEW_FIX";
 			if (wideLaneFixed > 0)
 			{
+				if (ifAcceptance)
 				for (const auto& [target, value] : fixedWideLane)
 				{
 					if (target < targets.size())
@@ -7968,7 +8028,8 @@ static int resolveCanonicalUserSdWideLaneL1(
 				for (int row = 0; row < dimension; row++)
 				{
 					auto held = heldWideLane.integers.find(targets[row]);
-					if (held == heldWideLane.integers.end())
+					if (held == heldWideLane.integers.end() ||
+						(!ifAcceptance && !heldProvenance(targets[row])))
 					{
 						continue;
 					}
@@ -7993,10 +8054,15 @@ static int resolveCanonicalUserSdWideLaneL1(
 					assessZhangIntegerCandidateNis(
 						wideLane,
 						acsConfig.zhangPppAr.held_constraint_nis_alpha);
-				const bool heldReliable = !heldRows.empty() && heldNis.valid &&
-					zhangRatioStatisticalAccept(heldNis.nis <= heldNis.threshold) &&
-					zhangRatioStatisticalAccept(heldMaximumPerr <=
-						acsConfig.zhangPppAr.canonical_user_target_max_perr);
+				if (!ifAcceptance && !shadowOnly)
+					heldClosure=zhangAssessUserHeldClosure(ambiguityResolution.aflt,
+						ambiguityResolution.Paflt,wideLane.Ztrs*wideLaneTransform,wideLane.zfix,true);
+				const bool heldReliable = ifAcceptance
+					? (!heldRows.empty() && heldNis.valid &&
+						zhangRatioStatisticalAccept(heldNis.nis <= heldNis.threshold) &&
+						zhangRatioStatisticalAccept(heldMaximumPerr <= acsConfig.zhangPppAr.canonical_user_target_max_perr))
+					: heldClosure.valid;
+				heldAlreadyApplied = !ifAcceptance && heldReliable;
 				if (heldReliable)
 				{
 					for (int local = 0;
@@ -8022,6 +8088,10 @@ static int resolveCanonicalUserSdWideLaneL1(
 					  << " nis_threshold=" << heldNis.threshold
 					  << " maximum_perr=" << heldMaximumPerr
 					  << " accepted=" << heldReliable
+					  << " closure_reason=" << heldClosure.reason
+					  << " mean_closure=" << heldClosure.residual
+					  << " covariance_closure=" << heldClosure.covarianceResidual
+					  << " tolerance=" << heldClosure.tolerance
 					  << " feedback=" << !shadowOnly;
 			}
 			namedWideLane += fixedWideLane.size();
@@ -8049,7 +8119,7 @@ static int resolveCanonicalUserSdWideLaneL1(
 					  << acsConfig.zhangPppAr.canonical_user_target_min_named_wl;
 				continue;
 			}
-			if (!ifAcceptance)
+			if (!ifAcceptance && !heldAlreadyApplied)
 			{
 				if (!applyAndCapture(
 						wideLane.Ztrs * wideLaneTransform,
@@ -8059,6 +8129,17 @@ static int resolveCanonicalUserSdWideLaneL1(
 					continue;
 				}
 				refreshAmbiguities();
+				if (!shadowOnly)
+				for (const auto& [target,value] : fixedWideLane)
+				{
+					heldWideLane.integers[targets.at(target)]=value;
+					heldWideLane.committedIdentity[targets.at(target)]=heldIdentity(targets.at(target));
+				}
+			}
+			if (!ifAcceptance && !shadowOnly)
+			{
+				heldWideLane.receiverSlipCount=slipCount;
+				heldWideLane.lastVerified=time;
 			}
 
 			GinAR_mtx firstStage;

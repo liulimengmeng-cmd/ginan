@@ -4,6 +4,37 @@
 #include "common/zhangR47History.hpp"
 #include <cstdlib>
 #include "common/zhangProductIntegerLedger.hpp"
+#include "common/zhangUserHeldClosure.hpp"
+
+BOOST_AUTO_TEST_CASE(user_held_integer_closure_survives_projection_roundoff)
+{
+    VectorXd x(2); x << 8, 3;
+    MatrixXd p=MatrixXd::Constant(2,2,100.0);
+    p(0,0)-=9e-13; // projection has a tiny negative variance by cancellation
+    MatrixXd a(1,2); a << 1,-1;
+    VectorXd z=VectorXd::Constant(1,5);
+    auto accepted=zhangAssessUserHeldClosure(x,p,a,z,true);
+    BOOST_CHECK(accepted.valid);
+    BOOST_CHECK(!zhangAssessUserHeldClosure(x,p,a,z,false).valid);
+    z(0)=6;
+    BOOST_CHECK_EQUAL(zhangAssessUserHeldClosure(x,p,a,z,true).reason,"INTEGER_VALUE_CONFLICT");
+    z(0)=5;
+    p(0,0)+=0.01; // an arc/state reset restores stochastic freedom
+    BOOST_CHECK_EQUAL(zhangAssessUserHeldClosure(x,p,a,z,true).reason,"POSTERIOR_NOT_CONDITIONED");
+}
+
+BOOST_AUTO_TEST_CASE(user_held_integer_closure_rejects_noninteger_and_invalid_input)
+{
+    VectorXd x=VectorXd::Zero(2),z=VectorXd::Zero(1);
+    MatrixXd p=MatrixXd::Zero(2,2),a(1,2); a << 1,-1;
+    BOOST_CHECK(zhangAssessUserHeldClosure(x,p,a,z,true).valid);
+    z(0)=0.1;
+    BOOST_CHECK_EQUAL(zhangAssessUserHeldClosure(x,p,a,z,true).reason,"NON_INTEGER_STATEMENT");
+    z(0)=0; p(0,0)=std::numeric_limits<double>::quiet_NaN();
+    BOOST_CHECK(!zhangAssessUserHeldClosure(x,p,a,z,true).valid);
+    p=MatrixXd::Constant(2,2,1e12); p(0,0)+=0.01;
+    BOOST_CHECK(!zhangAssessUserHeldClosure(x,p,a,z,true).valid);
+}
 BOOST_AUTO_TEST_CASE(r51_ratio_policy_retains_structural_rejections)
 {
     unsetenv("ZHANG_R51_RATIO_ONLY");
