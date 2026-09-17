@@ -103,7 +103,6 @@ struct ZhangHeldUserWideLane
 	SatSys reference;
 	map<SatSys, ZhangExactInteger> integers;
 	map<SatSys, string> committedIdentity;
-	int receiverSlipCount = -1;
 	GTime lastVerified;
 };
 using ZhangHeldUserWideLaneKey = tuple<string, string, E_Sys, bool>;
@@ -7938,9 +7937,8 @@ static int resolveCanonicalUserSdWideLaneL1(
 				userRuntimeId, receiver, system, ifAcceptance};
 			auto& heldWideLane = zhangHeldUserWideLaneRegistry[heldKey];
 			Receiver* heldReceiver = ambiguityResolution.ambmap.at(first->second.begin()->second).rec_ptr;
-			const int slipCount = heldReceiver ? heldReceiver->slipCount : -1;
 			if (heldWideLane.reference != reference || (!ifAcceptance &&
-				(slipCount < 0 || heldWideLane.receiverSlipCount != slipCount ||
+				(!heldReceiver ||
 				 (!heldWideLane.integers.empty() && (time-heldWideLane.lastVerified).to_double()>45))))
 			{
 				heldWideLane = {};
@@ -7953,6 +7951,19 @@ static int resolveCanonicalUserSdWideLaneL1(
 				for (const auto& sat : {reference, satellite})
 				for (const auto code : {firstCode, secondCode})
 				{
+					bool observedContinuous = false;
+					if (heldReceiver)
+					for (const auto& obs : only<GObs>(heldReceiver->obsList))
+					{
+						if (obs.Sat != sat || !obs.satStat_ptr) continue;
+						for (const auto& [frequency, signal] : obs.sigs)
+						{
+							if (signal.code != code || signal.invalid || signal.L == 0 || signal.P == 0) continue;
+							auto stat=obs.satStat_ptr->sigStatMap.find(ft2string(frequency));
+							observedContinuous=stat!=obs.satStat_ptr->sigStatMap.end() && !stat->second.slip.any;
+						}
+					}
+					if (!observedContinuous) return {};
 					ZhangInternalProduct product;
 					if (!queryZhangInternalProduct(time,sat,code,product) || !product.pppar_usable ||
 						!zhangPppArUserAmbiguityIntegerValid(kfState,receiver,sat,code)) return {};
@@ -7964,6 +7975,21 @@ static int resolveCanonicalUserSdWideLaneL1(
 				}
 				return identity;
 			};
+			if (!ifAcceptance)
+				for (auto it=heldWideLane.integers.begin(); it!=heldWideLane.integers.end();)
+				{
+					const string current=heldIdentity(it->first);
+					auto proof=heldWideLane.committedIdentity.find(it->first);
+					if (current.empty() || proof==heldWideLane.committedIdentity.end() || proof->second!=current)
+					{
+						trace << "\n" << tracePrefix << "HELD_WL_RETIRE time=" << time.to_string(0)
+							<< " receiver=" << receiver << " satellite=" << it->first.id()
+							<< " reference=" << reference.id() << " reason=ENDPOINT_ARC_OR_PRODUCT_CHANGED";
+						heldWideLane.committedIdentity.erase(it->first);
+						it=heldWideLane.integers.erase(it);
+					}
+					else ++it;
+				}
 			auto heldProvenance = [&](const SatSys& satellite)
 			{
 				auto old = heldWideLane.committedIdentity.find(satellite);
@@ -8138,7 +8164,6 @@ static int resolveCanonicalUserSdWideLaneL1(
 			}
 			if (!ifAcceptance && !shadowOnly)
 			{
-				heldWideLane.receiverSlipCount=slipCount;
 				heldWideLane.lastVerified=time;
 			}
 
