@@ -413,7 +413,7 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
     int nodeLimit = 2000000
 )
 {
-    const bool completeTopTwo=zhangR51Enabled() && (zhangR51SingleBlock ||
+    const bool completeTopTwo=(zhangR51Enabled() || zhangRatioOnly()) && (zhangR51SingleBlock ||
         opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT);
     auto& searchAudit=mtrx.searchDiagnostic;
     ++searchAudit.ilsCalls;searchAudit.ilsComplete=false;
