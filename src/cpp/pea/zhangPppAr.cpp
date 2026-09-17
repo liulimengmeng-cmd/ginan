@@ -1,3 +1,4 @@
+#include "common/zhangRatioOnly.hpp"
 #include "pea/zhangPppAr.hpp"
 
 #include <algorithm>
@@ -5079,7 +5080,7 @@ void configureZhangE18FactorCapture(KFState& kfState)
 										acsConfig.zhangPppAr.canonical_user_target_max_perr;
 									const bool reliable = wideLanePerr <= maximumPerr
 										&& conditionalFirstPerr <= maximumPerr
-										&& jointNis.valid && jointNis.nis <= jointNis.threshold;
+										&& jointNis.valid && zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold);
 									if (reliable && acsConfig.zhangPppAr
 										.product_relation_admission_shadow)
 									{
@@ -11098,8 +11099,8 @@ void writeZhangInternalProducts(
 				? productCertification->provisionalGaugeEvidenceValidated
 				: (std::isfinite(productCertification->jointNis) &&
 				   std::isfinite(productCertification->jointNisThreshold) &&
-				   productCertification->jointNis <=
-					productCertification->jointNisThreshold);
+				   zhangRatioStatisticalAccept(productCertification->jointNis <=
+					productCertification->jointNisThreshold));
 			candidate.cycleClosurePassed = true;
 			candidate.temporalAlignmentCertified = true;
 			candidate.noResidualDof = provisionalEdge;
@@ -11436,7 +11437,7 @@ void writeZhangInternalProducts(
 		const auto r47ProofRisk=zhangDecisionRiskClosure(productCertification->decisionProofs);
 		const bool ledgerEffectValid = productCertification->reliable &&
 			productCertification->exactNetworkMapping && !productCertification->decisionProofs.empty() &&
-			r47ProofRisk.valid && r47ProofRisk.bound<=1e-3;
+			r47ProofRisk.valid && zhangRatioStatisticalAccept(r47ProofRisk.bound<=1e-3);
 		if (ledgerEffectValid &&
 			productCertification->physicalNetworkRows.size() ==
 				productCertification->networkRows.size() &&

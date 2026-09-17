@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 
 #include "common/zhangIntegerDecisionProof.hpp"
 
@@ -367,7 +368,7 @@ inline double zhangProductGaugePosteriorFailureBudget(
 		1e-12, 1.0);
 	if (!std::isfinite(certificate.failureProbabilityBudget) ||
 		certificate.failureProbabilityBudget < 0 ||
-		certificate.failureProbabilityBudget > 1)
+		zhangRatioStatisticalReject(certificate.failureProbabilityBudget > 1))
 	{
 		return family;
 	}
@@ -564,8 +565,8 @@ zhangRecheckProductGaugeOnPosterior(
 			expectedInnovation.lpNorm<Eigen::Infinity>() <= 1e-7;
 		result.alternativeReliable = !result.sameInteger &&
 			alternativeInnovation.lpNorm<Eigen::Infinity>() <= 1e-7 &&
-			result.jointFailureProbability <=
-				maximumFailureProbability + 1e-12;
+			zhangRatioStatisticalAccept(result.jointFailureProbability <=
+				maximumFailureProbability + 1e-12);
 		result.failureReason = result.reliable ? "NONE" :
 			(result.alternativeReliable ? "RELIABLE_INTEGER_CHANGED" :
 			 "DETERMINISTIC_AFFINE_CONFLICT");
@@ -582,16 +583,16 @@ zhangRecheckProductGaugeOnPosterior(
 	result.alternativeNis = alternativeNis.nis;
 	result.alternativeNisThreshold = alternativeNis.threshold;
 	result.reliable = result.sameInteger && expectedNis.valid &&
-		expectedNis.nis <= expectedNis.threshold &&
-		result.jointFailureProbability <= maximumFailureProbability + 1e-12;
+		zhangRatioStatisticalAccept(expectedNis.nis <= expectedNis.threshold) &&
+		zhangRatioStatisticalAccept(result.jointFailureProbability <= maximumFailureProbability + 1e-12);
 	result.alternativeReliable = !result.sameInteger && alternativeNis.valid &&
-		alternativeNis.nis <= alternativeNis.threshold &&
-		result.jointFailureProbability <= maximumFailureProbability + 1e-12;
+		zhangRatioStatisticalAccept(alternativeNis.nis <= alternativeNis.threshold) &&
+		zhangRatioStatisticalAccept(result.jointFailureProbability <= maximumFailureProbability + 1e-12);
 	result.failureReason = result.reliable ? "NONE" :
 		(result.alternativeReliable ? "RELIABLE_INTEGER_CHANGED" :
 		 (!result.sameInteger ? "INTEGER_CHANGED_UNRELIABLE" :
 		  (!expectedNis.valid ? "NIS_INVALID" :
-		   (expectedNis.nis > expectedNis.threshold ? "NIS_REJECTED" :
+		   (zhangRatioStatisticalReject(expectedNis.nis > expectedNis.threshold) ? "NIS_REJECTED" :
 		    "FAILURE_PROBABILITY_EXCEEDED"))));
 	return result;
 }
@@ -853,7 +854,7 @@ zhangSelectProductGaugeAdmissionFamilies(
 	for (const double probability : familyFailureProbabilities)
 	{
 		if (std::isfinite(probability) && probability >= 0 &&
-			probability <= budget + tolerance)
+			zhangRatioStatisticalAccept(probability <= budget + tolerance))
 			result.individuallyBudgetEligibleFamilies++;
 	}
 
@@ -926,7 +927,7 @@ zhangSelectProductGaugeAdmissionFamilies(
 		}
 		fallback.failureProbability = subsetRisk(fallback.selected);
 		if (fallbackBudgetValid &&
-			fallback.failureProbability <= budget + tolerance)
+			zhangRatioStatisticalAccept(fallback.failureProbability <= budget + tolerance))
 		{
 			evaluateState(fallback);
 			result.fallbackAvailable = fallback.score.valid;
@@ -959,7 +960,7 @@ zhangSelectProductGaugeAdmissionFamilies(
 				state.selected.push_back(family);
 			}
 			state.failureProbability = subsetRisk(state.selected);
-			if (!validBudget || state.failureProbability > budget + tolerance)
+			if (!validBudget || zhangRatioStatisticalReject(state.failureProbability > budget + tolerance))
 				continue;
 			result.budgetFeasibleSubsets++;
 			evaluateState(state);
@@ -982,7 +983,7 @@ zhangSelectProductGaugeAdmissionFamilies(
 				State candidate = state;
 				candidate.selected.push_back(family);
 				candidate.failureProbability = subsetRisk(candidate.selected);
-				if (candidate.failureProbability > budget + tolerance) continue;
+				if (zhangRatioStatisticalReject(candidate.failureProbability > budget + tolerance)) continue;
 				evaluateState(candidate);
 				result.budgetFeasibleSubsets++;
 				next.push_back(std::move(candidate));

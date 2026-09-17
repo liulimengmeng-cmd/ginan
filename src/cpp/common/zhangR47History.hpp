@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 #include "common/zhangProductPhysicalCycleChart.hpp"
 #include "common/zhangIntegerDecisionProof.hpp"
 #include "common/zhangR47Candidate.hpp"
@@ -77,7 +78,7 @@ inline ZhangR47HistorySubset zhangR49SelectHistorySubsetReference(
     if(rows.size()!=values.size() || rows.size()!=parents.size() || rows.size()!=gain.size() ||
        !std::isfinite(ceiling) || !std::isfinite(reserve) || reserve<0 || reserve>ceiling) return out;
     const auto base=zhangDecisionRiskClosure(baseline);
-    if(!base.valid || base.bound>ceiling-reserve) return out;
+    if(!base.valid || zhangRatioStatisticalReject(base.bound>ceiling-reserve)) return out;
     std::vector<int> order(rows.size());std::iota(order.begin(),order.end(),0);
     std::stable_sort(order.begin(),order.end(),[&](int a,int b){return gain[a]>gain[b];});
     for(const auto index:order)
@@ -86,7 +87,7 @@ inline ZhangR47HistorySubset zhangR49SelectHistorySubsetReference(
         {out.reasons[index]="RISK_PARENT_INCOMPLETE";continue;}
         const auto merged=zhangMergeDecisionProofs(out.parents,parents[index]);
         const auto closure=zhangDecisionRiskClosure(merged);
-        if(!closure.valid || closure.bound>ceiling-reserve)
+        if(!closure.valid || zhangRatioStatisticalReject(closure.bound>ceiling-reserve))
         {out.reasons[index]="BUDGET_RESERVED_FOR_NEW_SEARCH";continue;}
         auto candidateRows=out.rows; auto candidateValues=out.values;
         candidateRows.push_back(rows[index]);candidateValues.push_back(values[index]);
@@ -110,7 +111,7 @@ inline ZhangR47HistorySubset zhangR47SelectHistorySubset(
     if(rows.size()!=values.size() || rows.size()!=parents.size() || rows.size()!=gain.size() ||
        !std::isfinite(ceiling) || !std::isfinite(reserve) || reserve<0 || reserve>ceiling) return out;
     const auto base=zhangDecisionRiskClosure(baseline);
-    if(!base.valid || base.bound>ceiling-reserve) return out;
+    if(!base.valid || zhangRatioStatisticalReject(base.bound>ceiling-reserve)) return out;
     std::vector<int> order(rows.size());std::iota(order.begin(),order.end(),0);
     std::stable_sort(order.begin(),order.end(),[&](int a,int b){return gain[a]>gain[b];});
     // One proof of full integer feasibility licenses every subset. If it
@@ -124,7 +125,7 @@ inline ZhangR47HistorySubset zhangR47SelectHistorySubset(
         {out.reasons[index]="RISK_PARENT_INCOMPLETE";continue;}
         const auto merged=zhangMergeDecisionProofs(out.parents,parents[index]);
         const auto closure=proofCache.closure(merged);
-        if(!closure.valid || closure.bound>ceiling-reserve)
+        if(!closure.valid || zhangRatioStatisticalReject(closure.bound>ceiling-reserve))
         {out.reasons[index]="BUDGET_RESERVED_FOR_NEW_SEARCH";continue;}
         if(!allFeasible) {
             auto candidateRows=out.rows; auto candidateValues=out.values;

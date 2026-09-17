@@ -39,6 +39,22 @@ int main()
         }
     }
 
+    setenv("ZHANG_R51_RATIO_ONLY","1",1);
+    for(auto mode : {E_ARmode::LAMBDA,E_ARmode::LAMBDA_ALT}) {
+        for(auto test : {std::pair<double,double>{.1,1.0},{.1,.001},{.36,1.0},{.37,1.0},{.49,1.0},{.5,1.0}}) {
+            GinAR_mtx matrix;matrix.aflt=VectorXd::Constant(1,test.first);
+            matrix.Paflt=MatrixXd::Constant(1,1,test.second*test.second);
+            GinAR_opt opt;opt.mode=mode;opt.min_lambda_fix_count=1;opt.sucthr=.9999;opt.ratthr=3;
+            opt.lambda_candidate_nis_alpha=1e-6;
+            int count=GNSS_AR(trace,matrix,opt);
+            check(matrix.searchDiagnostic.ilsComplete,"ratio-only accepted incomplete ILS");
+            check(matrix.searchDiagnostic.ratioExecuted,"ratio-only missed ratio gate");
+            check((count==1)==(test.first<.365),"ratio-only failed bootstrap/NIS ablation or accepted ambiguous ratio");
+            if(test.second==.001)check(matrix.lambda_candidate_nis>matrix.lambda_candidate_nis_threshold,"NIS-ablation fixture was not rejecting");
+        }
+    }
+    unsetenv("ZHANG_R51_RATIO_ONLY");
+
     KFKey a,b,z; a.type=KF::IONO_STEC; a.str="A";
     b.type=KF::IONO_STEC; b.str="B"; z.type=KF::AMBIGUITY; z.str="fresh";
     KFState source; source.kfIndexMap={{a,0},{b,1}};

@@ -1,3 +1,4 @@
+#include "common/zhangRatioOnly.hpp"
 #include "common/zhangRatioGate.hpp"
 #include "common/zhangR51Integrity.hpp"
 #include "ambres/GNSSambres.hpp"
@@ -834,7 +835,7 @@ int lambda_search(
     diagnostic.bootstrapBest1d=lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs,1);
     int k = nmax - 1;
     double succ = erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
-    if (succ < opt.sucthr)
+    if (zhangRatioStatisticalReject(succ < opt.sucthr))
     {
         diagnostic.reason="BEST_1D_BOOTSTRAP_TOO_LOW";
         return 0;
@@ -846,7 +847,7 @@ int lambda_search(
             zsiz < opt.max_lambda_fix_count))
     {
         succ *= erf(sqrt(1 / (8 * mtrx.Dtrs(k--))));
-        if (succ < opt.sucthr)
+        if (zhangRatioStatisticalReject(succ < opt.sucthr))
         {
             break;
         }
@@ -886,7 +887,7 @@ int lambda_search(
         mtrx.lambda_candidate_nis_valid =
             std::isfinite(mindist) && std::isfinite(threshold);
         const bool accepted = mtrx.lambda_candidate_nis_valid &&
-            mindist <= threshold;
+            zhangRatioStatisticalAccept(mindist <= threshold);
         if (accepted || zsiz == minimumFixCount)
         {
             VectorXd innovation = zfixList.begin()->second -
@@ -1021,7 +1022,7 @@ int lambda_search(
         lambdaSelectedSuffixBootstrapSuccess(mtrx.Dtrs, zsiz);
 
     diagnostic.reason="ACCEPTED";
-    if (zhangR51Enabled() && (opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT))
+    if ((zhangR51Enabled() || zhangRatioOnly()) && (opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT))
     {
         const auto best=zfixList.begin();
         const auto second=std::next(best);
@@ -1034,7 +1035,8 @@ int lambda_search(
               << " two_distinct=" << distinct << " executed=" << gate.executed
               << " first=" << best->first << " ratio=" << gate.ratio
               << " threshold=" << opt.ratthr << " accepted=" << gate.accepted
-              << " reason=" << gate.reason;
+              << " reason=" << gate.reason << " ratio_only=" << zhangRatioOnly()
+              << " bootstrap_veto=" << !zhangRatioOnly() << " local_nis_veto=" << !zhangRatioOnly();
         return gate.accepted ? zfix0.size() : 0;
     }
     switch (opt.mode)

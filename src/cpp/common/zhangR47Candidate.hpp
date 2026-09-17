@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 #include "common/zhangIntegerProductGainFrontier.hpp"
 #include "common/zhangProductRelationSolver.hpp"
 #include "common/zhangIntegerConditioner.hpp"
@@ -37,7 +38,7 @@ inline bool zhangR47CandidateContractValid(const ZhangR47Candidate& c)
         c.allDecisionParents.empty() || c.physicalFunctionals.size()!=c.jointRows.size() ||
         !zhangR47AffineIntegerFeasible(c.jointRows,c.jointValues,n)) return false;
     const auto risk=zhangDecisionRiskClosure(c.allDecisionParents);
-    if (!risk.valid || risk.bound>1e-3 || c.riskBound!=risk.bound) return false;
+    if (!risk.valid || zhangRatioStatisticalReject(risk.bound>1e-3) || c.riskBound!=risk.bound) return false;
     auto rows=c.admittedStateConditioners, valuesRows=c.newIntegerConstraints;
     rows.insert(rows.end(),valuesRows.begin(),valuesRows.end());
     auto values=c.admittedStateValues;

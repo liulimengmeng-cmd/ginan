@@ -272,6 +272,17 @@ bool buildE29CanonicalConfigText(
 
     std::ostringstream output;
     output << "E29_CANONICAL_CONFIG_V1\n";
+    // Experimental acceptance policy is part of checkpoint identity. A restore
+    // must not silently switch ratio-only, AR scheduling, or numerical threads.
+    for (const char* name : {"ZHANG_R51_ENABLE", "ZHANG_R51_RATIO_ONLY",
+                            "ZHANG_R51_AR_START_GPST_SECONDS", "ZHANG_R49_FUSION_WEIGHT",
+                            "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"})
+    {
+        const char* value = std::getenv(name);
+        appendE29LengthPrefixedField(output, std::string("environment_") + name,
+                                    value ? value : "UNSET");
+    }
+
 
     std::error_code cwdError;
     const auto canonicalCwd = std::filesystem::weakly_canonical(

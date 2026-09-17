@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 #include <memory>
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR47ProductDomain.hpp"
@@ -63,7 +64,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
     !zhangExactRectangularMatrix(candidate.rows,out.rank) ||
     zhangExactRowHermiteNormalForm(candidate.rows).basis.size()!=fixedRank ||
     !std::isfinite(candidate.failureProbability) || candidate.failureProbability<0 ||
-    candidate.failureProbability>allocation) {out.status="BRIDGE_SEARCH_REJECTED";return out;}
+    zhangRatioStatisticalReject(candidate.failureProbability>allocation)) {out.status="BRIDGE_SEARCH_REJECTED";return out;}
  out.rows=zhangExactMultiply(candidate.rows,out.frame.projector);out.values=candidate.values;
  auto offsets=zhangExactMatrixTimesColumn(candidate.rows,out.frame.offsets);
  for(int i=0;i<out.values.size();++i)out.values[i]-=offsets[i];
@@ -80,7 +81,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  if(dm.valid)out.incrementNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(out.values)-dm.mean,dm.covariance,alpha);
  if(out.nis.valid && out.baseNis.valid && out.incrementNis.valid)
   out.schurIdentityError=std::abs(out.nis.nis-out.baseNis.nis-out.incrementNis.nis);
- out.accepted=out.nis.valid && out.nis.nis<=out.nis.threshold;
+ out.accepted=out.nis.valid && zhangRatioStatisticalAccept(out.nis.nis<=out.nis.threshold);
  out.status=out.accepted?(partialShadow && fixedRank<out.rank?"PARTIAL_INTEGER_PROGRESS":"BRIDGE_ACCEPTED"):out.nis.status;
  return out;
 }

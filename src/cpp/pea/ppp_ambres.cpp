@@ -1,3 +1,4 @@
+#include "common/zhangRatioOnly.hpp"
 #include "common/zhangR49ConstraintNis.hpp"
 // #pragma GCC optimize ("O0")
 /**------------------------------------------------------------------------------
@@ -1870,7 +1871,7 @@ static ZhangDecisionProofPtr zhangMakeNetworkDecisionProof(
     const GinAR_mtx& coordinates, const MatrixXd& rows, const VectorXd& values,
     double bootstrapSuccess, const ZhangDecisionProofs& parents)
 {
-    if (!(bootstrapSuccess > 0 && bootstrapSuccess <= 1) || rows.rows() == 0 ||
+    if (!(std::isfinite(bootstrapSuccess) && bootstrapSuccess >= 0 && bootstrapSuccess <= 1 && (zhangRatioOnly() || bootstrapSuccess > 0)) || rows.rows() == 0 ||
         rows.rows() != values.size() || !zhangDecisionRiskClosure(parents).valid)
         return {};
     static std::uint64_t sequence = 0;
@@ -1890,7 +1891,8 @@ static ZhangDecisionProofPtr zhangMakeNetworkDecisionProof(
         statement << "\nKEY=" << column << ':' << key.str << ':' << key.Sat.id() << ':' << key.num;
     proof->originalStatement = statement.str();
     proof->observationProvenance = zhangAmbresRuntimeId(owner) + "|PPP_COMMITTED|" + epochIdentity;
-    proof->conditionalFailureBound = 1 - bootstrapSuccess;
+    proof->conditionalFailureBound = zhangRatioOnly() ? 1.0 : 1 - bootstrapSuccess;
+    if (zhangRatioOnly()) proof->observationProvenance += "|R51_RATIO_ONLY_NO_FFR_GUARANTEE";
     proof->parents = parents;
     return proof;
 }
@@ -4976,7 +4978,7 @@ static bool conditionZhangAmbiguitiesExactly(
     double alpha = acsConfig.zhangPppAr.held_constraint_nis_alpha;
     boost::math::chi_squared distribution(effectiveRank);
     double nisThreshold = quantile(complement(distribution, alpha));
-    if (!std::isfinite(nis) || nis > nisThreshold)
+    if (!std::isfinite(nis) || zhangRatioStatisticalReject(nis > nisThreshold))
     {
         zhangTransactionalConditioningReason = "CONSTRAINT_NIS_REJECTED";
         zhangTransactionalConditioningFailed = true;
@@ -5963,9 +5965,9 @@ evaluateTemporalProductRelations(
 		const bool jointAccepted = exactHeldRoute
 			? std::abs(wideLaneFractional) <= 1e-10 &&
 			  std::abs(conditionalFirstFractional) <= 1e-10
-			: jointNis.valid && jointNis.nis <= jointNis.threshold;
-        const bool reliable = wideLanePerr <= maximumPerr &&
-            conditionalFirstPerr <= maximumPerr && jointAccepted;
+			: jointNis.valid && zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold);
+        const bool reliable = zhangRatioStatisticalAccept(wideLanePerr <= maximumPerr) &&
+            zhangRatioStatisticalAccept(conditionalFirstPerr <= maximumPerr) && jointAccepted;
         reliablePairs += reliable;
 
         // Always return a certificate, including rejected evidence.  The
@@ -6013,8 +6015,8 @@ evaluateTemporalProductRelations(
                 candidate.phaseSegmentCompatible =
                     !evaluated.pending.phaseSegmentChanged;
                 candidate.scalarReliabilityPassed =
-                    wideLanePerr <= maximumPerr &&
-                    conditionalFirstPerr <= maximumPerr;
+                    zhangRatioStatisticalAccept(wideLanePerr <= maximumPerr) &&
+                    zhangRatioStatisticalAccept(conditionalFirstPerr <= maximumPerr);
                 candidate.jointNisPassed = jointAccepted;
                 if (evaluated.pending.transition.valid &&
                     evaluated.pending.transition.physicalEdges.size() ==
@@ -6281,9 +6283,9 @@ evaluateTemporalProductRelations(
 				transformedInteger - transformedMean,
 				admissible * rawCovariance * admissible.transpose(),
 				acsConfig.zhangPppAr.held_constraint_nis_alpha);
-			const bool accepted = wlPerr <= maximumPerr &&
-				firstPerr <= maximumPerr && pairNis.valid &&
-				pairNis.nis <= pairNis.threshold;
+			const bool accepted = zhangRatioStatisticalAccept(wlPerr <= maximumPerr) &&
+				zhangRatioStatisticalAccept(firstPerr <= maximumPerr) && pairNis.valid &&
+				zhangRatioStatisticalAccept(pairNis.nis <= pairNis.threshold);
 			trace << "\nZHANG_TEMPORAL_COMPONENT_GAUGE_CANCELLATION time="
 				  << state.time.to_string(0)
 				  << " event_time=" << eventTime
@@ -6354,10 +6356,10 @@ evaluateTemporalProductRelations(
 			  << " nis=" << componentNis.nis
 			  << " threshold=" << componentNis.threshold
 			  << " status=" << (componentNis.valid &&
-				componentNis.nis <= componentNis.threshold
+				zhangRatioStatisticalAccept(componentNis.nis <= componentNis.threshold)
 				? "ACCEPTED" : "REJECTED")
 			  << " feedback=0";
-		if (!componentNis.valid || componentNis.nis > componentNis.threshold)
+		if (!componentNis.valid || zhangRatioStatisticalReject(componentNis.nis > componentNis.threshold))
 		{
 			continue;
 		}
@@ -6777,7 +6779,7 @@ static int rankAwareGnssAr(
             acsConfig.zhangPppAr.held_constraint_nis_alpha
         );
     const bool candidateAccepted = fixed > 0 && candidateNis.valid &&
-        candidateNis.nis <= candidateNis.threshold;
+        zhangRatioStatisticalAccept(candidateNis.nis <= candidateNis.threshold);
     if (enforceCandidateNis && !candidateAccepted)
     {
         if(fixed>0) search.searchDiagnostic.reason="LOCAL_NIS_REJECTED";
@@ -6814,6 +6816,8 @@ static int rankAwareGnssAr(
               << " status=" << (initialFixed == 0
                     ? "SKIPPED"
                     : (candidateAccepted ? "ACCEPTED" : "REJECTED"))
+              << " statistical_nis_gate=" << !zhangRatioOnly()
+              << " raw_nis_pass=" << (candidateNis.valid && candidateNis.nis<=candidateNis.threshold)
               << " ordering=LAMBDA_NESTED_SUFFIX"
               << " decomposition=REUSED";
         if (search.lambda_dominant_whitened_mode >= 0)
@@ -6953,7 +6957,7 @@ static ZhangSelectedIntegerRows retainNisCompatibleNamedRows(
     if(zhangR51Enabled() && (label=="PERSISTENT_HELD_BLOCK" || label=="PRODUCT_INTEGER_LEDGER_PRESEARCH")) {
         const auto whole=assessZhangIntegerCandidateNis(innovation,covariance,
             acsConfig.zhangPppAr.held_constraint_nis_alpha);
-        const bool healthy=whole.valid && whole.nis<=whole.threshold;
+        const bool healthy=whole.valid && zhangRatioStatisticalAccept(whole.nis<=whole.threshold);
         trace<<"\nZHANG_R51_HISTORY_MONITOR time="<<time.to_string(0)<<" source="<<label
             <<" rows="<<candidates<<" nis="<<whole.nis<<" threshold="<<whole.threshold
             <<" healthy="<<healthy<<" new_decision_atoms=0 rhs_rerounded=0"
@@ -7060,7 +7064,7 @@ static ZhangSelectedIntegerRows retainNisCompatibleNamedRows(
 		backwardTrials++;
 		if (!trialNis.valid || !std::isfinite(trialNis.nis) ||
 			!std::isfinite(trialNis.threshold) ||
-			trialNis.nis > trialNis.threshold) continue;
+			zhangRatioStatisticalReject(trialNis.nis > trialNis.threshold)) continue;
 		selected = std::move(trial);
 		selectedResult.nis = trialNis.nis;
 		selectedResult.nisThreshold = trialNis.threshold;
@@ -7788,7 +7792,7 @@ static int resolveCanonicalUserSdWideLaneL1(
 					assessZhangIntegerCandidateNis(
 						stage, acsConfig.zhangPppAr.held_constraint_nis_alpha);
 				const bool reliable = covarianceValid && !named.empty() && nis.valid &&
-					nis.nis <= nis.threshold && stageMaximumPerr <=
+					zhangRatioStatisticalAccept(nis.nis <= nis.threshold) && stageMaximumPerr <=
 						acsConfig.zhangPppAr.canonical_user_target_max_perr;
 				if (!reliable)
 				{
@@ -7920,7 +7924,7 @@ static int resolveCanonicalUserSdWideLaneL1(
 						wideLane,
 						acsConfig.zhangPppAr.held_constraint_nis_alpha);
 				const bool heldReliable = !heldRows.empty() && heldNis.valid &&
-					heldNis.nis <= heldNis.threshold &&
+					zhangRatioStatisticalAccept(heldNis.nis <= heldNis.threshold) &&
 					heldMaximumPerr <=
 						acsConfig.zhangPppAr.canonical_user_target_max_perr;
 				if (heldReliable)
@@ -12019,7 +12023,7 @@ static ZhangProductIntegerConstraintSet zhangBuildProductConstraintSet(
 	result.exactNetworkMapping = true;
 	result.reliable = !result.networkRows.empty() &&
 		std::isfinite(jointNis) && std::isfinite(jointNisThreshold) &&
-		jointNis <= jointNisThreshold && failureProbability <= 1e-3 + 1e-12;
+		zhangRatioStatisticalAccept(jointNis <= jointNisThreshold) && zhangRatioStatisticalAccept(failureProbability <= 1e-3 + 1e-12);
 	result.failureReason = result.reliable
 		? "NONE" : "PRODUCT_CONSTRAINT_RELIABILITY_GATE_FAILED";
 	return result;
@@ -12096,7 +12100,7 @@ zhangSelectFinalProductCoordinatePar(
 		currentJointCovariance.cols() != 2 * rank ||
 		pairProductCross.cols() != 2 * rank ||
 		!std::isfinite(failureProbability) || failureProbability < 0 ||
-		failureProbability > 1e-3 + 1e-12)
+		zhangRatioStatisticalReject(failureProbability > 1e-3 + 1e-12))
 	{
 		result.status = "FINAL_PRODUCT_PAR_INPUT_INVALID";
 		report();
@@ -12509,7 +12513,7 @@ static ZhangProductIntegerConstraintSet zhangBuildFullProductLatticeOracle(
 		  << " joint_nis=" << nis.nis
 		  << " joint_nis_threshold=" << nis.threshold
 		  << " local_nis_pass="
-		  << (nis.valid && nis.nis <= nis.threshold)
+		  << (nis.valid && zhangRatioStatisticalAccept(nis.nis <= nis.threshold))
 		  << " reference_invariant_product_gain=" << productGain
 		  << " external_truth_reliability=1"
 		  << " noncausal_diagnostic=1 feedback=0";
@@ -13285,7 +13289,7 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 					return false;
 				}
 				if (!std::isfinite(proofClosure.bound) ||
-					proofClosure.bound > 1e-3 + 1e-15)
+					zhangRatioStatisticalReject(proofClosure.bound > 1e-3 + 1e-15))
 				{
 					ledgerRejectedRows++;
 					trace << "\nZHANG_PRODUCT_LEDGER_WHOLE_LATTICE_TRANSPORT time="
@@ -13443,7 +13447,7 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 			stochasticInnovation,
 			stochasticRows * ambiguityCovariance * stochasticRows.transpose(), alpha);
 		return nis.valid && std::isfinite(nis.nis) &&
-			std::isfinite(nis.threshold) && nis.nis <= nis.threshold;
+			std::isfinite(nis.threshold) && zhangRatioStatisticalAccept(nis.nis <= nis.threshold);
 	};
 	auto posteriorBranchNisRatio = [&](const ZhangExactMatrix& exactRows,
 		const ZhangExactVector& exactValues, double alpha)
@@ -14388,7 +14392,7 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 		finalRows * ambiguityCovariance * finalRows.transpose(),
 		acceptedLedgerRows.empty() ? familyAlpha : admissionAlpha);
 	if (!finalNis.valid || !std::isfinite(finalNis.nis) ||
-		!std::isfinite(finalNis.threshold) || finalNis.nis > finalNis.threshold)
+		!std::isfinite(finalNis.threshold) || zhangRatioStatisticalReject(finalNis.nis > finalNis.threshold))
 	{
 		failureReason = "PRODUCT_LEDGER_FINAL_JOINT_NIS_REJECTED";
 		return false;
@@ -14924,7 +14928,7 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
 			const auto nis=assessZhangIntegerCandidateNis(candidate.zfix-candidate.Ztrs*quotientMean,
 				candidate.Ztrs*quotientCovariance*candidate.Ztrs.transpose(),
 				options.lambda_candidate_nis_alpha>0 ? options.lambda_candidate_nis_alpha : 1e-6);
-			if (!nis.valid || nis.nis>nis.threshold) continue;
+			if (!nis.valid || zhangRatioStatisticalReject(nis.nis>nis.threshold)) continue;
 			candidate.lambda_candidate_nis=nis.nis;
 			candidate.lambda_candidate_nis_threshold=nis.threshold;
 			candidate.lambda_selected_bootstrap_success=1-searchedFamilyRisk;
@@ -15214,7 +15218,7 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
 			augmented.Ztrs * quotientCovariance * augmented.Ztrs.transpose(),
 			options.lambda_candidate_nis_alpha > 0
 				? options.lambda_candidate_nis_alpha : 1e-6);
-		if (!unionNis.valid || unionNis.nis > unionNis.threshold) continue;
+		if (!unionNis.valid || zhangRatioStatisticalReject(unionNis.nis > unionNis.threshold)) continue;
 		augmented.lambda_candidate_nis = unionNis.nis;
 		augmented.lambda_candidate_nis_threshold = unionNis.threshold;
 		augmented.lambda_candidate_nis_valid = true;
@@ -15404,7 +15408,7 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
 			augmented.zfix-augmented.Ztrs*quotientMean,
 			augmented.Ztrs*quotientCovariance*augmented.Ztrs.transpose(),
 			options.lambda_candidate_nis_alpha>0 ? options.lambda_candidate_nis_alpha : 1e-6);
-		if (!unionNis.valid || unionNis.nis>unionNis.threshold) {
+		if (!unionNis.valid || zhangRatioStatisticalReject(unionNis.nis>unionNis.threshold)) {
             trace<<"\nZHANG_R46_TARGET_EXIT time="<<time.to_string(0)<<" attempt="<<attempt
                  <<" reason="<<(unionNis.valid?"UNION_NIS_EXCEEDED":"UNION_NIS_INVALID")
                  <<" nis="<<unionNis.nis<<" threshold="<<unionNis.threshold;continue;
@@ -18678,11 +18682,11 @@ static void observeZhangFixedLagCanonicalProductCertificates(
 			? options.lambda_candidate_nis_alpha : 1e-6);
 	familyFailureProbability = std::min(1.0,
 		wideLane.failureProbabilityBound + firstSignal.failureProbabilityBound);
-	if (!jointNis.valid || jointNis.nis > jointNis.threshold ||
+	if (!jointNis.valid || zhangRatioStatisticalReject(jointNis.nis > jointNis.threshold) ||
 		familyFailureProbability > 1e-3 + 1e-12)
 	{
 		status = !jointNis.valid ? "CANONICAL_FIXED_LAG_JOINT_NIS_INVALID" :
-			(jointNis.nis > jointNis.threshold
+			(zhangRatioStatisticalReject(jointNis.nis > jointNis.threshold)
 				? "CANONICAL_FIXED_LAG_JOINT_NIS_REJECTED"
 				: "CANONICAL_FIXED_LAG_FAMILY_PERR_EXCEEDED");
 		report();
@@ -18916,7 +18920,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         const auto rows=numeric(subset.rows,dimension);
         const auto nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(subset.values)-rows*root.aflt,
             rows*root.Paflt*rows.transpose(),nisAlpha);
-        if(!nis.valid || nis.nis>nis.threshold)
+        if(!nis.valid || zhangRatioStatisticalReject(nis.nis>nis.threshold))
         {
             trace << "\nZHANG_R47_HISTORY_JOINT_NIS time="<<time.to_string(0)<<" admitted=0 reason=WHOLE_SUBSET_NIS_REJECTED";
             subset.rows.clear();subset.values.clear();subset.parents.clear();subset.risk=0;
@@ -18936,7 +18940,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         std::vector<std::pair<int,int>> acceptedBridges;
     };
     const bool conditionedRoute=!subset.rows.empty();
-    const double familyBudget=std::max(0.0,ceiling-subset.risk);
+    const double familyBudget=zhangRatioOnly() ? ceiling : std::max(0.0,ceiling-subset.risk);
     const ZhangR49RouteFusionPolicy fusionPolicy;
     const double fusionBudget=familyBudget*fusionPolicy.weight;
     const double perRoute=(familyBudget-fusionBudget)/(conditionedRoute?2:1);
@@ -18946,11 +18950,11 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     auto finalizeRoute=[&](Route& route) {
         if(!route.finalFrame.valid || !zhangR47AffineIntegerFeasible(route.jointRows,route.jointValues,dimension))return false;
         const auto closure=zhangDecisionRiskClosure(route.parents);
-        if(!closure.valid || closure.bound+route.search.reservedRisk>ceiling+1e-15)return false;
+        if(!closure.valid || zhangRatioStatisticalReject(closure.bound+route.search.reservedRisk>ceiling+1e-15))return false;
         if(route.jointRows.empty()){route.finalizedNis.valid=true;route.finalizedNis.nis=0;route.finalizedNis.threshold=0;return true;}
         const MatrixXd j=numeric(route.jointRows,dimension);
         route.finalizedNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(route.jointValues)-j*root.aflt,j*root.Paflt*j.transpose(),nisAlpha);
-        return route.finalizedNis.valid && route.finalizedNis.nis<=route.finalizedNis.threshold;
+        return route.finalizedNis.valid && zhangRatioStatisticalAccept(route.finalizedNis.nis<=route.finalizedNis.threshold);
     };
     auto runRoute=[&](bool conditional)
     {
@@ -19406,7 +19410,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     const auto joint=numeric(selected.jointRows,dimension);
     const auto nis=zhangR49ConstraintNis(root.aflt,root.Paflt,joint,
         zhangExactRowToDouble(selected.jointValues),nisAlpha);
-    if(!selected.jointRows.empty() && (!nis.valid || nis.nis>nis.threshold)) return fail("R47_FINAL_JOINT_NIS_REJECTED");
+    if(!selected.jointRows.empty() && (!nis.valid || zhangRatioStatisticalReject(nis.nis>nis.threshold))) return fail("R47_FINAL_JOINT_NIS_REJECTED");
     const double selectedRisk=zhangDecisionRiskClosure(selected.parents).bound+(selected.newRows.empty()?0:spent);
     auto constraints=zhangBuildProductConstraintSet(firstView,secondView,wlRows,wlValues,l1Rows,l1Values,
         nis.nis,nis.threshold,selectedRisk,0);
@@ -19469,7 +19473,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     constraints.failureProbability=risk.bound;
     constraints.conditioningRank=zhangExactRowHermiteNormalForm(constraints.networkRows).basis.size();
     constraints.reliable=!constraints.networkRows.empty() && !constraints.decisionProofs.empty() && risk.valid &&
-        risk.bound<=ceiling && nis.valid && nis.nis<=nis.threshold;
+        zhangRatioStatisticalAccept(risk.bound<=ceiling) && nis.valid && zhangRatioStatisticalAccept(nis.nis<=nis.threshold);
     constraints.failureReason=constraints.reliable?"NONE":"R47_NO_AUTHORIZED_PRODUCT_CONSEQUENCE";
     result.constraints=std::move(constraints);
     result.r47AdmittedRows=selected.held;result.r47AdmittedValues=selected.heldValues;
@@ -20400,7 +20404,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			? evaluated.wideLaneParentFailureProbabilityBound <=
 				1 - options.sucthr
 			: evaluated.branch.maxPerr <= 1 - options.sucthr &&
-				wideLaneNis.valid && wideLaneNis.nis <= wideLaneNis.threshold;
+				wideLaneNis.valid && zhangRatioStatisticalAccept(wideLaneNis.nis <= wideLaneNis.threshold);
 		if (!evaluated.wideLaneReliable)
 		{
 			evaluated.branch.jointNis = wideLaneNis.nis;
@@ -20515,7 +20519,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			evaluated.constraintJointNis = constraintNis.nis;
 			evaluated.constraintJointNisThreshold = constraintNis.threshold;
 			evaluated.productConstraintsReliable = constraintNis.valid &&
-				constraintNis.nis <= constraintNis.threshold;
+				zhangRatioStatisticalAccept(constraintNis.nis <= constraintNis.threshold);
 		}
 		auto localFirst = recoverCertifiedNamedProductCoordinates(firstSignal, rank);
 		if (localFirst.size() != static_cast<std::size_t>(rank))
@@ -20544,7 +20548,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				? options.lambda_candidate_nis_alpha : 1e-6);
 		evaluated.firstReliable =
 			maximumFirstPerr <= 1 - options.sucthr &&
-			firstNis.valid && firstNis.nis <= firstNis.threshold;
+			firstNis.valid && zhangRatioStatisticalAccept(firstNis.nis <= firstNis.threshold);
 
 		ZhangIarFunctional admissibleRows(2 * rank, 2 * rank);
 		VectorXd admissibleIntegers(2 * rank);
@@ -20566,7 +20570,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 		evaluated.branch.jointNisThreshold = jointNis.threshold;
 		evaluated.branch.reliabilityPassed =
 			evaluated.wideLaneReliable && evaluated.firstReliable &&
-			jointNis.valid && jointNis.nis <= jointNis.threshold;
+			jointNis.valid && zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold);
 		if (!evaluated.branch.reliabilityPassed)
 		{
 			evaluated.failureReason = "L1_OR_JOINT_NIS_GATE_FAILED";
@@ -21092,7 +21096,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			1e-3);
 	const bool optionalLedgerAuthorized =
 		optionalLedgerRiskDecision.optionalAuthorized && optionalProofComplete &&
-		optionalUnionRisk.valid && optionalUnionRisk.currentCertificateRisk <= 1e-3;
+		optionalUnionRisk.valid && zhangRatioStatisticalAccept(optionalUnionRisk.currentCertificateRisk <= 1e-3);
 	const bool ledgerPosteriorConditioned = ledgerPresearchSelection &&
 		ledgerPresearchSelection->valid &&
 		ledgerPresearchSelection->posteriorConditioned;
@@ -21376,7 +21380,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				: (incrementalRiskBudget.status ==
 					ZhangIncrementalRiskBudgetStatus::PARENT_INFEASIBLE
 					? "PARENT_INFEASIBLE" : "BUDGET_EXHAUSTED"));
-		if (!incrementalRiskBudget.parentFeasible)
+		if (zhangRatioStatisticalReject(!incrementalRiskBudget.parentFeasible))
 		{
 			// Defense in depth: a late full-dependency rejection must not strand
 			// the caller on the optional-conditioned posterior, even if an
@@ -21521,7 +21525,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			wideLaneUnion && firstSignalUnion &&
 			!jointWideLaneRows.empty() &&
 			!jointFirstSignalRows.empty() &&
-			jointNis.valid && jointNis.nis <= jointNis.threshold &&
+			jointNis.valid && zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold) &&
 			combinedFailureProbability <= 1e-3 + 1e-12 &&
 			jointConstraints.reliable &&
 			jointConstraints.certifiedPairRank > 0;
@@ -21533,7 +21537,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 		// original parent Perr and the unchanged NIS threshold.
 		if (!accepted && jointFix.newIntegerClaimAccepted && jointSupport.valid &&
 			wideLaneUnion && firstSignalUnion && jointNis.valid &&
-			jointNis.nis > jointNis.threshold &&
+			zhangRatioStatisticalReject(jointNis.nis > jointNis.threshold) &&
 			combinedFailureProbability <= 1e-3 + 1e-12)
 		{
 			const auto finalPar = zhangSelectFinalProductCoordinatePar(
@@ -21608,7 +21612,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 		// posterior. A union NIS rejection is not authority to publish an old
 		// object. Keep all spent search risk; never hide an affine contradiction.
 		if (!accepted && jointSupport.valid && wideLaneUnion && firstSignalUnion &&
-			jointNis.valid && jointNis.nis > jointNis.threshold)
+			jointNis.valid && zhangRatioStatisticalReject(jointNis.nis > jointNis.threshold))
 		{
 			bool converted = false;
 			const auto baselineSignals = zhangWideLaneFirstRowsToSignalRows(
@@ -21644,7 +21648,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 					combinedFailureProbability, zhangIntegerConstraintProductGain(
 						rows, fullJointCovariance, pairProductCross));
 				baselineRecovered = united && !wl.empty() && !l1.empty() &&
-					baseNis.valid && baseNis.nis <= baseNis.threshold &&
+					baseNis.valid && zhangRatioStatisticalAccept(baseNis.nis <= baseNis.threshold) &&
 					combinedFailureProbability <= 1e-3 + 1e-12 &&
 					fallback.reliable && fallback.certifiedPairRank > 0;
 				trace << "\nZHANG_FINAL_BASELINE_REVALIDATION time=" << time.to_string(0)
@@ -21793,7 +21797,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 	const bool fixedLagWideLaneCurrentCompatible =
 		fixedLagWideLane.reliable && !fixedLagWideLane.rows.empty() &&
 		fixedLagWideLaneCurrentNis.valid &&
-		fixedLagWideLaneCurrentNis.nis <= fixedLagWideLaneCurrentNis.threshold;
+		zhangRatioStatisticalAccept(fixedLagWideLaneCurrentNis.nis <= fixedLagWideLaneCurrentNis.threshold);
 	trace << "\nZHANG_FIXED_LAG_PRODUCT_WL_REAUTHORIZATION time="
 		  << time.to_string(0)
 		  << " raw_marginal_valid=" << fixedLagRelationValid
@@ -21924,7 +21928,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				options.lambda_candidate_nis_alpha > 0
 					? options.lambda_candidate_nis_alpha : 1e-6);
 			if (fixedLagCurrentUnionNis.valid &&
-				fixedLagCurrentUnionNis.nis <= fixedLagCurrentUnionNis.threshold)
+				zhangRatioStatisticalAccept(fixedLagCurrentUnionNis.nis <= fixedLagCurrentUnionNis.threshold))
 			{
 				availableWideLaneRows = std::move(unionRows);
 				availableWideLaneIntegers = std::move(unionIntegers);
@@ -22147,7 +22151,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				options.lambda_candidate_nis_alpha > 0
 					? options.lambda_candidate_nis_alpha : 1e-6);
 			const bool fixedLagSupportCompatible = fixedLagSupportNis.valid &&
-				fixedLagSupportNis.nis <= fixedLagSupportNis.threshold;
+				zhangRatioStatisticalAccept(fixedLagSupportNis.nis <= fixedLagSupportNis.threshold);
 			ZhangPosteriorEffectiveConditioningResult
 				fixedLagConditionedOnWideLane;
 			if (fixedLagSupportCompatible)
@@ -22538,7 +22542,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 						result.constraints.failureProbability),
 					productGain);
 				if (combined.reliable && jointNis.valid &&
-					jointNis.nis <= jointNis.threshold)
+					zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold))
 				{
 					result.constraints = std::move(combined);
 					exactUnionApplied = true;
@@ -22664,7 +22668,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			zhangPropagateProductPairProvenance(
 				combined, {&result.constraints, &ledgerOnly});
 			if (combined.reliable && jointNis.valid &&
-				jointNis.nis <= jointNis.threshold)
+				zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold))
 			{
 				result.constraints = std::move(combined);
 				ledgerFinalUnionApplied = true;
@@ -22699,7 +22703,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				ledgerFinalUnionConflict = true;
 				ledgerFinalUnionStatus = !jointNis.valid
 					? "LEDGER_FINAL_POSTERIOR_NIS_INVALID"
-					: (jointNis.nis > jointNis.threshold
+					: (zhangRatioStatisticalReject(jointNis.nis > jointNis.threshold)
 						? "LEDGER_FINAL_POSTERIOR_NIS_REJECTED"
 						: combined.failureReason);
 			}
@@ -23096,7 +23100,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				zhangPropagateProductPairProvenance(
 					combined, {&result.constraints});
 				const bool admitted = combined.reliable && jointNis.valid &&
-					jointNis.nis <= jointNis.threshold;
+					zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold);
 				trace << "\nZHANG_PRODUCT_COMPONENT_GAUGE_FINAL_UNION time="
 					  << time.to_string(0)
 					  << " direct_conditioning_rank="
@@ -23565,8 +23569,8 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 						zhangIntegerConstraintProductGain(jointRows, fullJointCovariance,
 							pairProductCross));
 					evaluation.score.valid = evaluation.constraints.reliable &&
-						nis.valid && nis.nis <= nis.threshold &&
-						evaluation.failureProbability <= 1e-3 + 1e-12;
+						nis.valid && zhangRatioStatisticalAccept(nis.nis <= nis.threshold) &&
+						zhangRatioStatisticalAccept(evaluation.failureProbability <= 1e-3 + 1e-12);
 					evaluation.score.dualGraphRank =
 						evaluation.constraints.certifiedPairRank;
 					std::set<int> certifiedSatellites;
@@ -23696,7 +23700,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 						  << (selected ? "NONE" : "GLOBAL_FAMILY_PARETO_NOT_SELECTED");
 				}
 				const bool familyBudgetValid = familySelection.valid &&
-					familySelection.failureProbability <= 1e-3 + 1e-12;
+					zhangRatioStatisticalAccept(familySelection.failureProbability <= 1e-3 + 1e-12);
 				const bool admitted = familyBudgetValid &&
 					selectedEvaluation.score.valid && selectedLedgerFamilies > 0;
 				rankFunnelLedgerParetoResolved = familySelection.valid &&
@@ -24022,9 +24026,9 @@ static ZhangProductIntegerConstraintSet zhangUnionPrivateProductConstraints(
 		accumulated.failureProbability + candidate.failureProbability);
 	const double productGain = zhangIntegerConstraintProductGain(
 		jointRows, covariance, covariance);
-	if (!nis.valid || nis.nis > nis.threshold || failureProbability > 1e-3 + 1e-12)
+	if (!nis.valid || zhangRatioStatisticalReject(nis.nis > nis.threshold) || zhangRatioStatisticalReject(failureProbability > 1e-3 + 1e-12))
 	{
-		invalid.failureReason = !nis.valid || nis.nis > nis.threshold
+		invalid.failureReason = !nis.valid || zhangRatioStatisticalReject(nis.nis > nis.threshold)
 			? "PRIVATE_PRODUCT_ITERATION_JOINT_NIS_REJECTED"
 			: "PRIVATE_PRODUCT_ITERATION_FAILURE_PROBABILITY_EXCEEDED";
 		return invalid;
@@ -24674,7 +24678,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
             const auto health=assessZhangIntegerCandidateNis(z-A*reauthorizationSource.aflt,
                 A*reauthorizationSource.Paflt*A.transpose(),rowNisAlpha);
             const auto risk=zhangDecisionRiskClosure(proofs);
-            r51PendingHealthy=health.valid && health.nis<=health.threshold && risk.valid && risk.bound<=1e-3;
+            r51PendingHealthy=health.valid && zhangRatioStatisticalAccept(health.nis<=health.threshold) && risk.valid && zhangRatioStatisticalAccept(risk.bound<=1e-3);
             trace<<"\nZHANG_R51_HISTORY_MONITOR time="<<time.to_string(0)
                 <<" source=PRODUCT_PENDING rows="<<rows.size()<<" healthy="<<r51PendingHealthy
                 <<" nis="<<health.nis<<" threshold="<<health.threshold<<" new_decision_atoms=0 rhs_rerounded=0";
@@ -24732,7 +24736,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 			pendingReliable++;
 		}
 		else if (recheck.valid && !recheck.sameInteger &&
-			recheck.failureProbability <= rowFailureBudget + 1e-12)
+			zhangRatioStatisticalAccept(recheck.failureProbability <= rowFailureBudget + 1e-12))
 		{
 			posteriorConflicts.push_back(held);
 			pendingIntegerConflicts++;
@@ -25431,7 +25435,7 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 				? "LEGACY|" + zhangProductGaugeCertificateIdentity(certificate)
 				: certificate.admissionFamilyId);
 		const double familyRisk = proofClosure.bound;
-		if (!std::isfinite(familyRisk) || familyRisk < 0 || familyRisk > 1)
+		if (!std::isfinite(familyRisk) || familyRisk < 0 || zhangRatioStatisticalReject(familyRisk > 1))
 		{
 			recordFirstFailure(
 				ZhangProductCandidateFirstFailure::RISK_BUDGET_EXCEEDED);
@@ -25441,7 +25445,7 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 			finish();
 			return result;
 		}
-		if (familyRisk > 1e-3 + 1e-12)
+		if (zhangRatioStatisticalReject(familyRisk > 1e-3 + 1e-12))
 			recordFirstFailure(
 				ZhangProductCandidateFirstFailure::RISK_BUDGET_EXCEEDED);
 		// WL/L1 for one exact functional/segment form an indivisible subblock.
@@ -25583,7 +25587,7 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 		if (!evaluation.nis.valid)
 			return reject(
 				ZhangProductCandidateFirstFailure::DETERMINISTIC_RESIDUAL_FAIL);
-		if (evaluation.nis.nis > evaluation.nis.threshold)
+		if (zhangRatioStatisticalReject(evaluation.nis.nis > evaluation.nis.threshold))
 			return reject(ZhangProductCandidateFirstFailure::CURRENT_NIS_FAIL);
 		evaluation.score.conditioningRank = evaluation.network.basis.size();
 		bool converted = false;
@@ -25615,7 +25619,7 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
             for(const auto& family:familyProofs) proofs=zhangMergeDecisionProofs(proofs,family);
             const auto risk=zhangDecisionRiskClosure(proofs);
             const auto whole=evaluateSubset(all);
-            const bool healthy=whole.score.valid && risk.valid && risk.bound<=1e-3;
+            const bool healthy=whole.score.valid && risk.valid && zhangRatioStatisticalAccept(risk.bound<=1e-3);
             trace<<"\nZHANG_R51_HISTORY_MONITOR time="<<time.to_string(0)
                 <<" source=GAUGE families="<<all.size()<<" healthy="<<healthy
                 <<" nis="<<whole.nis.nis<<" threshold="<<whole.nis.threshold
@@ -25763,7 +25767,7 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 		currentNisAlpha > 0 ? currentNisAlpha : 1e-6);
 	audit.currentNis = currentNis.nis;
 	audit.currentNisThreshold = currentNis.threshold;
-	if (!currentNis.valid || currentNis.nis > currentNis.threshold)
+	if (!currentNis.valid || zhangRatioStatisticalReject(currentNis.nis > currentNis.threshold))
 	{
 		recordFirstFailure(currentNis.valid
 			? ZhangProductCandidateFirstFailure::CURRENT_NIS_FAIL
@@ -25928,7 +25932,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 if(attemptedVersion.contains(subset) && attemptedVersion[subset]==version) continue;
                 attemptedVersion[subset]=version;++result.proposals;
                 auto risk=zhangDecisionRiskClosure(parents);
-                const double available=risk.valid?std::max(0.0,1e-3-risk.bound):0;
+                const double available=risk.valid?(zhangRatioOnly()?1e-3:std::max(0.0,1e-3-risk.bound)):0;
                 if(available<=1e-12) continue;
                 GinAR_mtx trial;trial.aflt=qmean(subset);trial.Paflt=qcov(subset,subset);
                 GinAR_opt opt=options;opt.min_lambda_fix_count=subset.size();opt.max_lambda_fix_count=subset.size();
@@ -25960,7 +25964,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 MatrixXd A(joint.basis.size(),n);VectorXd z(joint.values.size());
                 for(int i=0;i<A.rows();++i){A.row(i)=zhangExactRowToDouble(joint.basis[i]).transpose();z(i)=joint.values[i].convert_to<double>();}
                 const auto whole=assessZhangIntegerCandidateNis(z-A*floatRoot.aflt,A*floatRoot.Paflt*A.transpose(),options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6);
-                if(!joint.consistent || !whole.valid || whole.nis>whole.threshold) continue;
+                if(!joint.consistent || !whole.valid || zhangRatioStatisticalReject(whole.nis>whole.threshold)) continue;
                 MatrixXd qrows=MatrixXd::Zero(count,searchRank);
                 for(int i=0;i<subset.size();++i)qrows.col(subset[i])=trial.Ztrs.col(i);
                 // Apply accepted independent rows only; all other coordinates
@@ -25970,7 +25974,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 if(!cond.valid) continue;
                 const auto proof=zhangMakeNetworkDecisionProof(owner,owner.time,"R51_"+stage+"_BLOCK",
                     current,rows,rhs,trial.lambda_selected_bootstrap_success,parents);
-                if(!proof || !zhangDecisionRiskClosure({proof}).valid || zhangDecisionRiskClosure({proof}).bound>1e-3) continue;
+                if(!proof || !zhangDecisionRiskClosure({proof}).valid || zhangRatioStatisticalReject(zhangDecisionRiskClosure({proof}).bound>1e-3)) continue;
                 qmean=cond.mean;qcov=cond.covariance;parents={proof};
                 for(int i=0;i<physical.size();++i)store.add(physical[i],values[i],{proof});
                 acceptedRows.insert(acceptedRows.end(),exact.begin(),exact.end());
@@ -25981,7 +25985,9 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                     <<" scan="<<scan<<" accepted_rank="<<count<<" total="<<fixed.size()<<" domain_version="<<version
                     <<" ils_calls="<<result.calls<<" complete="<<trial.searchDiagnostic.ilsComplete
                     <<" sucthr="<<opt.sucthr<<" root_nis="<<whole.nis<<" root_threshold="<<whole.threshold
-                    <<" covariance=MARGINAL_AFTER_ACCEPTED_CONDITIONS";
+                    <<" covariance=MARGINAL_AFTER_ACCEPTED_CONDITIONS"
+                    <<" ratio_only="<<zhangRatioOnly()<<" ratio_threshold="<<opt.ratthr
+                    <<" root_nis_veto="<<!zhangRatioOnly()<<" bootstrap_veto="<<!zhangRatioOnly();
             }
         }
         if(version==beforeScan)break;
@@ -26086,7 +26092,7 @@ static int resolveLayeredWideLaneL1(
         stage.Ztrs   = rows;
         stage.zfix   = values;
         const auto proofRisk = zhangDecisionRiskClosure({proof});
-        if (!proof || !proofRisk.valid || proofRisk.bound > 1e-3)
+        if (!proof || !proofRisk.valid || zhangRatioStatisticalReject(proofRisk.bound > 1e-3))
         {
             trace << "\nZHANG_INTEGER_DECISION_PROOF_REJECTED time=" << time.to_string(0)
                   << " stage=" << stageName << " applied=0 risk=" << std::setprecision(17)
@@ -26126,7 +26132,7 @@ static int resolveLayeredWideLaneL1(
         trace << "\nZHANG_INTEGER_DECISION_PROOF time=" << time.to_string(0)
               << " id=" << proof->id << " parent_count=" << proof->parents.size()
               << " conditional_perr=" << std::setprecision(17) << proof->conditionalFailureBound
-              << " bound_kind=CONDITIONAL_BOOTSTRAP_MODEL source=ACCEPTED_NETWORK_DECISION"
+              << " bound_kind=" << (zhangRatioOnly()?"UNINFORMATIVE_UNIT_BOUND":"CONDITIONAL_BOOTSTRAP_MODEL") << " source=ACCEPTED_NETWORK_DECISION"
               << " matrix_identity_is_decision_identity=0";
         trace << "\nZHANG_FIXED_SUBTRANSACTION time="
               << time.to_string(0)
@@ -26265,7 +26271,7 @@ static int resolveLayeredWideLaneL1(
         const auto networkParents = zhangDecisionRiskClosure(ambiguityResolution.decisionProofs);
         GinAR_opt wideLaneOptions = options;
         const double freshBudget = networkParents.valid
-            ? std::max(0.0, (1e-3 - networkParents.bound) / 2) : 0;
+            ? (zhangRatioOnly() ? 5e-4 : std::max(0.0, (1e-3 - networkParents.bound) / 2)) : 0;
         wideLaneOptions.sucthr = std::max(options.sucthr, 1 - freshBudget);
         int wideLaneFixed = !zhangR51Enabled() && freshBudget > 0 ? rankAwareGnssAr(
             trace,
@@ -30978,7 +30984,7 @@ void fixAndHoldAmbiguities(
             const auto parentRisk = zhangDecisionRiskClosure(parentProofs);
             // Reject before conditioning; never erase a dependency while
             // retaining the covariance benefit. Keep room for fresh decisions.
-            if (held.decisionProofs.empty() || !parentRisk.valid || parentRisk.bound > (zhangR51Enabled()?1e-3:7.5e-4))
+            if (held.decisionProofs.empty() || !parentRisk.valid || zhangRatioStatisticalReject(parentRisk.bound > (zhangR51Enabled()?1e-3:7.5e-4)))
             {
                 trace << "\nZHANG_HELD_DECISION_PRECONDITION time=" << kfState.time.to_string(0)
                       << " applied=0 posterior_unchanged=1 parent_perr=" << std::setprecision(17)
@@ -31238,6 +31244,14 @@ void fixAndHoldAmbiguities(
     ARopt.sucthr = acsConfig.ambrOpts.succsThres;
     ARopt.ratthr = acsConfig.ambrOpts.ratioThres;
     ARopt.nset   = acsConfig.ambrOpts.lambda_set;
+    trace << "\nR51_VALIDATION_POLICY ratio_only=" << zhangRatioOnly()
+          << " ratio_threshold=" << ARopt.ratthr
+          << " bootstrap_gate=" << !zhangRatioOnly()
+          << " nis_gate=" << !zhangRatioOnly() << " perr_gate=" << !zhangRatioOnly()
+          << " risk_budget_gate=" << !zhangRatioOnly()
+          << " risk_bound_valid=" << !zhangRatioOnly()
+          << " exact_integer_checks=1 tree_transport_unchanged=1";
+
     ARopt.nitr   = acsConfig.ambrOpts.AR_max_itr;
 
     if (traceLevel > 4)
@@ -31410,7 +31424,7 @@ void fixAndHoldAmbiguities(
 					const auto nis=assessZhangIntegerCandidateNis(productConstraints.zfix-productConstraints.Ztrs*mean,
 						productConstraints.Ztrs*covariance*productConstraints.Ztrs.transpose(),
 						ARopt.lambda_candidate_nis_alpha>0?ARopt.lambda_candidate_nis_alpha:1e-6);
-					constraintsMapped=nis.valid && nis.nis<=nis.threshold;
+					constraintsMapped=nis.valid && zhangRatioStatisticalAccept(nis.nis<=nis.threshold);
 					ledgerCombinedNis=nis.nis; ledgerCombinedNisThreshold=nis.threshold;
 					deliveryContract.valid=constraintsMapped;
 					deliveryContract.useIdentityState=true;
