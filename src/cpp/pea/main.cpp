@@ -48,6 +48,7 @@
 #include "common/tcpSocket.hpp"
 #include "common/testUtils.hpp"
 #include "common/zhangCheckpoint.hpp"
+#include "common/zhangR51FloatReuse.hpp"
 #include "inertial/posProp.hpp"
 #include "iono/ionoModel.hpp"
 #if defined(ENABLE_PARALLELISATION) || defined(_OPENMP)
@@ -261,7 +262,8 @@ bool buildE29CanonicalConfigText(
     int                 argc,
     char**              argv,
     string&             configText,
-    string&             failureReason
+    string&             failureReason,
+    bool                includeEnvironment = true
 )
 {
     if (acsConfig.includedFilenames.empty())
@@ -274,6 +276,7 @@ bool buildE29CanonicalConfigText(
     output << "E29_CANONICAL_CONFIG_V1\n";
     // Experimental acceptance policy is part of checkpoint identity. A restore
     // must not silently switch ratio-only, AR scheduling, or numerical threads.
+    if (includeEnvironment)
     for (const char* name : {"ZHANG_R51_ENABLE", "ZHANG_R51_RATIO_ONLY",
                             "ZHANG_R51_AR_START_GPST_SECONDS", "ZHANG_R49_FUSION_WEIGHT",
                             "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"})
@@ -1675,10 +1678,51 @@ int main(int argc, char** argv)
 
         if (!e29RestoreDirectory.empty())
         {
+            auto restoreProvenance = e29StartupProvenance;
+            const char* reuseEnvironment = std::getenv("ZHANG_R51_REUSE_FLOAT_20240717");
+            const bool reuseAuditedFloat = reuseEnvironment && std::string(reuseEnvironment) == "1";
+            if (reuseAuditedFloat)
+            {
+                // Rebuild the exact legacy canonical config from the live argv,
+                // files and effective values. Only the newly added env header is
+                // omitted; no config/model/output option is normalized away.
+                if (!buildE29CanonicalConfigText(argc, argv, restoreProvenance.configText,
+                                                 checkpointFailure, false))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_FLOAT_REUSE_CONFIG_FAILED:" << checkpointFailure;
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                restoreProvenance.binaryPath =
+                    "/home/rx/GINAN/frozen-r51-ratio3-float2h-ar1h-20260917/bin/pea";
+                std::map<std::string, std::string> environment;
+                for (const char* name : {"ZHANG_R51_REUSE_FLOAT_20240717", "ZHANG_R51_ENABLE",
+                        "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_AR_START_GPST_SECONDS",
+                        "ZHANG_R49_FUSION_WEIGHT", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
+                        "MKL_NUM_THREADS"})
+                {
+                    const char* value = std::getenv(name);
+                    environment[name] = value ? value : "UNSET";
+                }
+                const auto sourceSha = zhangCheckpointFileSha256(
+                    (std::filesystem::path(e29RestoreDirectory) / "checkpoint.bundle").string());
+                if (!zhangR51AuditedFloatReuseAllowed(sourceSha,
+                        zhangCheckpointFileSha256(restoreProvenance.binaryPath),
+                        zhangCheckpointSha256(restoreProvenance.configText),
+                        zhangCheckpointSha256(restoreProvenance.inputManifestText), environment))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_FLOAT_REUSE_PINNED_IDENTITY_REJECTED";
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "R51_FLOAT_REUSE_AUDITED source_bundle_sha256=" << sourceSha
+                    << " source_epoch=2024-07-17_01:59:30 target_binary_sha256=" << e29StartupBinarySha256
+                    << " policy_change=RATIO_ONLY source_payload_unchanged=1";
+            }
             ZhangCheckpointBundle checkpointBundle;
             auto readResult = readZhangE29CheckpointDirectory(
                 e29RestoreDirectory,
-                e29StartupProvenance,
+                restoreProvenance,
                 acsConfig.zhangPppAr.checkpoint_runtime_id,
                 checkpointBundle);
             if (!readResult.valid)
@@ -1692,7 +1736,7 @@ int main(int argc, char** argv)
             ZhangE29CheckpointRestorePlan restorePlan;
             auto preflightResult = preflightZhangE29CheckpointBundle(
                 checkpointBundle,
-                e29StartupProvenance,
+                restoreProvenance,
                 pppNet.kfState,
                 receiverMap,
                 nav,
@@ -1749,7 +1793,7 @@ int main(int argc, char** argv)
             ZhangPeaControllerCheckpointState restoredController;
             auto commitResult = commitZhangE29CheckpointBundle(
                 checkpointBundle,
-                e29StartupProvenance,
+                restoreProvenance,
                 pppNet.kfState,
                 receiverMap,
                 nav,
