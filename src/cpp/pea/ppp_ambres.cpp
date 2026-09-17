@@ -5096,6 +5096,35 @@ static bool conditionZhangAmbiguitiesExactly(
         return false;
     }
 
+    // User fix-and-hold changes the authoritative posterior.  Transport its
+    // factor history by the exact conditional moment map F=I-KA, b=Kz,
+    // Q=0 before publishing that posterior. This is integer conditioning,
+    // not a physical process transition or a new independent observation.
+    if (acsConfig.zhangPppAr.user_adapter &&
+        acsConfig.zhangPppAr.canonical_user_target_feedback)
+    {
+        const MatrixXd gain = PAt * inverseConstraintCovariance;
+        const MatrixXd projection = MatrixXd::Identity(kfState.x.size(), kfState.x.size()) - gain * A;
+        const SparseMatrix<double> sparseProjection = projection.sparseView();
+        const MatrixXd zeroNoise = MatrixXd::Zero(kfState.x.size(), kfState.x.size());
+        const auto before = kfState.factorCommitSequence;
+        if (!kfState.stateTransitionFactorCallback ||
+            !kfState.stateTransitionFactorCallback(
+                kfState, kfState.time, kfState.kfIndexMap, kfState.kfIndexMap,
+                sparseProjection, zeroNoise, "USER_INTEGER_CONDITION:" + provenance,
+                conditionedState, conditionedCovariance, before, before + 1))
+        {
+            zhangTransactionalConditioningReason = "USER_INTEGER_FACTOR_COMMIT_REJECTED";
+            zhangTransactionalConditioningFailed = true;
+            return false;
+        }
+        kfState.factorCommitSequence = before + 1;
+        trace << "\nZHANG_USER_INTEGER_FACTOR_COMMIT time=" << kfState.time.to_string(0)
+              << " provenance=" << provenance << " rows=" << rows
+              << " before_commit_sequence=" << before << " after_commit_sequence=" << before + 1
+              << " status=COMMITTED map=EXACT_CONDITIONAL_MOMENTS independent_observation=0";
+    }
+
     kfState.x = std::move(conditionedState);
     kfState.P = std::move(conditionedCovariance);
     trace << "\nZHANG_TRANSACTIONAL_CONDITION time="
@@ -7258,7 +7287,23 @@ static int resolveCanonicalUserSdWideLaneL1(
 	}
 
 	GinAR_opt namedOptions = options;
-	namedOptions.mode = E_ARmode::ROUND;
+	const bool userJointIls = zhangRatioOnly() || std::getenv("ZHANG_USER_NAMED_ILS") != nullptr;
+	namedOptions.mode = userJointIls ? E_ARmode::LAMBDA_ALT : E_ARmode::ROUND;
+	if (userJointIls)
+	{
+		namedOptions.min_lambda_fix_count = 1;
+		if (!zhangRatioOnly())
+			namedOptions.sucthr = std::max(options.sucthr,
+				1 - acsConfig.zhangPppAr.canonical_user_target_max_perr);
+	}
+	trace << "\nZHANG_USER_EFFECTIVE_SEARCH time=" << time.to_string(0)
+		<< " mode=" << (userJointIls ? "LAMBDA_ALT" : "ROUND")
+		<< " ratio_threshold=" << namedOptions.ratthr
+		<< " ratio_only=" << zhangRatioOnly()
+		<< " bootstrap_gate=" << !zhangRatioOnly()
+		<< " nis_gate=" << !zhangRatioOnly()
+		<< " perr_gate=" << !zhangRatioOnly()
+		<< " feedback=" << !shadowOnly;
 	for (const auto& [system, observables] :
 		 acsConfig.zhangPppAr.baseline_observables)
 	{
@@ -7778,11 +7823,24 @@ static int resolveCanonicalUserSdWideLaneL1(
 				{
 					stage.aflt = rawMean;
 					stage.Paflt = rawCovariance;
-					fixed = retainNisCompatibleNamedRows(
-						trace, stage, time, stageName).sourceIndices.size();
+					if (!zhangRatioOnly())
+						fixed = retainNisCompatibleNamedRows(
+							trace, stage, time, stageName).sourceIndices.size();
 				}
 				const int candidateCount = rawMean.size();
+				// Rejected ILS output can still contain a candidate or reduction basis.
+				// It must never be recovered or fed back as accepted integer rows.
+				if (userJointIls && (fixed <= 0 || stage.Ztrs.rows() != stage.zfix.size()))
+				{
+					stage.Ztrs.resize(0, candidateCount);
+					stage.zfix.resize(0);
+					fixed = 0;
+				}
 				named = recoverNamedTargets(stage, candidateCount);
+				trace << "\nZHANG_USER_ILS_NAMED_RECOVERY time=" << time.to_string(0)
+					<< " receiver=" << receiver << " stage=" << stageName
+					<< " general_rows=" << stage.Ztrs.rows()
+					<< " named_recovered=" << named.size();
 				const auto provisionalNamed = named;
 				const std::size_t provisionalSelected = named.size();
 				double stageMaximumPerr = 0;
@@ -7803,8 +7861,9 @@ static int resolveCanonicalUserSdWideLaneL1(
 					assessZhangIntegerCandidateNis(
 						stage, acsConfig.zhangPppAr.held_constraint_nis_alpha);
 				const bool reliable = covarianceValid && !named.empty() && nis.valid &&
-					zhangRatioStatisticalAccept(nis.nis <= nis.threshold) && stageMaximumPerr <=
-						acsConfig.zhangPppAr.canonical_user_target_max_perr;
+					zhangRatioStatisticalAccept(nis.nis <= nis.threshold) &&
+					zhangRatioStatisticalAccept(stageMaximumPerr <=
+						acsConfig.zhangPppAr.canonical_user_target_max_perr);
 				if (!reliable)
 				{
 					named.clear();
@@ -7936,8 +7995,8 @@ static int resolveCanonicalUserSdWideLaneL1(
 						acsConfig.zhangPppAr.held_constraint_nis_alpha);
 				const bool heldReliable = !heldRows.empty() && heldNis.valid &&
 					zhangRatioStatisticalAccept(heldNis.nis <= heldNis.threshold) &&
-					heldMaximumPerr <=
-						acsConfig.zhangPppAr.canonical_user_target_max_perr;
+					zhangRatioStatisticalAccept(heldMaximumPerr <=
+						acsConfig.zhangPppAr.canonical_user_target_max_perr);
 				if (heldReliable)
 				{
 					for (int local = 0;
