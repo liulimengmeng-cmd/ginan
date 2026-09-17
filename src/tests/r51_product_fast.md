@@ -15,7 +15,8 @@ Skipped before allocating or decomposing diagnostic matrices:
   and dominant-mode loadings. Tested rows, integers and count remain available.
 - Non-enforcing candidate NIS assessment with no acceptance consumer.
 - Failed safe-prefix conditional-innovation covariance reconstruction.
-- Integer-basis condition-number SVD (before and after reduction).
+- Integer-basis condition-number SVD (before and after reduction), plus the
+  signal-local LU and exact integer rank decompositions used only in TRACE.
 - Component WL covariance spectrum and extra diagnostic LAMBDA reduction.
 - Product gain spectra, IAR gain audit, frozen graph representation/pair audits,
   canonical numerical cross-section exports and full search-matrix snapshots.

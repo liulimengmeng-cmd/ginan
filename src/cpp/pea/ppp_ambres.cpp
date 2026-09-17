@@ -4153,11 +4153,11 @@ static void traceZhangSatelliteIntegerLattice(
                 }
             }
 
-            int signalLocalRationalRank = 0;
-            int signalLocalExactRank = 0;
-            int signalLocalHnfRows = 0;
+            int signalLocalRationalRank = zhangExpensiveDiagnosticsEnabled() ? 0 : -1;
+            int signalLocalExactRank = zhangExpensiveDiagnosticsEnabled() ? 0 : -1;
+            int signalLocalHnfRows = zhangExpensiveDiagnosticsEnabled() ? 0 : -1;
             ZhangExactInteger signalLocalLatticeIndex = 1;
-            if (!signalLocalRows.empty() && !signalColumns.empty())
+            if (zhangExpensiveDiagnosticsEnabled() && !signalLocalRows.empty() && !signalColumns.empty())
             {
                 MatrixXd local = MatrixXd::Zero(
                     signalLocalRows.size(),
@@ -4240,7 +4240,8 @@ static void traceZhangSatelliteIntegerLattice(
                   << signalLocalRationalRank
                   << " new_fixed_exact_rank=" << signalLocalExactRank
                   << " new_fixed_hnf_rows=" << signalLocalHnfRows
-                  << " new_fixed_lattice_index=" << signalLocalLatticeIndex
+                  << " new_fixed_lattice_index=" << (zhangExpensiveDiagnosticsEnabled() ? signalLocalLatticeIndex.str() : "DISABLED")
+                  << " local_rank_diagnostics=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED")
                   << " integer_lattice_containment="
                   << (evaluated
                           ? (exactCoverage.complete ? "FULL" : "PARTIAL")
