@@ -179,3 +179,6 @@ endif()
 
 add_executable(zhang_r51_entailment_tests unit/r51_entailment_reference.cpp)
 configure_unit_test(zhang_r51_entailment_tests)
+
+add_executable(zhang_r51_compatibility_tests unit/r51_compatibility_reference.cpp)
+configure_unit_test(zhang_r51_compatibility_tests)

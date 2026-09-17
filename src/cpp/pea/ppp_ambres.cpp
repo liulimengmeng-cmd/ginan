@@ -80,6 +80,7 @@
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangR51PhysicalImage.hpp"
 #include "common/zhangR51PhysicalEntailment.hpp"
+#include "common/zhangR51QuotientCompatibility.hpp"
 #include "common/zhangR51OutputBundle.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR48SafePrefix.hpp"
@@ -25940,6 +25941,12 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         <<" physical_rows="<<store.rows.size()<<" physical_variables="<<columns.size()
         <<" free_rank="<<searchRank<<" status="<<frame.reason;
     if(!frame.valid || searchRank==0 || zhangR51HistoryOnly)return result;
+    ZhangR51QuotientCompatibility compatibility(searchRank,store.valid);
+    trace<<"\nZHANG_R51_COMPATIBILITY_DOMAIN time="<<owner.time.to_string(0)<<" stage="<<stage
+        <<" physical_variables="<<columns.size()<<" quotient_variables="<<searchRank
+        <<" source_rows="<<store.rows.size()<<" mode=EXACT_IMAGE_INCREMENTAL"
+        <<" scope=THIS_BLOCK_SEARCH full_physical_rebuild_per_candidate=0";
+
     VectorXd qmean;MatrixXd qcov;
     {
         ZhangPhaseTimer timer(trace,"R51_BLOCK_NUMERIC_PROJECTION");
@@ -26002,10 +26009,20 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                     std::map<std::string,ZhangExactInteger> p;
                     expanded &= chart.expand(row,p);physical.push_back(std::move(p));
                 }
-                if(!expanded || ![&]() {
+                if(!expanded) continue;
+                // The frame already encodes every initial physical constraint.
+                // These are the same exact q rows/RHS used by the audited lift
+                // above; test their union in the integer image, not a freshly
+                // decomposed thousands-column physical matrix per proposal.
+                const auto compatible=[&]() {
                     ZhangPhaseTimer timer(trace,"R51_"+stage+"_PHYSICAL_COMPATIBILITY");
-                    return store.compatible(trace,owner.time,stage,physical,values);
-                }()) continue;
+                    return compatibility.assess(reduced,fixedValues,subset);
+                }();
+                if(!compatible.compatible()) {
+                    trace<<"\nZHANG_R51_COMPATIBILITY_REJECT time="<<owner.time.to_string(0)
+                        <<" stage="<<stage<<" mode=EXACT_IMAGE_INCREMENTAL reason=INTEGER_AFFINE_INFEASIBLE";
+                    continue;
+                }
                 auto jointRows=history;auto jointValues=historyValues;
                 jointRows.insert(jointRows.end(),acceptedRows.begin(),acceptedRows.end());
                 jointValues.insert(jointValues.end(),acceptedValues.begin(),acceptedValues.end());
@@ -26035,6 +26052,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 const auto proof=zhangMakeNetworkDecisionProof(owner,owner.time,"R51_"+stage+"_BLOCK",
                     current,rows,rhs,trial.lambda_selected_bootstrap_success,parents);
                 if(!proof || !zhangDecisionRiskClosure({proof}).valid || zhangRatioStatisticalReject(zhangDecisionRiskClosure({proof}).bound>1e-3)) continue;
+                if(!compatibility.commit(compatible)) continue;
                 qmean=cond.mean;qcov=cond.covariance;parents={proof};
                 for(int i=0;i<physical.size();++i)store.add(physical[i],values[i],{proof});
                 acceptedRows.insert(acceptedRows.end(),exact.begin(),exact.end());
@@ -26058,7 +26076,9 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     result.accepted.lambda_selected_bootstrap_success=successProduct;
     trace<<"\nZHANG_R51_BLOCK_STAGE time="<<owner.time.to_string(0)<<" stage="<<stage
         <<" proposals="<<result.proposals<<" ils_calls="<<result.calls<<" accepted_rank="<<acceptedRows.size()
-        <<" initial_block=32 max_block=64 max_alternatives=8 max_calls=128 max_scans=2 policy=R49_MATCHED";
+        <<" initial_block=32 max_block=64 max_alternatives=8 max_calls=128 max_scans=2 policy=R49_MATCHED"
+        <<" compatibility_mode=EXACT_IMAGE_INCREMENTAL compatibility_queries="<<compatibility.queries
+        <<" compatibility_accepted_rows="<<compatibility.acceptedRows();
     return result;
 }
 
