@@ -567,6 +567,22 @@ int lambda_search(
     mtrx.lambda_whitened_condition_number   = 0;
     mtrx.lambda_whitened_nis_closure        = 0;
     mtrx.lambda_dominant_original_loading.resize(0);
+    if (!zhangExpensiveDiagnosticsEnabled())
+    {
+        // Uncomputed diagnostic fields are unavailable, never perfect zeros.
+        const double unavailable = std::numeric_limits<double>::quiet_NaN();
+        mtrx.lambda_candidate_rms_innovation = unavailable;
+        mtrx.lambda_candidate_max_innovation = unavailable;
+        mtrx.lambda_candidate_min_sigma = unavailable;
+        mtrx.lambda_candidate_max_sigma = unavailable;
+        mtrx.lambda_candidate_max_marginal_nis = unavailable;
+        mtrx.lambda_dominant_whitened_residual = unavailable;
+        mtrx.lambda_dominant_whitened_nis = unavailable;
+        mtrx.lambda_dominant_whitened_share = unavailable;
+        mtrx.lambda_second_whitened_share = unavailable;
+        mtrx.lambda_whitened_condition_number = unavailable;
+        mtrx.lambda_whitened_nis_closure = unavailable;
+    }
     mtrx.lambda_ablation_input_rows          = 0;
     mtrx.lambda_ablation_support_rows        = 0;
     mtrx.lambda_ablation_removed_rows        = 0;

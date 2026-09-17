@@ -76,6 +76,8 @@ int main()
                 "diagnostic switch changed ratio");
             check(on.searchDiagnostic.ilsCalls==off.searchDiagnostic.ilsCalls,
                 "diagnostic switch changed enumeration calls");
+            check(std::isnan(off.lambda_candidate_min_sigma) && std::isnan(off.lambda_whitened_condition_number),
+                "uncomputed diagnostics were reported as zeros");
             check(on.lambda_dominant_whitened_mode>=0,
                 "diagnostic-on fixture did not exercise eigensystem");
             check(off.lambda_dominant_whitened_mode==-1 && off.lambda_dominant_original_loading.size()==0,
