@@ -78,8 +78,9 @@ inline ZhangSequentialShadowResult zhangR48SafePrefix(
    auto candidate=search(bm,bq,allocation,merge);
    std::ostringstream e;e<<std::setprecision(17)<<"round="<<round<<" attempt="<<out.attempts
     <<" merge="<<merge<<" allocation="<<allocation<<" nominal_perr="<<candidate.failureProbability
-    <<" proposal_rows="<<candidate.rows.size()<<" mu="<<bm.transpose()<<" covariance=\n"<<bq;
-   for(int i=0;i<candidate.rows.size() && i<candidate.values.size();++i) {
+    <<" proposal_rows="<<candidate.rows.size();
+   if(zhangExpensiveDiagnosticsEnabled()) e<<" mu="<<bm.transpose()<<" covariance=\n"<<bq;
+   if(zhangExpensiveDiagnosticsEnabled()) for(int i=0;i<candidate.rows.size() && i<candidate.values.size();++i) {
     e<<"\nproposal["<<i<<"]=";for(const auto& v:candidate.rows[i])e<<v<<",";e<<" rhs="<<candidate.values[i];
    }
    emit(e.str());
@@ -113,7 +114,7 @@ inline ZhangSequentialShadowResult zhangR48SafePrefix(
     emit(id+" rejected_block_id="+std::to_string(block)+" safe_prefix_retained=1");
     if(!zhangR47AffineIntegerFeasible(combined,cv,n))++out.overlapConflicts;
     // Conditional innovation locates the disputed directions; never accepts.
-    if(!safe.empty()) {
+    if(zhangExpensiveDiagnosticsEnabled() && !safe.empty()) {
      auto c=zhangConditionPosteriorEffectiveIntegers(mean,covariance,numeric(safe,n),zhangExactRowToDouble(safeValues));
      if(c.valid) {auto a=numeric(proposed,n);auto v=zhangExactRowToDouble(pv)-a*c.mean;
       auto cq=(a*c.covariance*a.transpose()).eval();std::ostringstream e;

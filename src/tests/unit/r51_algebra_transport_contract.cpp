@@ -53,6 +53,36 @@ int main()
             if(test.second==.001)check(matrix.lambda_candidate_nis>matrix.lambda_candidate_nis_threshold,"NIS-ablation fixture was not rejecting");
         }
     }
+    // Exercise the real search twice; diagnostic eigensystems must not change
+    // candidate enumeration, ratio, selected integer rows, or fixed values.
+    for(auto mode : {E_ARmode::LAMBDA,E_ARmode::LAMBDA_ALT}) {
+        for(double fraction : {.01,.36,.49}) {
+            GinAR_mtx on,off;
+            on.aflt=VectorXd::Constant(8,fraction);
+            on.Paflt=MatrixXd::Identity(8,8)*.04+MatrixXd::Constant(8,8,.002);
+            off=on;
+            GinAR_opt opt;opt.mode=mode;opt.min_lambda_fix_count=8;opt.ratthr=3;
+            opt.lambda_candidate_nis_alpha=1e-6;
+            setenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS","1",1);
+            int onCount=GNSS_AR(trace,on,opt);
+            setenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS","0",1);
+            int offCount=GNSS_AR(trace,off,opt);
+            check(onCount==offCount,"diagnostic switch changed fixed count");
+            check(on.Ztrs.rows()==off.Ztrs.rows() && (on.Ztrs-off.Ztrs).norm()==0,
+                "diagnostic switch changed integer rows");
+            check(on.zfix.size()==off.zfix.size() && (on.zfix-off.zfix).norm()==0,
+                "diagnostic switch changed fixed integers");
+            check(on.searchDiagnostic.ratio==off.searchDiagnostic.ratio,
+                "diagnostic switch changed ratio");
+            check(on.searchDiagnostic.ilsCalls==off.searchDiagnostic.ilsCalls,
+                "diagnostic switch changed enumeration calls");
+            check(on.lambda_dominant_whitened_mode>=0,
+                "diagnostic-on fixture did not exercise eigensystem");
+            check(off.lambda_dominant_whitened_mode==-1 && off.lambda_dominant_original_loading.size()==0,
+                "diagnostic-off still calculated whitened spectrum");
+        }
+    }
+    unsetenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS");
     unsetenv("ZHANG_R51_RATIO_ONLY");
 
     KFKey a,b,z; a.type=KF::IONO_STEC; a.str="A";

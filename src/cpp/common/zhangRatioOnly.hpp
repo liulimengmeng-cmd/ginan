@@ -11,6 +11,13 @@ inline bool zhangRatioOnly()
     const char* value=std::getenv("ZHANG_R51_RATIO_ONLY");
     return value && std::strcmp(value,"1")==0;
 }
+// Product runs avoid diagnostic-only decompositions by default. This switch
+// must never bypass a solver, integer-validity check, or writer authorization.
+inline bool zhangExpensiveDiagnosticsEnabled()
+{
+    const char* value=std::getenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS");
+    return value ? std::strcmp(value,"1")==0 : !zhangRatioOnly();
+}
 inline bool zhangRatioStatisticalAccept(bool originalDecision)
 { return zhangRatioOnly() || originalDecision; }
 inline bool zhangRatioStatisticalReject(bool originalDecision)

@@ -890,6 +890,11 @@ int lambda_search(
             zhangRatioStatisticalAccept(mindist <= threshold);
         if (accepted || zsiz == minimumFixCount)
         {
+            mtrx.lambda_candidate_tested_rows = mtrx.Ztrs.bottomRows(zsiz);
+            mtrx.lambda_candidate_tested_integers = zfixList.begin()->second;
+            mtrx.lambda_candidate_tested_fix_count = zsiz;
+            if (zhangExpensiveDiagnosticsEnabled())
+            {
             VectorXd innovation = zfixList.begin()->second -
                 mtrx.zflt.tail(zsiz);
             MatrixXd rows = mtrx.Ztrs.bottomRows(zsiz);
@@ -995,6 +1000,7 @@ int lambda_search(
                         std::sqrt(eigenvalue);
                 }
             }
+            } // Diagnostic covariance construction and eigensystem only.
         }
         if (accepted)
         {

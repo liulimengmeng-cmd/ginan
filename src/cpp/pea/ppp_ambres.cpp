@@ -4295,7 +4295,14 @@ static void traceZhangAmbiguityAndFixedProducts(
     }
 
     const int ambiguityCount = ambiguityResolution.aflt.size();
-    if (ambiguityCount)
+    if (ambiguityCount && !zhangExpensiveDiagnosticsEnabled())
+    {
+        trace << (userDiagnostics ? "\nZHANG_USER_AR_SUMMARY time=" : "\nZHANG_AR_SUMMARY time=")
+              << kfState.time.to_string(0) << " candidates=" << ambiguityCount
+              << " newly_fixed=" << fixedCount
+              << " covariance_rank_diagnostics=DISABLED adop_diagnostics=DISABLED";
+    }
+    if (ambiguityCount && zhangExpensiveDiagnosticsEnabled())
     {
         auto [heldIntegerRank, heldMinEigenvalue] =
             zhangHeldIntegerRank(kfState, ambiguityResolution);
@@ -6775,10 +6782,10 @@ static int rankAwareGnssAr(
         ? search.lambda_initial_fix_count
         : fixed;
     ZhangIntegerCandidateNis candidateNis =
-        assessZhangIntegerCandidateNis(
+        (enforceCandidateNis || zhangExpensiveDiagnosticsEnabled()) ? assessZhangIntegerCandidateNis(
             search,
             acsConfig.zhangPppAr.held_constraint_nis_alpha
-        );
+        ) : ZhangIntegerCandidateNis{};
     const bool candidateAccepted = fixed > 0 && candidateNis.valid &&
         zhangRatioStatisticalAccept(candidateNis.nis <= candidateNis.threshold);
     if (enforceCandidateNis && !candidateAccepted)
@@ -6820,7 +6827,8 @@ static int rankAwareGnssAr(
               << " statistical_nis_gate=" << !zhangRatioOnly()
               << " raw_nis_pass=" << (candidateNis.valid && candidateNis.nis<=candidateNis.threshold)
               << " ordering=LAMBDA_NESTED_SUFFIX"
-              << " decomposition=REUSED";
+              << " decomposition=REUSED"
+              << " spectrum_diagnostics=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED");
         if (search.lambda_dominant_whitened_mode >= 0)
         {
             trace << "\nZHANG_INTEGER_WHITENED_MODE time="
@@ -9249,6 +9257,7 @@ static void traceZhangIarGainAudit(
     const ZhangIarFunctional&   fullConstraintRows
 )
 {
+    if (!zhangExpensiveDiagnosticsEnabled()) return;
     trace << std::setprecision(16);
     const bool dimensionsValid = pF0.rows() == pWideLane.rows() &&
         pF0.cols() == pWideLane.cols() &&
@@ -9823,7 +9832,7 @@ static void traceZhangFrozenProductLatticeEvidence(
 	const ZhangProductRelationBasis& secondBasis,
 	const set<SatSys>& canonicalSatellites)
 {
-	if (!zhangProductPairAuditEpoch(time)) return;
+	if (!zhangExpensiveDiagnosticsEnabled() || !zhangProductPairAuditEpoch(time)) return;
 	ZhangGraphIntegerContext graph;
 	if (!zhangGraphIntegerContext(state, system, graph))
 	{
@@ -9990,7 +9999,7 @@ static void traceZhangFrozenRepresentationVariants(
 	E_Sys system,
 	E_ObsCode observable)
 {
-	if (!zhangProductPairAuditEpoch(time)) return;
+	if (!zhangExpensiveDiagnosticsEnabled() || !zhangProductPairAuditEpoch(time)) return;
 	ZhangGraphIntegerContext graph;
 	if (!zhangGraphIntegerContext(state, system, graph)) return;
 	const auto canonical = zhangCanonicalSatelliteProductTarget(
@@ -10682,7 +10691,7 @@ static void traceZhangProductPairAudit(
 	const ZhangPersistentHeldLattice* currentCertified = nullptr,
 	const GinAR_mtx* currentCertifiedCoordinates = nullptr)
 {
-	if (!zhangProductPairAuditEpoch(time)) return;
+	if (!zhangExpensiveDiagnosticsEnabled() || !zhangProductPairAuditEpoch(time)) return;
 	const int rank = basis.mappableTargetRank;
 	if (rank <= 0 || wideLaneMean.size() != rank ||
 		wideLaneCovariance.rows() != rank ||
@@ -16971,7 +16980,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 	traceDenseMatrix("QG", gauge.covariance);
 	VectorXd qwEigenvalues;
 	MatrixXd qwEigenvectors;
-	if (gauge.covariance.rows() == 2 * gauges && gauge.covariance.allFinite())
+	if (zhangExpensiveDiagnosticsEnabled() && gauge.covariance.rows() == 2 * gauges && gauge.covariance.allFinite())
 	{
 		const MatrixXd q11 = gauge.covariance.topLeftCorner(gauges, gauges);
 		const MatrixXd q22 = gauge.covariance.bottomRightCorner(gauges, gauges);
@@ -17036,6 +17045,8 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 	GinAR_mtx wideLane;
 	wideLane.aflt = wlTransform * gauge.mean;
 	wideLane.Paflt = wlTransform * gauge.covariance * wlTransform.transpose();
+	if (zhangExpensiveDiagnosticsEnabled())
+	{
 	GinAR_mtx wideLaneReduction = wideLane;
 	const bool wideLaneReductionValid =
 		Ztrans_reduction(trace, wideLaneReduction) >= 0 &&
@@ -17050,6 +17061,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 		trace << ((row || column) ? ";" : "")
 			  << std::llround(wideLaneReduction.Ztrs(row, column));
 	else trace << "UNAVAILABLE";
+	}
 
 	std::vector<int> anchors(components.size());
 	ZhangExactVector firstAnchorPotentials(components.size());
@@ -18978,7 +18990,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             if(!marginal.valid) {out.search.status=marginal.failureReason;return out;}
             VectorXd searchMean=marginal.mean+zhangExactRowToDouble(out.offsets);
             MatrixXd searchCov=marginal.covariance;
-            trace<<std::setprecision(17)<<"\nR48_SEARCH_SNAPSHOT_BEGIN time="<<time.to_string(0)
+            if (zhangExpensiveDiagnosticsEnabled()) trace<<std::setprecision(17)<<"\nR48_SEARCH_SNAPSHOT_BEGIN time="<<time.to_string(0)
                  <<" route="<<(conditional?"HISTORY":"FLOAT")<<" mean="<<searchMean.transpose()
                  <<"\ncovariance=\n"<<searchCov<<"\nR48_SEARCH_SNAPSHOT_END";
             GinAR_mtx reduction;reduction.aflt=searchMean;reduction.Paflt=searchCov;
@@ -18990,6 +19002,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
             searchCov=(reduction.Ztrs*searchCov*reduction.Ztrs.transpose()).eval();
             out.projector=zhangExactMultiply(decorrelation,out.projector);
             out.offsets=zhangExactMatrixTimesColumn(decorrelation,out.offsets);
+            if (zhangExpensiveDiagnosticsEnabled()) {
             trace<<std::setprecision(17)<<"\nR48_SEARCH_COORDINATES time="<<time.to_string(0)
                 <<" route="<<(conditional?"HISTORY":"FLOAT")<<" mean="<<searchMean.transpose()
                 <<"\ncovariance=\n"<<searchCov;
@@ -19004,6 +19017,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
                 trace<<" rhs="<<out.heldValues[i];
             }
             trace<<"\nR48_SEARCH_COORDINATES_END";
+            }
             out.search=zhangR48SafePrefix(searchMean,searchCov,{}, {},perRoute*0.75,nisAlpha,
                 [&](const VectorXd& mu,const MatrixXd& q,double allocation,bool merged)
                 {
@@ -19831,10 +19845,10 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				: rankFunnel.failureReason);
 	}
 	const ZhangIarProductGainSpectrum relationGainSpectrum =
-		zhangIarProductGainSpectrum(
+        zhangExpensiveDiagnosticsEnabled() ? zhangIarProductGainSpectrum(
 			fullJointCovariance,
 			fullJointCovariance,
-			MatrixXd::Identity(2 * fullRank, 2 * fullRank));
+			MatrixXd::Identity(2 * fullRank, 2 * fullRank)) : ZhangIarProductGainSpectrum{};
 	MatrixXd fullWideLaneMap = MatrixXd::Zero(fullRank, 2 * fullRank);
 	fullWideLaneMap.leftCols(fullRank) = MatrixXd::Identity(fullRank, fullRank);
 	fullWideLaneMap.rightCols(fullRank) = -MatrixXd::Identity(fullRank, fullRank);
@@ -24151,6 +24165,7 @@ static double zhangMaximumExactIntegerCoefficient(const ZhangExactMatrix& rows)
 
 static double zhangExactRowsConditionNumber(const ZhangExactMatrix& rows)
 {
+    if (!zhangExpensiveDiagnosticsEnabled()) return std::numeric_limits<double>::quiet_NaN();
 	if (rows.empty()) return std::numeric_limits<double>::quiet_NaN();
 	MatrixXd numeric(rows.size(), rows.front().size());
 	for (int row = 0; row < numeric.rows(); row++)
@@ -24508,6 +24523,7 @@ static GinAR_mtx zhangProductLedgerPreconditionedSearch(
 		  << maximumIntegerCoefficientBefore
 		  << " max_coefficient_after="
 			  << maximumIntegerCoefficientAfter
+			  << " condition_number_diagnostics=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED")
 			  << " condition_number_before=" << conditionNumberBefore
 			  << " condition_number_after=" << conditionNumberAfter
 		  << " maximum_constraint_residual=" << maximumResidual
@@ -26286,7 +26302,7 @@ static int resolveLayeredWideLaneL1(
             continue;
         }
         const bool e24aGainAuditRequested =
-            acsConfig.zhangPppAr.l1_iar_gain_audit_shadow &&
+            zhangExpensiveDiagnosticsEnabled() && acsConfig.zhangPppAr.l1_iar_gain_audit_shadow &&
             (acsConfig.zhangPppAr.l1_iar_gain_audit_target_epoch.empty() ||
              acsConfig.zhangPppAr.l1_iar_gain_audit_target_epoch ==
                 time.to_string(0));
@@ -26910,7 +26926,7 @@ static int resolveLayeredWideLaneL1(
 			const bool exportCanonicalCrossSection =
 				canonicalExportTime.find("00:04:30") != std::string::npos ||
 				canonicalExportTime.find("00:15:30") != std::string::npos;
-			if (exportCanonicalCrossSection)
+			if (zhangExpensiveDiagnosticsEnabled() && exportCanonicalCrossSection)
 			{
 				const char* canonicalCrossSection =
 					canonicalExportTime.find("00:04:30") != std::string::npos
@@ -27983,7 +27999,7 @@ static int resolveLayeredWideLaneL1(
                 acsConfig.zhangPppAr.l1_product_gain_spectrum_epochs.end(),
                 productGainSpectrumEpoch
             ) != acsConfig.zhangPppAr.l1_product_gain_spectrum_epochs.end();
-        if (productGainSpectrumRequested)
+        if (zhangExpensiveDiagnosticsEnabled() && productGainSpectrumRequested)
         {
             vector<int> productRows;
             for (int row = 0;
@@ -31294,6 +31310,11 @@ void fixAndHoldAmbiguities(
           << " risk_budget_gate=" << !zhangRatioOnly()
           << " risk_bound_valid=" << !zhangRatioOnly()
           << " exact_integer_checks=1 tree_transport_unchanged=1";
+    trace << "\nR51_DIAGNOSTIC_POLICY expensive_diagnostics=" << zhangExpensiveDiagnosticsEnabled()
+          << " covariance_rank_adop=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED")
+          << " condition_svd=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED")
+          << " whitened_spectrum=" << (zhangExpensiveDiagnosticsEnabled()?"ENABLED":"DISABLED")
+          << " numerical_validity_checks=ENABLED product_covariance=ENABLED";
 
     ARopt.nitr   = acsConfig.ambrOpts.AR_max_itr;
 

@@ -507,3 +507,25 @@ BOOST_AUTO_TEST_CASE(r51_followup_l1_retirement_preserves_l2_physical_covariance
     BOOST_CHECK_EQUAL(plan.independentSourceVariances.size(),1);
     evaluatePlan(state,plan,basis);
 }
+
+BOOST_AUTO_TEST_CASE(r51_diagnostic_switch_preserves_rejected_prefix_and_rescue) {
+ auto run=[](bool diagnostics) {
+  setenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS",diagnostics?"1":"0",1);
+  Eigen::VectorXd mu=Eigen::VectorXd::Zero(3);
+  Eigen::MatrixXd q=Eigen::MatrixXd::Identity(3,3)*0.001;
+  int calls=0;std::string log;
+  auto result=zhangR48SafePrefix(mu,q,{}, {},0.001,1e-6,
+   [&](const Eigen::VectorXd& m,const Eigen::MatrixXd&,double,bool merge) {
+    ZhangSequentialShadowProposal p;++calls;if(merge)return p;
+    p.valid=true;p.failureProbability=0;p.rows=zhangExactIdentityMatrix(m.size());
+    p.values=ZhangExactVector(m.size());if(calls>1)p.values.back()=20;return p;
+   },[&](const std::string& s){log+=s;},1,2,3);
+  BOOST_CHECK_EQUAL(log.find("conditional_innovation=")!=std::string::npos,diagnostics);
+  BOOST_CHECK_EQUAL(log.find("covariance=")!=std::string::npos,diagnostics);
+  return result;
+ };
+ auto on=run(true),off=run(false);unsetenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS");
+ BOOST_CHECK(on.rows==off.rows);BOOST_CHECK(on.values==off.values);
+ BOOST_CHECK_EQUAL(on.attempts,off.attempts);BOOST_CHECK_EQUAL(on.mergeAttempts,off.mergeAttempts);
+ BOOST_CHECK_EQUAL(on.reservedRisk,off.reservedRisk);BOOST_CHECK_EQUAL(on.status,off.status);
+}
