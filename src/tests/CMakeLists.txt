@@ -176,3 +176,6 @@ if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_sources(zhang_r51_performance_tests PRIVATE unit/zhangBlasArgumentAudit.cpp)
     target_link_options(zhang_r51_performance_tests PRIVATE "-Wl,--wrap=dgemv_")
 endif()
+
+add_executable(zhang_r51_entailment_tests unit/r51_entailment_reference.cpp)
+configure_unit_test(zhang_r51_entailment_tests)

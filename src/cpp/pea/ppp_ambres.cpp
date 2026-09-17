@@ -79,6 +79,7 @@
 #include "common/zhangR47History.hpp"
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangR51PhysicalImage.hpp"
+#include "common/zhangR51PhysicalEntailment.hpp"
 #include "common/zhangR51OutputBundle.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR48SafePrefix.hpp"
@@ -25120,8 +25121,24 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 {
 	ZhangPhaseTimer phaseTimer(trace, "GAUGE_SUBBLOCK_SELECTION");
 	GinAR_mtx result = source;
+    // The certificate scan below mutates only local candidate families. Its
+    // physical store and current chart stay fixed until selection completes.
+    // Scope the snapshot to this call so slips/retirement/new integers cannot
+    // accidentally reuse a preceding epoch's decomposition.
+    std::optional<ZhangProductPhysicalCycleChart> physicalChart;
+    std::optional<ZhangR51PhysicalEntailmentSnapshot> physicalEntailment;
+
 	auto finish = [&]()
 	{
+        if (physicalEntailment)
+            trace << "\nZHANG_R51_GAUGE_ENTAILMENT_CACHE time=" << time.to_string(0)
+                  << " rows=" << physicalEntailment->rowCount()
+                  << " columns=" << physicalEntailment->columnCount()
+                  << " queries=" << physicalEntailment->queries
+                  << " direct_queries=" << physicalEntailment->directQueries
+                  << " affine_builds=" << physicalEntailment->builds
+                  << " build_seconds=" << physicalEntailment->buildSeconds
+                  << " scope=IMMUTABLE_CURRENT_SCAN";
 		trace << "\nZHANG_PRODUCT_GAUGE_LEDGER_PRESEARCH time="
 			  << time.to_string(0)
 			  << " runtime_id=" << runtimeId
@@ -25394,12 +25411,22 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
 			continue;
 		}
         if(zhangR51Enabled()) {
-            const auto chart=r51CurrentChart(physicalOwner,source.ambmap,firstBasis.system);
+            if (!physicalChart)
+                physicalChart=r51CurrentChart(physicalOwner,source.ambmap,firstBasis.system);
             std::map<std::string,ZhangExactInteger> wlPhysical,l1Physical;
-            const bool expanded=chart.expand(wideNetwork,wlPhysical) && chart.expand(firstNetwork,l1Physical);
-            const auto store=r51PhysicalStore(physicalOwner,firstBasis.system);
-            const bool entailed=expanded && store.entails({wlPhysical,l1Physical},
-                {certificate.wideLaneInteger-wideOffset,certificate.firstSignalInteger-firstOffset});
+            const bool expanded=physicalChart->expand(wideNetwork,wlPhysical)
+                && physicalChart->expand(firstNetwork,l1Physical);
+            if (expanded && !physicalEntailment)
+            {
+                ZhangPhaseTimer timer(trace,"R51_GAUGE_PHYSICAL_SNAPSHOT");
+                const auto store=r51PhysicalStore(physicalOwner,firstBasis.system);
+                physicalEntailment.emplace(store.rows,store.values,store.valid);
+            }
+            const bool entailed=[&]() {
+                ZhangPhaseTimer timer(trace,"R51_GAUGE_PHYSICAL_ENTAILMENT");
+                return expanded && physicalEntailment->entails({wlPhysical,l1Physical},
+                    {certificate.wideLaneInteger-wideOffset,certificate.firstSignalInteger-firstOffset});
+            }();
             trace<<"\nZHANG_R51_GAUGE_PHYSICAL_TRANSPORT time="<<time.to_string(0)
                 <<" certificate="<<zhangProductGaugeCertificateIdentity(certificate)
                 <<" exact_physical_consequence="<<entailed;
@@ -25857,6 +25884,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     const ZhangExactMatrix& history,const ZhangExactVector& historyValues,
     const GinAR_opt& options,E_Sys system,const std::string& stage,
     ZhangR51PhysicalStore store) {
+    ZhangPhaseTimer blockTimer(trace,"R51_"+stage+"_BLOCK_SEARCH");
     ZhangR51BlockResult result;result.accepted.ambmap=current.ambmap;
     const int n=current.aflt.size();result.accepted.Ztrs.resize(0,n);result.accepted.zfix.resize(0);
     const auto chart=r51CurrentChart(owner,current.ambmap,system);
@@ -25938,7 +25966,10 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 GinAR_opt opt=options;opt.min_lambda_fix_count=subset.size();opt.max_lambda_fix_count=subset.size();
                 opt.sucthr=std::max(options.sucthr,1-available/(stage=="WL"?2:1));
                 zhangR51SingleBlock=true;
-                const int count=rankAwareGnssAr(trace,trial,opt,owner.time,"R51_BLOCK_"+stage,true);
+                const int count=[&]() {
+                    ZhangPhaseTimer timer(trace,"R51_"+stage+"_ILS");
+                    return rankAwareGnssAr(trace,trial,opt,owner.time,"R51_BLOCK_"+stage,true);
+                }();
                 zhangR51SingleBlock=false;result.calls+=trial.searchDiagnostic.ilsCalls;
                 if(count!=subset.size()) continue;
                 ZhangExactMatrix reduced;ZhangExactVector fixedValues,values;
@@ -25954,23 +25985,35 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                     std::map<std::string,ZhangExactInteger> p;
                     expanded &= chart.expand(row,p);physical.push_back(std::move(p));
                 }
-                if(!expanded || !store.compatible(trace,owner.time,stage,physical,values)) continue;
+                if(!expanded || ![&]() {
+                    ZhangPhaseTimer timer(trace,"R51_"+stage+"_PHYSICAL_COMPATIBILITY");
+                    return store.compatible(trace,owner.time,stage,physical,values);
+                }()) continue;
                 auto jointRows=history;auto jointValues=historyValues;
                 jointRows.insert(jointRows.end(),acceptedRows.begin(),acceptedRows.end());
                 jointValues.insert(jointValues.end(),acceptedValues.begin(),acceptedValues.end());
                 jointRows.insert(jointRows.end(),exact.begin(),exact.end());
                 jointValues.insert(jointValues.end(),values.begin(),values.end());
-                const auto joint=zhangExactRowHermiteNormalForm(jointRows,jointValues);
+                const auto joint=[&]() {
+                    ZhangPhaseTimer timer(trace,"R51_"+stage+"_JOINT_HNF");
+                    return zhangExactRowHermiteNormalForm(jointRows,jointValues);
+                }();
                 MatrixXd A(joint.basis.size(),n);VectorXd z(joint.values.size());
                 for(int i=0;i<A.rows();++i){A.row(i)=zhangExactRowToDouble(joint.basis[i]).transpose();z(i)=joint.values[i].convert_to<double>();}
-                const auto whole=assessZhangIntegerCandidateNis(z-A*floatRoot.aflt,A*floatRoot.Paflt*A.transpose(),options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6);
+                const auto whole=[&]() {
+                    ZhangPhaseTimer timer(trace,"R51_"+stage+"_ROOT_NIS");
+                    return assessZhangIntegerCandidateNis(z-A*floatRoot.aflt,A*floatRoot.Paflt*A.transpose(),options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6);
+                }();
                 if(!joint.consistent || !whole.valid || zhangRatioStatisticalReject(whole.nis>whole.threshold)) continue;
                 MatrixXd qrows=MatrixXd::Zero(count,searchRank);
                 for(int i=0;i<subset.size();++i)qrows.col(subset[i])=trial.Ztrs.col(i);
                 // Apply accepted independent rows only; all other coordinates
                 // retain their cross covariance. No jitter and no assumption
                 // that the unfixed complement is known.
-                const auto cond=zhangConditionPosteriorEffectiveIntegers(qmean,qcov,qrows,trial.zfix);
+                const auto cond=[&]() {
+                    ZhangPhaseTimer timer(trace,"R51_"+stage+"_CONDITION");
+                    return zhangConditionPosteriorEffectiveIntegers(qmean,qcov,qrows,trial.zfix);
+                }();
                 if(!cond.valid) continue;
                 const auto proof=zhangMakeNetworkDecisionProof(owner,owner.time,"R51_"+stage+"_BLOCK",
                     current,rows,rhs,trial.lambda_selected_bootstrap_success,parents);
