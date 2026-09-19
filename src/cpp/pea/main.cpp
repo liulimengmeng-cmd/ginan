@@ -400,7 +400,7 @@ bool loadR51AuditedFloatSourceProvenance(
     const string bytes(
         (std::istreambuf_iterator<char>(input)),
         std::istreambuf_iterator<char>());
-    boost::json::error_code error;
+    boost::system::error_code error;
     const boost::json::value parsed = boost::json::parse(bytes, error);
     if (error || !parsed.is_object())
     {
