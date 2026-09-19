@@ -1711,7 +1711,15 @@ int main(int argc, char** argv)
                         zhangCheckpointSha256(restoreProvenance.configText),
                         zhangCheckpointSha256(restoreProvenance.inputManifestText), environment))
                 {
-                    BOOST_LOG_TRIVIAL(error) << "R51_FLOAT_REUSE_PINNED_IDENTITY_REJECTED";
+                    BOOST_LOG_TRIVIAL(error)
+                        << "R51_FLOAT_REUSE_PINNED_IDENTITY_REJECTED"
+                        << " source_bundle_sha256=" << sourceSha
+                        << " source_binary_sha256="
+                        << zhangCheckpointFileSha256(restoreProvenance.binaryPath)
+                        << " source_config_sha256="
+                        << zhangCheckpointSha256(restoreProvenance.configText)
+                        << " source_input_manifest_sha256="
+                        << zhangCheckpointSha256(restoreProvenance.inputManifestText);
                     TcpSocket::ioContext.stop();
                     return EXIT_FAILURE;
                 }
