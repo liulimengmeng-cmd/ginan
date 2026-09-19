@@ -1,3 +1,4 @@
+#include "common/zhangP0ResourceProbe.hpp"
 #include "pea/zhangReference.hpp"
 #include "common/zhangR48ProductDatum.hpp"
 #include "common/zhangActiveGraphBasis.hpp"

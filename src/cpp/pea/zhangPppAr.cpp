@@ -1,3 +1,4 @@
+#include "common/zhangP0ResourceProbe.hpp"
 #include "common/zhangRatioOnly.hpp"
 #include "pea/zhangPppAr.hpp"
 
@@ -9388,7 +9389,8 @@ void writeZhangInternalProducts(
     bool* productTransactionCommitted
 )
 {
-    if(productTransactionCommitted) *productTransactionCommitted=false;
+	ZhangP0ResourceScope p0Writer(trace,"INTERNAL_PRODUCT_WRITER",floatState.time.to_string(0));
+	if(productTransactionCommitted) *productTransactionCommitted=false;
     if (!acsConfig.zhangPppAr.output_products)
     {
         return;
@@ -9617,8 +9619,9 @@ void writeZhangInternalProducts(
 		// effect gates have both passed.
 		return zhangFormalPppArProductSolution(solution);
 	};
-    auto writeSolution = [&](const KFState& state, const string& solution)
-    {
+	auto writeSolution = [&](const KFState& state, const string& solution)
+	{
+		ZhangP0ResourceScope p0Solution(trace,"PRODUCT_SOLUTION_"+solution,state.time.to_string(0));
         for (const auto& [phaseKey, phaseIndex] : state.kfIndexMap)
         {
             if (phaseKey.type != KF::PHASE_BIAS ||

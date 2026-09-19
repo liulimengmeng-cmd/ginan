@@ -1,3 +1,4 @@
+#include "common/zhangP0ResourceProbe.hpp"
 #include "common/zhangRatioOnly.hpp"
 #include "common/zhangR49ConstraintNis.hpp"
 // #pragma GCC optimize ("O0")
@@ -25917,6 +25918,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     const GinAR_opt& options,E_Sys system,const std::string& stage,
     ZhangR51PhysicalStore store) {
     ZhangPhaseTimer blockTimer(trace,"R51_"+stage+"_BLOCK_SEARCH");
+    ZhangP0ResourceScope p0Block(trace,"BLOCK_"+stage,owner.time.to_string(0));
     ZhangR51BlockResult result;result.accepted.ambmap=current.ambmap;
     const int n=current.aflt.size();result.accepted.Ztrs.resize(0,n);result.accepted.zfix.resize(0);
     const auto chart=r51CurrentChart(owner,current.ambmap,system);
@@ -25935,6 +25937,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     const auto exactMetricsBefore=zhangR48ExactMetrics;
     const auto frame=[&]() {
         ZhangPhaseTimer timer(trace,"R51_PHYSICAL_AFFINE_IMAGE");
+        ZhangP0ResourceScope p0Image(trace,"PHYSICAL_AFFINE_IMAGE",owner.time.to_string(0));
         if(store.rows.empty()) {
             auto unit=zhangR51UnconstrainedUnitImage(physicalTargets,targets);
             if(unit.valid)return unit;
@@ -28048,7 +28051,9 @@ static int resolveLayeredWideLaneL1(
                 trace<<"\nZHANG_R51_SEARCH_ENTERED time="<<time.to_string(0)
                     <<" system="<<enum_to_string(system)<<" stage="<<stage
                     <<" target_rows="<<exactTargets.size()
-                    <<" conditioned_rank="<<history.size();
+                    <<" conditioned_rank="<<history.size()
+                    <<" conditioned_input_rows="<<history.size()
+                    <<" conditioned_rank_is_row_count=1";
                 auto blocks=r51SearchBlocks(trace,captureOwner,ambiguityResolution,floatInputAmbiguities,
                     exactTargets,history,historyValues,options,system,stage,physical);
                 if(blocks.accepted.zfix.size()==0) {
@@ -30838,6 +30843,8 @@ void fixAndHoldAmbiguities(
 )
 {
 	ZhangPhaseTimer phaseTimer(trace, "AR_TOTAL");
+	ZhangP0ResourceScope p0Ar(trace,"AR_CALL",kfState.time.to_string(0),
+		sizeof(double)*(kfState.P.size()+kfState.x.size()+kfState.dx.size()));
     trace << "\nZHANG_AR_RUNTIME_CONFIG time="
           << kfState.time.to_string(0)
           << " mode=" << enum_to_string(acsConfig.ambrOpts.mode)
@@ -31071,6 +31078,7 @@ void fixAndHoldAmbiguities(
         {
             return;
         }
+        ZhangP0ResourceScope p0Closure(trace,"FLOAT_AUTHORITY_CLOSURE",kfState.time.to_string(0));
         const auto after = captureZhangCheckpointKfCore(kfState);
         const bool coreEqual = zhangCheckpointKfCoreBitwiseEqual(
             floatAuthorityBefore, after);
@@ -31897,6 +31905,7 @@ void fixAndHoldAmbiguities(
             <<" rejected="<<admission.second<<" publication_pending=1";
     }
     auto writeSelectedProduct=[&]() {
+    ZhangP0ResourceScope p0Writer(trace,"SELECTED_PRODUCT_WRITE",kfState.time.to_string(0));
     writeZhangInternalProducts(
         trace,
         kfState,
