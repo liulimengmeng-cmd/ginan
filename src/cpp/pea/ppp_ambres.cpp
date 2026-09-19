@@ -1,3 +1,4 @@
+#include <memory>
 #include "common/zhangP0ResourceProbe.hpp"
 #include "common/zhangRatioOnly.hpp"
 #include "common/zhangR49ConstraintNis.hpp"
@@ -31062,10 +31063,20 @@ void fixAndHoldAmbiguities(
     // The authoritative Zhang filter is the float estimator.  Every held or
     // newly fixed equality is applied only to this same-epoch disposable copy.
     KFState& floatState = kfState;
-    KFState fixedBranch = kfState;
     bool transactional =
         acsConfig.zhangFullRank.enable &&
         acsConfig.zhangPppAr.transactional_integer_fixing;
+	std::unique_ptr<KFState> fixedBranchOwner;
+	if (transactional)
+	{
+		ZhangP0ResourceScope p0Copy(
+			trace,
+			"FIXED_KF_COPY",
+			kfState.time.to_string(0),
+			sizeof(double) * (kfState.P.size() + kfState.x.size() + kfState.dx.size()));
+		fixedBranchOwner = std::make_unique<KFState>(kfState);
+	}
+	KFState& fixedBranch = transactional ? *fixedBranchOwner : kfState;
     KFState* workingState = transactional ? &fixedBranch : &kfState;
     ZhangCheckpointKfCore floatAuthorityBefore;
     if (transactional)
@@ -31904,6 +31915,29 @@ void fixAndHoldAmbiguities(
         trace<<"\nZHANG_R51_HELD_TRIAL time="<<kfState.time.to_string(0)<<" ready="<<r51NetworkTrialReady
             <<" rejected="<<admission.second<<" publication_pending=1";
     }
+	if (zhangR51Enabled()
+		&& !acsConfig.zhangPppAr.temporal_product_transition_shadow)
+	{
+		ZhangP0ResourceScope p0Release(
+			trace,
+			"RELEASE_AR_NUMERIC_BEFORE_WRITER",
+			kfState.time.to_string(0));
+		// All ARmtx consumers and held admission have completed. Swap with empty
+		// objects so these scratch buffers no longer overlap the product writer.
+		MatrixXd().swap(ARmtx.Paflt);
+		MatrixXd().swap(ARmtx.Ztrs);
+		MatrixXd().swap(ARmtx.Ltrs);
+		MatrixXd().swap(ARmtx.Pafix);
+		MatrixXd().swap(ARmtx.lambda_candidate_tested_rows);
+		VectorXd().swap(ARmtx.aflt);
+		VectorXd().swap(ARmtx.zflt);
+		VectorXd().swap(ARmtx.zfix);
+		VectorXd().swap(ARmtx.Dtrs);
+		VectorXd().swap(ARmtx.afix);
+		VectorXd().swap(ARmtx.lambda_candidate_tested_integers);
+		VectorXd().swap(ARmtx.lambda_dominant_original_loading);
+		std::vector<GinAR_mtx>().swap(appliedHeldReceipts);
+	}
     auto writeSelectedProduct=[&]() {
     ZhangP0ResourceScope p0Writer(trace,"SELECTED_PRODUCT_WRITE",kfState.time.to_string(0));
     writeZhangInternalProducts(
@@ -32064,6 +32098,24 @@ void fixAndHoldAmbiguities(
             }
         }
     }
+	if (transactional)
+	{
+		ZhangP0ResourceScope p0Release(
+			trace,
+			"RELEASE_BRANCH_DENSE_BEFORE_CLOSURE",
+			kfState.time.to_string(0));
+		auto releaseDense = [](KFState& state)
+		{
+			MatrixXd().swap(state.P);
+			VectorXd().swap(state.x);
+			VectorXd().swap(state.dx);
+			VectorXd().swap(state.prefitRatios);
+			VectorXd().swap(state.postfitRatios);
+		};
+		releaseDense(fixedBranch);
+		releaseDense(wideLaneState);
+		releaseDense(productFixedState);
+	}
     traceFloatAuthorityClosure();
 }
 
