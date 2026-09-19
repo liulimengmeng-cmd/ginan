@@ -30,6 +30,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
 #include <boost/archive/binary_iarchive.hpp>
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/algorithm/string.hpp>
@@ -18039,13 +18040,43 @@ struct ZhangR51PhysicalStore {
     ZhangExactVector values;
     ZhangDecisionProofs parents;
     bool valid=true;
+	std::unordered_map<std::size_t,std::vector<std::size_t>> exactIndex;
+	std::size_t addRequests=0;
+	std::size_t dedupHits=0;
+	static std::size_t exactHash(
+		const std::map<std::string,ZhangExactInteger>& row,
+		const ZhangExactInteger& value)
+	{
+		std::size_t seed = std::hash<std::string>{}(value.str());
+		auto combine = [&](const std::string& token)
+		{
+			const auto hash = std::hash<std::string>{}(token);
+			seed ^= hash + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+		};
+		for (const auto& [identity, coefficient] : row)
+		{
+			combine(identity);
+			combine(coefficient.str());
+		}
+		return seed;
+	}
     void add(const std::map<std::string,ZhangExactInteger>& row,
         const ZhangExactInteger& value,const ZhangDecisionProofs& proof) {
+		++addRequests;
         if(row.empty()) {valid &= value==0;return;}
-        for(int i=0;i<rows.size();++i) if(rows[i]==row && values[i]==value) {
-            parents=zhangMergeDecisionProofs(parents,proof);return;
-        }
-        rows.push_back(row);values.push_back(value);
+		const auto hash=exactHash(row,value);
+		auto& candidates=exactIndex[hash];
+		for(const auto index:candidates)
+		{
+			if(index<rows.size() && rows[index]==row && values[index]==value)
+			{
+				++dedupHits;
+				parents=zhangMergeDecisionProofs(parents,proof);
+				return;
+			}
+		}
+		const auto index=rows.size();
+		rows.push_back(row);values.push_back(value);candidates.push_back(index);
         parents=zhangMergeDecisionProofs(parents,proof);
     }
     bool entails(const std::vector<std::map<std::string,ZhangExactInteger>>& target,
@@ -25934,7 +25965,10 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     auto dense=[&](const auto& group){ZhangExactMatrix out(group.size(),ZhangExactVector(columns.size()));
         for(int i=0;i<group.size();++i)for(const auto& [id,x]:group[i])if(x!=0)out[i][columns.at(id)]=x;return out;};
     trace<<"\nZHANG_R51_DOMAIN_COMPILE_START time="<<owner.time.to_string(0)<<" stage="<<stage
-        <<" physical_rows="<<store.rows.size()<<" targets="<<targets.size()<<std::flush;
+        <<" physical_rows="<<store.rows.size()<<" targets="<<targets.size()
+		<<" physical_add_requests="<<store.addRequests
+		<<" physical_exact_dedup_hits="<<store.dedupHits
+		<<" physical_exact_index_buckets="<<store.exactIndex.size()<<std::flush;
     const auto exactMetricsBefore=zhangR48ExactMetrics;
     const auto frame=[&]() {
         ZhangPhaseTimer timer(trace,"R51_PHYSICAL_AFFINE_IMAGE");
