@@ -3,7 +3,8 @@
 #include <string>
 
 // Deliberately fixture-specific migration, NOT a general provenance bypass.
-// This bundle is the audited last FLOAT epoch, before the first AR call.
+// This validates the audited target AR configuration before the source
+// checkpoint's own exact provenance is loaded and rechecked by the reader.
 inline bool zhangR51AuditedFloatReuseAllowed(
     const std::string& bundleSha, const std::string& binarySha,
     const std::string& configSha, const std::string& inputSha,
@@ -23,7 +24,7 @@ inline bool zhangR51AuditedFloatReuseAllowed(
     }
     return bundleSha == "ab397e655774da5c0a9632becd08fe171508b93ffeaf2dd7b04de899bae2182a"
         && binarySha == "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38"
-        && configSha == "eccca673c2acf8a77824e03573974fb468938055f40a85ddc3d8e7651bb21265"
+        && configSha == "02bbaabbe2a836ec3dfc08d2ad206326c9dbddf41237692e0d3806b0043b764f"
         && inputSha == "4f6351a7db3a2af79ae728ffc1d8d6e9b19986cafe49d6c47c6a703cfeac4874";
 }
 

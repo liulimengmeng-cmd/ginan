@@ -6,6 +6,7 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/utility/setup/console.hpp>
+#include <boost/json.hpp>
 #include <boost/system/error_code.hpp>
 #include <chrono>
 #include <cmath>
@@ -381,6 +382,66 @@ bool buildE29CanonicalConfigText(
 
     configText = output.str();
     return !configText.empty();
+}
+
+bool loadR51AuditedFloatSourceProvenance(
+    const std::filesystem::path& restoreDirectory,
+    ZhangE29CheckpointProvenance& provenance,
+    string& failureReason)
+{
+    const auto manifestPath =
+        restoreDirectory / ZHANG_E29_CHECKPOINT_MANIFEST_FILENAME;
+    std::ifstream input(manifestPath, std::ios::binary);
+    if (!input)
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_OPEN_FAILED";
+        return false;
+    }
+    const string bytes(
+        (std::istreambuf_iterator<char>(input)),
+        std::istreambuf_iterator<char>());
+    boost::json::error_code error;
+    const boost::json::value parsed = boost::json::parse(bytes, error);
+    if (error || !parsed.is_object())
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_PARSE_FAILED";
+        return false;
+    }
+    const auto& object = parsed.as_object();
+    auto readString = [&](const char* name, string& value)
+    {
+        const auto* entry = object.if_contains(name);
+        if (entry == nullptr || !entry->is_string()) return false;
+        const auto& text = entry->as_string();
+        value.assign(text.data(), text.size());
+        return true;
+    };
+    string binarySha;
+    string configSha;
+    string inputSha;
+    string configText;
+    string inputManifestText;
+    if (!readString("binary_sha256", binarySha)
+     || !readString("config_sha256", configSha)
+     || !readString("input_manifest_sha256", inputSha)
+     || !readString("config_text", configText)
+     || !readString("input_manifest_text", inputManifestText))
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_FIELDS_MISSING";
+        return false;
+    }
+    if (binarySha != "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38"
+     || configSha != "eccca673c2acf8a77824e03573974fb468938055f40a85ddc3d8e7651bb21265"
+     || inputSha != "4f6351a7db3a2af79ae728ffc1d8d6e9b19986cafe49d6c47c6a703cfeac4874"
+     || zhangCheckpointSha256(configText) != configSha
+     || zhangCheckpointSha256(inputManifestText) != inputSha)
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_IDENTITY_REJECTED";
+        return false;
+    }
+    provenance.configText = std::move(configText);
+    provenance.inputManifestText = std::move(inputManifestText);
+    return true;
 }
 
 bool normaliseE29LocalInputPath(
@@ -1683,9 +1744,8 @@ int main(int argc, char** argv)
             const bool reuseAuditedFloat = reuseEnvironment && std::string(reuseEnvironment) == "1";
             if (reuseAuditedFloat)
             {
-                // Rebuild the exact legacy canonical config from the live argv,
-                // files and effective values. Only the newly added env header is
-                // omitted; no config/model/output option is normalized away.
+                // First pin the live AR target config and input inventory. The
+                // source checkpoint provenance is loaded only after this gate.
                 if (!buildE29CanonicalConfigText(argc, argv, restoreProvenance.configText,
                                                  checkpointFailure, false))
                 {
@@ -1720,6 +1780,14 @@ int main(int argc, char** argv)
                         << zhangCheckpointSha256(restoreProvenance.configText)
                         << " source_input_manifest_sha256="
                         << zhangCheckpointSha256(restoreProvenance.inputManifestText);
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                if (!loadR51AuditedFloatSourceProvenance(
+                        e29RestoreDirectory, restoreProvenance,
+                        checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << checkpointFailure;
                     TcpSocket::ioContext.stop();
                     return EXIT_FAILURE;
                 }
