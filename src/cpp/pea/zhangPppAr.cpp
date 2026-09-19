@@ -9495,14 +9495,47 @@ void writeZhangInternalProducts(
 		}
 		return support;
 	};
+	struct P0WriterGraph
+	{
+		ZhangGraphIntegerContext graph;
+		bool available = false;
+		bool canonicalValid = false;
+	};
+	// All solutions intentionally use fixedState as the graph owner, exactly as
+	// before. The cache only removes repeated snapshot copies and exact audits
+	// inside this one serial writer invocation.
+	ZhangP0InvocationCache<ZhangP0GraphStamp, P0WriterGraph> p0Graphs;
+	auto p0Graph = [&](E_Sys system) -> const P0WriterGraph&
+	{
+		const auto stamp = zhangGraphIntegerContextStamp(fixedState, system);
+		return p0Graphs.get(stamp, [&]
+		{
+			ZhangP0ResourceScope probe(
+				trace,
+				"WRITER_GRAPH_SNAPSHOT",
+				fixedState.time.to_string(0));
+			P0WriterGraph entry;
+			entry.available = zhangGraphIntegerContext(
+				fixedState,
+				system,
+				entry.graph);
+			if (entry.available)
+			{
+				entry.canonicalValid =
+					zhangCanonicalIntegerAudit(entry.graph.basis).valid;
+			}
+			return entry;
+		});
+	};
 	map<E_Sys, int> backendSBasisGenerations;
 	if (houOsbLike)
 	{
 		for (const auto& [system, observables] :
 			 acsConfig.zhangPppAr.baseline_observables)
 		{
-			ZhangGraphIntegerContext graph;
-			if (!zhangGraphIntegerContext(fixedState, system, graph))
+			const auto& cachedGraph = p0Graph(system);
+			const auto& graph = cachedGraph.graph;
+			if (!cachedGraph.available)
 			{
 				continue;
 			}
@@ -9546,29 +9579,33 @@ void writeZhangInternalProducts(
 
 	struct E25bSystemStructure
 	{
-		ZhangGraphIntegerContext graph;
+		int productDatumVersion = 0;
 		ZhangSatelliteProductTarget coordinateTarget;
 		std::map<SatSys, ZhangProductIntegerFunctional> products;
 		ZhangUserIntegerLatticeAudit jointAudit;
 		bool valid = false;
 		std::string failureReason = "NOT_INITIALISED";
 	};
-	std::map<E_Sys, E25bSystemStructure> e25bStructures;
+	std::map<ZhangP0GraphStamp, E25bSystemStructure> e25bStructures;
 	auto e25bStructure = [&](E_Sys system) -> E25bSystemStructure&
 	{
-		auto [iterator, inserted] = e25bStructures.try_emplace(system);
+		auto [iterator, inserted] = e25bStructures.try_emplace(
+			zhangGraphIntegerContextStamp(fixedState, system));
 		auto& structure = iterator->second;
 		if (!inserted)
 		{
 			return structure;
 		}
-		if (!zhangGraphIntegerContext(fixedState, system, structure.graph))
+		const auto& cachedGraph = p0Graph(system);
+		const auto& graph = cachedGraph.graph;
+		if (!cachedGraph.available)
 		{
 			structure.failureReason = "NO_GRAPH_INTEGER_CONTEXT";
 			return structure;
 		}
+		structure.productDatumVersion = graph.productDatumVersion;
 		structure.coordinateTarget = zhangBuildSatelliteProductTarget(
-			structure.graph.basis, structure.graph.productBasis);
+			graph.basis, graph.productBasis);
 		if (!structure.coordinateTarget.valid)
 		{
 			structure.failureReason =
@@ -9576,10 +9613,10 @@ void writeZhangInternalProducts(
 			return structure;
 		}
 		structure.products = zhangBuildProductIntegerFunctionals(
-			structure.graph.productBasis,
-			structure.graph.arcVersions,
+			graph.productBasis,
+			graph.arcVersions,
 			structure.coordinateTarget.referenceSatellite,
-			structure.graph.productDatumVersion);
+			graph.productDatumVersion);
 		if (structure.products.empty())
 		{
 			structure.failureReason = "PRODUCT_INTEGER_FUNCTIONALS_EMPTY";
@@ -9657,12 +9694,9 @@ void writeZhangInternalProducts(
             initialiseContinuityState(productKey, continuity);
             continuity.advanceEpoch(state.time);
 
-            ZhangGraphIntegerContext graphContext;
-            bool structureValid =
-                zhangGraphIntegerContext(
-                    fixedState, phaseKey.Sat.sys, graphContext
-                ) &&
-                zhangCanonicalIntegerAudit(graphContext.basis).valid;
+			const auto& cachedGraph = p0Graph(phaseKey.Sat.sys);
+			const bool structureValid =
+				cachedGraph.available && cachedGraph.canonicalValid;
             ZhangSatelliteDatumStatus datumStatus =
                 satelliteDatumManager(phaseKey.Sat.sys, code).status(
                     phaseKey.Sat, structureValid
@@ -10407,7 +10441,7 @@ void writeZhangInternalProducts(
 						  << e25bStructure(phaseKey.Sat.sys).failureReason
 						  << " temporal_basis_version="
 						  << e25bStructure(phaseKey.Sat.sys).
-							 graph.productDatumVersion
+							 productDatumVersion
 						  << " functional=" << e25bFunctionalFingerprint;
 				}
             }
@@ -10433,6 +10467,12 @@ void writeZhangInternalProducts(
 	{
 		writeSolution(*networkFixedDiagnosticState, "FIXED");
 	}
+	trace << "\nZHANG_P0_WRITER_GRAPH_CACHE time="
+		  << fixedState.time.to_string(0)
+		  << " requests=" << p0Graphs.requests
+		  << " builds=" << p0Graphs.builds
+		  << " hits=" << (p0Graphs.requests - p0Graphs.builds)
+		  << " scope=OWNED_WRITER_INVOCATION canonical_check=UNCHANGED";
 	bool routineTemporalSnapshotAccepted = true;
 	if (!temporalSnapshotRequests.empty())
 	{

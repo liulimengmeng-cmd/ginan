@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common/zhangP0InvocationCache.hpp"
+
 #include <cstdint>
 #include <iosfwd>
 #include <map>
@@ -187,3 +189,8 @@ bool applyZhangGraphBasisTransformForAudit(
 // Stochastic support is distinct from direct, currently observed AR eligibility.
 bool zhangGraphStochasticSupportValid(const KFState&, const std::string&,
  const SatSys&, E_ObsCode);
+
+// Lightweight, read-only identity for invocation-local graph snapshots.
+ZhangP0GraphStamp zhangGraphIntegerContextStamp(
+	const KFState& state,
+	E_Sys system);

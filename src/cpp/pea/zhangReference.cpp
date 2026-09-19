@@ -5141,6 +5141,39 @@ bool zhangGraphProductSatelliteActive(
     return false;
 }
 
+ZhangP0GraphStamp zhangGraphIntegerContextStamp(
+	const KFState& state,
+	E_Sys system)
+{
+	ZhangP0GraphStamp stamp;
+	stamp.runtimeIdentity = zhangGraphRuntimeId(state);
+	stamp.system = static_cast<int>(system);
+	std::ostringstream epoch;
+	epoch << std::hexfloat << state.time.bigTime;
+	stamp.epochIdentity = epoch.str();
+
+	auto found = graphStateMap.find({stamp.runtimeIdentity, system});
+	if (found == graphStateMap.end())
+	{
+		return stamp;
+	}
+
+	const auto& runtime = found->second;
+	stamp.event = runtime.eventCounter;
+	stamp.representation = runtime.representationVersion;
+	stamp.productDatum = runtime.productDatumVersion;
+	stamp.floatGauge = runtime.floatGaugeVersion;
+	stamp.integerComponent = runtime.integerComponentVersion;
+	stamp.runtimeEpoch = runtime.epochIndex;
+	const auto& basis = runtime.activeBasis.connected
+		? runtime.activeBasis
+		: runtime.basis;
+	stamp.available = runtime.initialized
+		&& basis.connected
+		&& basis.receivers.contains(basis.rootReceiver);
+	return stamp;
+}
+
 bool zhangGraphIntegerContext(
     const KFState&             kfState,
     E_Sys                      system,
