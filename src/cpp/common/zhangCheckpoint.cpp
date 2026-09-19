@@ -943,28 +943,33 @@ ZhangCheckpointIoResult readZhangCheckpointBundle(
 		result.failureReason = validationFailure;
 		return result;
 	}
-	if (!matchesExpectation(
-			candidate.manifest.experimentMode, expectations.experimentMode) ||
-		!matchesExpectation(
-			candidate.manifest.binarySha256, expectations.binarySha256) ||
-		!matchesExpectation(
-			candidate.manifest.configSha256, expectations.configSha256) ||
-		!matchesExpectation(
-			candidate.manifest.inputManifestSha256,
-			expectations.inputManifestSha256) ||
-		!matchesExpectation(
-			candidate.manifest.platformFingerprint,
-			expectations.platformFingerprint) ||
-		!matchesExpectation(
-			candidate.manifest.compilerFingerprint,
-			expectations.compilerFingerprint) ||
-		!matchesExpectation(
-			candidate.manifest.linearAlgebraFingerprint,
-			expectations.linearAlgebraFingerprint) ||
-		!matchesExpectation(
-			candidate.manifest.endianness, expectations.endianness))
+	auto requireExpectation = [&](const char* field,
+		const std::string& actual, const std::string& expected)
 	{
-		result.failureReason = "CHECKPOINT_PROVENANCE_MISMATCH";
+		if (matchesExpectation(actual, expected)) return true;
+		result.failureReason = std::string("CHECKPOINT_PROVENANCE_MISMATCH:")
+			+ field + ":expected=" + expected + ":actual=" + actual;
+		return false;
+	};
+	if (!requireExpectation("EXPERIMENT_MODE", candidate.manifest.experimentMode,
+			expectations.experimentMode)
+	 || !requireExpectation("BINARY_SHA256", candidate.manifest.binarySha256,
+			expectations.binarySha256)
+	 || !requireExpectation("CONFIG_SHA256", candidate.manifest.configSha256,
+			expectations.configSha256)
+	 || !requireExpectation("INPUT_MANIFEST_SHA256",
+			candidate.manifest.inputManifestSha256,
+			expectations.inputManifestSha256)
+	 || !requireExpectation("PLATFORM", candidate.manifest.platformFingerprint,
+			expectations.platformFingerprint)
+	 || !requireExpectation("COMPILER", candidate.manifest.compilerFingerprint,
+			expectations.compilerFingerprint)
+	 || !requireExpectation("LINEAR_ALGEBRA",
+			candidate.manifest.linearAlgebraFingerprint,
+			expectations.linearAlgebraFingerprint)
+	 || !requireExpectation("ENDIANNESS", candidate.manifest.endianness,
+			expectations.endianness))
+	{
 		return result;
 	}
 	if (!validateCore(candidate.kfCore, validationFailure))
