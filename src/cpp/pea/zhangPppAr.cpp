@@ -9430,6 +9430,60 @@ void writeZhangInternalProducts(
 			  << " feedback=0";
 		return;
 	}
+	struct P0HeldSupportKey
+	{
+		E_Sys system = E_Sys::NONE;
+		E_ObsCode observable = E_ObsCode::NONE;
+		vector<ZhangGraphEdge> physicalEdges;
+		vector<int> physicalArcVersions;
+		ZhangExactVector coefficients;
+
+		auto fields() const
+		{
+			return std::tie(
+				system,
+				observable,
+				physicalEdges,
+				physicalArcVersions,
+				coefficients);
+		}
+
+		bool operator<(const P0HeldSupportKey& other) const
+		{
+			return fields() < other.fields();
+		}
+	};
+	ZhangP0InvocationCache<
+		P0HeldSupportKey,
+		ZhangNamedProductIntegerSupport> p0HeldSupports;
+	auto p0HeldSupport = [&](E_Sys system,
+		E_ObsCode observable,
+		const vector<ZhangGraphEdge>& physicalEdges,
+		const vector<int>& physicalArcVersions,
+		const ZhangExactVector& coefficients)
+		-> const ZhangNamedProductIntegerSupport&
+	{
+		P0HeldSupportKey key{
+			system,
+			observable,
+			physicalEdges,
+			physicalArcVersions,
+			coefficients};
+		return p0HeldSupports.get(key, [&]
+		{
+			ZhangP0ResourceScope probe(
+				trace,
+				"WRITER_HELD_MEMBERSHIP",
+				fixedState.time.to_string(0));
+			return zhangNamedProductIntegerSupport(
+				integerLedgerState,
+				system,
+				observable,
+				physicalEdges,
+				physicalArcVersions,
+				coefficients);
+		});
+	};
 	auto functionalDifferenceSupport = [&](E_ObsCode code,
 		const ZhangProductIntegerFunctional& previous,
 		const ZhangProductIntegerFunctional& current)
@@ -9465,8 +9519,8 @@ void writeZhangInternalProducts(
 			identical.reason = "IDENTICAL_PHYSICAL_FUNCTIONAL";
 			return identical;
 		}
-		auto support = zhangNamedProductIntegerSupport(
-			integerLedgerState, current.satellite.sys, code,
+		auto support = p0HeldSupport(
+			current.satellite.sys, code,
 			difference.physicalEdges, difference.physicalArcVersions,
 			difference.coefficients);
 		if (support.contained)
@@ -10204,8 +10258,7 @@ void writeZhangInternalProducts(
                 auto functional = e25b.products.find(phaseKey.Sat);
                 if (functional != e25b.products.end())
                 {
-                    namedIntegerSupport = zhangNamedProductIntegerSupport(
-                        integerLedgerState,
+                    namedIntegerSupport = p0HeldSupport(
                         phaseKey.Sat.sys,
                         code,
                         functional->second.physicalEdges,
@@ -10473,6 +10526,12 @@ void writeZhangInternalProducts(
 		  << " builds=" << p0Graphs.builds
 		  << " hits=" << (p0Graphs.requests - p0Graphs.builds)
 		  << " scope=OWNED_WRITER_INVOCATION canonical_check=UNCHANGED";
+	trace << "\nZHANG_P0_WRITER_HELD_CACHE time="
+		  << fixedState.time.to_string(0)
+		  << " requests=" << p0HeldSupports.requests
+		  << " builds=" << p0HeldSupports.builds
+		  << " hits=" << (p0HeldSupports.requests - p0HeldSupports.builds)
+		  << " scope=OWNED_WRITER_INVOCATION exact_membership=UNCHANGED";
 	bool routineTemporalSnapshotAccepted = true;
 	if (!temporalSnapshotRequests.empty())
 	{
