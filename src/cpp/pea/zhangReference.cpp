@@ -3631,19 +3631,21 @@ void updateZhangGraphBasis(
         return true;
     };
 
-    auto invalidateRetiredProductArcs = [&](
+    auto auditRetiredProductArcs = [&](
+        const ZhangGraphBasis& oldProductBasis,
+        const map<ZhangGraphEdge, int>& oldProductArcVersions,
         const set<ZhangGraphEdge>& retiredEdges,
         const string&              reason)
     {
-        if (!runtime.productInitialized)
+        if (oldProductBasis.treeEdges.empty() || !runtime.productInitialized)
         {
             return false;
         }
 
         set<ZhangGraphEdge> retiredProductTreeEdges;
         std::set_intersection(
-            runtime.productBasis.treeEdges.begin(),
-            runtime.productBasis.treeEdges.end(),
+            oldProductBasis.treeEdges.begin(),
+            oldProductBasis.treeEdges.end(),
             retiredEdges.begin(),
             retiredEdges.end(),
             std::inserter(
@@ -3654,9 +3656,13 @@ void updateZhangGraphBasis(
             return false;
         }
 
-        const int oldComponentCount = runtime.productBasis.componentCount;
-        invalidateZhangProduct(runtime, reason);
-        const bool componentSplit = oldComponentCount > 1;
+        // updateProductDatum() has already rebuilt the current product chart
+        // with current physical arc versions and audited the datum transport.
+        // Endpoint overlap with an old tree edge is not, by itself, evidence
+        // that every current product relation is invalid.  Keep the rebuilt
+        // structural chart so exact physical-history projection and current
+        // recertification can operate; formal writers still require a current
+        // product certificate and therefore fail closed independently.
         if (acsConfig.zhangPppAr.output_diagnostics)
         {
             trace << "\nZHANG_INTEGER_CONTINUITY_EVENT time="
@@ -3665,6 +3671,15 @@ void updateZhangGraphBasis(
                   << " reason=" << reason
                   << " retired_product_tree_edges="
                   << edgeList(retiredProductTreeEdges)
+                  << " retired_product_arc_versions=";
+            for (const auto& edge : retiredProductTreeEdges)
+            {
+                const auto version = oldProductArcVersions.find(edge);
+                trace << edge.receiver << ":" << edge.satellite.id()
+                      << ":V" << (version == oldProductArcVersions.end()
+                            ? -1 : version->second) << ";";
+            }
+            trace
                   << " integer_component_version="
                   << runtime.integerComponentVersion
                   << " float_gauge_version=" << runtime.floatGaugeVersion
@@ -3674,9 +3689,12 @@ void updateZhangGraphBasis(
                   << runtime.productBasis.treeEdges.size()
                   << " surviving_component_count="
                   << runtime.productBasis.componentCount
-                  << " component_split=" << componentSplit
-                  << " float_gauge_continuous=1 product_authority_revoked=1"
-                  << " ar_valid=0"
+                  << " component_split="
+                  << (runtime.productBasis.componentCount > 1)
+                  << " float_gauge_continuous=1"
+                  << " structural_product_chart_preserved=1"
+                  << " endpoint_only_global_invalidation=0"
+                  << " ar_valid=DEFERRED_TO_CURRENT_PRODUCT_CERTIFICATE"
                   << " pending_component_gauge_bridge=1"
                   << " pending_besd_bridge=1"
                   << " float_posterior_preserved=1";
@@ -3706,6 +3724,8 @@ void updateZhangGraphBasis(
     auto localReinitialise = [&](const string& reason)
     {
         const auto savedRuntime = runtime;
+        const auto oldProductBasis = runtime.productBasis;
+        const auto oldProductArcVersions = runtime.productArcVersions;
         int removedColumns = 0;
         const auto oldIndex = kfState.kfIndexMap;
         ZhangGraphBasis oldBasis = runtime.basis;
@@ -3752,7 +3772,11 @@ void updateZhangGraphBasis(
             invalidateZhangProduct(runtime, "FLOAT_COMPONENT_SPLIT");
         }
         // FLOAT transport alone never certifies a new inter-component bridge.
-        invalidateRetiredProductArcs(retiredCoordinates,
+        // Preserve the rebuilt structural chart and let exact physical
+        // projection plus the formal product certificate decide which integer
+        // relations, if any, remain publishable.
+        auditRetiredProductArcs(oldProductBasis, oldProductArcVersions,
+            retiredCoordinates,
             "PHYSICAL_ARC_RETIRED_DURING_COMPONENT_TRANSPORT");
         runtime.basis = transported;
         // The observation basis must never select a different chart from the

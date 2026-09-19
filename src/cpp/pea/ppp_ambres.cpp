@@ -13106,10 +13106,24 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 			// combinations and is therefore forbidden.
 			ZhangExactVector row;
             std::string transportReason;
+            ZhangPhysicalProjectionDiagnostic projectionDiagnostic;
             if (!held.physicalExpansionExact ||
-                !physicalChart.project(held.physicalExpansion,row,&transportReason)) {
+                !physicalChart.project(held.physicalExpansion,row,&transportReason,
+                    &projectionDiagnostic)) {
                 trace << "\nZHANG_R46_PHYSICAL_TRANSPORT time=" << time.to_string(0)
-                      << " status=REJECTED reason=" << transportReason;
+                      << " status=REJECTED reason=" << transportReason
+                      << " requested_h="
+                      << zhangProductPhysicalRowFingerprint(
+                            projectionDiagnostic.requested)
+                      << " rebuilt_ct_q="
+                      << zhangProductPhysicalRowFingerprint(
+                            projectionDiagnostic.rebuilt)
+                      << " delta="
+                      << zhangProductPhysicalRowFingerprint(
+                            projectionDiagnostic.delta)
+                      << " current_q=";
+                for (int column=0;column<row.size();++column)
+                    if (row[column]!=0) trace << column << ":" << row[column] << ";";
                 continue;
             }
 			projectedMetadata.push_back(&held);
@@ -27940,19 +27954,56 @@ static int resolveLayeredWideLaneL1(
             if(r51BaselineResult) *r51BaselineResult=baseline;
             std::vector<GinAR_mtx> domainReceipts;
             if(appliedHeldReceipts) domainReceipts=*appliedHeldReceipts;
-            auto collectDomain=[&](ZhangExactMatrix& rows,ZhangExactVector& values) {
+            auto collectDomain=[&](const std::string& stage,
+                ZhangExactMatrix& rows,ZhangExactVector& values) {
                 std::map<KFKey,int> map;for(const auto& [c,key]:ambiguityResolution.ambmap)map[key]=c;
-                for(const auto& receipt:domainReceipts) {
-                    MatrixXd A=MatrixXd::Zero(receipt.Ztrs.rows(),ambiguityResolution.aflt.size());
-                    bool valid=true;
-                    for(const auto& [c,key]:receipt.ambmap) {
-                        if(!map.contains(key)) {valid=false;break;}
-                        A.col(map.at(key))=receipt.Ztrs.col(c);
+                int projectedReceipts=0;
+                int removedColumns=0;
+                int touchedRows=0;
+                for(int receiptIndex=0;receiptIndex<domainReceipts.size();++receiptIndex) {
+                    const auto& receipt=domainReceipts[receiptIndex];
+                    ZhangExactMatrix sourceRows;ZhangExactVector sourceValues;
+                    if(!zhangExactRowsFromNumeric(receipt.Ztrs,receipt.zfix,
+                        sourceRows,sourceValues)) {
+                        trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<time.to_string(0)
+                            <<" system="<<enum_to_string(system)<<" stage="<<stage
+                            <<" reason=DOMAIN_RECEIPT_NOT_EXACT receipt_index="<<receiptIndex;
+                        return false;
                     }
-                    ZhangExactMatrix h;ZhangExactVector v;
-                    if(!valid || !zhangExactRowsFromNumeric(A,receipt.zfix,h,v)) return false;
-                    rows.insert(rows.end(),h.begin(),h.end());values.insert(values.end(),v.begin(),v.end());
+                    std::vector<int> sourceToCurrent(receipt.Ztrs.cols(),-1);
+                    for(const auto& [c,key]:receipt.ambmap) {
+                        if(c<0 || c>=sourceToCurrent.size()) {
+                            trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<time.to_string(0)
+                                <<" system="<<enum_to_string(system)<<" stage="<<stage
+                                <<" reason=DOMAIN_RECEIPT_COLUMN_OUT_OF_RANGE receipt_index="<<receiptIndex
+                                <<" source_column="<<c;
+                            return false;
+                        }
+                        const auto current=map.find(key);
+                        if(current!=map.end()) sourceToCurrent[c]=current->second;
+                    }
+                    const auto projected=zhangExactCurrentDomain(sourceRows,
+                        sourceValues,sourceToCurrent,ambiguityResolution.aflt.size());
+                    if(!projected.valid) {
+                        trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<time.to_string(0)
+                            <<" system="<<enum_to_string(system)<<" stage="<<stage
+                            <<" reason=DOMAIN_EXACT_PROJECTION_FAILED receipt_index="<<receiptIndex
+                            <<" detail="<<projected.failureReason;
+                        return false;
+                    }
+                    rows.insert(rows.end(),projected.rows.begin(),projected.rows.end());
+                    values.insert(values.end(),projected.values.begin(),projected.values.end());
+                    projectedReceipts+=projected.removedColumns>0;
+                    removedColumns+=projected.removedColumns;
+                    touchedRows+=projected.touchedRows;
                 }
+                trace<<"\nZHANG_R51_SEARCH_DOMAIN time="<<time.to_string(0)
+                    <<" system="<<enum_to_string(system)<<" stage="<<stage
+                    <<" status=READY receipts="<<domainReceipts.size()
+                    <<" projected_receipts="<<projectedReceipts
+                    <<" removed_columns="<<removedColumns
+                    <<" touched_rows="<<touchedRows
+                    <<" surviving_rank="<<rows.size();
                 return true;
             };
             auto physical=r51PhysicalStore(captureOwner,system);
@@ -27980,7 +28031,7 @@ static int resolveLayeredWideLaneL1(
             }
             for(const std::string stage:{"WL","L1"}) {
                 ZhangExactMatrix history;ZhangExactVector historyValues;
-                if(!collectDomain(history,historyValues)) continue;
+                if(!collectDomain(stage,history,historyValues)) continue;
                 MatrixXd target;
                 if(stage=="WL") target=wideLaneTransform;
                 else {
@@ -27988,12 +28039,34 @@ static int resolveLayeredWideLaneL1(
                     for(int i=0;i<firstColumns.size();++i) target(i,firstColumns[i])=1;
                 }
                 ZhangExactMatrix exactTargets;ZhangExactVector ignored;
-                if(!zhangExactRowsFromNumeric(target,VectorXd::Zero(target.rows()),exactTargets,ignored)) continue;
+                if(!zhangExactRowsFromNumeric(target,VectorXd::Zero(target.rows()),exactTargets,ignored)) {
+                    trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<time.to_string(0)
+                        <<" system="<<enum_to_string(system)<<" stage="<<stage
+                        <<" reason=TARGET_NOT_EXACT";
+                    continue;
+                }
+                trace<<"\nZHANG_R51_SEARCH_ENTERED time="<<time.to_string(0)
+                    <<" system="<<enum_to_string(system)<<" stage="<<stage
+                    <<" target_rows="<<exactTargets.size()
+                    <<" conditioned_rank="<<history.size();
                 auto blocks=r51SearchBlocks(trace,captureOwner,ambiguityResolution,floatInputAmbiguities,
                     exactTargets,history,historyValues,options,system,stage,physical);
-                if(blocks.accepted.zfix.size()==0) continue;
+                if(blocks.accepted.zfix.size()==0) {
+                    trace<<"\nZHANG_R51_SEARCH_COMPLETED time="<<time.to_string(0)
+                        <<" system="<<enum_to_string(system)<<" stage="<<stage
+                        <<" status=NO_ACCEPTED_INTEGER_ROWS";
+                    continue;
+                }
                 const auto proof=blocks.accepted.decisionProofs.empty()?ZhangDecisionProofPtr{}:blocks.accepted.decisionProofs.back();
-                if(!appendAndApply(blocks.accepted.Ztrs,blocks.accepted.zfix,"R51_"+stage+"_BATCH",proof)) continue;
+                if(!appendAndApply(blocks.accepted.Ztrs,blocks.accepted.zfix,"R51_"+stage+"_BATCH",proof)) {
+                    trace<<"\nZHANG_R51_SEARCH_COMPLETED time="<<time.to_string(0)
+                        <<" system="<<enum_to_string(system)<<" stage="<<stage
+                        <<" status=CONDITIONING_REJECTED accepted_rows="<<blocks.accepted.zfix.size();
+                    continue;
+                }
+                trace<<"\nZHANG_R51_SEARCH_COMPLETED time="<<time.to_string(0)
+                    <<" system="<<enum_to_string(system)<<" stage="<<stage
+                    <<" status=CONDITIONED accepted_rows="<<blocks.accepted.zfix.size();
                 domainReceipts.push_back(blocks.accepted);refreshFloatState();
                 if(stage=="L1") ++phaseFixedSystems;
                 const auto chart=r51CurrentChart(captureOwner,ambiguityResolution.ambmap,system);
@@ -31915,7 +31988,8 @@ void fixAndHoldAmbiguities(
                 zhangProductRelationAdmissionStateRegistry()=r51AdmissionBefore;
                 nfix=0;networkIntegerReady=false;productFixedStateValid=false;
                 ZhangR51OutputBundle bundle(kfState.time.to_string(0),"FLOAT_ONLY",root);
-                writeZhangInternalProducts(trace,kfState,floatState,nullptr,&floatState,nullptr,0,false,false,true,false,nullptr,nullptr);
+                writeZhangFloatOnlyProductsNoLifecycle(trace,floatState,
+                    "NO_CURRENT_AUTHORIZED_HISTORY_BASELINE");
                 bundle.publish("root="+root+"\nreason=NO_CURRENT_AUTHORIZED_HISTORY_BASELINE\n",false);
             }
         }
