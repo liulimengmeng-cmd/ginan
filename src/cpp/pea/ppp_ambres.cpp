@@ -84,6 +84,7 @@
 #include "common/zhangR51PhysicalImage.hpp"
 #include "common/zhangR51PhysicalEntailment.hpp"
 #include "common/zhangR51QuotientCompatibility.hpp"
+#include "common/zhangP1JointHnf.hpp"
 #include "common/zhangR51OutputBundle.hpp"
 #include "common/zhangSequentialQuotientShadow.hpp"
 #include "common/zhangR48SafePrefix.hpp"
@@ -26013,6 +26014,7 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
     }
     std::set<int> fixed;std::map<std::vector<int>,int> attemptedVersion;
     int version=0;ZhangExactMatrix acceptedRows;ZhangExactVector acceptedValues;
+	std::unique_ptr<ZhangP1JointHnf> jointHnf;
     auto parents=zhangMergeDecisionProofs(current.decisionProofs,store.parents);
     double successProduct=1;
     for(int scan=0;scan<2 && result.calls<128;++scan) {
@@ -26075,15 +26077,21 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                         <<" stage="<<stage<<" mode=EXACT_IMAGE_INCREMENTAL reason=INTEGER_AFFINE_INFEASIBLE";
                     continue;
                 }
-                auto jointRows=history;auto jointValues=historyValues;
-                jointRows.insert(jointRows.end(),acceptedRows.begin(),acceptedRows.end());
-                jointValues.insert(jointValues.end(),acceptedValues.begin(),acceptedValues.end());
-                jointRows.insert(jointRows.end(),exact.begin(),exact.end());
-                jointValues.insert(jointValues.end(),values.begin(),values.end());
-                const auto joint=[&]() {
+				if(!jointHnf) {
+					ZhangP0ResourceScope initialHnfProbe(
+						trace,"R51_"+stage+"_JOINT_HNF_INITIAL",
+						owner.time.to_string(0));
+					jointHnf=std::make_unique<ZhangP1JointHnf>(
+						history,historyValues,n);
+				}
+				auto jointTrial=[&]() {
                     ZhangPhaseTimer timer(trace,"R51_"+stage+"_JOINT_HNF");
-                    return zhangExactRowHermiteNormalForm(jointRows,jointValues);
+					ZhangP0ResourceScope hnfProbe(
+						trace,"R51_"+stage+"_JOINT_HNF_INCREMENT",
+						owner.time.to_string(0));
+					return jointHnf->assess(exact,values);
                 }();
+				const auto& joint=jointTrial.hnf;
                 MatrixXd A(joint.basis.size(),n);VectorXd z(joint.values.size());
                 for(int i=0;i<A.rows();++i){A.row(i)=zhangExactRowToDouble(joint.basis[i]).transpose();z(i)=joint.values[i].convert_to<double>();}
                 const auto whole=[&]() {
@@ -26104,7 +26112,9 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 const auto proof=zhangMakeNetworkDecisionProof(owner,owner.time,"R51_"+stage+"_BLOCK",
                     current,rows,rhs,trial.lambda_selected_bootstrap_success,parents);
                 if(!proof || !zhangDecisionRiskClosure({proof}).valid || zhangRatioStatisticalReject(zhangDecisionRiskClosure({proof}).bound>1e-3)) continue;
-                if(!compatibility.commit(compatible)) continue;
+				if(!jointHnf->commit(std::move(jointTrial))) continue;
+                if(!compatibility.commit(compatible))
+					throw std::logic_error("R51_COMPATIBILITY_COMMIT_AFTER_HNF_FAILED");
                 qmean=cond.mean;qcov=cond.covariance;parents={proof};
                 for(int i=0;i<physical.size();++i)store.add(physical[i],values[i],{proof});
                 acceptedRows.insert(acceptedRows.end(),exact.begin(),exact.end());
