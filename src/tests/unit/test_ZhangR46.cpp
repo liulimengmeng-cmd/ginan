@@ -38,9 +38,13 @@ BOOST_AUTO_TEST_CASE(r46_tree_pivot_expands_and_roundtrips_true_physical_functio
 BOOST_AUTO_TEST_CASE(r46_retired_arc_and_missing_posterior_column_fail_closed) {
     std::map<std::string,ZhangExactInteger> f;BOOST_REQUIRE(r46Chart(false).expand({0,1},f));
     ZhangExactVector row;std::string reason;
-    BOOST_CHECK(!r46Chart(true,1).project(f,row,&reason));BOOST_CHECK_EQUAL(reason,"ARC_RETIRED");
-    BOOST_CHECK(!r46Chart(true,0,true).project(f,row,&reason));
+	ZhangPhysicalProjectionDiagnostic diagnostic;
+	BOOST_CHECK(!r46Chart(true,1).project(f,row,&reason,&diagnostic));BOOST_CHECK_EQUAL(reason,"ARC_RETIRED");
+	BOOST_CHECK(diagnostic.requested==f);
+    BOOST_CHECK(!r46Chart(true,0,true).project(f,row,&reason,&diagnostic));
     BOOST_CHECK_EQUAL(reason,"MISSING_POSTERIOR_COLUMN_OR_NO_CURRENT_REPRESENTATION");
+	BOOST_CHECK(diagnostic.requested==f);
+	BOOST_CHECK(!diagnostic.delta.empty());
 }
 BOOST_AUTO_TEST_CASE(r46_distinct_physical_support_requires_joint_affine_consistency) {
     ProductIntegerLedger ledger;

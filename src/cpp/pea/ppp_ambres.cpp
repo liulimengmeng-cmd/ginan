@@ -28030,19 +28030,20 @@ static int resolveLayeredWideLaneL1(
                         const auto current=map.find(key);
                         if(current!=map.end()) sourceToCurrent[c]=current->second;
                     }
-                    const auto projected=zhangExactCurrentDomain(sourceRows,
-                        sourceValues,sourceToCurrent,ambiguityResolution.aflt.size());
+					const auto projected=zhangExactCurrentDomain(
+						sourceRows,sourceValues,sourceToCurrent,
+						ambiguityResolution.aflt.size());
                     if(!projected.valid) {
                         trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<time.to_string(0)
                             <<" system="<<enum_to_string(system)<<" stage="<<stage
-                            <<" reason=DOMAIN_EXACT_PROJECTION_FAILED receipt_index="<<receiptIndex
-                            <<" detail="<<projected.failureReason;
+							<<" reason=DOMAIN_EXACT_PROJECTION_FAILED receipt_index="<<receiptIndex
+							<<" detail="<<projected.failureReason;
                         return false;
                     }
                     rows.insert(rows.end(),projected.rows.begin(),projected.rows.end());
                     values.insert(values.end(),projected.values.begin(),projected.values.end());
-                    projectedReceipts+=projected.removedColumns>0;
-                    removedColumns+=projected.removedColumns;
+					projectedReceipts+=projected.removedColumns>0;
+					removedColumns+=projected.removedColumns;
                     touchedRows+=projected.touchedRows;
                 }
                 trace<<"\nZHANG_R51_SEARCH_DOMAIN time="<<time.to_string(0)

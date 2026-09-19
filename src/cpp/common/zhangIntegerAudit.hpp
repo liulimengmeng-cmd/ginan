@@ -975,6 +975,103 @@ struct ZhangExactCanonicalAffineProjection
     int               touchedRows = 0;
 };
 
+struct ZhangExactCurrentDomainProjection
+{
+	bool valid = false;
+	ZhangExactMatrix rows;
+	ZhangExactVector values;
+	int removedColumns = 0;
+	int touchedRows = 0;
+	std::string failureReason = "NOT_EVALUATED";
+};
+
+/** Project one exact affine lattice from an older coordinate catalogue into
+ * the currently represented coordinates. Missing old columns are eliminated
+ * through the exact integer kernel, so parity and other congruence conditions
+ * are retained. Current columns absent from the old receipt remain zero. */
+inline ZhangExactCurrentDomainProjection zhangExactCurrentDomain(
+	const ZhangExactMatrix& sourceRows,
+	const ZhangExactVector& sourceValues,
+	const std::vector<int>& sourceToCurrent,
+	int currentDimension)
+{
+	ZhangExactCurrentDomainProjection result;
+	if(sourceRows.size()!=sourceValues.size() || currentDimension<=0)
+	{
+		result.failureReason="DIMENSION_MISMATCH";
+		return result;
+	}
+	for(const auto& row:sourceRows)
+	{
+		if(row.size()!=sourceToCurrent.size())
+		{
+			result.failureReason="SOURCE_ROW_DIMENSION_MISMATCH";
+			return result;
+		}
+	}
+	std::vector<bool> survivingColumns(sourceToCurrent.size(),false);
+	std::vector<bool> currentOwned(currentDimension,false);
+	for(std::size_t source=0;source<sourceToCurrent.size();++source)
+	{
+		const int current=sourceToCurrent[source];
+		if(current<0)
+		{
+			++result.removedColumns;
+			continue;
+		}
+		if(current>=currentDimension || currentOwned[current])
+		{
+			result.failureReason="CURRENT_COLUMN_COLLISION_OR_RANGE";
+			return result;
+		}
+		currentOwned[current]=true;
+		survivingColumns[source]=true;
+	}
+	const auto surviving=zhangExactSurvivingLattice(
+		sourceRows,sourceValues,survivingColumns);
+	if(!surviving.consistent)
+	{
+		result.failureReason="SURVIVING_LATTICE_INCONSISTENT";
+		return result;
+	}
+	result.touchedRows=surviving.touchedRows;
+	ZhangExactMatrix projectedRows;
+	projectedRows.reserve(surviving.basis.size());
+	for(const auto& compact:surviving.basis)
+	{
+		ZhangExactVector projected(currentDimension);
+		std::size_t compactColumn=0;
+		for(std::size_t source=0;source<sourceToCurrent.size();++source)
+		{
+			if(!survivingColumns[source]) continue;
+			if(compactColumn>=compact.size())
+			{
+				result.failureReason="COMPACT_PROJECTION_UNDERRUN";
+				return result;
+			}
+			projected[sourceToCurrent[source]]=compact[compactColumn++];
+		}
+		if(compactColumn!=compact.size())
+		{
+			result.failureReason="COMPACT_PROJECTION_OVERRUN";
+			return result;
+		}
+		projectedRows.push_back(std::move(projected));
+	}
+	const auto hnf=zhangExactRowHermiteNormalForm(
+		std::move(projectedRows),surviving.values);
+	if(!hnf.consistent)
+	{
+		result.failureReason="PROJECTED_HNF_INCONSISTENT";
+		return result;
+	}
+	result.rows=hnf.basis;
+	result.values=hnf.values;
+	result.valid=true;
+	result.failureReason="EXACT_CURRENT_DOMAIN";
+	return result;
+}
+
 /** Union an affine lattice in the complete canonical catalogue before
  * projecting it to the currently represented product coordinates.
  *

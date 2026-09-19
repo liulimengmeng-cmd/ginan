@@ -14192,6 +14192,31 @@ BOOST_AUTO_TEST_CASE(r27_missing_search_column_keeps_exact_held_consequence)
 	BOOST_CHECK(!zhangExactSurvivingLattice({{1,0,1},{1,0,1}}, {7,8}, {true,true,false}).consistent);
 }
 
+BOOST_AUTO_TEST_CASE(r51_current_domain_projection_retains_integer_congruence)
+{
+	// x+z=7, y+z=4 projects to x-y=3 after z retires. A current
+	// coordinate that did not exist in the old receipt remains unconstrained.
+	const auto projected=zhangExactCurrentDomain(
+		{{1,0,1},{0,1,1}}, {7,4}, {0,2,-1}, 4);
+	BOOST_REQUIRE(projected.valid);
+	BOOST_CHECK_EQUAL(projected.removedColumns,1);
+	BOOST_CHECK_EQUAL(projected.touchedRows,2);
+	BOOST_REQUIRE_EQUAL(projected.rows.size(),1);
+	BOOST_CHECK(projected.rows[0]==(ZhangExactVector{1,0,-1,0}));
+	BOOST_CHECK(projected.values[0]==3);
+
+	const auto even=zhangExactCurrentDomain(
+		{{2,0,1},{0,2,1}}, {7,3}, {0,2,-1}, 4);
+	BOOST_REQUIRE(even.valid);
+	BOOST_CHECK(even.rows[0]==(ZhangExactVector{2,0,-2,0}));
+	BOOST_CHECK(even.values[0]==4);
+
+	const auto collision=zhangExactCurrentDomain(
+		{{1,0},{0,1}}, {1,2}, {0,0}, 1);
+	BOOST_CHECK(!collision.valid);
+	BOOST_CHECK_EQUAL(collision.failureReason,"CURRENT_COLUMN_COLLISION_OR_RANGE");
+}
+
 BOOST_AUTO_TEST_CASE(r27_complete_domain_conditioning_precedes_marginalization)
 {
 	VectorXd mean=VectorXd::Zero(3), rhs(2); rhs << 7,4;

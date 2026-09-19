@@ -5,6 +5,13 @@
 #include <set>
 #include <string>
 
+struct ZhangPhysicalProjectionDiagnostic
+{
+	std::map<std::string, ZhangExactInteger> requested;
+	std::map<std::string, ZhangExactInteger> rebuilt;
+	std::map<std::string, ZhangExactInteger> delta;
+};
+
 // Current cycle coordinates a=C*N. Column names identify chords, not physical
 // scalar ambiguities. Every retained row must expand through the complete C.
 struct ZhangProductPhysicalCycleChart
@@ -64,8 +71,15 @@ struct ZhangProductPhysicalCycleChart
         return !physical.empty();
     }
     bool project(const std::map<std::string,ZhangExactInteger>& physical,
-        ZhangExactVector& current, std::string* reason=nullptr) const
+		ZhangExactVector& current,
+		std::string* reason=nullptr,
+		ZhangPhysicalProjectionDiagnostic* diagnostic=nullptr) const
     {
+		if(diagnostic)
+		{
+			*diagnostic={};
+			diagnostic->requested=physical;
+		}
         auto fail=[&](const char* why) {if(reason) *reason=why;return false;};
         current=ZhangExactVector(columns);
         if(physical.empty()) return fail("EMPTY_PHYSICAL_ROW");
@@ -75,7 +89,17 @@ struct ZhangProductPhysicalCycleChart
             auto it=physical.find(id);if(it!=physical.end()) current[c]=it->second;
         }
         std::map<std::string,ZhangExactInteger> rebuilt;
-        if(!expand(current,rebuilt) || rebuilt!=physical)
+		const bool rebuiltValid=expand(current,rebuilt);
+		if(diagnostic)
+		{
+			diagnostic->rebuilt=rebuilt;
+			diagnostic->delta=physical;
+			for(const auto& [identity,coefficient]:rebuilt)
+				diagnostic->delta[identity]-=coefficient;
+			for(auto it=diagnostic->delta.begin();it!=diagnostic->delta.end();)
+				if(it->second==0) it=diagnostic->delta.erase(it); else ++it;
+		}
+        if(!rebuiltValid || rebuilt!=physical)
             return fail("MISSING_POSTERIOR_COLUMN_OR_NO_CURRENT_REPRESENTATION");
         if(reason) *reason="EXACT_PHYSICAL_ROUNDTRIP";
         return true;
