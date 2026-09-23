@@ -1175,7 +1175,8 @@ zhangExactProjectCanonicalAffineLattice(
  */
 inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     const ZhangExactMatrix& rows,
-    const ZhangExactVector& target
+    const ZhangExactVector& target,
+    bool recoverCombination = true
 )
 {
     ZhangIntegerLatticeMembership result;
@@ -1205,7 +1206,13 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
         }
     }
     ZhangExactVector transformed = target;
-    ZhangExactMatrix rightTransform = zhangExactIdentityMatrix(rowCount);
+    // Feasibility and rank queries need divisibility, not a combination
+    // witness. Avoid the potentially large square right transform for them.
+    ZhangExactMatrix rightTransform;
+    if (recoverCombination)
+    {
+        rightTransform = zhangExactIdentityMatrix(rowCount);
+    }
 
     auto swapRows = [&](std::size_t left, std::size_t right)
     {
@@ -1365,7 +1372,7 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
             result.contained = false;
         }
     }
-    if (result.contained)
+    if (result.contained && recoverCombination)
     {
         ZhangExactVector diagonalCoordinates(rowCount);
         for (std::size_t row = 0; row < pivot; row++)

@@ -25242,9 +25242,16 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
                   << " columns=" << physicalEntailment->columnCount()
                   << " queries=" << physicalEntailment->queries
                   << " direct_queries=" << physicalEntailment->directQueries
-                  << " affine_builds=" << physicalEntailment->builds
-                  << " build_seconds=" << physicalEntailment->buildSeconds
-                  << " scope=IMMUTABLE_CURRENT_SCAN";
+                   << " affine_builds=0"
+                   << " consequence_builds=" << physicalEntailment->builds
+                   << " build_seconds=" << physicalEntailment->buildSeconds
+                   << " input_nonzeros=" << physicalEntailment->inputNonzeros
+                   << " hnf_rows=" << physicalEntailment->basisRows
+                   << " hnf_nonzeros=" << physicalEntailment->basisNonzeros
+                   << " hnf_seconds=" << physicalEntailment->hnfSeconds
+                   << " feasibility_seconds=" << physicalEntailment->feasibilitySeconds
+                   << " method=INTEGER_FEASIBLE_RATIONAL_HNF"
+                   << " scope=IMMUTABLE_CURRENT_SCAN";
 		trace << "\nZHANG_PRODUCT_GAUGE_LEDGER_PRESEARCH time="
 			  << time.to_string(0)
 			  << " runtime_id=" << runtimeId

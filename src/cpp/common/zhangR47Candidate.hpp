@@ -27,7 +27,7 @@ inline bool zhangR47AffineIntegerFeasible(const ZhangExactMatrix& rows,
     if (rows.empty()) return true;
     ZhangExactMatrix columns(dimension,ZhangExactVector(rows.size()));
     for (int c=0;c<dimension;++c) for (std::size_t r=0;r<rows.size();++r) columns[c][r]=rows[r][c];
-    return zhangIntegerRowLatticeContains(columns,values).contained;
+    return zhangIntegerRowLatticeContains(columns,values,false).contained;
 }
 
 inline bool zhangR47CandidateContractValid(const ZhangR47Candidate& c)

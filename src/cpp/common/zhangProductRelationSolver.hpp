@@ -1299,9 +1299,30 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		result.failureReason = "AFFINE_QUOTIENT_OVER_RANK";
 		return result;
 	}
+	if (work == ZhangExactQuotientWork::FEASIBILITY_ONLY)
+	{
+		if (result.deterministicRank == 0)
+		{
+			result.valid = true;
+			result.failureReason = "NONE";
+			return result;
+		}
+		ZhangExactMatrix columns(ambientDimension,
+			ZhangExactVector(result.deterministicRank));
+		for (int column = 0; column < ambientDimension; ++column)
+		for (int row = 0; row < result.deterministicRank; ++row)
+			columns[column][row] = result.deterministicBasis[row][column];
+		const auto feasibility = zhangIntegerRowLatticeContains(
+			columns, result.deterministicValues, false);
+		result.smithInvariants = feasibility.smithInvariants;
+		result.valid = feasibility.contained;
+		result.failureReason = result.valid ? "NONE" :
+			"AFFINE_QUOTIENT_NO_INTEGER_ORIGIN";
+		return result;
+	}
 
 	const auto primitive = zhangIntegerRowLatticeContains(
-		result.deterministicBasis, ZhangExactVector(ambientDimension));
+		result.deterministicBasis, ZhangExactVector(ambientDimension), false);
 	result.smithInvariants = primitive.smithInvariants;
 	// A nonprimitive equation is not infeasible: 2*a=6 is a=3. The exact
 	// column-lattice membership below enforces divisibility (2*a=5 fails).
@@ -1316,7 +1337,6 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		result.kernelBasis = zhangExactIdentityMatrix(ambientDimension);
         if(work==ZhangExactQuotientWork::FULL_SEARCH_COORDINATES)
 		    result.quotientProjector = zhangExactIdentityMatrix(ambientDimension);
-        if(work==ZhangExactQuotientWork::FEASIBILITY_ONLY)result.kernelBasis.clear();
 		result.quotientRank = ambientDimension;
 		result.valid = true;
 		result.failureReason = "NONE";
@@ -1339,9 +1359,6 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		return result;
 	}
 	result.particularSolution = particular.combination;
-    if(work==ZhangExactQuotientWork::FEASIBILITY_ONLY) {
-        result.valid=true;result.failureReason="NONE";return result;
-    }
 
     feasibilityTimer.finish();
     {
