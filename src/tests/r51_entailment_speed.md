@@ -8,4 +8,8 @@ The scan owns one immutable copy of H and b. Before dense HNF, a sparse row-vari
 
 Validation: `zhang_r51_entailment_tests` now uses an independent rational Gaussian-elimination oracle for systems made feasible by a planted integer solution. Contradictory duplicates and nonprimitive infeasible equations are separate known-infeasible fixtures. The old reference copied the production algorithm and reused its core exact functions; it was unsuitable as the only independent oracle for this rewrite. The 64-variable/96-query benchmark is local-only and is not a whole-network speed forecast. A frozen real epoch and full AR rerun remain required before deployment.
 
-Other AR costs remain: per-block full compatibility/HNF/NIS and full KF factorization are unchanged. The first epoch's uninstrumented 35-minute region requires the new timers before choosing the next optimization.
+Other AR costs remain: each newly compiled product domain still builds the complete physical kernel, and full KF factorization is unchanged. NIS behavior follows the separate ratio-only switch. The first epoch's formerly uninstrumented region requires actual phase timers before attributing its cost.
+
+## Product-domain ownership
+
+`ZhangR47ProductSearchFrame` now owns an immutable shared affine domain. A target frame created by `zhangR49CompileTargetOnDomain()` copies only the handle, not its particular solution, kernel, and HNF basis. Independently compiled WL/L1 domains remain separate objects; there is no cross-epoch or content-hash cache. The product-image and integer-lift algorithms, generators, projector, and offsets are unchanged. `r51_performance_reference.cpp` checks handle identity for one domain, non-identity for different histories, and 1,200 exact image comparisons. This addresses copies only; it does not remove the complete physical kernel built by each fresh product domain.

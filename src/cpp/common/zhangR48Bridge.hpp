@@ -43,7 +43,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  if(!out.frame.valid){out.status=out.frame.reason;return out;}
  out.rank=out.frame.searchRank;
  auto residualRank=[&](int row) {
-  for(const auto& k:out.frame.affine.kernelBasis) {
+  for(const auto& k:out.frame.affine->kernelBasis) {
    ZhangExactInteger sum=0;for(int c=0;c<out.frame.columns.size();++c)sum+=targets[row][out.frame.columns[c]]*k[c];
    if(sum!=0)return 1;
   }return 0;

@@ -19515,10 +19515,10 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     auto constraints=zhangBuildProductConstraintSet(firstView,secondView,wlRows,wlValues,l1Rows,l1Values,
         nis.nis,nis.threshold,selectedRisk,0,nis.valid);
     // Preserve general mixed product consequences separately from graph pairs.
-    ZhangExactMatrix targetKernelColumns(selected.finalFrame.affine.quotientRank,ZhangExactVector(targets.size()));
-    for(int r=0;r<targets.size();++r) for(int k=0;k<selected.finalFrame.affine.quotientRank;++k)
+    ZhangExactMatrix targetKernelColumns(selected.finalFrame.affine->quotientRank,ZhangExactVector(targets.size()));
+    for(int r=0;r<targets.size();++r) for(int k=0;k<selected.finalFrame.affine->quotientRank;++k)
         for(int c=0;c<selected.finalFrame.columns.size();++c)
-            targetKernelColumns[k][r]+=targets[r][selected.finalFrame.columns[c]]*selected.finalFrame.affine.kernelBasis[k][c];
+            targetKernelColumns[k][r]+=targets[r][selected.finalFrame.columns[c]]*selected.finalFrame.affine->kernelBasis[k][c];
     const auto consequences=zhangExactIntegerKernel(targetKernelColumns,targets.size());
     ZhangExactMatrix namedSearch(targets.size(),ZhangExactVector(2*named));
     for(int r=0;r<first.wholeLattice.searchNamedRows.size();++r) for(int n=0;n<named;++n)

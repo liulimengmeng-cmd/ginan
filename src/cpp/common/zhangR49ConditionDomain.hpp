@@ -19,12 +19,12 @@ struct ZhangR49ConditionDomain {
 };
 inline std::string zhangR49CanonicalTarget(const ZhangR47ProductSearchFrame& domain,
  const ZhangExactMatrix& targets,int dimension) {
- if(!domain.valid || !domain.affine.valid || !zhangExactRectangularMatrix(targets,dimension))return {};
+ if(!domain.valid || !domain.affine || !domain.affine->valid || !zhangExactRectangularMatrix(targets,dimension))return {};
  std::vector<std::string> signatures;
  for(const auto& row:targets) {
-  ZhangExactVector reduced(domain.affine.kernelBasis.size());
+  ZhangExactVector reduced(domain.affine->kernelBasis.size());
   for(int k=0;k<reduced.size();++k)for(int c=0;c<domain.columns.size();++c)
-   reduced[k]+=row[domain.columns[c]]*domain.affine.kernelBasis[k][c];
+   reduced[k]+=row[domain.columns[c]]*domain.affine->kernelBasis[k][c];
   std::vector<bool> present(dimension);for(int c:domain.columns)present[c]=true;
   for(int c=0;c<dimension;++c)if(!present[c])reduced.push_back(row[c]);
   int sign=1;for(const auto& x:reduced)if(x!=0){sign=x<0?-1:1;break;}

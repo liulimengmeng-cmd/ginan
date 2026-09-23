@@ -12,7 +12,7 @@ static void sameImage(const ZhangR47ProductSearchFrame& a,const ZhangR47ProductS
  require(a.valid==b.valid && a.reason==b.reason,"image validity/reason differs");
  if(!a.valid)return;
  require(a.columns==b.columns && a.searchRank==b.searchRank && a.conditionerRank==b.conditionerRank,"image dimensions/order differs");
- require(a.affine.particularSolution==b.affine.particularSolution && a.affine.kernelBasis==b.affine.kernelBasis && a.imageGenerators==b.imageGenerators,"exact affine/image differs");
+ require(a.affine && b.affine && a.affine->particularSolution==b.affine->particularSolution && a.affine->kernelBasis==b.affine->kernelBasis && a.imageGenerators==b.imageGenerators,"exact affine/image differs");
 }
 static MatrixXd condition(ZhangR49PosteriorWorkspace& workspace, const MatrixXd& p,
  const MatrixXd& h,const std::vector<std::string>& order,bool retain) {
@@ -30,6 +30,18 @@ static MatrixXd condition(ZhangR49PosteriorWorkspace& workspace, const MatrixXd&
  MatrixXd result=root*root.transpose();return (.5*(result+result.transpose())).eval();
 }
 int main(int argc,char** argv) {
+ auto sharedDomain=zhangR47CompileProductSearchFrame(
+    {{1,1,1}},{{1,0,0}},{2},3);
+ auto sharedTarget=zhangR49CompileTargetOnDomain(
+    {{0,1,0}},sharedDomain,3);
+ require(sharedDomain.valid && sharedTarget.valid &&
+    sharedTarget.affine.get()==sharedDomain.affine.get(),
+    "target frame copied the affine domain");
+ auto differentDomain=zhangR47CompileProductSearchFrame(
+    {{1,1,1}},{{0,1,0}},{2},3);
+ require(differentDomain.valid &&
+    differentDomain.affine.get()!=sharedDomain.affine.get(),
+    "different WL/L1 histories shared an affine domain");
  std::mt19937 rng(510915);
  for(int test=0;test<1200;++test) {
   int n=2+rng()%6,m=1+rng()%n,k=rng()%5;

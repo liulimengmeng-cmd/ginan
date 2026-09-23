@@ -41,11 +41,11 @@ inline ZhangR51PhysicalImage zhangR51PhysicalImage(
     if(physicalTargets.empty() || physicalTargets.size()!=numericalTargets.size())return out;
     const auto frame=zhangR47CompileProductSearchFrame(physicalTargets,history,values,physicalDimension,
         ZhangProductFrameWork::IMAGE_GENERATORS_ONLY);
-    if(!frame.valid || !frame.affine.valid){out.reason=frame.reason;return out;}
+    if(!frame.valid || !frame.affine || !frame.affine->valid){out.reason=frame.reason;return out;}
     const int m=physicalTargets.size(),n=numericalTargets.front().size(),rank=frame.searchRank;
     out.particularTarget.resize(m);
     for(int i=0;i<m;++i)for(int c=0;c<frame.columns.size();++c)
-        out.particularTarget[i]+=physicalTargets[i][frame.columns[c]]*frame.affine.particularSolution[c];
+        out.particularTarget[i]+=physicalTargets[i][frame.columns[c]]*frame.affine->particularSolution[c];
     out.generators=frame.imageGenerators;
     out.projector.assign(rank,ZhangR51RationalRow(n));out.offsets.resize(rank);
     // imageGenerators is the transpose of row HNF and has ordered pivot rows.

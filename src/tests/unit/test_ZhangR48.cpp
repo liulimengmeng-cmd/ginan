@@ -297,7 +297,7 @@ BOOST_AUTO_TEST_CASE(r48_c5_bridge_preserves_integer_image_and_joint_gate) {
 BOOST_AUTO_TEST_CASE(r48_c6_product_image_lift_avoids_full_left_inverse) {
  ZhangExactMatrix t={{2,0,0},{0,3,0}},h={{1,1,1}};
  auto f=zhangR47CompileProductSearchFrame(t,h,{7},3);
- BOOST_REQUIRE(f.valid);BOOST_CHECK(f.affine.quotientProjector.empty());
+ BOOST_REQUIRE(f.valid);BOOST_REQUIRE(f.affine);BOOST_CHECK(f.affine->quotientProjector.empty());
  BOOST_CHECK_EQUAL(f.searchRank,2);
  auto old=zhangExactAffineIntegerQuotient(h,{7},3);
  ZhangExactMatrix k(3,ZhangExactVector(old.quotientRank));
