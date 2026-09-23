@@ -247,6 +247,18 @@ endif()
 if(TARGET Eigen3::Eigen AND NOT EIGEN3_INCLUDE_DIRS)
 	get_target_property(EIGEN3_INCLUDE_DIRS Eigen3::Eigen INTERFACE_INCLUDE_DIRECTORIES)
 endif()
+# Some PEA headers use <eigen3/Eigen/...> while others use <Eigen/...>.
+# Include the install parent as well so both spellings resolve to the selected
+# Eigen package, rather than silently mixing it with the system version.
+foreach(_eigen_include_dir IN LISTS EIGEN3_INCLUDE_DIRS)
+	if(EXISTS "${_eigen_include_dir}/Eigen/Core")
+		get_filename_component(_eigen_include_parent "${_eigen_include_dir}" DIRECTORY)
+		if(EXISTS "${_eigen_include_parent}/eigen3/Eigen/Core")
+			list(APPEND EIGEN3_INCLUDE_DIRS "${_eigen_include_parent}")
+		endif()
+	endif()
+endforeach()
+list(REMOVE_DUPLICATES EIGEN3_INCLUDE_DIRS)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
 # MongoDB is optional - platforms like MinGW/Windows may not support it
