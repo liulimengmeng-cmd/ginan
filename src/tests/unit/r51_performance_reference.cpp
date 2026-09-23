@@ -12,7 +12,11 @@ static void sameImage(const ZhangR47ProductSearchFrame& a,const ZhangR47ProductS
  require(a.valid==b.valid && a.reason==b.reason,"image validity/reason differs");
  if(!a.valid)return;
  require(a.columns==b.columns && a.searchRank==b.searchRank && a.conditionerRank==b.conditionerRank,"image dimensions/order differs");
- require(a.affine && b.affine && a.affine->particularSolution==b.affine->particularSolution && a.affine->kernelBasis==b.affine->kernelBasis && a.imageGenerators==b.imageGenerators,"exact affine/image differs");
+ require(a.affine && b.affine &&
+    a.affine->particularSolution==b.affine->particularSolution &&
+    a.imageGenerators==b.imageGenerators,
+    "exact particular/image differs");
+ require(b.affine->kernelBasis.empty(),"generator-only path built a physical kernel");
 }
 static MatrixXd condition(ZhangR49PosteriorWorkspace& workspace, const MatrixXd& p,
  const MatrixXd& h,const std::vector<std::string>& order,bool retain) {
@@ -53,7 +57,44 @@ int main(int argc,char** argv) {
   auto full=zhangR47CompileProductSearchFrame(t,h,v,n);
   auto image=zhangR47CompileProductSearchFrame(t,h,v,n,ZhangProductFrameWork::IMAGE_GENERATORS_ONLY);
   sameImage(full,image);
+  if(full.valid && image.valid && full.affine &&
+     !full.affine->kernelBasis.empty()) {
+   ZhangExactMatrix compact(t.size(),ZhangExactVector(full.columns.size()));
+   for(int r=0;r<t.size();++r)for(int c=0;c<full.columns.size();++c)
+    compact[r][c]=t[r][full.columns[c]];
+   ZhangExactMatrix k(full.columns.size(),ZhangExactVector(full.affine->kernelBasis.size()));
+   for(int r=0;r<full.affine->kernelBasis.size();++r)
+    for(int c=0;c<full.columns.size();++c)k[c][r]=full.affine->kernelBasis[r][c];
+   require(zhangExactProjectedKernelColumns(full.affine->deterministicBasis,
+      compact,full.columns.size())==zhangExactMultiply(compact,k),
+      "projected free columns differ from full integer kernel");
+  }
+  auto fullPhysical=zhangR51PhysicalImage(t,h,v,t,n,
+      ZhangProductFrameWork::INTEGER_PROJECTOR);
+  auto projectedPhysical=zhangR51PhysicalImage(t,h,v,t,n);
+  require(fullPhysical.valid==projectedPhysical.valid &&
+      fullPhysical.reason==projectedPhysical.reason,
+      "physical image validity differs");
+  if(fullPhysical.valid)
+   require(fullPhysical.particularTarget==projectedPhysical.particularTarget &&
+      fullPhysical.generators==projectedPhysical.generators &&
+      fullPhysical.projector==projectedPhysical.projector &&
+      fullPhysical.offsets==projectedPhysical.offsets,
+      "physical image coordinates differ");
  }
+ auto parity=zhangR51PhysicalImage({{2}},{},{},{{2}},1);
+ require(parity.valid && parity.generators==ZhangExactMatrix{{2}},
+    "nonprimitive 2Z image was saturated");
+ auto hiddenParity=zhangR51PhysicalImage({{0,1}},{{2,1}},{1},{{0,1}},2);
+ auto hiddenParityFull=zhangR51PhysicalImage({{0,1}},{{2,1}},{1},{{0,1}},2,
+     ZhangProductFrameWork::INTEGER_PROJECTOR);
+ require(hiddenParity.valid && hiddenParityFull.valid &&
+    hiddenParity.generators==ZhangExactMatrix{{2}} &&
+    hiddenParity.particularTarget==hiddenParityFull.particularTarget &&
+    hiddenParity.projector==hiddenParityFull.projector &&
+    hiddenParity.offsets==hiddenParityFull.offsets &&
+    hiddenParity.particularTarget[0]%2!=0,
+    "hidden integer parity/coset changed under projection");
  for(int n=4;n<=30;n+=2) {
   MatrixXd l=MatrixXd::Random(n,n),p=l*l.transpose()+MatrixXd::Identity(n,n);
   std::vector<std::string> order;for(int i=0;i<n;++i)order.push_back(std::to_string(i));

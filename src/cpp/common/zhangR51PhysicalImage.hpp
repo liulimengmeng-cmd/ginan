@@ -35,12 +35,12 @@ inline ZhangR51PhysicalImage zhangR51UnconstrainedUnitImage(
 // which can be nonprimitive in the visible target coordinates.
 inline ZhangR51PhysicalImage zhangR51PhysicalImage(
     const ZhangExactMatrix& physicalTargets,const ZhangExactMatrix& history,
-    const ZhangExactVector& values,const ZhangExactMatrix& numericalTargets,int physicalDimension)
+    const ZhangExactVector& values,const ZhangExactMatrix& numericalTargets,int physicalDimension,
+    ZhangProductFrameWork work=ZhangProductFrameWork::IMAGE_GENERATORS_ONLY)
 {
     ZhangR51PhysicalImage out;
     if(physicalTargets.empty() || physicalTargets.size()!=numericalTargets.size())return out;
-    const auto frame=zhangR47CompileProductSearchFrame(physicalTargets,history,values,physicalDimension,
-        ZhangProductFrameWork::IMAGE_GENERATORS_ONLY);
+    const auto frame=zhangR47CompileProductSearchFrame(physicalTargets,history,values,physicalDimension,work);
     if(!frame.valid || !frame.affine || !frame.affine->valid){out.reason=frame.reason;return out;}
     const int m=physicalTargets.size(),n=numericalTargets.front().size(),rank=frame.searchRank;
     out.particularTarget.resize(m);

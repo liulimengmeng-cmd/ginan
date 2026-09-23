@@ -839,6 +839,96 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     return kernel;
 }
 
+/** Compute T*K without materialising the ambient saturated kernel K.
+ * Apply exactly the column operations of zhangExactIntegerKernel to T as
+ * they are applied to H. The free columns of T*V are the requested integer
+ * image generators, in the same order as T*K from the full-kernel path. */
+inline ZhangExactMatrix zhangExactProjectedKernelColumns(
+    ZhangExactMatrix matrix,
+    ZhangExactMatrix targets,
+    std::size_t emptyColumnCount = 0)
+{
+    const std::size_t rows=matrix.size();
+    const std::size_t columns=matrix.empty()
+        ? emptyColumnCount : matrix.front().size();
+    if (targets.empty()) return {};
+    for (const auto& row:matrix) if (row.size()!=columns) return {};
+    for (const auto& row:targets) if (row.size()!=columns) return {};
+    if (rows==0) return targets;
+
+    auto swapRows=[&](std::size_t a,std::size_t b)
+    {
+        std::swap(matrix[a],matrix[b]);
+    };
+    auto addRowMultiple=[&](std::size_t dst,std::size_t src,
+        const ZhangExactInteger& factor)
+    {
+        for (std::size_t c=0;c<columns;++c)
+            matrix[dst][c]+=factor*matrix[src][c];
+    };
+    auto swapColumns=[&](std::size_t a,std::size_t b)
+    {
+        for (auto& row:matrix) std::swap(row[a],row[b]);
+        for (auto& row:targets) std::swap(row[a],row[b]);
+    };
+    auto addColumnMultiple=[&](std::size_t dst,std::size_t src,
+        const ZhangExactInteger& factor)
+    {
+        for (auto& row:matrix) row[dst]+=factor*row[src];
+        for (auto& row:targets) row[dst]+=factor*row[src];
+    };
+    std::size_t rank=0;
+    while (rank<rows && rank<columns)
+    {
+        std::size_t selectedRow=rows,selectedColumn=columns;
+        for (std::size_t row=rank;row<rows;++row)
+        for (std::size_t column=rank;column<columns;++column)
+            if (matrix[row][column]!=0 &&
+                (selectedRow==rows ||
+                 zhangExactAbs(matrix[row][column])<
+                    zhangExactAbs(matrix[selectedRow][selectedColumn])))
+            {
+                selectedRow=row;
+                selectedColumn=column;
+            }
+        if (selectedRow==rows) break;
+        swapRows(rank,selectedRow);
+        swapColumns(rank,selectedColumn);
+        while (true)
+        {
+            bool restart=false;
+            for (std::size_t row=rank+1;row<rows;++row)
+            {
+                if (matrix[row][rank]==0) continue;
+                const ZhangExactInteger quotient=
+                    matrix[row][rank]/matrix[rank][rank];
+                addRowMultiple(row,rank,-quotient);
+                if (matrix[row][rank]!=0) swapRows(row,rank);
+                restart=true;
+                break;
+            }
+            if (restart) continue;
+            for (std::size_t column=rank+1;column<columns;++column)
+            {
+                if (matrix[rank][column]==0) continue;
+                const ZhangExactInteger quotient=
+                    matrix[rank][column]/matrix[rank][rank];
+                addColumnMultiple(column,rank,-quotient);
+                if (matrix[rank][column]!=0) swapColumns(column,rank);
+                restart=true;
+                break;
+            }
+            if (!restart) break;
+        }
+        ++rank;
+    }
+    ZhangExactMatrix image(targets.size(),ZhangExactVector(columns-rank));
+    for (std::size_t row=0;row<targets.size();++row)
+    for (std::size_t column=rank;column<columns;++column)
+        image[row][column-rank]=std::move(targets[row][column]);
+    return image;
+}
+
 struct ZhangExactSurvivingLattice
 {
     ZhangExactMatrix basis;

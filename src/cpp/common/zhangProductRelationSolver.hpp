@@ -1259,7 +1259,10 @@ struct ZhangExactAffineIntegerQuotient
 	std::string failureReason = "NOT_EVALUATED";
 };
 
-enum class ZhangExactQuotientWork { FEASIBILITY_ONLY, PARTICULAR_AND_KERNEL, FULL_SEARCH_COORDINATES };
+enum class ZhangExactQuotientWork {
+    FEASIBILITY_ONLY, PARTICULAR_ONLY, PARTICULAR_AND_KERNEL,
+    FULL_SEARCH_COORDINATES
+};
 
 inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	const ZhangExactMatrix& deterministicRows,
@@ -1334,7 +1337,8 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	if (result.deterministicRank == 0)
 	{
 		result.particularSolution = ZhangExactVector(ambientDimension);
-		result.kernelBasis = zhangExactIdentityMatrix(ambientDimension);
+		if (work != ZhangExactQuotientWork::PARTICULAR_ONLY)
+			result.kernelBasis = zhangExactIdentityMatrix(ambientDimension);
         if(work==ZhangExactQuotientWork::FULL_SEARCH_COORDINATES)
 		    result.quotientProjector = zhangExactIdentityMatrix(ambientDimension);
 		result.quotientRank = ambientDimension;
@@ -1359,6 +1363,13 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		return result;
 	}
 	result.particularSolution = particular.combination;
+	if (work == ZhangExactQuotientWork::PARTICULAR_ONLY)
+	{
+		result.quotientRank = ambientDimension-result.deterministicRank;
+		result.valid = true;
+		result.failureReason = "NONE";
+		return result;
+	}
 
     feasibilityTimer.finish();
     {

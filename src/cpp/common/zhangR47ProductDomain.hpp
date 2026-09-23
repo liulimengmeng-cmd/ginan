@@ -49,23 +49,40 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
     const auto t=compact(targets),h=compact(conditioners);
     if(work==ZhangProductFrameWork::INTEGER_PROJECTOR)
         out.targetRank=zhangExactRowHermiteNormalForm(t).basis.size();
+    const auto quotientWork=work==ZhangProductFrameWork::IMAGE_GENERATORS_ONLY
+        ? ZhangExactQuotientWork::PARTICULAR_ONLY
+        : ZhangExactQuotientWork::PARTICULAR_AND_KERNEL;
     out.affine=std::make_shared<const ZhangExactAffineIntegerQuotient>(
-        zhangExactAffineIntegerQuotient(h,values,out.columns.size(),ZhangExactQuotientWork::PARTICULAR_AND_KERNEL));
+        zhangExactAffineIntegerQuotient(h,values,out.columns.size(),quotientWork));
     if(!out.affine->valid) {out.reason=out.affine->failureReason;return out;}
     out.conditionerRank=out.affine->deterministicRank;
     if(!out.affine->quotientRank) {out.valid=true;out.reason="PRODUCT_FULLY_DETERMINED";return out;}
-    ZhangExactMatrix k(out.columns.size(),ZhangExactVector(out.affine->quotientRank));
-    for(int r=0;r<out.affine->quotientRank;++r) for(int c=0;c<out.columns.size();++c)
-        k[c][r]=out.affine->kernelBasis[r][c];
-    const auto m=zhangExactMultiply(t,k);
+    ZhangExactMatrix k,m;
+    if(work==ZhangProductFrameWork::IMAGE_GENERATORS_ONLY)
+    {
+        ZhangR48ExactTimer timer("R48_PRODUCT_IMAGE_PROJECTED_KERNEL",
+            out.affine->deterministicBasis,out.columns.size());
+        m=zhangExactProjectedKernelColumns(
+            out.affine->deterministicBasis,t,out.columns.size());
+        if(m.empty() || m.front().size()!=
+            static_cast<std::size_t>(out.affine->quotientRank))
+        {out.reason="PRODUCT_PROJECTED_KERNEL_FAILED";return out;}
+    }
+    else
+    {
+        k.assign(out.columns.size(),ZhangExactVector(out.affine->quotientRank));
+        for(int r=0;r<out.affine->quotientRank;++r)
+        for(int c=0;c<out.columns.size();++c)
+            k[c][r]=out.affine->kernelBasis[r][c];
+        m=zhangExactMultiply(t,k);
+    }
     const auto image=zhangPrimitiveImageCoordinates(m);
     if(!image.valid) {out.reason="PRODUCT_IMAGE_COORDINATES_FAILED";return out;}
     out.imageGenerators=image.imageGenerators;
     out.searchRank=image.primitiveRows.size();
     // R51 constructs and audits its own rational left inverse of this exact
-    // image. It does not consume targetRank, the network integer projector or
-    // its offsets. Preserve the same affine kernel/image and their ordering,
-    // but avoid computing a second, unused lift through the full network.
+    // image. This path keeps T*V during column operations and never stores
+    // the full physical kernel or the unused network integer lift.
     if(work==ZhangProductFrameWork::IMAGE_GENERATORS_ONLY) {
         out.valid=true;
         out.reason=out.searchRank?"EXACT_PRODUCT_IMAGE_QUOTIENT":"PRODUCT_FULLY_DETERMINED";
