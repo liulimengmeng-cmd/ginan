@@ -79,6 +79,12 @@ int main(){
         {query({{"x",1}},0),query({{"x",2},{"hidden",-4}},0)});
     compare({{{"x",1}},{{"x",1}}},{0,1},false,
         {query({{"x",2}},0),query({{"x",1}},0)});
+    compare({{{"old",2},{"live",1}}},{1},true,
+        {query({{"live",1}},1),query({{"old",2},{"live",1}},1)});
+    compare({{{"old",2},{"live",1}},{{"live",1}}},{1,0},false,
+        {query({{"live",1}},0),query({{"old",2}},1)});
+    compare({{{"old",1},{"live",1}},{{"old",2},{"live",2}}},
+        {1,3},false,{query({{"old",1},{"live",1}},1)});
     compare({}, {},true,{{{},{}},query({},0),query({{"x",1}},0)});
     ZhangExactInteger big=ZhangExactInteger(1)<<130;
     compare({{{"x",big}}},{big*3},true,
@@ -104,7 +110,7 @@ int main(){
         quotient.kernelBasis.empty(),"feasibility-only quotient built a solution");
 
     std::mt19937 random(7319);
-    for(int system=0;system<60;++system){
+    for(int system=0;system<400;++system){
         const int n=1+random()%5,m=random()%7;
         Rows rows;ZhangExactVector values;std::vector<int> planted(n);
         for(auto& value:planted)value=int(random()%7)-3;
@@ -169,6 +175,8 @@ int main(){
         check(cached.entails(target,rhs),"benchmark entailment failed");
     const auto end=std::chrono::steady_clock::now();
     check(cached.builds==1 && cached.queries==queryCount,"benchmark reuse contract");
+    check(cached.unitPivots==dimension-1 && cached.residualRows==0 &&
+        cached.residualNonzeros==0,"unit elimination failed to remove chain");
     std::cout<<"PASS independent_reference_cases="<<compared
         <<" immutable_epoch_isolation=1 parity_and_conflicts=1\n";
     std::cout<<"BENCH dimension="<<dimension<<" queries="<<queryCount

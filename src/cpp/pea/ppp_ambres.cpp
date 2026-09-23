@@ -25246,8 +25246,14 @@ static GinAR_mtx zhangGaugeLedgerPreconditionedSearch(
                    << " consequence_builds=" << physicalEntailment->builds
                    << " build_seconds=" << physicalEntailment->buildSeconds
                    << " input_nonzeros=" << physicalEntailment->inputNonzeros
+                   << " unit_pivots=" << physicalEntailment->unitPivots
+                   << " fill_added=" << physicalEntailment->fillAdded
+                   << " residual_rows=" << physicalEntailment->residualRows
+                   << " residual_columns=" << physicalEntailment->residualColumns
+                   << " residual_nonzeros=" << physicalEntailment->residualNonzeros
                    << " hnf_rows=" << physicalEntailment->basisRows
                    << " hnf_nonzeros=" << physicalEntailment->basisNonzeros
+                   << " sparse_seconds=" << physicalEntailment->sparseSeconds
                    << " hnf_seconds=" << physicalEntailment->hnfSeconds
                    << " feasibility_seconds=" << physicalEntailment->feasibilitySeconds
                    << " method=INTEGER_FEASIBLE_RATIONAL_HNF"
