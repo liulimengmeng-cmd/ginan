@@ -6,6 +6,7 @@
 #include <string>
 #include <boost/math/distributions/chi_squared.hpp>
 #include "common/eigenIncluder.hpp"
+#include "common/zhangRatioOnly.hpp"
 
 struct ZhangIntegerCandidateNis
 {
@@ -32,6 +33,30 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 	}
 
 	covariance = 0.5 * (covariance + covariance.transpose());
+	// In the explicitly uncalibrated ratio-only experiment, retain covariance
+	// and deterministic-null-space validation without evaluating a quadratic
+	// NIS or its chi-square threshold.  A safely positive-definite covariance
+	// can be checked by LDLT without the considerably costlier eigenvectors.
+	if (zhangRatioOnly())
+	{
+		Eigen::LDLT<MatrixXd> ldlt(covariance);
+		if (ldlt.info() == Eigen::Success && ldlt.vectorD().allFinite())
+		{
+			const double largestPivot = ldlt.vectorD().maxCoeff();
+			const double smallestPivot = ldlt.vectorD().minCoeff();
+			if (largestPivot > 0 && smallestPivot >
+				std::max(1e-14, 1e-10 * largestPivot))
+			{
+				assessment.valid = true;
+				assessment.rank = innovation.size();
+				assessment.minEigenvalue = std::numeric_limits<double>::quiet_NaN();
+				assessment.maxEigenvalue = std::numeric_limits<double>::quiet_NaN();
+				assessment.rankTolerance = std::numeric_limits<double>::quiet_NaN();
+				assessment.status = "NIS_SKIPPED_RATIO_ONLY_GEOMETRY_VALID";
+				return assessment;
+			}
+		}
+	}
 	Eigen::SelfAdjointEigenSolver<MatrixXd> eigenSolver(covariance);
 	if (eigenSolver.info() != Eigen::Success
 	 || !eigenSolver.eigenvalues().allFinite())
@@ -53,13 +78,14 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 
 	VectorXd coordinates = eigenSolver.eigenvectors().transpose() * innovation;
 	double maximumNullInnovation = 0;
-	assessment.nis = 0;
+	if (!zhangRatioOnly()) assessment.nis = 0;
 	for (int index = 0; index < coordinates.size(); index++)
 	{
 		const double eigenvalue = eigenSolver.eigenvalues()(index);
 		if (eigenvalue > rankTolerance)
 		{
-			assessment.nis += coordinates(index) * coordinates(index) / eigenvalue;
+			if (!zhangRatioOnly())
+				assessment.nis += coordinates(index) * coordinates(index) / eigenvalue;
 			assessment.rank++;
 		}
 		else
@@ -71,8 +97,17 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 	}
 	assessment.nullResidual=maximumNullInnovation;
  assessment.status="DETERMINISTIC_RESIDUAL_CONFLICT";
-	if (maximumNullInnovation > 1e-7 || !std::isfinite(assessment.nis))
+	if (maximumNullInnovation > 1e-7 ||
+		(!zhangRatioOnly() && !std::isfinite(assessment.nis)))
 	{
+		return assessment;
+	}
+	if (zhangRatioOnly())
+	{
+		assessment.nis = std::numeric_limits<double>::quiet_NaN();
+		assessment.deterministic = assessment.rank == 0;
+		assessment.valid = true;
+		assessment.status = "NIS_SKIPPED_RATIO_ONLY_GEOMETRY_VALID";
 		return assessment;
 	}
 	// A posterior that is already fully conditioned on a certified integer has
@@ -94,4 +129,11 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 	assessment.valid = std::isfinite(assessment.threshold);
  assessment.status=assessment.valid?(assessment.nis<=assessment.threshold?"ACCEPTED":"WHOLE_NIS_REJECTED"):"INVALID_THRESHOLD";
 	return assessment;
+}
+
+inline bool zhangIntegerCandidateAdmissible(const ZhangIntegerCandidateNis& result)
+{
+	return result.valid && (zhangRatioOnly() ||
+		(std::isfinite(result.nis) && std::isfinite(result.threshold) &&
+		 result.nis <= result.threshold));
 }

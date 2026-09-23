@@ -162,7 +162,7 @@ inline ZhangSequentialShadowResult zhangSequentialQuotientShadow(
             zhangExactRowToDouble(united.values)-matrix*mean,
             matrix*covariance*matrix.transpose(),nisAlpha);
         out.lastNis=nis;
-        if(!nis.valid || nis.nis>nis.threshold) {out.status=nis.valid?"WHOLE_LATTICE_NIS_REJECTED":nis.status;break;}
+        if(!zhangIntegerCandidateAdmissible(nis)) {out.status=nis.valid?"WHOLE_LATTICE_NIS_REJECTED":nis.status;break;}
         out.rows=united.basis;out.values=united.values;
         out.acceptedRoundRows.push_back(out.rows);
         out.acceptedRoundValues.push_back(out.values);

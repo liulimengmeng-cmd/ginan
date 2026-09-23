@@ -547,8 +547,10 @@ int lambda_search(
     if(mtrx.aflt.size()==0) {diagnostic.reason="NO_STOCHASTIC_DIRECTION";return 0;}
     mtrx.lambda_initial_fix_count       = 0;
     mtrx.lambda_selected_bootstrap_success = 0;
-    mtrx.lambda_candidate_nis           = 0;
-    mtrx.lambda_candidate_nis_threshold = 0;
+    mtrx.lambda_candidate_nis           = zhangRatioOnly()
+        ? std::numeric_limits<double>::quiet_NaN() : 0;
+    mtrx.lambda_candidate_nis_threshold = zhangRatioOnly()
+        ? std::numeric_limits<double>::quiet_NaN() : 0;
     mtrx.lambda_candidate_nis_valid     = false;
     mtrx.lambda_candidate_tested_fix_count = 0;
     mtrx.lambda_candidate_rms_innovation   = 0;
@@ -886,24 +888,38 @@ int lambda_search(
             break;
         }
         const double mindist = zfixList.begin()->first;
-        if (!(opt.lambda_candidate_nis_alpha > 0 &&
+        if (!zhangRatioOnly() &&
+            !(opt.lambda_candidate_nis_alpha > 0 &&
               opt.lambda_candidate_nis_alpha < 1))
         {
             break;
         }
 
-        diagnostic.localNisExecuted=true;
-        boost::math::chi_squared distribution(zsiz);
-        const double threshold = quantile(complement(
-            distribution,
-            opt.lambda_candidate_nis_alpha
-        ));
-        mtrx.lambda_candidate_nis           = mindist;
-        mtrx.lambda_candidate_nis_threshold = threshold;
-        mtrx.lambda_candidate_nis_valid =
-            std::isfinite(mindist) && std::isfinite(threshold);
-        const bool accepted = mtrx.lambda_candidate_nis_valid &&
-            zhangRatioStatisticalAccept(mindist <= threshold);
+        // The best distance is already needed for the ratio test. Do not
+        // derive a chi-square NIS threshold or publish the distance as NIS.
+        const bool validDistance = std::isfinite(mindist) && mindist >= 0;
+        bool accepted = validDistance;
+        mtrx.lambda_candidate_nis_valid = validDistance;
+        if (zhangRatioOnly())
+        {
+            mtrx.lambda_candidate_nis =
+                std::numeric_limits<double>::quiet_NaN();
+            mtrx.lambda_candidate_nis_threshold =
+                std::numeric_limits<double>::quiet_NaN();
+        }
+        else
+        {
+            diagnostic.localNisExecuted=true;
+            boost::math::chi_squared distribution(zsiz);
+            const double threshold = quantile(complement(
+                distribution, opt.lambda_candidate_nis_alpha));
+            mtrx.lambda_candidate_nis = mindist;
+            mtrx.lambda_candidate_nis_threshold = threshold;
+            mtrx.lambda_candidate_nis_valid =
+                validDistance && std::isfinite(threshold);
+            accepted = mtrx.lambda_candidate_nis_valid &&
+                mindist <= threshold;
+        }
         if (accepted || zsiz == minimumFixCount)
         {
             mtrx.lambda_candidate_tested_rows = mtrx.Ztrs.bottomRows(zsiz);
@@ -1489,6 +1505,13 @@ GinAR_lambda_beam_result GNSS_AR_LAMBDA_BEAM_SHADOW(
 )
 {
     GinAR_lambda_beam_result result;
+    if (zhangRatioOnly())
+    {
+        trace << "\nZHANG_LAMBDA_BEAM_NODE context=" << beamOptions.context
+              << " status=NIS_SHADOW_SKIPPED_RATIO_ONLY"
+              << " ar_authorized=0 feedback=SHADOW_NONE";
+        return result;
+    }
     if (source.aflt.size() < beamOptions.minimum_rank ||
         source.Paflt.rows() != source.aflt.size() ||
         !(options.lambda_candidate_nis_alpha > 0) ||

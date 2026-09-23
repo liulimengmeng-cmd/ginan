@@ -5109,7 +5109,7 @@ void configureZhangE18FactorCapture(KFState& kfState)
 												!pair.oldSnapshotIdentity.empty() &&
 												!pair.newSnapshotIdentity.empty();
 											candidate.scalarReliabilityPassed = true;
-											candidate.jointNisPassed = true;
+											candidate.jointNisPassed = !zhangRatioOnly();
 											for (size_t index = 0;
 												 index < pair.transition.coefficients.size(); index++)
 											{
@@ -11197,19 +11197,23 @@ void writeZhangInternalProducts(
 			candidate.firstSignalReliable = true;
 			candidate.exactProductLatticeMembership =
 				productCertification->exactNetworkMapping;
-			candidate.jointNisPassed = provisionalEdge
+			candidate.jointNisPassed = !zhangRatioOnly() && (provisionalEdge
 				? productCertification->provisionalGaugeEvidenceValidated
-				: (std::isfinite(productCertification->jointNis) &&
-				   std::isfinite(productCertification->jointNisThreshold) &&
-				   zhangRatioStatisticalAccept(productCertification->jointNis <=
-					productCertification->jointNisThreshold));
+				: (zhangRatioOnly()
+				   ? productCertification->exactNetworkMapping
+				   : (std::isfinite(productCertification->jointNis) &&
+				      std::isfinite(productCertification->jointNisThreshold) &&
+				      productCertification->jointNis <=
+				          productCertification->jointNisThreshold)));
 			candidate.cycleClosurePassed = true;
 			candidate.temporalAlignmentCertified = true;
 			candidate.noResidualDof = provisionalEdge;
 			candidate.independentSupportPaths = candidate.noResidualDof ? 0 : 1;
 			candidate.source = provisionalEdge
 				? "PRODUCT_COMPONENT_GAUGE_PROVISIONAL"
-				: "PRODUCT_CURRENT_EXACT_CONSTRAINT";
+				: (zhangRatioOnly()
+				   ? "PRODUCT_CURRENT_EXACT_CONSTRAINT_NIS_NOT_EVALUATED"
+				   : "PRODUCT_CURRENT_EXACT_CONSTRAINT");
 			if (provisionalEdge) provisionalGaugeCandidateCount++;
 			else currentExactGaugeCandidateCount++;
 			gaugeCandidates.push_back(std::move(candidate));

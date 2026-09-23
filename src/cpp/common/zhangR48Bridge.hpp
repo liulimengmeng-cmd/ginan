@@ -31,6 +31,7 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  const ZhangR47ProductSearchFrame* domainFrame=nullptr, bool partialShadow=false)
 {
  ZhangR48BridgeResult out;const int n=mean.size();
+ if(zhangRatioOnly())out.schurIdentityError=std::numeric_limits<double>::quiet_NaN();
  if(!(allocation>0) || !std::isfinite(allocation)) {
   out.status="NOT_EVALUATED_NO_SEARCH_BUDGET";return out;
  }
@@ -75,13 +76,14 @@ inline ZhangR48BridgeResult zhangR48SearchBridge(
  auto a=zhangR48Numeric(h.basis,n);
  out.nis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(h.values)-a*mean,a*covariance*a.transpose(),alpha);
  auto hn=zhangR48Numeric(held,n),dn=zhangR48Numeric(out.rows,n);
- if(held.empty()){out.baseNis.valid=true;out.baseNis.nis=0;out.baseNis.rank=0;}
+ if(held.empty()){out.baseNis.valid=true;out.baseNis.nis=zhangRatioOnly()
+    ? std::numeric_limits<double>::quiet_NaN() : 0;out.baseNis.rank=0;}
  else out.baseNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(hv)-hn*mean,hn*covariance*hn.transpose(),alpha);
  const auto dm=sharedWorkspace->project(dn,hn,zhangExactRowToDouble(hv));
  if(dm.valid)out.incrementNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(out.values)-dm.mean,dm.covariance,alpha);
- if(out.nis.valid && out.baseNis.valid && out.incrementNis.valid)
+ if(!zhangRatioOnly() && out.nis.valid && out.baseNis.valid && out.incrementNis.valid)
   out.schurIdentityError=std::abs(out.nis.nis-out.baseNis.nis-out.incrementNis.nis);
- out.accepted=out.nis.valid && zhangRatioStatisticalAccept(out.nis.nis<=out.nis.threshold);
+ out.accepted=zhangIntegerCandidateAdmissible(out.nis);
  out.status=out.accepted?(partialShadow && fixedRank<out.rank?"PARTIAL_INTEGER_PROGRESS":"BRIDGE_ACCEPTED"):out.nis.status;
  return out;
 }

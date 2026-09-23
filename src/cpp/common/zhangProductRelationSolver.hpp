@@ -2277,9 +2277,11 @@ inline ZhangExactConditioningAudit zhangConditionExactProductRows(
 	result.mean = mean + cross * pseudoInverse * innovation;
 	result.covariance = symmetric - result.reduction;
 	result.covariance = 0.5 * (result.covariance + result.covariance.transpose());
-	result.nis = innovation.dot(pseudoInverse * innovation);
+	if (!zhangRatioOnly())
+		result.nis = innovation.dot(pseudoInverse * innovation);
 	result.valid = result.mean.allFinite() && result.covariance.allFinite() &&
-		result.reduction.allFinite() && std::isfinite(result.nis);
+		result.reduction.allFinite() &&
+		(zhangRatioOnly() || std::isfinite(result.nis));
 	return result;
 }
 
@@ -2431,7 +2433,8 @@ inline ZhangComponentGaugeGls zhangComponentGaugeGls(
 		pseudoInverse * measurements;
 	const Eigen::VectorXd residual = measurements - design * result.mean;
 	result.residual = residual;
-	result.residualNis = residual.dot(pseudoInverse * residual);
+	if (!zhangRatioOnly())
+		result.residualNis = residual.dot(pseudoInverse * residual);
 	const Eigen::VectorXd nullResidual =
 		residual - symmetric * pseudoInverse * residual;
 	result.maximumNullResidual = nullResidual.lpNorm<Eigen::Infinity>();
@@ -2445,7 +2448,7 @@ inline ZhangComponentGaugeGls zhangComponentGaugeGls(
 		}
 	}
 	result.valid = result.mean.allFinite() && result.covariance.allFinite() &&
-		std::isfinite(result.residualNis) &&
+		(zhangRatioOnly() || std::isfinite(result.residualNis)) &&
 		result.maximumNullResidual <= 1e-7;
 	result.failureReason = result.valid
 		? "NONE"
@@ -2884,11 +2887,13 @@ inline ZhangComponentBridgeGls zhangComponentBridgeGls(
 	result.variance = 1 / information;
 	result.mean = result.variance * ones.dot(pseudoInverse * measurements);
 	const VectorXd residual = measurements - ones * result.mean;
-	result.residualNis = residual.dot(pseudoInverse * residual);
+	if (!zhangRatioOnly())
+		result.residualNis = residual.dot(pseudoInverse * residual);
 	const VectorXd nullResidual = residual - symmetric * pseudoInverse * residual;
 	result.maximumNullResidual = nullResidual.lpNorm<Eigen::Infinity>();
 	result.valid = std::isfinite(result.mean) && std::isfinite(result.variance) &&
-		result.variance > 0 && std::isfinite(result.residualNis) &&
+		result.variance > 0 &&
+		(zhangRatioOnly() || std::isfinite(result.residualNis)) &&
 		result.maximumNullResidual <= 1e-7;
 	return result;
 }

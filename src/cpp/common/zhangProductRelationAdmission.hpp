@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "zhangIntegerAudit.hpp"
+#include "zhangRatioOnly.hpp"
 
 enum class TemporalCertificateKind
 {
@@ -248,7 +249,7 @@ public:
             result.status = "REJECTED_SCALAR_RELIABILITY";
             return result;
         }
-        if (!result.allJointNisPassed)
+        if (!zhangRatioOnly() && !result.allJointNisPassed)
         {
             result.status = "REJECTED_JOINT_NIS";
             return result;
@@ -424,7 +425,7 @@ public:
             if (!candidate.exactIntegerEstimable
                 || !candidate.phaseSegmentCompatible
                 || !candidate.scalarReliabilityPassed
-                || !candidate.jointNisPassed)
+                || (!zhangRatioOnly() && !candidate.jointNisPassed))
             {
                 return fail("PRODUCT_RELATION_STATE_PENDING_GATE_BYPASS");
             }

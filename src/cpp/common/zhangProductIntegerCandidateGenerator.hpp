@@ -12,6 +12,7 @@
 #include <boost/math/distributions/chi_squared.hpp>
 
 #include "common/zhangIntegerProductGainFrontier.hpp"
+#include "common/zhangRatioOnly.hpp"
 
 struct ProductIntegerCandidate
 {
@@ -473,9 +474,13 @@ generateProductIntegerCandidates(
 		}
 	}
 
-	boost::math::chi_squared scalarDistribution(1);
-	const double scalarThreshold = boost::math::quantile(
-		boost::math::complement(scalarDistribution, nisAlpha));
+	double scalarThreshold = std::numeric_limits<double>::quiet_NaN();
+	if (!zhangRatioOnly())
+	{
+		boost::math::chi_squared scalarDistribution(1);
+		scalarThreshold = boost::math::quantile(
+			boost::math::complement(scalarDistribution, nisAlpha));
+	}
 	for (const auto& [row, source] : rows)
 	{
 		const Eigen::VectorXd numeric = zhangExactRowToDouble(row);
@@ -485,9 +490,11 @@ generateProductIntegerCandidates(
 		const double fractional = floating - std::round(floating);
 		const double perr = zhangIntegerRoundFailureProbability(
 			fractional, variance);
-		const double nis = variance > 0
-			? fractional * fractional / variance
-			: std::numeric_limits<double>::infinity();
+		const double nis = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN()
+			: (variance > 0
+				? fractional * fractional / variance
+				: std::numeric_limits<double>::infinity());
 		Eigen::MatrixXd oneRow(1, dimension);
 		oneRow.row(0) = numeric.transpose();
 		const double gain = zhangIntegerConstraintProductGain(
@@ -505,8 +512,13 @@ generateProductIntegerCandidates(
 		// that rank is evaluated after its WL/L1 partner has been selected.
 		candidate.dualGraphRankGain = 0;
 		candidate.source = source;
-		candidate.reliabilityPassed = std::isfinite(variance) && variance > 0 &&
-			std::isfinite(perr) && perr <= maximumPerr && nis <= scalarThreshold;
+		// This standalone rounded row has no parent two-candidate ratio proof.
+		// It may remain a shadow candidate, but cannot authorise a product when
+		// both Perr and NIS are disabled.
+		candidate.reliabilityPassed = !zhangRatioOnly() &&
+			std::isfinite(variance) && variance > 0 &&
+			std::isfinite(perr) && perr <= maximumPerr &&
+			nis <= scalarThreshold;
 		result.reliableRows += candidate.reliabilityPassed;
 		result.candidates.push_back(std::move(candidate));
 	}

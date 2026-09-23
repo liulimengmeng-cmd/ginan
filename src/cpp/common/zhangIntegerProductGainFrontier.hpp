@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -139,6 +140,11 @@ inline ZhangIntegerGainFrontier zhangBoundedIntegerProductGainFrontier(
 	result.maximumEnumerationSupport = maximumEnumerationSupport <= 0
 		? result.dimension
 		: std::min(maximumEnumerationSupport, result.dimension);
+	if (zhangRatioOnly())
+	{
+		result.status = "NIS_SHADOW_SKIPPED_RATIO_ONLY";
+		return result;
+	}
 	if (mean.size() <= 0 || covariance.rows() != mean.size() ||
 		covariance.cols() != mean.size() ||
 		productQuotientCrossCovariance.cols() != mean.size() ||

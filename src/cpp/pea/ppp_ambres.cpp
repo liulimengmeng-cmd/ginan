@@ -4952,10 +4952,10 @@ static bool conditionZhangAmbiguitiesExactly(
     MatrixXd inverseConstraintCovariance =
         eigenSolver.eigenvectors() * inverseEigenvalues.asDiagonal() *
         eigenSolver.eigenvectors().transpose();
-    double nis = innovation.dot(inverseConstraintCovariance * innovation);
+    double nis = std::numeric_limits<double>::quiet_NaN();
     vector<pair<double, int>> marginalNis;
     marginalNis.reserve(rows);
-    for (int row = 0; row < rows; row++)
+    for (int row = 0; !zhangRatioOnly() && row < rows; row++)
     {
         const double variance = constraintCovariance(row, row);
         if (std::isfinite(variance) && variance > rankTolerance &&
@@ -4990,9 +4990,15 @@ static bool conditionZhangAmbiguitiesExactly(
         ? -1
         : marginalNis.back().second;
     double alpha = acsConfig.zhangPppAr.held_constraint_nis_alpha;
-    boost::math::chi_squared distribution(effectiveRank);
-    double nisThreshold = quantile(complement(distribution, alpha));
-    if (!std::isfinite(nis) || zhangRatioStatisticalReject(nis > nisThreshold))
+    double nisThreshold = std::numeric_limits<double>::quiet_NaN();
+    if (!zhangRatioOnly())
+    {
+        nis = innovation.dot(inverseConstraintCovariance * innovation);
+        boost::math::chi_squared distribution(effectiveRank);
+        nisThreshold = quantile(complement(distribution, alpha));
+    }
+    if (!zhangRatioOnly() &&
+        (!std::isfinite(nis) || nis > nisThreshold))
     {
         zhangTransactionalConditioningReason = "CONSTRAINT_NIS_REJECTED";
         zhangTransactionalConditioningFailed = true;
@@ -6031,7 +6037,7 @@ evaluateTemporalProductRelations(
                 candidate.scalarReliabilityPassed =
                     zhangRatioStatisticalAccept(wideLanePerr <= maximumPerr) &&
                     zhangRatioStatisticalAccept(conditionalFirstPerr <= maximumPerr);
-                candidate.jointNisPassed = jointAccepted;
+                candidate.jointNisPassed = !zhangRatioOnly() && jointAccepted;
                 if (evaluated.pending.transition.valid &&
                     evaluated.pending.transition.physicalEdges.size() ==
                         evaluated.pending.transition.coefficients.size() &&
@@ -6453,7 +6459,7 @@ evaluateTemporalProductRelations(
 				!candidate.physicalCoefficients.empty();
 			candidate.phaseSegmentCompatible = true;
 			candidate.scalarReliabilityPassed = true;
-			candidate.jointNisPassed = true;
+			candidate.jointNisPassed = !zhangRatioOnly();
 			certificate.exactIntegerEstimable &=
 				candidate.exactIntegerEstimable;
 			return candidate;
@@ -6829,8 +6835,13 @@ static int rankAwareGnssAr(
               << search.lambda_candidate_max_marginal_nis
               << " status=" << (initialFixed == 0
                     ? "SKIPPED"
-                    : (candidateAccepted ? "ACCEPTED" : "REJECTED"))
+                    : (zhangRatioOnly()
+                        ? (candidateAccepted
+                            ? "NIS_NOT_EVALUATED_RATIO_ACCEPTED"
+                            : "NIS_NOT_EVALUATED_NUMERIC_REJECTED")
+                        : (candidateAccepted ? "ACCEPTED" : "REJECTED")))
               << " statistical_nis_gate=" << !zhangRatioOnly()
+              << " nis_evaluation=" << candidateNis.status
               << " raw_nis_pass=" << (candidateNis.valid && candidateNis.nis<=candidateNis.threshold)
               << " ordering=LAMBDA_NESTED_SUFFIX"
               << " decomposition=REUSED"
@@ -6969,6 +6980,22 @@ static ZhangSelectedIntegerRows retainNisCompatibleNamedRows(
     VectorXd innovation = fixed.zfix - fixed.Ztrs * fixed.aflt;
     MatrixXd covariance = fixed.Ztrs * fixed.Paflt * fixed.Ztrs.transpose();
     covariance = 0.5 * (covariance + covariance.transpose());
+    if (zhangRatioOnly()) {
+        const auto geometry = assessZhangIntegerCandidateNis(
+            innovation, covariance,
+            acsConfig.zhangPppAr.held_constraint_nis_alpha);
+        if (!geometry.valid) return selectedResult;
+        selectedResult.valid = true;
+        selectedResult.sourceIndices.resize(candidates);
+        std::iota(selectedResult.sourceIndices.begin(),
+                  selectedResult.sourceIndices.end(), 0);
+        selectedResult.maximumPerr = 1.0; // uninformative, not a risk claim
+        trace<<"\nZHANG_NAMED_TARGET_PAR time="<<time.to_string(0)
+             <<" label="<<label<<" status=NIS_SKIPPED_RATIO_ONLY"
+             <<" retained_rows="<<candidates
+             <<" geometry_status="<<geometry.status;
+        return selectedResult;
+    }
     if(zhangR51Enabled() && (label=="PERSISTENT_HELD_BLOCK" || label=="PRODUCT_INTEGER_LEDGER_PRESEARCH")) {
         const auto whole=assessZhangIntegerCandidateNis(innovation,covariance,
             acsConfig.zhangPppAr.held_constraint_nis_alpha);
@@ -7077,9 +7104,7 @@ static ZhangSelectedIntegerRows retainNisCompatibleNamedRows(
 		const auto trialNis = assessZhangIntegerCandidateNis(
 			innovation(trial), covariance(trial, trial), admissionAlpha);
 		backwardTrials++;
-		if (!trialNis.valid || !std::isfinite(trialNis.nis) ||
-			!std::isfinite(trialNis.threshold) ||
-			zhangRatioStatisticalReject(trialNis.nis > trialNis.threshold)) continue;
+		if (!zhangIntegerCandidateAdmissible(trialNis)) continue;
 		selected = std::move(trial);
 		selectedResult.nis = trialNis.nis;
 		selectedResult.nisThreshold = trialNis.threshold;
@@ -11157,7 +11182,12 @@ static void traceZhangProductPairAudit(
 				  << " maximum_support=" << maximumEnumerationSupport
 				  << " component_gauge_candidates=R_Q3_CROSS_COMPONENT"
 				  << " feedback=0";
+			if (zhangRatioOnly()) trace
+				<< "\nZHANG_INTEGER_PRODUCT_GAIN_FRONTIER_SUMMARY time="
+				<< time.to_string(0)
+				<< " status=NIS_SHADOW_SKIPPED_RATIO_ONLY feedback=0";
 			for (int coefficientBound : {2, 3})
+			if (!zhangRatioOnly())
 			{
 				const auto frontier = zhangBoundedIntegerProductGainFrontier(
 					joint.aflt,
@@ -11248,8 +11278,7 @@ static void traceZhangProductPairAudit(
 			trace, joint, jointOptions, time,
 			"PRODUCT_COMPONENT_QUOTIENT_WL_SHADOW", true) : 0;
 		const bool statisticallyAccepted = quotient.quotientRank == 0 ||
-			(fixed > 0 && joint.lambda_candidate_nis_valid &&
-			 joint.lambda_candidate_nis <= joint.lambda_candidate_nis_threshold);
+			(fixed > 0 && zhangLambdaCandidateAdmissible(joint));
 		ZhangExactMatrix newPhysicalRows;
 		ZhangExactMatrix newNamedRows;
 		ZhangExactVector newValues;
@@ -11497,9 +11526,7 @@ static void traceZhangProductPairAudit(
 				trace, gaugeInteger, gaugeOptions, time,
 				"PRODUCT_COMPONENT_GAUGE_JOINT_SHADOW", true);
 			statisticallyAccepted = fixedGaugeRank > 0 &&
-				gaugeInteger.lambda_candidate_nis_valid &&
-				gaugeInteger.lambda_candidate_nis <=
-					gaugeInteger.lambda_candidate_nis_threshold;
+				zhangLambdaCandidateAdmissible(gaugeInteger);
 			if (statisticallyAccepted &&
 				gaugeInteger.Ztrs.cols() == gaugeDimension &&
 				gaugeInteger.Ztrs.rows() == gaugeInteger.zfix.size())
@@ -11652,11 +11679,15 @@ static void traceZhangProductPairAudit(
 		const double perr = bridge.valid
 			? round_perr(fractional, bridge.variance) : 1;
 		const int residualDof = std::max(1, bridge.effectiveRank - 1);
-		boost::math::chi_squared distribution(residualDof);
-		const double threshold = quantile(complement(
-			distribution, acsConfig.zhangPppAr.held_constraint_nis_alpha));
-		const bool accepted = bridge.valid && perr <= maximumPerr &&
-			bridge.residualNis <= threshold;
+		double threshold = std::numeric_limits<double>::quiet_NaN();
+		if (!zhangRatioOnly()) {
+			boost::math::chi_squared distribution(residualDof);
+			threshold = quantile(complement(
+				distribution, acsConfig.zhangPppAr.held_constraint_nis_alpha));
+		}
+		const bool accepted = bridge.valid &&
+			zhangRatioStatisticalAccept(perr <= maximumPerr) &&
+			(zhangRatioOnly() || bridge.residualNis <= threshold);
 		const bool bothSingletons =
 			actualComponents[firstComponent].size() == 1 &&
 			actualComponents[secondComponent].size() == 1;
@@ -11843,7 +11874,8 @@ static ZhangProductIntegerConstraintSet zhangBuildProductConstraintSet(
 	double jointNis,
 	double jointNisThreshold,
 	double failureProbability,
-	double referenceInvariantProductGain)
+	double referenceInvariantProductGain,
+	bool numericalGeometryValid)
 {
 	ZhangProductIntegerConstraintSet result;
 	result.system = firstBasis.system;
@@ -12037,9 +12069,11 @@ static ZhangProductIntegerConstraintSet zhangBuildProductConstraintSet(
 	result.conditioningRank = static_cast<int>(
 		zhangExactRowHermiteNormalForm(result.networkRows).basis.size());
 	result.exactNetworkMapping = true;
-	result.reliable = !result.networkRows.empty() &&
-		std::isfinite(jointNis) && std::isfinite(jointNisThreshold) &&
-		zhangRatioStatisticalAccept(jointNis <= jointNisThreshold) && zhangRatioStatisticalAccept(failureProbability <= 1e-3 + 1e-12);
+	result.reliable = numericalGeometryValid && !result.networkRows.empty() &&
+		(zhangRatioOnly() ||
+		 (std::isfinite(jointNis) && std::isfinite(jointNisThreshold) &&
+		  jointNis <= jointNisThreshold)) &&
+		zhangRatioStatisticalAccept(failureProbability <= 1e-3 + 1e-12);
 	result.failureReason = result.reliable
 		? "NONE" : "PRODUCT_CONSTRAINT_RELIABILITY_GATE_FAILED";
 	return result;
@@ -12250,7 +12284,7 @@ zhangSelectFinalProductCoordinatePar(
 			wideLaneRows, wideLaneIntegers,
 			firstSignalRows, firstSignalIntegers,
 			evaluation.nis.nis, evaluation.nis.threshold,
-			failureProbability, gain);
+			failureProbability, gain, evaluation.nis.valid);
 		const auto graph = zhangExactDualGraphScore(
 			signalRows, signalIntegers, rank);
 		evaluation.score.valid = evaluation.constraints.reliable &&
@@ -12508,7 +12542,7 @@ static ZhangProductIntegerConstraintSet zhangBuildFullProductLatticeOracle(
 		firstBasis, secondBasis,
 		wideLaneRows, wideLaneIntegers,
 		firstRows, firstIntegers,
-		nis.nis, nis.threshold, 0, productGain);
+		nis.nis, nis.threshold, 0, productGain, nis.valid);
 	const bool exactFullRank = result.exactNetworkMapping &&
 		result.wideLaneProductRows.size() == static_cast<std::size_t>(rank) &&
 		result.firstSignalProductRows.size() == static_cast<std::size_t>(rank) &&
@@ -13476,13 +13510,14 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 		const auto nis = assessZhangIntegerCandidateNis(
 			stochasticInnovation,
 			stochasticRows * ambiguityCovariance * stochasticRows.transpose(), alpha);
-		return nis.valid && std::isfinite(nis.nis) &&
-			std::isfinite(nis.threshold) && zhangRatioStatisticalAccept(nis.nis <= nis.threshold);
+		return zhangIntegerCandidateAdmissible(nis);
 	};
 	auto posteriorBranchNisRatio = [&](const ZhangExactMatrix& exactRows,
 		const ZhangExactVector& exactValues, double alpha)
 		-> std::optional<double>
 	{
+		// No branch can be preferred by a statistic that was not evaluated.
+		if (zhangRatioOnly()) return std::nullopt;
 		MatrixXd rows;
 		VectorXd values;
 		if (!numericHnf(exactRows, exactValues, rows, values))
@@ -13698,9 +13733,10 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 			continue;
 		}
 		const double variance = effective.conditionalVariances.front();
-		const double marginalNis = variance > effective.varianceTolerance
-			? innovation * innovation / variance : 0;
-		orderedLedger.push_back({marginalNis, row});
+		const double order = zhangRatioOnly() ? static_cast<double>(row) :
+			(variance > effective.varianceTolerance
+				? innovation * innovation / variance : 0);
+		orderedLedger.push_back({order, row});
 	}
 	ZhangExactMatrix acceptedLedgerRows;
 	ZhangExactMatrix selectedProductRows = constraints.jointProductRows;
@@ -14103,10 +14139,11 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 				trialEffective.conditionalVariances[candidateRow];
 			const double conditionalInnovation =
 				trialConditional.residuals(candidateRow);
-			const double conditionalNis =
-				conditionalVariance > trialEffective.varianceTolerance
+			const double conditionalNis = zhangRatioOnly()
+				? std::numeric_limits<double>::quiet_NaN()
+				: (conditionalVariance > trialEffective.varianceTolerance
 					? conditionalInnovation * conditionalInnovation /
-						conditionalVariance : 0;
+						conditionalVariance : 0);
 			auto trialProductRows = selectedProductRows;
 			trialProductRows.push_back(ledgerProductRows[index]);
 			auto trialPairs = activePairValues;
@@ -14174,7 +14211,8 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 					return left.deltaProductRank > right.deltaProductRank;
 				if (std::abs(left.deltaProductGain - right.deltaProductGain) > 1e-12)
 					return left.deltaProductGain > right.deltaProductGain;
-				return left.marginalNis < right.marginalNis;
+				return zhangRatioOnly() ? left.index < right.index
+					: left.marginalNis < right.marginalNis;
 			};
 			if (!best || better(score, *best)) best = score;
 		}
@@ -14215,10 +14253,13 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 				trace << "\nZHANG_PRODUCT_INTEGER_LEDGER_ADMISSION_REJECT time="
 					  << time.to_string(0)
 					  << " candidate_row=" << index
-					  << " marginal_nis=" << marginalNis
+					  << " marginal_nis="
+					  << (zhangRatioOnly()?"NA":std::to_string(marginalNis))
 					  << " selected_before=" << acceptedLedgerRows.size()
 					  << " backend_generation=" << backendGeneration
-					  << " reason=JOINT_NIS_OR_PAIR_VALUE_INCOMPATIBLE";
+					  << " reason=" << (zhangRatioOnly()
+						? "GEOMETRY_OR_PAIR_VALUE_INCOMPATIBLE"
+						: "JOINT_NIS_OR_PAIR_VALUE_INCOMPATIBLE");
 			}
 			break;
 		}
@@ -14360,8 +14401,9 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 			  << " conditioning_required=0"
 			  << " certificate_valid=1"
 			  << " status=CERTIFICATE_ONLY_NO_CONDITIONING";
-		combinedNis = 0;
-		combinedNisThreshold = 0;
+		combinedNis = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN() : 0;
+		combinedNisThreshold = combinedNis;
 		result.ambmap = ambiguityMap;
 		result.Ztrs.resize(0, ambiguityMap.size());
 		result.zfix.resize(0);
@@ -14421,8 +14463,7 @@ static bool zhangProductConstraintsWithLedgerAsGinAr(
 		finalValues - finalRows * ambiguityMean,
 		finalRows * ambiguityCovariance * finalRows.transpose(),
 		acceptedLedgerRows.empty() ? familyAlpha : admissionAlpha);
-	if (!finalNis.valid || !std::isfinite(finalNis.nis) ||
-		!std::isfinite(finalNis.threshold) || zhangRatioStatisticalReject(finalNis.nis > finalNis.threshold))
+	if (!zhangIntegerCandidateAdmissible(finalNis))
 	{
 		failureReason = "PRODUCT_LEDGER_FINAL_JOINT_NIS_REJECTED";
 		return false;
@@ -15625,8 +15666,7 @@ static ZhangProductLatticeStageFix zhangSolveJointDualFrequencyProductIls(
 		report();
 		return result;
 	}
-	if (!joint.lambda_candidate_nis_valid ||
-		joint.lambda_candidate_nis > joint.lambda_candidate_nis_threshold)
+	if (!zhangLambdaCandidateAdmissible(joint))
 	{
 		result.failureReason = "JOINT_DUAL_FREQUENCY_NIS_REJECTED";
 		report();
@@ -15848,9 +15888,7 @@ static ZhangProductLatticeStageFix zhangSolveNamedPairForestStage(
 				fullRankAttempts++;
 				ZhangExactMatrix parentRows;
 				ZhangExactVector parentValues;
-				if (block.lambda_candidate_nis_valid &&
-					block.lambda_candidate_nis <=
-						block.lambda_candidate_nis_threshold &&
+				if (zhangLambdaCandidateAdmissible(block) &&
 					zhangExactRowsFromNumeric(block.Ztrs, block.zfix,
 						parentRows, parentValues))
 				{
@@ -16078,8 +16116,7 @@ zhangSolvePrimitiveComponentGaugeForestStage(
 			fullRankAttempts++;
 			ZhangExactMatrix parentRows;
 			ZhangExactVector parentValues;
-			if (!block.lambda_candidate_nis_valid ||
-				block.lambda_candidate_nis > block.lambda_candidate_nis_threshold ||
+			if (!zhangLambdaCandidateAdmissible(block) ||
 				!zhangExactRowsFromNumeric(block.Ztrs, block.zfix,
 					parentRows, parentValues)) continue;
 			for (const auto& parent : parentRows)
@@ -16441,8 +16478,7 @@ static ZhangProductLatticeStageFix zhangSolveProductLatticeStage(
 	ZhangExactMatrix parentRows;
 	ZhangExactVector parentIntegers;
 	const bool exactParent = result.rawFixedRank > 0 &&
-		block.lambda_candidate_nis_valid &&
-		block.lambda_candidate_nis <= block.lambda_candidate_nis_threshold &&
+		zhangLambdaCandidateAdmissible(block) &&
 		zhangExactRowsFromNumeric(
 			block.Ztrs, block.zfix, parentRows, parentIntegers);
 	if (!exactParent)
@@ -16859,7 +16895,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 	result.residualDof = std::max(0, gauge.measurementRank - 2 * gauges);
 	result.residualNis = gauge.residualNis;
 	result.maximumNullResidual = gauge.maximumNullResidual;
-	if (result.residualDof > 0)
+	if (result.residualDof > 0 && !zhangRatioOnly())
 	{
 		boost::math::chi_squared distribution(result.residualDof);
 		result.residualNisThreshold = boost::math::quantile(
@@ -16955,7 +16991,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 				result.maximumNullResidual = gauge.maximumNullResidual;
 				result.residualNisThreshold =
 					std::numeric_limits<double>::quiet_NaN();
-				if (result.residualDof > 0)
+				if (result.residualDof > 0 && !zhangRatioOnly())
 				{
 					boost::math::chi_squared distribution(result.residualDof);
 					result.residualNisThreshold = boost::math::quantile(
@@ -17045,7 +17081,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 		result.failureReason = "COMPONENT_GAUGE_DIAGNOSTIC_ONLY";
 		return result;
 	}
-	if (!gauge.valid || (result.residualDof > 0 &&
+	if (!gauge.valid || (!zhangRatioOnly() && result.residualDof > 0 &&
 		!(gauge.residualNis <= result.residualNisThreshold)))
 	{
 		result.failureReason = !gauge.valid
@@ -17154,8 +17190,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 	const bool acceptedExact = zhangExactRowsFromNumeric(
 		wideLane.Ztrs, wideLane.zfix, wideLaneGaugeRows, wideLaneGaugeValues);
 	const bool rawWlAccepted = wlFixed > 0 &&
-		wideLane.lambda_candidate_nis_valid &&
-		wideLane.lambda_candidate_nis <= wideLane.lambda_candidate_nis_threshold &&
+		zhangLambdaCandidateAdmissible(wideLane) &&
 		acceptedExact;
 	bool wlAccepted = rawWlAccepted;
 	bool primitiveWideLaneSelected = false;
@@ -17608,9 +17643,7 @@ static ZhangDualComponentGaugeFixResult solveZhangDualComponentGaugeBlock(
 	ZhangExactMatrix firstGaugeRows;
 	ZhangExactVector firstGaugeValues;
 	const bool rawFirstAccepted = firstFixed > 0 &&
-		firstSignal.lambda_candidate_nis_valid &&
-		firstSignal.lambda_candidate_nis <=
-			firstSignal.lambda_candidate_nis_threshold &&
+		zhangLambdaCandidateAdmissible(firstSignal) &&
 		zhangExactRowsFromNumeric(firstSignal.Ztrs, firstSignal.zfix,
 			firstGaugeRows, firstGaugeValues);
 	bool firstAccepted = rawFirstAccepted;
@@ -18479,7 +18512,7 @@ static bool zhangBuildCanonicalFixedLagGaugeCertificate(
 	candidate.wideLaneReliable = true;
 	candidate.firstSignalReliable = true;
 	candidate.exactProductLatticeMembership = true;
-	candidate.jointNisPassed = jointNisPassed;
+	candidate.jointNisPassed = !zhangRatioOnly() && jointNisPassed;
 	candidate.cycleClosurePassed = true;
 	candidate.temporalAlignmentCertified = true;
 	candidate.noResidualDof = noResidualDof;
@@ -19014,7 +19047,9 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
         if(!route.finalFrame.valid || !zhangR47AffineIntegerFeasible(route.jointRows,route.jointValues,dimension))return false;
         const auto closure=zhangDecisionRiskClosure(route.parents);
         if(!closure.valid || zhangRatioStatisticalReject(closure.bound+route.search.reservedRisk>ceiling+1e-15))return false;
-        if(route.jointRows.empty()){route.finalizedNis.valid=true;route.finalizedNis.nis=0;route.finalizedNis.threshold=0;return true;}
+        if(route.jointRows.empty()){route.finalizedNis.valid=true;
+            route.finalizedNis.nis=zhangRatioOnly()?std::numeric_limits<double>::quiet_NaN():0;
+            route.finalizedNis.threshold=route.finalizedNis.nis;return true;}
         const MatrixXd j=numeric(route.jointRows,dimension);
         route.finalizedNis=assessZhangIntegerCandidateNis(zhangExactRowToDouble(route.jointValues)-j*root.aflt,j*root.Paflt*j.transpose(),nisAlpha);
         return route.finalizedNis.valid && zhangRatioStatisticalAccept(route.finalizedNis.nis<=route.finalizedNis.threshold);
@@ -19478,7 +19513,7 @@ static ZhangProductRelationFixResult zhangR47SolveWholeProducts(
     if(!selected.jointRows.empty() && (!nis.valid || zhangRatioStatisticalReject(nis.nis>nis.threshold))) return fail("R47_FINAL_JOINT_NIS_REJECTED");
     const double selectedRisk=zhangDecisionRiskClosure(selected.parents).bound+(selected.newRows.empty()?0:spent);
     auto constraints=zhangBuildProductConstraintSet(firstView,secondView,wlRows,wlValues,l1Rows,l1Values,
-        nis.nis,nis.threshold,selectedRisk,0);
+        nis.nis,nis.threshold,selectedRisk,0,nis.valid);
     // Preserve general mixed product consequences separately from graph pairs.
     ZhangExactMatrix targetKernelColumns(selected.finalFrame.affine.quotientRank,ZhangExactVector(targets.size()));
     for(int r=0;r<targets.size();++r) for(int k=0;k<selected.finalFrame.affine.quotientRank;++k)
@@ -19860,7 +19895,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			candidate.wideLaneReliable = true;
 			candidate.firstSignalReliable = true;
 			candidate.exactProductLatticeMembership = true;
-			candidate.jointNisPassed = true;
+			candidate.jointNisPassed = !zhangRatioOnly();
 			candidate.cycleClosurePassed = rankFunnel.exactClosure;
 			candidate.temporalAlignmentCertified = true;
 			candidate.independentSupportPaths = 1;
@@ -19926,7 +19961,9 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 		const double variance = fullWideLaneCovariance(local, local);
 		const double integer = std::round(mean);
 		const double fractional = mean - integer;
-		const double marginalNis = variance > 0 && std::isfinite(variance)
+		const double marginalNis = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN()
+			: variance > 0 && std::isfinite(variance)
 			? fractional * fractional / variance
 			: std::numeric_limits<double>::infinity();
 		trace << "\nZHANG_PRODUCT_RELATION_NAMED_FLOAT time="
@@ -20093,14 +20130,17 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			const double fractional = wideLaneMean(row) -
 				std::round(wideLaneMean(row));
 			const double perr = round_perr(fractional, variance);
-			const double marginalNis = variance > 0 && std::isfinite(variance)
+			const double marginalNis = zhangRatioOnly()
+				? std::numeric_limits<double>::quiet_NaN()
+				: variance > 0 && std::isfinite(variance)
 				? fractional * fractional / variance
 				: std::numeric_limits<double>::infinity();
 			evaluated.branch.maximumNamedPerr = std::max(
 				evaluated.branch.maximumNamedPerr, perr);
-			if (marginalNis > worstMarginalNis)
+			const double namedScore = zhangRatioOnly() ? perr : marginalNis;
+			if (namedScore > worstMarginalNis)
 			{
-				worstMarginalNis = marginalNis;
+				worstMarginalNis = namedScore;
 				evaluated.worstNamedLocalPosition = row;
 			}
 		}
@@ -20174,9 +20214,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 		if (!inheritedComplete)
 		{
 			const bool parentAccepted = rawWideLaneFixed > 0 &&
-				wideLane.lambda_candidate_nis_valid &&
-				wideLane.lambda_candidate_nis <=
-					wideLane.lambda_candidate_nis_threshold;
+				zhangLambdaCandidateAdmissible(wideLane);
 			evaluated.wideLaneParentAccepted = parentAccepted &&
 				zhangExactRowsFromNumeric(
 					wideLane.Ztrs, wideLane.zfix,
@@ -20525,7 +20563,9 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			const double variance = firstCovariance(row, row);
 			const double integer = std::round(mean);
 			const double fractional = mean - integer;
-			const double marginalNis = variance > 0 && std::isfinite(variance)
+			const double marginalNis = zhangRatioOnly()
+				? std::numeric_limits<double>::quiet_NaN()
+				: variance > 0 && std::isfinite(variance)
 				? fractional * fractional / variance
 				: std::numeric_limits<double>::infinity();
 			trace << "\nZHANG_PRODUCT_RELATION_NAMED_FLOAT time="
@@ -20553,9 +20593,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			return evaluated;
 		}
 		evaluated.firstSignalParentAccepted =
-			firstSignal.lambda_candidate_nis_valid &&
-			firstSignal.lambda_candidate_nis <=
-				firstSignal.lambda_candidate_nis_threshold &&
+			zhangLambdaCandidateAdmissible(firstSignal) &&
 			zhangExactRowsFromNumeric(
 				firstSignal.Ztrs, firstSignal.zfix,
 				evaluated.firstSignalFixedRows,
@@ -20888,7 +20926,8 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			source.constraintJointNis,
 			source.constraintJointNisThreshold,
 			1 - options.sucthr,
-			source.branch.productInformationGain);
+			source.branch.productInformationGain,
+			source.productConstraintsReliable);
 	}
 
 	// Direct product-lattice solve.  Use the complete reference-invariant
@@ -20997,7 +21036,8 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			posteriorProductRows, posteriorWideLaneIntegers,
 			posteriorProductRows, posteriorFirstSignalIntegers,
 			quotientJointNis.nis, quotientJointNis.threshold,
-			std::max(0.0, 1 - options.sucthr), quotientProductGain);
+			std::max(0.0, 1 - options.sucthr), quotientProductGain,
+			quotientJointNis.valid);
 		trace << "\nZHANG_EXACT_NETWORK_PRODUCT_QUOTIENT time="
 			  << time.to_string(0)
 			  << " network_rank=" << rankFunnel.networkRank
@@ -21581,7 +21621,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 			jointWideLaneRows, jointWideLaneValues,
 			jointFirstSignalRows, jointFirstSignalValues,
 			jointNis.nis, jointNis.threshold,
-			combinedFailureProbability, productGain);
+			combinedFailureProbability, productGain, jointNis.valid);
 		const bool persistentAuthority = gaugePersistentAvailable ||
 			(!availableWideLaneRows.empty() && !heldFirstSignalSupport.empty());
 		bool accepted =
@@ -21711,7 +21751,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				auto fallback = zhangBuildProductConstraintSet(firstBasis, secondBasis,
 					wl, wv, l1, lv, baseNis.nis, baseNis.threshold,
 					combinedFailureProbability, zhangIntegerConstraintProductGain(
-						rows, fullJointCovariance, pairProductCross));
+						rows, fullJointCovariance, pairProductCross), baseNis.valid);
 				baselineRecovered = united && !wl.empty() && !l1.empty() &&
 					baseNis.valid && zhangRatioStatisticalAccept(baseNis.nis <= baseNis.threshold) &&
 					combinedFailureProbability <= 1e-3 + 1e-12 &&
@@ -22382,7 +22422,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				availableWideLaneRows, availableWideLaneIntegers,
 				combinedFirstSignalRows, combinedFirstSignalIntegers,
 				jointNis.nis, jointNis.threshold,
-				failureProbability, productGain);
+				failureProbability, productGain, jointNis.valid);
 			const auto candidateCompletion = completionScore(candidate);
 			trace << "\nZHANG_PRODUCT_LATTICE_L1_ALTERNATIVE time="
 				  << time.to_string(0)
@@ -22605,7 +22645,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 					jointNis.nis, jointNis.threshold,
 					std::max(quotientConstraints.failureProbability,
 						result.constraints.failureProbability),
-					productGain);
+					productGain, jointNis.valid);
 				if (combined.reliable && jointNis.valid &&
 					zhangRatioStatisticalAccept(jointNis.nis <= jointNis.threshold))
 				{
@@ -22720,14 +22760,14 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 				std::max(result.constraints.reliable
 						? result.constraints.failureProbability : 0.0,
 					ledgerPresearchSelection->maximumPerr),
-				productGain);
+				productGain, jointNis.valid);
 			auto ledgerOnly = zhangBuildProductConstraintSet(
 				firstBasis, secondBasis,
 				ledgerComplementarySupport.wideLaneRows,
 				ledgerComplementarySupport.wideLaneValues,
 				ledgerComplementarySupport.firstSignalRows,
 				ledgerComplementarySupport.firstSignalValues,
-				0, 0, 0, 0);
+				0, 0, 0, 0, false);
 			for (auto& pair : ledgerOnly.dualFrequencyCertifiedPairs)
 				pair.fromTemporalLedger = true;
 			zhangPropagateProductPairProvenance(
@@ -23161,7 +23201,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 					firstSignalUnion.certifiedBasis,
 					firstSignalUnion.certifiedValues,
 					jointNis.nis, jointNis.threshold,
-					jointFailureProbability, productGain);
+					jointFailureProbability, productGain, jointNis.valid);
 				zhangPropagateProductPairProvenance(
 					combined, {&result.constraints});
 				const bool admitted = combined.reliable && jointNis.valid &&
@@ -23632,7 +23672,7 @@ static ZhangProductRelationFixResult solveZhangProductRelations(
 						firstUnion.certifiedValues, nis.nis, nis.threshold,
 						evaluation.failureProbability,
 						zhangIntegerConstraintProductGain(jointRows, fullJointCovariance,
-							pairProductCross));
+							pairProductCross), nis.valid);
 					evaluation.score.valid = evaluation.constraints.reliable &&
 						nis.valid && zhangRatioStatisticalAccept(nis.nis <= nis.threshold) &&
 						zhangRatioStatisticalAccept(evaluation.failureProbability <= 1e-3 + 1e-12);
@@ -24102,7 +24142,7 @@ static ZhangProductIntegerConstraintSet zhangUnionPrivateProductConstraints(
 		firstBasis, secondBasis,
 		wideLaneUnion.certifiedBasis, wideLaneUnion.certifiedValues,
 		firstSignalUnion.certifiedBasis, firstSignalUnion.certifiedValues,
-		nis.nis, nis.threshold, failureProbability, productGain);
+		nis.nis, nis.threshold, failureProbability, productGain, nis.valid);
 	zhangPropagateProductPairProvenance(
 		combined, {&accumulated, &candidate});
 	return combined;
@@ -25999,6 +26039,9 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         <<" physical_variables="<<columns.size()<<" quotient_variables="<<searchRank
         <<" source_rows="<<store.rows.size()<<" mode=EXACT_IMAGE_INCREMENTAL"
         <<" scope=THIS_BLOCK_SEARCH full_physical_rebuild_per_candidate=0";
+    trace<<"\nZHANG_R51_ROOT_NIS_POLICY time="<<owner.time.to_string(0)<<" stage="<<stage
+         <<" evaluation="<<(zhangRatioOnly()?"SKIPPED_RATIO_ONLY":"ENABLED")
+         <<" exact_hnf=ENABLED posterior_conditioning=ENABLED";
 
     VectorXd qmean;MatrixXd qcov;
     {
@@ -26011,6 +26054,12 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
         // Q_BB is always a marginal of the current accepted posterior.
         qmean=projection*current.aflt+offset;
         qcov=projection*current.Paflt*projection.transpose();
+    }
+    if (!floatRoot.aflt.allFinite() || !floatRoot.Paflt.allFinite() ||
+        !qmean.allFinite() || !qcov.allFinite()) {
+        trace<<"\nZHANG_R51_SEARCH_SKIPPED time="<<owner.time.to_string(0)
+             <<" stage="<<stage<<" reason=NONFINITE_ROOT_OR_QUOTIENT";
+        return result;
     }
     std::set<int> fixed;std::map<std::vector<int>,int> attemptedVersion;
     int version=0;ZhangExactMatrix acceptedRows;ZhangExactVector acceptedValues;
@@ -26092,13 +26141,14 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
 					return jointHnf->assess(exact,values);
                 }();
 				const auto& joint=jointTrial.hnf;
-                MatrixXd A(joint.basis.size(),n);VectorXd z(joint.values.size());
-                for(int i=0;i<A.rows();++i){A.row(i)=zhangExactRowToDouble(joint.basis[i]).transpose();z(i)=joint.values[i].convert_to<double>();}
-                const auto whole=[&]() {
+                const auto whole=zhangRatioOnlySkipNis([&]() {
                     ZhangPhaseTimer timer(trace,"R51_"+stage+"_ROOT_NIS");
+                    MatrixXd A(joint.basis.size(),n);VectorXd z(joint.values.size());
+                    for(int i=0;i<A.rows();++i){A.row(i)=zhangExactRowToDouble(joint.basis[i]).transpose();z(i)=joint.values[i].convert_to<double>();}
                     return assessZhangIntegerCandidateNis(z-A*floatRoot.aflt,A*floatRoot.Paflt*A.transpose(),options.lambda_candidate_nis_alpha>0?options.lambda_candidate_nis_alpha:1e-6);
-                }();
-                if(!joint.consistent || !whole.valid || zhangRatioStatisticalReject(whole.nis>whole.threshold)) continue;
+                });
+                if(!joint.consistent || (!zhangRatioOnly() &&
+                    (!whole.valid || whole.nis>whole.threshold))) continue;
                 MatrixXd qrows=MatrixXd::Zero(count,searchRank);
                 for(int i=0;i<subset.size();++i)qrows.col(subset[i])=trial.Ztrs.col(i);
                 // Apply accepted independent rows only; all other coordinates
@@ -26124,10 +26174,14 @@ static ZhangR51BlockResult r51SearchBlocks(Trace& trace,const KFState& owner,
                 trace<<"\nZHANG_R51_BLOCK_ACCEPT time="<<owner.time.to_string(0)<<" stage="<<stage
                     <<" scan="<<scan<<" accepted_rank="<<count<<" total="<<fixed.size()<<" domain_version="<<version
                     <<" ils_calls="<<result.calls<<" complete="<<trial.searchDiagnostic.ilsComplete
-                    <<" sucthr="<<opt.sucthr<<" root_nis="<<whole.nis<<" root_threshold="<<whole.threshold
+                    <<" sucthr="<<opt.sucthr<<" root_nis="
+                    <<(zhangRatioOnly()?"NA":std::to_string(whole.nis))
+                    <<" root_threshold="
+                    <<(zhangRatioOnly()?"NA":std::to_string(whole.threshold))
                     <<" covariance=MARGINAL_AFTER_ACCEPTED_CONDITIONS"
                     <<" ratio_only="<<zhangRatioOnly()<<" ratio_threshold="<<opt.ratthr
-                    <<" root_nis_veto="<<!zhangRatioOnly()<<" bootstrap_veto="<<!zhangRatioOnly();
+                    <<" root_nis_veto="<<!zhangRatioOnly()<<" bootstrap_veto="<<!zhangRatioOnly()
+                    <<" root_nis_evaluation="<<whole.status;
             }
         }
         if(version==beforeScan)break;
@@ -31465,6 +31519,10 @@ void fixAndHoldAmbiguities(
           << " ratio_threshold=" << ARopt.ratthr
           << " bootstrap_gate=" << !zhangRatioOnly()
           << " nis_gate=" << !zhangRatioOnly() << " perr_gate=" << !zhangRatioOnly()
+          << " integer_product_nis_evaluation="
+          << (zhangRatioOnly()?"SKIPPED_RATIO_ONLY":"ENABLED")
+          << " fixed_product_statistical_certification="
+          << (zhangRatioOnly()?"UNAVAILABLE":"ENABLED")
           << " risk_budget_gate=" << !zhangRatioOnly()
           << " risk_bound_valid=" << !zhangRatioOnly()
           << " exact_integer_checks=1 tree_transport_unchanged=1";

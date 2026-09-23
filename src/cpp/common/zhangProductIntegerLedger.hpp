@@ -206,8 +206,11 @@ zhangRecheckProductIntegerOnPosterior(
 	{
 		result.valid = true;
 		result.deterministic = true;
-		result.nis = 0;
-		result.nisThreshold = std::numeric_limits<double>::infinity();
+		result.nis = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN() : 0;
+		result.nisThreshold = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN()
+			: std::numeric_limits<double>::infinity();
 		result.reliable = result.sameInteger &&
 			std::abs(result.innovation) <= 1e-7;
 		result.failureReason = result.reliable

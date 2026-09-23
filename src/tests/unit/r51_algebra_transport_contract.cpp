@@ -11,6 +11,7 @@
 #include "pea/zhangReference.hpp"
 #include "ambres/GNSSambres.hpp"
 #include "pea/zhangReceiverCheckpoint.hpp"
+#include "common/zhangRatioOnly.hpp"
 void assignObservationValue(RawSig&,char,double,double);
 #include <iostream>
 #include <sstream>
@@ -50,9 +51,18 @@ int main()
             check(matrix.searchDiagnostic.ilsComplete,"ratio-only accepted incomplete ILS");
             check(matrix.searchDiagnostic.ratioExecuted,"ratio-only missed ratio gate");
             check((count==1)==(test.first<.365),"ratio-only failed bootstrap/NIS ablation or accepted ambiguous ratio");
-            if(test.second==.001)check(matrix.lambda_candidate_nis>matrix.lambda_candidate_nis_threshold,"NIS-ablation fixture was not rejecting");
+            check(!matrix.searchDiagnostic.localNisExecuted,
+                "ratio-only unexpectedly calculated local NIS");
+            check(std::isnan(matrix.lambda_candidate_nis) &&
+                  std::isnan(matrix.lambda_candidate_nis_threshold),
+                "ratio-only reported an unevaluated NIS as a number");
         }
     }
+    setenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS","1",1);
+    check(!zhangExpensiveDiagnosticsEnabled(),
+        "ratio-only allowed an explicit diagnostic override to run NIS");
+    unsetenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS");
+    unsetenv("ZHANG_R51_RATIO_ONLY");
     // Exercise the real search twice; diagnostic eigensystems must not change
     // candidate enumeration, ratio, selected integer rows, or fixed values.
     for(auto mode : {E_ARmode::LAMBDA,E_ARmode::LAMBDA_ALT}) {
@@ -85,7 +95,6 @@ int main()
         }
     }
     unsetenv("ZHANG_R51_EXPENSIVE_DIAGNOSTICS");
-    unsetenv("ZHANG_R51_RATIO_ONLY");
 
     KFKey a,b,z; a.type=KF::IONO_STEC; a.str="A";
     b.type=KF::IONO_STEC; b.str="B"; z.type=KF::AMBIGUITY; z.str="fresh";

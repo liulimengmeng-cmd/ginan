@@ -556,11 +556,13 @@ zhangRecheckProductGaugeOnPosterior(
 	{
 		result.valid = true;
 		result.deterministic = true;
-		result.nis = 0;
-		result.nisThreshold = std::numeric_limits<double>::infinity();
-		result.alternativeNis = 0;
-		result.alternativeNisThreshold =
-			std::numeric_limits<double>::infinity();
+		result.nis = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN() : 0;
+		result.nisThreshold = zhangRatioOnly()
+			? std::numeric_limits<double>::quiet_NaN()
+			: std::numeric_limits<double>::infinity();
+		result.alternativeNis = result.nis;
+		result.alternativeNisThreshold = result.nisThreshold;
 		result.reliable = result.sameInteger &&
 			expectedInnovation.lpNorm<Eigen::Infinity>() <= 1e-7;
 		result.alternativeReliable = !result.sameInteger &&
@@ -1177,7 +1179,8 @@ inline bool zhangProductGaugeCertificateEvidenceComplete(
 	int requiredConfirmations)
 {
 	if (!certificate.wideLaneReliable || !certificate.firstSignalReliable ||
-		!certificate.exactProductLatticeMembership || !certificate.jointNisPassed ||
+		!certificate.exactProductLatticeMembership ||
+		(!zhangRatioOnly() && !certificate.jointNisPassed) ||
 		!certificate.cycleClosurePassed || !certificate.temporalAlignmentCertified)
 		return false;
 	if (certificate.requiresIndependentTemporalEvidence &&
