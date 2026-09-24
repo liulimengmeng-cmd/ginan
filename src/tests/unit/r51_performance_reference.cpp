@@ -8,6 +8,119 @@
 
 static void require(bool ok,const char* message) {if(!ok)throw std::runtime_error(message);}
 template<class F> double seconds(F f) {auto t=std::chrono::steady_clock::now();f();return std::chrono::duration<double>(std::chrono::steady_clock::now()-t).count();}
+// Deliberately retain the old all-rows kernel construction as an independent
+// oracle for the sparse touched-row projection in zhangIntegerAudit.hpp.
+static ZhangExactSurvivingLattice referenceSurvivingLattice(
+ const ZhangExactMatrix& rows,const ZhangExactVector& values,
+ const std::vector<bool>& mask,bool track) {
+ ZhangExactSurvivingLattice result;
+ if(rows.size()!=values.size()) {result.consistent=false;return result;}
+ std::vector<std::size_t> kept,removed;
+ for(std::size_t c=0;c<mask.size();++c)(mask[c]?kept:removed).push_back(c);
+ for(const auto& row:rows) {
+  if(row.size()!=mask.size()) {result.consistent=false;return result;}
+  for(auto c:removed)if(row[c]!=0){++result.touchedRows;break;}
+ }
+ ZhangExactMatrix transpose(removed.size(),ZhangExactVector(rows.size()));
+ for(std::size_t i=0;i<removed.size();++i)
+  for(std::size_t j=0;j<rows.size();++j)transpose[i][j]=rows[j][removed[i]];
+ const auto combinations=zhangExactIntegerKernel(std::move(transpose),rows.size());
+ result.combinationRank=combinations.size();
+ ZhangExactMatrix projected;
+ ZhangExactVector rhs;
+ for(const auto& combination:combinations) {
+  ZhangExactVector row(kept.size());ZhangExactInteger value=0;
+  for(std::size_t j=0;j<rows.size();++j) {
+   value+=combination[j]*values[j];
+   for(std::size_t c=0;c<kept.size();++c)
+    row[c]+=combination[j]*rows[j][kept[c]];
+  }
+  projected.push_back(std::move(row));rhs.push_back(value);
+ }
+ auto hnf=zhangExactRowHermiteNormalForm(std::move(projected),std::move(rhs),track);
+ result.consistent=hnf.consistent;
+ result.basis=std::move(hnf.basis);result.values=std::move(hnf.values);
+ if(track) {
+  result.rowTransform=zhangExactZeroMatrix(result.basis.size(),rows.size());
+  for(std::size_t i=0;i<hnf.rowTransform.size();++i)
+   for(std::size_t k=0;k<combinations.size();++k)
+    for(std::size_t j=0;j<rows.size();++j)
+     result.rowTransform[i][j]+=hnf.rowTransform[i][k]*combinations[k][j];
+ }
+ return result;
+}
+static void checkSurvivingTransform(const ZhangExactSurvivingLattice& result,
+ const ZhangExactMatrix& rows,const ZhangExactVector& values,
+ const std::vector<bool>& mask) {
+ if(!result.consistent)return;
+ require(result.rowTransform.size()==result.basis.size(),"projection transform rank");
+ std::vector<std::size_t> kept;
+ for(std::size_t c=0;c<mask.size();++c)if(mask[c])kept.push_back(c);
+ for(std::size_t i=0;i<result.basis.size();++i) {
+  require(result.rowTransform[i].size()==rows.size(),"projection transform width");
+  ZhangExactVector reconstructed(mask.size());ZhangExactInteger value=0;
+  for(std::size_t j=0;j<rows.size();++j) {
+   value+=result.rowTransform[i][j]*values[j];
+   for(std::size_t c=0;c<mask.size();++c)
+    reconstructed[c]+=result.rowTransform[i][j]*rows[j][c];
+  }
+  require(value==result.values[i],"projection transform RHS");
+  for(std::size_t c=0;c<mask.size();++c)
+   if(!mask[c])require(reconstructed[c]==0,"projection removed coefficient");
+  for(std::size_t c=0;c<kept.size();++c)
+   require(reconstructed[kept[c]]==result.basis[i][c],"projection transform coefficient");
+ }
+}
+static void testSparseSurvivingLattice() {
+ std::mt19937 rng(510925);
+ for(int trial=0;trial<500;++trial) {
+  const int n=2+rng()%8,m=1+rng()%10;
+  ZhangExactMatrix rows(m,ZhangExactVector(n));ZhangExactVector values(m);
+  std::vector<bool> mask(n);
+  for(int c=0;c<n;++c)mask[c]=(rng()%3!=0);
+  for(int r=0;r<m;++r) {
+   for(int c=0;c<n;++c)rows[r][c]=int(rng()%7)-3;
+   values[r]=int(rng()%11)-5;
+  }
+  if(trial%5==0 && m>1) {rows[1]=rows[0];values[1]=values[0]+(trial%2);}
+  if(trial%3==0)std::fill(mask.begin(),mask.end(),true);
+  const bool track=trial%2==0;
+  const auto expected=referenceSurvivingLattice(rows,values,mask,track);
+  const auto actual=zhangExactSurvivingLattice(rows,values,mask,track);
+  if(!(expected.consistent==actual.consistent &&
+   (!expected.consistent || (expected.basis==actual.basis && expected.values==actual.values)) &&
+   expected.touchedRows==actual.touchedRows &&
+   expected.combinationRank==actual.combinationRank)) {
+   std::cerr<<"projection mismatch trial="<<trial<<" n="<<n<<" m="<<m
+    <<" track="<<track<<" expected_consistent="<<expected.consistent
+    <<" actual_consistent="<<actual.consistent
+    <<" expected_rank="<<expected.basis.size()
+    <<" actual_rank="<<actual.basis.size()
+    <<" expected_combinations="<<expected.combinationRank
+    <<" actual_combinations="<<actual.combinationRank<<"\n";
+   for(std::size_t r=0;r<rows.size();++r){std::cerr<<"input "<<r<<":";
+    for(const auto& v:rows[r])std::cerr<<" "<<v;
+    std::cerr<<" = "<<values[r]<<"\n";}
+   for(std::size_t r=0;r<expected.basis.size();++r){std::cerr<<"expected "<<r<<":";
+    for(const auto& v:expected.basis[r])std::cerr<<" "<<v;
+    std::cerr<<" = "<<expected.values[r]<<"\n";}
+   for(std::size_t r=0;r<actual.basis.size();++r){std::cerr<<"actual "<<r<<":";
+    for(const auto& v:actual.basis[r])std::cerr<<" "<<v;
+    std::cerr<<" = "<<actual.values[r]<<"\n";}
+   throw std::runtime_error("sparse projection differs from all-rows integer kernel reference");
+  }
+  if(track)checkSurvivingTransform(actual,rows,values,mask);
+ }
+ const ZhangExactMatrix rows={{2,0,1,0},{0,1,1,0},{0,0,0,1}};
+ const ZhangExactVector values={1,3,0};
+ const std::vector<bool> mask={true,true,false,true};
+ const auto parity=zhangExactSurvivingLattice(rows,values,mask,true);
+ const auto parityReference=referenceSurvivingLattice(rows,values,mask,true);
+ require(parity.basis==parityReference.basis && parity.values==parityReference.values,
+  "nonprimitive parity relation changed");
+ checkSurvivingTransform(parity,rows,values,mask);
+ std::cout<<"PASS 500 independent all-rows integer projection comparisons and provenance audits\n";
+}
 static void sameImage(const ZhangR47ProductSearchFrame& a,const ZhangR47ProductSearchFrame& b) {
  require(a.valid==b.valid && a.reason==b.reason,"image validity/reason differs");
  if(!a.valid)return;
@@ -34,6 +147,25 @@ static MatrixXd condition(ZhangR49PosteriorWorkspace& workspace, const MatrixXd&
  MatrixXd result=root*root.transpose();return (.5*(result+result.transpose())).eval();
 }
 int main(int argc,char** argv) {
+ testSparseSurvivingLattice();
+ if(argc>=2 && std::string(argv[1])=="--projection") {
+  const int m=argc>=3?std::stoi(argv[2]):400;
+  const int n=m/2+72;
+  ZhangExactMatrix rows(m,ZhangExactVector(n));ZhangExactVector rhs(m);
+  std::vector<bool> mask(n,true);
+  for(int c=n-72;c<n;++c)mask[c]=false;
+  for(int r=0;r<m;++r){rows[r][r%(n-72)]=1;rhs[r]=r%(n-72);}
+  rows[0][n-1]=1;rows[1][n-1]=1;
+  ZhangExactSurvivingLattice old,fast;
+  const auto oldSeconds=seconds([&]{old=referenceSurvivingLattice(rows,rhs,mask,false);});
+  const auto fastSeconds=seconds([&]{fast=zhangExactSurvivingLattice(rows,rhs,mask,false);});
+  require(old.consistent==fast.consistent && old.basis==fast.basis &&
+   old.values==fast.values,"sparse benchmark exact mismatch");
+  std::cout<<"SPARSE_PROJECTION_BENCH rows="<<m<<" removed_columns=72 touched_rows=2"
+   <<" old_s="<<oldSeconds<<" optimized_s="<<fastSeconds
+   <<" speedup="<<oldSeconds/fastSeconds<<" exact_equal=1\n";
+  return 0;
+ }
  auto sharedDomain=zhangR47CompileProductSearchFrame(
     {{1,1,1}},{{1,0,0}},{2},3);
  auto sharedTarget=zhangR49CompileTargetOnDomain(

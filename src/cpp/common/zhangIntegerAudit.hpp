@@ -974,14 +974,16 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     {
         (survivingColumns[column] ? surviving : removed).push_back(column);
     }
-    for (const auto& row : rows)
+    std::vector<std::size_t> untouchedRows, touchedRows;
+    for (std::size_t index = 0; index < rows.size(); ++index)
     {
-        result.touchedRows += std::any_of(
-            removed.begin(),
-            removed.end(),
-            [&](std::size_t column) { return row[column] != 0; }
+        const bool touchesRemoved = std::any_of(
+            removed.begin(), removed.end(),
+            [&](std::size_t column) { return rows[index][column] != 0; }
         );
+        (touchesRemoved ? touchedRows : untouchedRows).push_back(index);
     }
+    result.touchedRows = static_cast<int>(touchedRows.size());
 
     if (removed.empty())
     {
@@ -994,41 +996,65 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
         return result;
     }
 
-    // H_R^T has one row per removed coordinate and one column per held row.
+    // Rows with zero removed coordinates are already in the surviving lattice.
+    // The integer kernel of H_R^T splits exactly into those unit rows and the
+    // kernel restricted to touched rows.  Keep the latter integral: rational
+    // nullspaces would lose parity and other nonprimitive relations.
     ZhangExactMatrix removedTranspose = zhangExactZeroMatrix(
-        removed.size(), rows.size()
+        removed.size(), touchedRows.size()
     );
     for (std::size_t removedRow = 0; removedRow < removed.size(); removedRow++)
     {
-        for (std::size_t heldRow = 0; heldRow < rows.size(); heldRow++)
+        for (std::size_t touched = 0; touched < touchedRows.size(); touched++)
         {
-            removedTranspose[removedRow][heldRow] =
-                rows[heldRow][removed[removedRow]];
+            removedTranspose[removedRow][touched] =
+                rows[touchedRows[touched]][removed[removedRow]];
         }
     }
     ZhangExactMatrix combinations = zhangExactIntegerKernel(
         std::move(removedTranspose),
-        rows.size()
+        touchedRows.size()
     );
-    result.combinationRank = combinations.size();
+    result.combinationRank = untouchedRows.size() + combinations.size();
 
     ZhangExactMatrix survivingRows;
     ZhangExactVector survivingValues;
+    // Sparse source combinations are needed only when callers require proof
+    // provenance.  Avoid an otherwise quadratic all-rows identity matrix.
+    using SourceTerm = std::pair<std::size_t, ZhangExactInteger>;
+    std::vector<std::vector<SourceTerm>> sources;
+    survivingRows.reserve(result.combinationRank);
+    survivingValues.reserve(result.combinationRank);
+    if (trackRowTransform) sources.reserve(result.combinationRank);
+    for (const auto index : untouchedRows)
+    {
+        ZhangExactVector row(surviving.size());
+        for (std::size_t column = 0; column < surviving.size(); ++column)
+            row[column] = rows[index][surviving[column]];
+        survivingRows.push_back(std::move(row));
+        survivingValues.push_back(values[index]);
+        if (trackRowTransform) sources.push_back({{index, 1}});
+    }
     for (const auto& combination : combinations)
     {
         ZhangExactVector row(surviving.size());
         ZhangExactInteger value = 0;
-        for (std::size_t heldRow = 0; heldRow < rows.size(); heldRow++)
+        std::vector<SourceTerm> source;
+        for (std::size_t touched = 0; touched < touchedRows.size(); touched++)
         {
-            value += combination[heldRow] * values[heldRow];
+            if (combination[touched] == 0) continue;
+            const auto heldRow = touchedRows[touched];
+            value += combination[touched] * values[heldRow];
             for (std::size_t column = 0; column < surviving.size(); column++)
             {
                 row[column] +=
-                    combination[heldRow] * rows[heldRow][surviving[column]];
+                    combination[touched] * rows[heldRow][surviving[column]];
             }
+            if (trackRowTransform) source.push_back({heldRow, combination[touched]});
         }
         survivingRows.push_back(std::move(row));
         survivingValues.push_back(std::move(value));
+        if (trackRowTransform) sources.push_back(std::move(source));
     }
     ZhangExactRowHnf hnf = zhangExactRowHermiteNormalForm(
         std::move(survivingRows),
@@ -1041,11 +1067,11 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
         // do not perform another high-dimensional membership decomposition.
         result.rowTransform = zhangExactZeroMatrix(hnf.basis.size(), rows.size());
         for (std::size_t r=0; r<hnf.rowTransform.size(); ++r)
-        for (std::size_t k=0; k<combinations.size(); ++k)
+        for (std::size_t k=0; k<sources.size(); ++k)
         {
             if (hnf.rowTransform[r][k]==0) continue;
-            for (std::size_t c=0; c<rows.size(); ++c)
-                result.rowTransform[r][c] += hnf.rowTransform[r][k]*combinations[k][c];
+            for (const auto& [index, coefficient] : sources[k])
+                result.rowTransform[r][index] += hnf.rowTransform[r][k]*coefficient;
         }
     }
     result.basis = std::move(hnf.basis);
