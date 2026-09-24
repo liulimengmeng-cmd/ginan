@@ -4813,17 +4813,21 @@ class ZhangPhaseTimer
 {
 	Trace& trace;
 	std::string phase;
+	std::string epoch;
 	std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 	double children = 0;
 	ZhangPhaseTimer* parent;
 	inline static thread_local ZhangPhaseTimer* current = nullptr;
 public:
-	ZhangPhaseTimer(Trace& t, std::string p) : trace(t), phase(std::move(p)), parent(current) { current=this; }
+	ZhangPhaseTimer(Trace& t, std::string p, std::string e = {})
+		: trace(t), phase(std::move(p)), epoch(std::move(e)), parent(current) { current=this; }
 	~ZhangPhaseTimer()
 	{
 		const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
 		current=parent; if(parent) parent->children+=ms;
-		trace << "\nZHANG_AR_PHASE_TIMER phase=" << phase << " inclusive_ms=" << ms
+		trace << "\nZHANG_AR_PHASE_TIMER phase=" << phase;
+		if (!epoch.empty()) trace << " epoch=" << std::quoted(epoch);
+		trace << " inclusive_ms=" << ms
 			<< " exclusive_ms=" << std::max(0.0,ms-children) << " root=" << (parent==nullptr);
 	}
 };
@@ -24361,12 +24365,19 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 	double newNetworkFailureProbability = 1,
 	ZhangDecisionProofPtr newNetworkProof = {})
 {
-	ZhangPhaseTimer phaseTimer(trace,"PRODUCT_SEARCH_BASE_BUILD");
+	const auto timerEpoch = state.time.to_string(0);
+	ZhangPhaseTimer phaseTimer(trace,"PRODUCT_SEARCH_BASE_BUILD",timerEpoch);
 	ZhangProductSearchBase result;
-	result.posterior = floatState;
+	{
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_POSTERIOR_COPY",timerEpoch);
+		result.posterior = floatState;
+	}
 	// Keep the complete successfully-conditioned evidence domain. Missing
 	// search coordinates are nuisance columns, not invalid held evidence.
-	GinAR_mtx evidence = floatState;
+	GinAR_mtx evidence = [&]() {
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_EVIDENCE_COPY",timerEpoch);
+		return GinAR_mtx(floatState);
+	}();
 	std::map<KFKey, int> columns;
 	for (const auto& [column, key] : evidence.ambmap) columns[key] = column;
 	if (appliedHeldReceipts) for (const auto& receipt : *appliedHeldReceipts)
@@ -24406,6 +24417,7 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 			state, floatState, system, heldRows, heldValues);
 	else for (const auto& receipt : *appliedHeldReceipts)
 	{
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_RECEIPT_PROJECT",timerEpoch);
 		// Only successfully applied rows, in this epoch's key ordering. Never
 		// reintroduce the rejected part of the authoritative held registry.
 		MatrixXd projected = MatrixXd::Zero(receipt.Ztrs.rows(), evidenceDimension);
@@ -24451,8 +24463,10 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 		}
 		row.resize(evidenceDimension);
 	}
-	const auto newHnf = zhangExactRowHermiteNormalForm(
-		expandedNewRows, newNetworkValues);
+	const auto newHnf = [&]() {
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_NEW_HNF",timerEpoch);
+		return zhangExactRowHermiteNormalForm(expandedNewRows, newNetworkValues);
+	}();
 	if (!newNetworkRows.empty() && !newHnf.consistent)
 	{
 		result.failureReason = "NEW_NETWORK_WL_HNF_INCONSISTENT";
@@ -24475,7 +24489,10 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 	unionRows.insert(unionRows.end(), newHnf.basis.begin(), newHnf.basis.end());
 	unionValues.insert(unionValues.end(), newHnf.values.begin(), newHnf.values.end());
 	if (unionRows.empty()) return result;
-	const auto unionHnf = zhangExactRowHermiteNormalForm(unionRows, unionValues);
+	const auto unionHnf = [&]() {
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_UNION_HNF",timerEpoch);
+		return zhangExactRowHermiteNormalForm(unionRows, unionValues);
+	}();
 	if (!unionHnf.consistent || unionHnf.basis.empty() ||
 		unionHnf.basis.size() != unionHnf.values.size())
 	{
@@ -24485,8 +24502,11 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 	result.unionRank = unionHnf.basis.size();
 	std::vector<bool> targetColumns(evidenceDimension, false);
 	std::fill(targetColumns.begin(), targetColumns.begin() + targetDimension, true);
-	const auto targetLattice = zhangExactSurvivingLattice(
-		unionHnf.basis, unionHnf.values, targetColumns);
+	const auto targetLattice = [&]() {
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_TARGET_INTERSECTION",timerEpoch);
+		return zhangExactSurvivingLattice(
+			unionHnf.basis, unionHnf.values, targetColumns);
+	}();
 	if (!targetLattice.consistent)
 	{
 		result.failureReason = "APPLIED_HELD_TARGET_INTERSECTION_FAILED";
@@ -24513,8 +24533,11 @@ static ZhangProductSearchBase buildZhangProductSearchBase(
 		integers(row) = unionHnf.values[row].convert_to<double>();
 	}
 	rows.makeCompressed();
-	const auto conditioned = zhangConditionPosteriorEffectiveIntegers(
-		evidence.aflt, evidence.Paflt, MatrixXd(rows), integers);
+	const auto conditioned = [&]() {
+		ZhangPhaseTimer timer(trace,"PRODUCT_BASE_POSTERIOR_CONDITION",timerEpoch);
+		return zhangConditionPosteriorEffectiveIntegers(
+			evidence.aflt, evidence.Paflt, MatrixXd(rows), integers);
+	}();
 	if (!conditioned.valid)
 	{
 		result.failureReason = "NETWORK_WL_HELD_" + conditioned.failureReason;
@@ -26228,6 +26251,10 @@ static int resolveLayeredWideLaneL1(
     ZhangProductRelationFixResult* r51BaselineResult = nullptr
 )
 {
+	std::unique_ptr<ZhangPhaseTimer> r51PreFirstBlockTimer;
+	if (zhangR51Enabled())
+		r51PreFirstBlockTimer = std::make_unique<ZhangPhaseTimer>(
+			trace,"R51_PRE_FIRST_BLOCK",time.to_string(0));
 	// A full KFState copy can be several GiB on the 180-station service.  The
 	// product branch needs only the ambiguity FLOAT posterior, so snapshot it
 	// before any WL feedback mutates kfState and keep that snapshot private.
@@ -26704,7 +26731,11 @@ static int resolveLayeredWideLaneL1(
                 system,
                 firstSignal.ambmap
             );
-        auto r51ProductClosure=[&]() { for(int closureOnce=0;closureOnce<1;++closureOnce) {
+        auto r51ProductClosure=[&]() {
+			ZhangPhaseTimer closureTimer(trace,zhangR51HistoryOnly
+				?"R51_PRODUCT_CLOSURE_HISTORY":"R51_PRODUCT_CLOSURE_FINAL",
+				time.to_string(0));
+			for(int closureOnce=0;closureOnce<1;++closureOnce) {
 		if (acsConfig.zhangPppAr.product_relation_l1_par_shadow ||
 			acsConfig.zhangPppAr.integer_strategy == "HYBRID_PRODUCT_WL_L1")
 		{
@@ -28043,21 +28074,40 @@ static int resolveLayeredWideLaneL1(
         }
         }};
         if(zhangR51Enabled()) {
-            const auto frontendBefore=zhangR51CaptureProductRuntime();
-            const auto physicalBefore=r51PhysicalStore(captureOwner,system);
-            const auto integerBefore=zhangProductIntegerLedgerRegistry();
-            const auto gaugeBefore=zhangProductGaugeCertificateLedgerRegistry();
-            const auto admissionBefore=zhangProductRelationAdmissionStateRegistry();
+            const auto frontendBefore=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_FRONTEND_SNAPSHOT",time.to_string(0));
+				return zhangR51CaptureProductRuntime();
+			}();
+            const auto physicalBefore=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_PHYSICAL_SNAPSHOT",time.to_string(0));
+				return r51PhysicalStore(captureOwner,system);
+			}();
+            const auto integerBefore=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_INTEGER_LEDGER_SNAPSHOT",time.to_string(0));
+				return zhangProductIntegerLedgerRegistry();
+			}();
+            const auto gaugeBefore=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_GAUGE_LEDGER_SNAPSHOT",time.to_string(0));
+				return zhangProductGaugeCertificateLedgerRegistry();
+			}();
+            const auto admissionBefore=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_ADMISSION_SNAPSHOT",time.to_string(0));
+				return zhangProductRelationAdmissionStateRegistry();
+			}();
             ZhangProductRelationFixResult baseline;
             auto* destination=productRelationResult;productRelationResult=&baseline;
             zhangR51HistoryOnly=true;
             if(!physicalBefore.rows.empty())r51ProductClosure();
             zhangR51HistoryOnly=false;
-            productRelationResult=destination;frontendBefore();
-            zhangProductIntegerLedgerRegistry()=integerBefore;
-            zhangProductGaugeCertificateLedgerRegistry()=gaugeBefore;
-            zhangProductRelationAdmissionStateRegistry()=admissionBefore;
+            {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_RUNTIME_RESTORE",time.to_string(0));
+				productRelationResult=destination;frontendBefore();
+				zhangProductIntegerLedgerRegistry()=integerBefore;
+				zhangProductGaugeCertificateLedgerRegistry()=gaugeBefore;
+				zhangProductRelationAdmissionStateRegistry()=admissionBefore;
+			}
             if(baseline.r47Candidate) {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_BASELINE_ENTAILMENT",time.to_string(0));
                 const auto& candidate=*baseline.r47Candidate;
                 const auto increment=zhangIncrementalDecisionRisk(physicalBefore.parents,candidate.allDecisionParents);
                 if(!increment.valid || increment.addedAtoms!=0 ||
@@ -28068,9 +28118,13 @@ static int resolveLayeredWideLaneL1(
             }
             if(r51BaselineResult) *r51BaselineResult=baseline;
             std::vector<GinAR_mtx> domainReceipts;
-            if(appliedHeldReceipts) domainReceipts=*appliedHeldReceipts;
+            if(appliedHeldReceipts) {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_RECEIPT_COPY",time.to_string(0));
+				domainReceipts=*appliedHeldReceipts;
+			}
             auto collectDomain=[&](const std::string& stage,
                 ZhangExactMatrix& rows,ZhangExactVector& values) {
+				ZhangPhaseTimer timer(trace,"R51_"+stage+"_DOMAIN_RECEIPT_PROJECT",time.to_string(0));
                 std::map<KFKey,int> map;for(const auto& [c,key]:ambiguityResolution.ambmap)map[key]=c;
                 int projectedReceipts=0;
                 int removedColumns=0;
@@ -28122,7 +28176,10 @@ static int resolveLayeredWideLaneL1(
                     <<" surviving_rank="<<rows.size();
                 return true;
             };
-            auto physical=r51PhysicalStore(captureOwner,system);
+            auto physical=[&]() {
+				ZhangPhaseTimer timer(trace,"R51_PRE_WL_PHYSICAL_STORE",time.to_string(0));
+				return r51PhysicalStore(captureOwner,system);
+			}();
             // A baseline is a current-root constraint set, never old product
             // numbers. Its healthy gauge/ledger rows may condition new search.
             if(baseline.constraints.reliable && baseline.r47Candidate) {
@@ -28167,6 +28224,7 @@ static int resolveLayeredWideLaneL1(
                     <<" conditioned_rank="<<history.size()
                     <<" conditioned_input_rows="<<history.size()
                     <<" conditioned_rank_is_row_count=1";
+				if(r51PreFirstBlockTimer)r51PreFirstBlockTimer.reset();
                 auto blocks=r51SearchBlocks(trace,captureOwner,ambiguityResolution,floatInputAmbiguities,
                     exactTargets,history,historyValues,options,system,stage,physical);
                 if(blocks.accepted.zfix.size()==0) {
@@ -31258,9 +31316,15 @@ void fixAndHoldAmbiguities(
     std::vector<GinAR_mtx> appliedHeldReceipts;
     if (acsConfig.zhangFullRank.enable)
     {
-        if(zhangR51Enabled()) for(const auto& [system,opts]:acsConfig.zhangFullRank.sysOpts)
-            r51PhysicalArchives[{zhangAmbresRuntimeId(kfState),system}]=r51PhysicalStore(kfState,system);
-        auto heldSets = projectPersistentHeldRows(trace, kfState);
+		if(zhangR51Enabled()) {
+			ZhangPhaseTimer timer(trace,"R51_PRE_LAYERED_ARCHIVE_REFRESH",kfState.time.to_string(0));
+			for(const auto& [system,opts]:acsConfig.zhangFullRank.sysOpts)
+				r51PhysicalArchives[{zhangAmbresRuntimeId(kfState),system}]=r51PhysicalStore(kfState,system);
+		}
+		auto heldSets = [&]() {
+			ZhangPhaseTimer timer(trace,"HELD_ROWS_PROJECTION",kfState.time.to_string(0));
+			return projectPersistentHeldRows(trace, kfState);
+		}();
         for (auto& heldSet : heldSets)
         {
             auto& held = heldSet.constraints;
@@ -31626,6 +31690,8 @@ void fixAndHoldAmbiguities(
 				<< " product_projection=DIRECT_FIXED_PHASE_STATE"
 				<< " absolute_satellite_integer_required=0";
 		}
+		{
+			ZhangPhaseTimer layeredTimer(trace,"LAYERED_WL_L1_SOLVER",workingState->time.to_string(0));
 			nfix = resolveLayeredWideLaneL1(
             trace,
             *workingState,
@@ -31643,6 +31709,7 @@ void fixAndHoldAmbiguities(
 			transactional ? &appliedHeldReceipts : nullptr,
             zhangR51Enabled()?&r51BaselineProductRelation:nullptr
         );
+		}
         fixedRowsAlreadyApplied = true;
 		if (acsConfig.zhangPppAr.integer_strategy ==
 				"HYBRID_PRODUCT_WL_L1")
