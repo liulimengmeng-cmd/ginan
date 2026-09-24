@@ -41,3 +41,9 @@ The 128 WL ILS calls collectively consumed less than 0.1 s; the ratio search its
 `AR_CALL` began at 7,550,424 KiB RSS and ended at 9,840,068 KiB RSS. Its process high-water mark reached 19,964,772 KiB (about 19.04 GiB), and the end sample reported 299,996 KiB swapped. Therefore the WSL cap is too close to the peak to use later-epoch local timings as clean CPU benchmarks. The local first epoch does not explain the server's later-epoch slowdown without instrumented later-epoch evidence.
 
 Raw evidence remains under `/home/rx/GINAN/local_timing/r51_20260924_instrumented_01/` in Ubuntu-22.04-G: `runner.log`, `outputs/Network-case-202419900.TRACE`, and `outputs/zhang_internal_products.csv.epochs/2024-07-17_02_00_00_ENHANCED_1/COMMIT.json`.
+
+## Writer boundary follow-up
+
+A second isolated first-epoch run used the same inputs/checkpoint and a binary with only additional writer resource boundaries. Its evidence is under `/home/rx/GINAN/local_timing/r51_20260924_writer_probe_01/`. `AR_TOTAL` was 920.863 s; the committed product bundle's `SHA256SUMS` and `COMMIT.json` were byte-identical to the first run. This is diagnostic timing variability, not a proven speedup.
+
+The sampled process high-water mark stayed at 11.53 GiB after solution rows, covariance construction, component gate, and integer-ledger candidate construction. It rose to 19.04 GiB only between `WRITER_AFTER_LEDGER_CANDIDATES` and `WRITER_AFTER_INTEGER_AUTHORITY`, which contains `ProductIntegerLedger::preflight/commit`. At the latter boundary RSS had fallen to 10.18 GiB and 121 MiB was swapped. The transient peak is therefore inside the integer-ledger transaction interval, not the small product CSV/covariance output. These are boundary observations, not allocation-stack proof of the exact expression.

@@ -9407,6 +9407,13 @@ void writeZhangInternalProducts(
 		? *productFixedState
 		: networkFixedDiagnosticState
 			? *networkFixedDiagnosticState : floatState;
+	// The writer's short-lived peak occurs between its existing entry/exit
+	// probes.  These boundary samples locate the interval without retaining
+	// another product, certificate, or covariance object.
+	auto writerMemoryBoundary = [&](const char* phase)
+	{
+		ZhangP0ResourceScope probe(trace, phase, fixedState.time.to_string(0));
+	};
     trace << "\nZHANG_PRODUCT_WRITER_ENTRY time="
           << fixedState.time.to_string(0)
           << " output_products=" << acsConfig.zhangPppAr.output_products
@@ -10520,6 +10527,7 @@ void writeZhangInternalProducts(
 	{
 		writeSolution(*networkFixedDiagnosticState, "FIXED");
 	}
+	writerMemoryBoundary("WRITER_AFTER_SOLUTIONS");
 	trace << "\nZHANG_P0_WRITER_GRAPH_CACHE time="
 		  << fixedState.time.to_string(0)
 		  << " requests=" << p0Graphs.requests
@@ -10898,6 +10906,7 @@ void writeZhangInternalProducts(
 		appendProductCovariance(*networkFixedDiagnosticState,
 			"FIXED", fixedState, epochProducts);
 	}
+	writerMemoryBoundary("WRITER_AFTER_COVARIANCE");
 
 	bool productLedgerWriterAuthorized = true;
 	std::string productLedgerWriterFailureReason = "NONE";
@@ -11540,6 +11549,7 @@ void writeZhangInternalProducts(
 
 		// Integer evidence and broadcast precision are different gates. A valid
 		// mixed conditioner persists even without a dual-frequency graph edge.
+		writerMemoryBoundary("WRITER_AFTER_COMPONENT_GATE");
 		const auto r47ProofRisk=zhangDecisionRiskClosure(productCertification->decisionProofs);
 		const bool ledgerEffectValid = productCertification->reliable &&
 			productCertification->exactNetworkMapping && !productCertification->decisionProofs.empty() &&
@@ -11708,6 +11718,7 @@ void writeZhangInternalProducts(
 				certificate.physicalExpansionExact = true;
                 candidates.push_back(std::move(certificate));
 			}
+			writerMemoryBoundary("WRITER_AFTER_LEDGER_CANDIDATES");
 			auto& ledger = zhangProductIntegerLedgerRegistry()[
 				{integerLedgerRuntimeId, productCertification->system}];
             ZhangProductIntegerLedgerUpdate update;
@@ -11795,6 +11806,7 @@ void writeZhangInternalProducts(
 			}
 		}
 	}
+	writerMemoryBoundary("WRITER_AFTER_INTEGER_AUTHORITY");
 
 	if (!productLedgerWriterAuthorized)
 	{
@@ -12021,6 +12033,7 @@ void writeZhangInternalProducts(
             }
         }
     }
+	writerMemoryBoundary("WRITER_AFTER_CONTINUITY");
 	std::map<std::pair<std::string,std::string>,std::set<E_ObsCode>> r47Published;
 	std::map<std::string,int> r47ComponentRanks;
 	for(const auto& product:epochProducts)

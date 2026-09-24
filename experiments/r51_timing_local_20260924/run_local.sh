@@ -8,7 +8,11 @@ set -euo pipefail
   echo 'refusing to bind outputs in the host mount namespace' >&2
   exit 2
 }
-run_root=/home/rx/GINAN/local_timing/r51_20260924_instrumented_01
+run_root=${ZHANG_LOCAL_TIMING_RUN_ROOT:-/home/rx/GINAN/local_timing/r51_20260924_instrumented_01}
+case "$run_root" in
+  /home/rx/GINAN/local_timing/*) ;;
+  *) echo 'run root must be inside /home/rx/GINAN/local_timing' >&2; exit 2 ;;
+esac
 configured_output=/mnt/d/GINAN_R20/inputData/outputs/zhang_r51_satfix_ratio3_ar1h_2024199_180_20260918
 configured_checkpoints=/mnt/d/GINAN_R20/zhang_r51_satfix_ratio3_ar1h_2024199_180_20260918_checkpoints
 binary=/home/rx/GINAN/build-r51-timing-20260924/bin/pea
