@@ -163,6 +163,32 @@ BOOST_AUTO_TEST_CASE(r46_joint_physical_integer_feasibility_rejects_parity_confl
     BOOST_CHECK_EQUAL(result.failureReason,"PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT");
 }
 
+BOOST_AUTO_TEST_CASE(r46_feasibility_only_membership_preserves_divisibility) {
+	const ZhangExactMatrix columnLattice = {{1, 1}, {1, -1}};
+	for (const ZhangExactVector& rhs : {ZhangExactVector{0, 1}, ZhangExactVector{0, 2}}) {
+		const auto withWitness = zhangIntegerRowLatticeContains(columnLattice, rhs, true);
+		const auto feasibilityOnly = zhangIntegerRowLatticeContains(columnLattice, rhs, false);
+		BOOST_CHECK_EQUAL(feasibilityOnly.contained, withWitness.contained);
+		BOOST_CHECK(feasibilityOnly.combination.empty());
+	}
+}
+
+BOOST_AUTO_TEST_CASE(r46_preflight_row_snapshot_preserves_stale_receipt_guard) {
+	auto first = r46Row({{"N1", 1}, {"N2", -1}}, 3);
+	auto second = r46Row({{"N2", 1}, {"N3", -1}}, 2);
+	const std::vector<ProductIntegerLedgerRow> rows = {first, second};
+	BOOST_CHECK(ProductIntegerLedger::sameSnapshot(rows, rows));
+	second.integerValue++;
+	BOOST_CHECK(!ProductIntegerLedger::sameSnapshot(rows, {first, second}));
+	ProductIntegerLedger ledger;
+	const auto receipt = ledger.preflight(100, {first}, 1, "root", "physical");
+	BOOST_REQUIRE(receipt.update.valid);
+	BOOST_CHECK(ledger.commit(receipt, "root", "physical").valid);
+	const auto replay = ledger.commit(receipt, "root", "physical");
+	BOOST_CHECK(!replay.valid);
+	BOOST_CHECK_EQUAL(replay.failureReason, "R51_PREFLIGHT_RECEIPT_STALE");
+}
+
 BOOST_AUTO_TEST_CASE(r46_partial_merged_answer_cannot_hide_disputed_overlap) {
     int calls=0;
     const auto out=zhangSequentialQuotientShadow(Eigen::VectorXd::Zero(4),

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <numeric>
 #include <set>
@@ -487,11 +488,13 @@ public:
 	ZhangProductIntegerLedgerUpdate observe(
 		long int epoch,
 		const std::vector<ProductIntegerLedgerRow>& candidates,
-		int requiredConfirmations = 1)
+		int requiredConfirmations = 1,
+		const std::function<void(const char*)>& stageProbe = {})
 	{
 		ZhangProductIntegerLedgerUpdate result;
 		result.inputRows = candidates.size();
 		result.activeRankBefore = zhangProductLedgerExactRank(rows_);
+		if (stageProbe) stageProbe("LEDGER_AFTER_RANK_BEFORE");
 		if (epoch <= 0 || requiredConfirmations < 1)
 		{
 			result.failureReason = "PRODUCT_LEDGER_INPUT_INVALID";
@@ -653,16 +656,23 @@ public:
                 for(const auto& [id,value]:row.physicalExpansion) if(value!=0) dense[columns.at(id)]=value;
                 physical.push_back(std::move(dense));values.push_back(row.integerValue);
             }
-            const auto joint=zhangExactRowHermiteNormalForm(physical,values);
+            // Only consistency is needed here.  Destroy the potentially large
+            // HNF basis before the independent integer-feasibility check.
+            const bool jointConsistent=
+                zhangExactRowHermiteNormalForm(physical,values).consistent;
+			if (stageProbe) stageProbe("LEDGER_AFTER_JOINT_HNF");
             // F*N=n has an integer solution iff n belongs to the column
             // lattice of F. This also rejects parity/divisibility conflicts
             // that rational affine consistency alone cannot detect.
             ZhangExactMatrix columnLattice(columns.size(),ZhangExactVector(physical.size()));
             for(int r=0;r<physical.size();++r) for(int c=0;c<columns.size();++c)
                 columnLattice[c][r]=physical[r][c];
+            // This is a membership gate, not a witness request.  The default
+            // combination recovery would keep a square unimodular transform.
             const bool integerFeasible=values.empty() ||
-                zhangIntegerRowLatticeContains(columnLattice,values).contained;
-            if(!joint.consistent || !integerFeasible) {
+                zhangIntegerRowLatticeContains(columnLattice,values,false).contained;
+			if (stageProbe) stageProbe("LEDGER_AFTER_FEASIBILITY");
+            if(!jointConsistent || !integerFeasible) {
                 result.activeRankAfter=result.activeRankBefore;
                 result.conflictingRows++;
                 result.failureReason="PRODUCT_LEDGER_TRUE_PHYSICAL_AFFINE_CONFLICT";
@@ -675,6 +685,7 @@ public:
             }
         }
 		result.activeRankAfter = zhangProductLedgerExactRank(proposedRows);
+		if (stageProbe) stageProbe("LEDGER_AFTER_RANK_AFTER");
 		rows_ = std::move(proposedRows);
 		result.valid = true;
 		result.failureReason = "NONE";
@@ -683,22 +694,24 @@ public:
 
     struct Preflight {
         const ZhangProductIntegerLedgerUpdate update;
-        const std::string root,physicalEpoch,baseIdentity,proposedIdentity;
+        const std::string root,physicalEpoch;
         const long int epoch;
         const int requiredConfirmations;
+        const std::vector<ProductIntegerLedgerRow> baseSnapshot,proposedSnapshot;
         const std::vector<ProductIntegerLedgerRow> proposed;
     private:
         friend class ProductIntegerLedger;
         Preflight(ZhangProductIntegerLedgerUpdate result,std::string rootId,std::string physicalId,
-            std::string baseId,std::string proposalId,long int time,int confirmations,
+            std::vector<ProductIntegerLedgerRow> baseRows,
+            std::vector<ProductIntegerLedgerRow> proposalRows,long int time,int confirmations,
             std::vector<ProductIntegerLedgerRow> rows)
             :update(std::move(result)),root(std::move(rootId)),physicalEpoch(std::move(physicalId)),
-             baseIdentity(std::move(baseId)),proposedIdentity(std::move(proposalId)),epoch(time),
-             requiredConfirmations(confirmations),proposed(std::move(rows)){}
+             epoch(time),requiredConfirmations(confirmations),
+             baseSnapshot(std::move(baseRows)),proposedSnapshot(std::move(proposalRows)),
+             proposed(std::move(rows)){}
     };
-    static std::string snapshotIdentity(const std::vector<ProductIntegerLedgerRow>& rows) {
+    static std::string rowSnapshotIdentity(const ProductIntegerLedgerRow& row) {
         std::ostringstream out;
-        for(const auto& row:rows) {
             out<<zhangProductLedgerIdentityFingerprint(row)<<"="<<row.integerValue
                <<":"<<row.lastConfirmed<<":"<<row.confirmationEpochs<<":"<<row.certified
                <<":"<<row.backendBasisGeneration<<":"<<row.phaseSegmentFingerprint
@@ -716,26 +729,43 @@ public:
                    <<proof->conditionalFailureBound;
                 for(const auto& parent:proof->parents)out<<std::quoted(parent?parent->id:"NULL");
             }
-        }
         return out.str();
     }
+    static std::string snapshotIdentity(const std::vector<ProductIntegerLedgerRow>& rows) {
+        std::ostringstream out;
+        for(const auto& row:rows) out<<rowSnapshotIdentity(row);
+        return out.str();
+    }
+    static bool sameSnapshot(const std::vector<ProductIntegerLedgerRow>& left,
+        const std::vector<ProductIntegerLedgerRow>& right) {
+        if(left.size()!=right.size()) return false;
+        for(std::size_t i=0;i<left.size();++i)
+            if(rowSnapshotIdentity(left[i])!=rowSnapshotIdentity(right[i])) return false;
+        return true;
+    }
     Preflight preflight(long int epoch,const std::vector<ProductIntegerLedgerRow>& candidates,
-        int confirmations,const std::string& root,const std::string& physicalEpoch) const {
+        int confirmations,const std::string& root,const std::string& physicalEpoch,
+        const std::function<void(const char*)>& stageProbe = {}) const {
         ProductIntegerLedger trial=*this;
-        auto result=trial.observe(epoch,candidates,confirmations);
+        auto result=trial.observe(epoch,candidates,confirmations,stageProbe);
         if(root.empty() || physicalEpoch.empty()) {
             result.valid=false;result.failureReason="R51_PREFLIGHT_IDENTITY_EMPTY";
         }
-        const auto base=snapshotIdentity(rows_),proposal=snapshotIdentity(trial.rows_);
-        return Preflight(std::move(result),root,physicalEpoch,base,proposal,epoch,confirmations,std::move(trial.rows_));
+		// Copies retain the exact immutable proof graph without materialising
+		// multi-gigabyte concatenated identity strings for the entire ledger.
+        auto base=rows_;
+        auto proposal=trial.rows_;
+		if (stageProbe) stageProbe("LEDGER_AFTER_SNAPSHOT_IDENTITY");
+        return Preflight(std::move(result),root,physicalEpoch,std::move(base),
+            std::move(proposal),epoch,confirmations,std::move(trial.rows_));
     }
     ZhangProductIntegerLedgerUpdate commit(const Preflight& receipt,
         const std::string& root,const std::string& physicalEpoch) {
         auto result=receipt.update;
         if(!zhangProductLedgerWriterCommitAuthorized(result)) return result;
         if(root!=receipt.root || physicalEpoch!=receipt.physicalEpoch ||
-           snapshotIdentity(rows_)!=receipt.baseIdentity ||
-           snapshotIdentity(receipt.proposed)!=receipt.proposedIdentity) {
+           !sameSnapshot(rows_,receipt.baseSnapshot) ||
+           !sameSnapshot(receipt.proposed,receipt.proposedSnapshot)) {
             result.valid=false;result.failureReason="R51_PREFLIGHT_RECEIPT_STALE";return result;
         }
         rows_=receipt.proposed;return result;

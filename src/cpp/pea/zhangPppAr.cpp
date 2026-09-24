@@ -11727,7 +11727,8 @@ void writeZhangInternalProducts(
                     const auto root=zhangR51NumericRoot(floatState.x,floatState.P);
                     const auto physicalEpoch=std::to_string(productCertification->backendBasisGeneration)+"|"+fixedState.time.to_string(0);
                     const auto receipt=ledger.preflight(static_cast<long int>(fixedState.time.bigTime),candidates,
-                        std::max(1,acsConfig.zhangPppAr.stabilization_epochs),root,physicalEpoch);
+                        std::max(1,acsConfig.zhangPppAr.stabilization_epochs),root,physicalEpoch,
+                        writerMemoryBoundary);
                     update=ledger.commit(receipt,root,physicalEpoch);
                     trace<<"\nZHANG_R51_LEDGER_PREFLIGHT time="<<fixedState.time.to_string(0)
                         <<" valid="<<receipt.update.valid<<" same_rows_commit=1 root="<<root;
