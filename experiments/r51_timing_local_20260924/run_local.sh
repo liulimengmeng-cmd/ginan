@@ -9,6 +9,11 @@ set -euo pipefail
   exit 2
 }
 run_root=${ZHANG_LOCAL_TIMING_RUN_ROOT:-/home/rx/GINAN/local_timing/r51_20260924_instrumented_01}
+run_timeout_seconds=${ZHANG_LOCAL_TIMING_TIMEOUT_SECONDS:-7200}
+case "$run_timeout_seconds" in
+  ''|*[!0-9]*) echo 'timeout must be a positive number of seconds' >&2; exit 2 ;;
+esac
+(( run_timeout_seconds > 0 )) || { echo 'timeout must be positive' >&2; exit 2; }
 case "$run_root" in
   /home/rx/GINAN/local_timing/*) ;;
   *) echo 'run root must be inside /home/rx/GINAN/local_timing' >&2; exit 2 ;;
@@ -48,7 +53,7 @@ exec runuser -u rx -- env \
   MKL_NUM_THREADS=1 \
   ZHANG_R51_AR_START_GPST_SECONDS=1405216800 \
   ZHANG_E29_RESTORE_BUNDLE="$restore" \
-  /usr/bin/time -v timeout --signal=TERM --kill-after=30s 7200s \
+  /usr/bin/time -v timeout --signal=TERM --kill-after=30s "${run_timeout_seconds}s" \
   "$binary" -q -y \
   "$config_root/zhang_global_2024199_180_base.yaml" \
   "$config_root/zhang_global_2024199_180_inputs.yaml" \
