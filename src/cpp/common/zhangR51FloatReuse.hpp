@@ -15,13 +15,27 @@ inline bool zhangR51AuditedFloatReuseAllowed(
         {"ZHANG_R51_ENABLE", "1"}, {"ZHANG_R51_RATIO_ONLY", "1"},
         {"ZHANG_R51_AR_START_GPST_SECONDS", "1405216800"},
         {"ZHANG_R49_FUSION_WEIGHT", "0.10"},
-        {"OPENBLAS_NUM_THREADS", "4"}, {"OMP_NUM_THREADS", "4"},
         {"MKL_NUM_THREADS", "1"}};
     for (const auto& [name, value] : required)
     {
         const auto it = environment.find(name);
         if (it == environment.end() || it->second != value) return false;
     }
+    const auto valueOf = [&](const char* name) -> std::string {
+        const auto it = environment.find(name);
+        return it == environment.end() ? "UNSET" : it->second;
+    };
+    // The source checkpoint itself remains pinned below.  A different target
+    // thread profile is an explicit experiment, not a general migration bypass.
+    const bool controlledEightOne =
+        valueOf("ZHANG_R51_REUSE_FLOAT_THREADS_8_1") == "1" &&
+        valueOf("OMP_NUM_THREADS") == "8" &&
+        valueOf("OPENBLAS_NUM_THREADS") == "1";
+    const bool originalFourFour =
+        valueOf("ZHANG_R51_REUSE_FLOAT_THREADS_8_1") == "UNSET" &&
+        valueOf("OMP_NUM_THREADS") == "4" &&
+        valueOf("OPENBLAS_NUM_THREADS") == "4";
+    if (!controlledEightOne && !originalFourFour) return false;
     return bundleSha == "ab397e655774da5c0a9632becd08fe171508b93ffeaf2dd7b04de899bae2182a"
         && binarySha == "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38"
         && configSha == "02bbaabbe2a836ec3dfc08d2ad206326c9dbddf41237692e0d3806b0043b764f"

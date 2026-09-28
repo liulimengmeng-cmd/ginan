@@ -1781,6 +1781,7 @@ int main(int argc, char** argv)
                 for (const char* name : {"ZHANG_R51_REUSE_FLOAT_20240717", "ZHANG_R51_ENABLE",
                         "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_AR_START_GPST_SECONDS",
                         "ZHANG_R49_FUSION_WEIGHT", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
+                        "ZHANG_R51_REUSE_FLOAT_THREADS_8_1",
                         "MKL_NUM_THREADS"})
                 {
                     const char* value = std::getenv(name);
@@ -1816,6 +1817,11 @@ int main(int argc, char** argv)
                 BOOST_LOG_TRIVIAL(info) << "R51_FLOAT_REUSE_AUDITED source_bundle_sha256=" << sourceSha
                     << " source_epoch=2024-07-17_01:59:30 target_binary_sha256=" << e29StartupBinarySha256
                     << " policy_change=RATIO_ONLY source_payload_unchanged=1";
+                if (environment["ZHANG_R51_REUSE_FLOAT_THREADS_8_1"] == "1")
+                    BOOST_LOG_TRIVIAL(warning)
+                        << "R51_FLOAT_REUSE_THREAD_PROFILE target=OMP8_OPENBLAS1"
+                        << " source=OMP4_OPENBLAS4 source_identity=PINNED"
+                        << " target_numerical_equivalence=UNVERIFIED";
             }
             const char* ratioReuseEnvironment = std::getenv("ZHANG_R51_REUSE_RATIO_20240717");
             if (ratioReuseEnvironment && std::string(ratioReuseEnvironment)=="1")

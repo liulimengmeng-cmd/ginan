@@ -112,6 +112,7 @@ add_custom_target(unit_tests
             phase_clock_osb_tests
             zhang_full_rank_tests
             zhang_checkpoint_infra0_tests
+            zhang_r51_float_reuse_contract_tests
             config_sanity_manager_tests
             epoch_tolerance_checker_tests
             ephemeris_time_delay_checker_tests
@@ -182,3 +183,6 @@ configure_unit_test(zhang_r51_entailment_tests)
 
 add_executable(zhang_r51_compatibility_tests unit/r51_compatibility_reference.cpp)
 configure_unit_test(zhang_r51_compatibility_tests)
+
+add_executable(zhang_r51_float_reuse_contract_tests unit/r51_float_reuse_contract.cpp)
+configure_unit_test(zhang_r51_float_reuse_contract_tests)
