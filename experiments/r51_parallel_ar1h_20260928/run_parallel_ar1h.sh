@@ -8,7 +8,7 @@ set -euo pipefail
   echo 'private mount namespace required' >&2; exit 2;
 }
 
-run_root=/home/rx/GINAN/local_timing/r51_20260928_parallel_ar1h_03
+run_root=/home/rx/GINAN/local_timing/r51_20260928_parallel_ar1h_04
 configured_output=/mnt/d/GINAN_R20/inputData/outputs/zhang_r51_satfix_ratio3_ar1h_2024199_180_20260918
 configured_checkpoints=/mnt/d/GINAN_R20/zhang_r51_satfix_ratio3_ar1h_2024199_180_20260918_checkpoints
 restore=/mnt/d/GINAN_R20/zhang_r51_ratio3_float2h_ar1h_2024199_180_20260917_checkpoints_source_before_ratioonly/E29-20240717015930-e240-rb06f1454a2e1
