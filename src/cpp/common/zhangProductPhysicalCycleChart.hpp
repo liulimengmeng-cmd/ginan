@@ -79,6 +79,7 @@ struct ZhangProductPhysicalCycleChart
 		{
 			*diagnostic={};
 			diagnostic->requested=physical;
+			diagnostic->delta=physical;
 		}
         auto fail=[&](const char* why) {if(reason) *reason=why;return false;};
         current=ZhangExactVector(columns);

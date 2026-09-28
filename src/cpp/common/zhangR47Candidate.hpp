@@ -49,3 +49,39 @@ inline bool zhangR47CandidateContractValid(const ZhangR47Candidate& c)
     const auto actual=zhangExactRowHermiteNormalForm(c.jointRows,c.jointValues);
     return expected.consistent and actual.consistent and expected.basis==actual.basis and expected.values==actual.values;
 }
+
+/** A writer may attach physical identities to a frozen candidate, but it may
+ * not substitute another frontend product chart or silently change an affine
+ * offset.  The exact q=Mx+c chart (including its completeness flag) is part
+ * of the delivery contract. */
+inline bool zhangR47CandidateProductChartMatches(
+    const ZhangR47Candidate& candidate,
+    const ZhangProductIntegerConstraintSet& delivered)
+{
+    const auto& frozen = candidate.productConsequences;
+    const auto ancestors = zhangDecisionRiskClosure(candidate.allDecisionParents);
+    const auto required = zhangDecisionRiskClosure(delivered.decisionProofs);
+    if (!ancestors.valid || !required.valid ||
+        frozen.fullJointProductMappingExact !=
+            delivered.fullJointProductMappingExact ||
+        frozen.system != delivered.system ||
+        frozen.firstObservable != delivered.firstObservable ||
+        frozen.secondObservable != delivered.secondObservable ||
+        frozen.referenceSatellite != delivered.referenceSatellite ||
+        frozen.coordinateSatellites != delivered.coordinateSatellites ||
+        frozen.fullJointProductNetworkRows !=
+            delivered.fullJointProductNetworkRows ||
+        frozen.fullJointProductAffineOffsets !=
+            delivered.fullJointProductAffineOffsets ||
+        frozen.networkRows != delivered.networkRows ||
+        frozen.networkIntegers != delivered.networkIntegers ||
+        frozen.jointProductRows != delivered.jointProductRows)
+        return false;
+    for (const auto& [id, proof] : required.atoms)
+    {
+        const auto found = ancestors.atoms.find(id);
+        if (found == ancestors.atoms.end() ||
+            found->second.get() != proof.get()) return false;
+    }
+    return true;
+}

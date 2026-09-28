@@ -1268,19 +1268,41 @@ bool mainOncePerEpoch(Network& pppNet, Network& ionNet, ReceiverMap& receiverMap
 
     // do per-station pre processing
     bool emptyEpoch = true;
+    std::vector<Receiver*> stationWork;
+    stationWork.reserve(receiverMap.size());
+    for(auto& [id,rec]:receiverMap)stationWork.push_back(&rec);
+    std::vector<unsigned char> hasObservations(stationWork.size());
+    std::vector<double> stationMs(stationWork.size());
+    const auto stationStarted=std::chrono::steady_clock::now();
 #ifdef ENABLE_PARALLELISATION
     Eigen::setNbThreads(1);
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic,1)
 #endif
-    for (int i = 0; i < receiverMap.size(); i++)
+    for (int i = 0; i < static_cast<int>(stationWork.size()); i++)
     {
-        auto rec_ptr_iterator = receiverMap.begin();
-        std::advance(rec_ptr_iterator, i);
-
-        auto& [id, rec] = *rec_ptr_iterator;
-        mainOncePerEpochPerStation(rec, pppNet, emptyEpoch, remoteState);
+        bool localEmpty=true;
+        const auto started=std::chrono::steady_clock::now();
+        mainOncePerEpochPerStation(*stationWork[i],pppNet,localEmpty,remoteState);
+        hasObservations[i]=!localEmpty;
+        stationMs[i]=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-started).count();
     }
     Eigen::setNbThreads(0);
+    emptyEpoch=std::none_of(hasObservations.begin(),hasObservations.end(),
+        [](unsigned char seen){return seen!=0;});
+    std::sort(stationMs.begin(),stationMs.end());
+    const auto stationQuantile=[&](double fraction) {
+        if(stationMs.empty())return 0.0;
+        return stationMs[static_cast<std::size_t>(fraction*(stationMs.size()-1))];
+    };
+    pppTrace<<"\nZHANG_FLOAT_PREPROCESS_WORK epoch="<<time.to_string(0)
+        <<" stations_seen="<<stationWork.size()
+        <<" nonempty_stations="<<std::count(hasObservations.begin(),hasObservations.end(),1)
+        <<" wall_ms="<<std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-stationStarted).count()
+        <<" station_ms_p50="<<stationQuantile(0.50)
+        <<" station_ms_p95="<<stationQuantile(0.95)
+        <<" station_ms_max="<<stationQuantile(1.0);
 
     if (emptyEpoch)
     {

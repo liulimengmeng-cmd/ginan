@@ -26,7 +26,8 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
 {
     ZhangR48ExactTimer productTimer("R48_PRODUCT_IMAGE",targets,dimension);
     ZhangR47ProductSearchFrame out;
-    if(targets.empty() || !zhangExactRectangularMatrix(targets,dimension) ||
+    if(targets.empty() || conditioners.size()!=values.size() ||
+       !zhangExactRectangularMatrix(targets,dimension) ||
        !zhangExactRectangularMatrix(conditioners,dimension)) return out;
     for(int c=0;c<dimension;++c)
     {
@@ -36,6 +37,11 @@ inline ZhangR47ProductSearchFrame zhangR47CompileProductSearchFrame(
         if(used) out.columns.push_back(c);
     }
     if(out.columns.empty()) {
+        // No physical column remains.  Zero rows are feasible only when every
+        // right-hand side is zero; do not let this fast path certify 0 = b.
+        for(const auto& value:values) if(value!=0) {
+            out.reason="AFFINE_QUOTIENT_INTEGER_CONFLICT";return out;
+        }
         out.affine=std::make_shared<const ZhangExactAffineIntegerQuotient>();
         out.valid=true;out.reason="ZERO_PRODUCT_IMAGE";return out;
     }

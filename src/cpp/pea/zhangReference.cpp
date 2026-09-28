@@ -5207,6 +5207,7 @@ bool zhangGraphIntegerContext(
     {
         context.arcVersions[edge] = history.arcVersion;
     }
+    context.signalArcVersions = stateIt->second.phaseArcVersions;
     context.initialized = true;
     return true;
 }

@@ -1,5 +1,9 @@
 #include <boost/test/unit_test.hpp>
+#include <numeric>
 #include "common/zhangProductPhysicalPullback.hpp"
+#include "common/zhangProductAffineRecovery.hpp"
+#include "common/zhangParallelProjection.hpp"
+#include "common/zhangParallelProductProjection.hpp"
 
 namespace {
 ZhangGraphBasis r47Graph(bool pivot)
@@ -84,6 +88,12 @@ BOOST_AUTO_TEST_CASE(r47_a_rectangular_private_subgraph_does_not_require_unimodu
         chords, {{chords[1],1}}, 2);
     BOOST_REQUIRE(result.valid);
     BOOST_CHECK(!result.available[0]);
+    BOOST_REQUIRE_EQUAL(result.diagnostics.size(), 1);
+    BOOST_CHECK(!result.diagnostics[0].requested.empty());
+    BOOST_CHECK(result.diagnostics[0].rebuilt != result.diagnostics[0].requested);
+    BOOST_CHECK(!result.diagnostics[0].delta.empty());
+    BOOST_REQUIRE_EQUAL(result.missingRequiredChords[0].size(), 1);
+    BOOST_CHECK(result.missingRequiredChords[0][0] == chords[0]);
     target.namedRelations[0].physicalArcCoefficients.begin()->second += 1;
     result = zhangPullbackProductPhysicalRelations(target, graph, versions,
         chords, {{chords[0],0},{chords[1],1}}, 2);
@@ -263,6 +273,23 @@ BOOST_AUTO_TEST_CASE(r47_c_immutable_candidate_rejects_dropped_conditioner_or_pa
     BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
     dropped=c; dropped.sourceIntegerParentCount=1;
     BOOST_CHECK(!zhangR47CandidateContractValid(dropped));
+
+    c.productConsequences.fullJointProductMappingExact=true;
+    c.productConsequences.fullJointProductNetworkRows={{1,0},{0,1}};
+    c.productConsequences.fullJointProductAffineOffsets={0,7};
+    c.productConsequences.networkRows=c.jointRows;
+    c.productConsequences.networkIntegers=c.jointValues;
+    c.productConsequences.jointProductRows={{1,0},{0,1}};
+    c.productConsequences.decisionProofs=c.allDecisionParents;
+    BOOST_REQUIRE(zhangR47CandidateProductChartMatches(
+        c,c.productConsequences));
+    auto changedChart=c.productConsequences;
+    changedChart.fullJointProductAffineOffsets[1]=8;
+    BOOST_CHECK(!zhangR47CandidateProductChartMatches(c,changedChart));
+    changedChart=c.productConsequences;
+    changedChart.decisionProofs={std::make_shared<const ZhangIntegerDecisionProof>(
+        ZhangIntegerDecisionProof{"other","integer","epoch",1e-4,{}})};
+    BOOST_CHECK(!zhangR47CandidateProductChartMatches(c,changedChart));
 }
 
 #include "common/zhangR47History.hpp"
@@ -337,6 +364,103 @@ BOOST_AUTO_TEST_CASE(r47_e_mixed_history_reduces_product_uncertainty_without_sea
     BOOST_CHECK_EQUAL(sparse.searchRank,1);BOOST_CHECK_EQUAL(sparse.columns[0],517);
     BOOST_CHECK_EQUAL(zhangExactAbs(sparse.imageGenerators[0][0]),3);
 }
+BOOST_AUTO_TEST_CASE(r47_e_direct_projection_reuses_only_the_same_feasible_domain)
+{
+    const ZhangExactMatrix held{{1,-1,0},{0,0,2}};
+    const ZhangExactVector values{1,4};
+    const auto domain=zhangR47CompileProductSearchFrame({{1,1,1}},held,values,3);
+    BOOST_REQUIRE(domain.valid);
+    const ZhangExactMatrix targets{{1,0,0},{0,1,0}};
+    const auto projected=zhangR49CompileTargetOnDomain(targets,domain,3);
+    const auto rebuilt=zhangR47CompileProductSearchFrame(targets,held,values,3);
+    BOOST_REQUIRE(projected.valid && rebuilt.valid);
+    BOOST_CHECK(projected.affine.get()==domain.affine.get());
+    BOOST_CHECK_EQUAL(projected.searchRank,rebuilt.searchRank);
+    BOOST_CHECK(projected.imageGenerators==rebuilt.imageGenerators);
+    BOOST_CHECK(projected.projector==rebuilt.projector);
+    BOOST_CHECK(projected.offsets==rebuilt.offsets);
+
+    // Appending an integer decision changes H and b. The old projected
+    // frame must not stand in for a newly solved affine domain.
+    auto extended=held;extended.push_back({1,0,0});
+    auto rhs=values;rhs.push_back(5);
+    const auto afterFix=zhangR47CompileProductSearchFrame(targets,extended,rhs,3);
+    BOOST_REQUIRE(afterFix.valid);
+    BOOST_CHECK_EQUAL(afterFix.searchRank,0);
+    BOOST_CHECK(afterFix.affine.get()!=domain.affine.get());
+    extended.push_back({1,0,0});rhs.push_back(6);
+    BOOST_CHECK(!zhangR47CompileProductSearchFrame(targets,extended,rhs,3).valid);
+
+    // Even the zero-column shortcut must reject an inconsistent RHS.
+    BOOST_CHECK(!zhangR47CompileProductSearchFrame({{0}},{{0}},{1},1).valid);
+    BOOST_CHECK(zhangR47CompileProductSearchFrame({{0}},{{0}},{0},1).valid);
+}
+BOOST_AUTO_TEST_CASE(r51_parallel_sparse_moments_equal_dense_reference)
+{
+    Eigen::MatrixXd a=Eigen::MatrixXd::Zero(96,160);
+    for(int r=0;r<a.rows();++r) {
+        a(r,(7*r)%a.cols())=1;
+        a(r,(7*r+19)%a.cols())=-2;
+    }
+    Eigen::MatrixXd root(160,160);
+    for(int r=0;r<root.rows();++r)
+    for(int c=0;c<root.cols();++c)
+        root(r,c)=r==c?2.0:(r+c)%13==0?0.01:0.0;
+    const Eigen::MatrixXd p=(root*root.transpose()).eval();
+    const ZhangParallelRowProjection projected(a);
+    BOOST_REQUIRE(projected.sparse);
+    const Eigen::MatrixXd cross=projected.multiply(p);
+    const Eigen::MatrixXd covariance=projected.covariance(cross);
+    const Eigen::VectorXd mean=Eigen::VectorXd::LinSpaced(160,-1,1);
+    BOOST_CHECK_SMALL((cross-a*p).cwiseAbs().maxCoeff(),1e-11);
+    BOOST_CHECK_SMALL((covariance-a*p*a.transpose()).cwiseAbs().maxCoeff(),1e-10);
+    BOOST_CHECK_SMALL((projected.multiply(mean)-a*mean).cwiseAbs().maxCoeff(),1e-12);
+
+    const Eigen::MatrixXd dense=Eigen::MatrixXd::Constant(4,4,1);
+    const ZhangParallelRowProjection fallback(dense);
+    const Eigen::MatrixXd identity=Eigen::MatrixXd::Identity(4,4);
+    BOOST_CHECK(!fallback.sparse);
+    BOOST_CHECK_SMALL((fallback.covariance(fallback.multiply(identity))
+        -dense*dense.transpose()).cwiseAbs().maxCoeff(),1e-12);
+
+    const Eigen::MatrixXd whitened=(a*root).eval();
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigen(
+        whitened*whitened.transpose());
+    BOOST_REQUIRE(eigen.info()==Eigen::Success);
+    const double tolerance=std::max(1e-14,1e-12*eigen.eigenvalues().maxCoeff());
+    const auto batched=zhangR51ConstraintRightBasis(whitened,
+        eigen.eigenvectors(),eigen.eigenvalues(),tolerance);
+    Eigen::MatrixXd serialBasis(whitened.cols(),batched.cols());
+    int column=0;
+    for(int i=0;i<eigen.eigenvalues().size();++i)
+        if(eigen.eigenvalues()(i)>tolerance)
+            serialBasis.col(column++)=whitened.transpose()*eigen.eigenvectors().col(i)
+                /std::sqrt(eigen.eigenvalues()(i));
+    BOOST_REQUIRE_EQUAL(column,batched.cols());
+    BOOST_CHECK_SMALL((batched-serialBasis).cwiseAbs().maxCoeff(),1e-11);
+}
+BOOST_AUTO_TEST_CASE(r51_parallel_exact_product_projection_equals_serial_order)
+{
+    const int products=48,dimension=64,generators=128;
+    ZhangExactMatrix targets(products,ZhangExactVector(dimension));
+    ZhangExactMatrix kernel(generators,ZhangExactVector(dimension));
+    std::vector<int> columns(dimension);
+    std::iota(columns.begin(),columns.end(),0);
+    for(int r=0;r<products;++r)
+    for(int c=0;c<dimension;++c)
+        if((r+3*c)%4!=0)targets[r][c]=(r+c)%7-3;
+    for(int k=0;k<generators;++k)
+    for(int c=0;c<dimension;++c)kernel[k][c]=(k+2*c)%5-2;
+    const auto projected=zhangProjectTargetsOnKernel(targets,columns,kernel);
+    ZhangExactMatrix serial(generators,ZhangExactVector(products));
+    for(int r=0;r<products;++r)
+    for(int k=0;k<generators;++k)
+    for(int c=0;c<dimension;++c)
+        serial[k][r]+=targets[r][columns[c]]*kernel[k][c];
+    BOOST_CHECK(projected==serial);
+    BOOST_CHECK_THROW(zhangProjectTargetsOnKernel(targets,{dimension},kernel),
+        std::invalid_argument);
+}
 BOOST_AUTO_TEST_CASE(r47_e_actual_2100_search_domain_has_22_dimensions_after_missing_arc_elimination)
 {
     const auto f=r47ReadFixture("availability_2100_exact_cancellation.json","full_targets");
@@ -363,4 +487,76 @@ BOOST_AUTO_TEST_CASE(r47_e_official_round_receipts_account_for_all_attempts)
     BOOST_CHECK_SMALL(result.acceptedRoundRisk[0]-result.reservedRisk,1e-15);
     BOOST_CHECK_LE(result.reservedRisk,1e-4);
     BOOST_CHECK_EQUAL(result.status,"COMPLETE");
+}
+
+BOOST_AUTO_TEST_CASE(r51_product_affine_recovery_preserves_original_target)
+{
+    const ZhangExactMatrix current{{1,-1,0}};
+    const ZhangExactMatrix history{{0,1,-1}};
+    const ZhangExactVector values{7};
+    const ZhangExactVector target{1,0,-1};
+    const auto recovery=zhangRecoverProductAffineTarget(
+        current,history,values,target);
+    BOOST_REQUIRE_MESSAGE(recovery.valid,recovery.reason);
+    BOOST_CHECK(recovery.posteriorRow==ZhangExactVector({1}));
+    BOOST_CHECK_EQUAL(recovery.offset,7);
+    BOOST_CHECK(zhangVerifyProductAffineRecovery(
+        current,history,values,target,recovery));
+    auto corrupted=recovery;
+    corrupted.offset=8;
+    BOOST_CHECK(!zhangVerifyProductAffineRecovery(
+        current,history,values,target,corrupted));
+}
+
+BOOST_AUTO_TEST_CASE(r51_product_affine_recovery_checks_integer_domain_and_rational_history)
+{
+    const auto rational=zhangRecoverProductAffineTarget(
+        {},{{2}},{2},{1});
+    BOOST_REQUIRE_MESSAGE(rational.valid,rational.reason);
+    BOOST_CHECK_EQUAL(rational.offset,1);
+    BOOST_CHECK_EQUAL(rational.historyDenominator,2);
+    BOOST_CHECK_EQUAL(rational.historyNumerators[0],1);
+    BOOST_CHECK(zhangVerifyProductAffineRecovery(
+        {},{{2}},{2},{1},rational));
+    const auto twoPivots=zhangRecoverProductAffineTarget(
+        {},{{2,0},{0,3}},{4,6},{1,1});
+    BOOST_REQUIRE_MESSAGE(twoPivots.valid,twoPivots.reason);
+    BOOST_CHECK_EQUAL(twoPivots.offset,4);
+    BOOST_CHECK(zhangVerifyProductAffineRecovery(
+        {},{{2,0},{0,3}},{4,6},{1,1},twoPivots));
+    const auto redundantCurrent=zhangRecoverProductAffineTarget(
+        {{1,0}},{{2,0},{0,3}},{4,6},{1,1});
+    BOOST_REQUIRE_MESSAGE(redundantCurrent.valid,redundantCurrent.reason);
+    BOOST_CHECK(redundantCurrent.posteriorRow==ZhangExactVector({0}));
+    BOOST_CHECK_EQUAL(redundantCurrent.offset,4);
+    BOOST_CHECK(!zhangRecoverProductAffineTarget({},{{2}},{1},{1}).valid);
+    BOOST_CHECK(!zhangRecoverProductAffineTarget({{2}},{},{},{1}).valid);
+    BOOST_CHECK(!zhangRecoverProductAffineTarget(
+        {{1,0,0}},{{0,1,0}},{7},{0,0,1}).valid);
+}
+
+BOOST_AUTO_TEST_CASE(r51_alternative_support_requires_a_constant_physical_bridge)
+{
+    // The alternative support observes the same satellite target only after
+    // the old integer relation supplies a constant gauge offset.  A live
+    // but unfixed direction is not allowed to masquerade as that offset.
+    const ZhangExactVector desired{1,0,-1,0};
+    const ZhangExactVector alternative{1,-1,0,0};
+    ZhangExactVector difference(desired.size());
+    for (int i=0;i<difference.size();++i)
+        difference[i]=desired[i]-alternative[i];
+    const ZhangExactMatrix history{{0,1,-1,0}};
+    const auto bridge=zhangRecoverProductAffineTarget(
+        {},history,{7},difference);
+    BOOST_REQUIRE_MESSAGE(bridge.valid,bridge.reason);
+    BOOST_CHECK(bridge.posteriorRow.empty());
+    BOOST_CHECK_EQUAL(bridge.offset,7);
+    BOOST_CHECK(zhangVerifyProductAffineRecovery(
+        {},history,{7},difference,bridge));
+    BOOST_CHECK(!zhangRecoverProductAffineTarget(
+        {},{}, {},difference).valid);
+    auto crossComponent=difference;
+    crossComponent[3]=1;
+    BOOST_CHECK(!zhangRecoverProductAffineTarget(
+        {},history,{7},crossComponent).valid);
 }

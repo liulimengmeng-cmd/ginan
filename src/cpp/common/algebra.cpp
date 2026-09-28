@@ -1,5 +1,6 @@
 #include "common/algebra.hpp"
 #include <algorithm>
+#include <chrono>
 #include <boost/math/distributions/chi_squared.hpp>
 #include <boost/math/distributions/normal.hpp>
 #include <sstream>
@@ -3300,6 +3301,16 @@ KFFilterResult KFState::filterKalman(
     DOCS_REFERENCE(Kalman_Filter__);
 
     const bool authoritativePppTransaction = suffix == "/PPP";
+    const auto filterStarted=std::chrono::steady_clock::now();
+    const auto logFloatFilterPhase=[&](const char* phase,
+        std::chrono::steady_clock::time_point started)
+    {
+        if(!authoritativePppTransaction)return;
+        trace<<"\nZHANG_FLOAT_FILTER_DETAIL phase="<<phase
+             <<" epoch="<<kfMeas.time.to_string(0)
+             <<" elapsed_ms="<<std::chrono::duration<double,std::milli>(
+                 std::chrono::steady_clock::now()-started).count();
+    };
     lastFactorTransactionFailureReason.clear();
     if (authoritativePppTransaction)
     {
@@ -3318,8 +3329,10 @@ KFFilterResult KFState::filterKalman(
     // Save all mutable filter metadata exactly once.  For /PPP, transfer the
     // large x/P/key snapshot into the transaction so rollback and factor replay
     // share the same storage instead of duplicating a 4k-5k state covariance.
+    const auto snapshotStarted=std::chrono::steady_clock::now();
     KFState_ operationEntry = static_cast<const KFState_&>(*this);
     KFMeas  measurementEntry = kfMeas;
+    logFloatFilterPhase("TRANSACTION_SNAPSHOT",snapshotStarted);
 
     KFMeasurementTransaction transaction;
     transaction.time = kfMeas.time == GTime::noTime() ? time : kfMeas.time;
@@ -3429,6 +3442,7 @@ KFFilterResult KFState::filterKalman(
 
     prefitRatios = VectorXd::Zero(x.rows());
 
+    const auto prefitStarted=std::chrono::steady_clock::now();
     for (auto& [id, fc] : filterChunkMap)
     {
         if (fc.numH <= 0 || fc.numX <= 0)
@@ -3529,12 +3543,15 @@ KFFilterResult KFState::filterKalman(
               << "Sum-of-squared test statistics (prefit): " << testStatistics.sumOfSquaresPre
               << "\n";
     }
+    logFloatFilterPhase("PREFIT_QC",prefitStarted);
 
+    const auto posteriorCopyStarted=std::chrono::steady_clock::now();
     VectorXd xp = x;
     MatrixXd Pp = P;
     dx          = VectorXd::Zero(x.rows());
 
     postfitRatios = VectorXd::Zero(x.rows());
+    logFloatFilterPhase("POSTERIOR_WORK_COPY",posteriorCopyStarted);
 
     statisticsMap["States"] = x.rows();
     BOOST_LOG_TRIVIAL(info) << " ------- FILTERING BY CHUNK " << filterChunkMap.size()
@@ -3582,6 +3599,7 @@ KFFilterResult KFState::filterKalman(
             activeChunks.empty() ? "NO_ACTIVE_FILTER_CHUNKS" : "NO_POSTFIT_SOLVE_ITERATIONS");
     }
 
+    const auto firstSolveStarted=std::chrono::steady_clock::now();
     if (postfitOpts.max_iterations > 0)
     {
         bool parallelChunks = activeChunks.size() > 1;
@@ -3614,7 +3632,9 @@ KFFilterResult KFState::filterKalman(
             result.modelGeneration = transaction.modelGeneration;
         }
     }
+    logFloatFilterPhase("PARALLEL_FIRST_CHUNK_SOLVE",firstSolveStarted);
 
+    const auto postfitStarted=std::chrono::steady_clock::now();
     for (int c = 0; c < activeChunks.size(); c++)
     {
         auto& fc = *activeChunks[c];
@@ -3792,7 +3812,9 @@ KFFilterResult KFState::filterKalman(
         testStatistics.sumOfSquaresPost += statistics.sumOfSquares;
         testStatistics.averageRatioPost += statistics.averageRatio / filterChunkMap.size();
     }
+    logFloatFilterPhase("POSTFIT_QC_AND_RESOLVE",postfitStarted);
 
+    const auto reconcileStarted=std::chrono::steady_clock::now();
     bool modelSolveMismatch = false;
     for (std::size_t c = 0; c < chunkSolveGenerations.size(); c++)
     {
@@ -3862,6 +3884,7 @@ KFFilterResult KFState::filterKalman(
     {
         transaction.solveGeneration = transaction.modelGeneration;
     }
+    logFloatFilterPhase("TERMINAL_RECONCILIATION",reconcileStarted);
 
     if (postfitOpts.sigma_check || postfitOpts.omega_test)
         trace << "\n"
@@ -3945,6 +3968,7 @@ KFFilterResult KFState::filterKalman(
         mongoTestStat(*this, testStatistics);
     }
 
+    const auto commitStarted=std::chrono::steady_clock::now();
     const std::uint64_t beforeCommitSequence = authoritativePppTransaction
         ? transaction.provisionalCommitSequence
         : factorCommitSequence;
@@ -4121,6 +4145,8 @@ KFFilterResult KFState::filterKalman(
 
     initFilterEpoch(trace);
     activeMeasurementTransaction = nullptr;
+    logFloatFilterPhase("COMMIT_AND_OUTPUT",commitStarted);
+    logFloatFilterPhase("TOTAL",filterStarted);
     return KFFilterResult::COMMITTED;
 }
 

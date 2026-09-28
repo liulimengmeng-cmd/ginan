@@ -9573,9 +9573,9 @@ BOOST_AUTO_TEST_CASE(e29_checkpoint_rejects_corruption_and_provenance_drift)
 	auto provenanceResult = readZhangCheckpointBundle(
 		file.path.string(), wrongExpectations, ignored);
 	BOOST_CHECK(!provenanceResult.valid);
-	BOOST_CHECK_EQUAL(
-		provenanceResult.failureReason,
-		"CHECKPOINT_PROVENANCE_MISMATCH");
+	BOOST_CHECK(
+		provenanceResult.failureReason.starts_with(
+			"CHECKPOINT_PROVENANCE_MISMATCH:CONFIG_SHA256:"));
 
 	std::fstream stream(
 		file.path, std::ios::binary | std::ios::in | std::ios::out);

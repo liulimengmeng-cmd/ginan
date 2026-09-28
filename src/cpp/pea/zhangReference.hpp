@@ -27,6 +27,9 @@ struct ZhangGraphIntegerContext
     ZhangGraphBasis                  basis;
     ZhangGraphBasis                  productBasis;
     std::map<ZhangGraphEdge, int>    arcVersions;
+    // Read-only diagnostic identity. Existing checkpoint integer rows retain
+    // their edge-version schema until an explicit migration is implemented.
+    std::map<ZhangGraphEdge, std::map<int, int>> signalArcVersions;
     int                              eventId = 0;
     int                              productDatumVersion = 0;
     int                              representationVersion = 0;

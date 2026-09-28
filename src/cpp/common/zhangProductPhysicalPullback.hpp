@@ -11,6 +11,8 @@ struct ZhangProductPhysicalPullback
     ZhangExactMatrix posteriorRows;
     std::vector<bool> available;
     std::vector<std::string> reasons;
+    std::vector<ZhangPhysicalProjectionDiagnostic> diagnostics;
+    std::vector<std::vector<ZhangGraphEdge>> missingRequiredChords;
     std::string failureReason;
 };
 
@@ -26,7 +28,9 @@ inline ZhangProductPhysicalPullback zhangPullbackProductPhysicalRelations(
     ZhangProductPhysicalCycleChart complete, posterior;
     complete.columns = authoritativeChords.size();
     posterior.columns = posteriorSize;
-    const std::string signal = std::to_string(static_cast<int>(target.observable));
+    // Physical identities must use the same signal spelling as the history
+    // ledger and the writer; numeric enum labels cannot join those domains.
+    const std::string signal = enum_to_string(target.observable);
     for (int c = 0; c < complete.columns; ++c)
     {
         if (!complete.add(c, signal, authoritativeChords[c], authoritative, versions))
@@ -66,11 +70,26 @@ inline ZhangProductPhysicalPullback zhangPullbackProductPhysicalRelations(
             out.failureReason = "INTENDED_TARGET_NOT_IN_AUTHORITATIVE_CHART:" + reason;
             return out;
         }
-        const bool available = intended.empty() || posterior.project(intended, actual, &reason);
+        ZhangPhysicalProjectionDiagnostic diagnostic;
+        const bool available = intended.empty() ||
+            posterior.project(intended, actual, &reason);
+        std::vector<ZhangGraphEdge> missingChords;
+        if (!available)
+        {
+            // The full coefficient maps are needed only on a failed target;
+            // avoid copying them for every satellite on the hot path.
+            posterior.project(intended, actual, &reason, &diagnostic);
+            for (int c = 0; c < complete.columns; ++c)
+                if (full[c] != 0 &&
+                    !posteriorColumns.contains(authoritativeChords[c]))
+                    missingChords.push_back(authoritativeChords[c]);
+        }
         relation.currentCycleCoefficients = std::move(full);
         out.posteriorRows.push_back(std::move(actual));
         out.available.push_back(available);
         out.reasons.push_back(reason);
+        out.diagnostics.push_back(std::move(diagnostic));
+        out.missingRequiredChords.push_back(std::move(missingChords));
     }
     target.namedRelations = std::move(rebound);
     target.currentChords = authoritativeChords;

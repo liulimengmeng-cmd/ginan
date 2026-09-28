@@ -1,8 +1,11 @@
 #include "common/zhangR51PhysicalImage.hpp"
+#include "common/zhangParallelProjection.hpp"
+#include "common/zhangParallelProductProjection.hpp"
 #include "common/zhangR49PosteriorWorkspace.hpp"
 #include <chrono>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 
@@ -148,6 +151,68 @@ static MatrixXd condition(ZhangR49PosteriorWorkspace& workspace, const MatrixXd&
 }
 int main(int argc,char** argv) {
  testSparseSurvivingLattice();
+ if(argc>=2 && std::string(argv[1])=="--parallel-product") {
+  const int generators=argc>=3?std::stoi(argv[2]):256;
+  const int products=argc>=4?std::stoi(argv[3]):32;
+  const int dimension=argc>=5?std::stoi(argv[4]):256;
+  require(generators>0 && products>0 && dimension>0,
+   "invalid product projection dimensions");
+  ZhangExactMatrix targets(products,ZhangExactVector(dimension));
+  ZhangExactMatrix kernel(generators,ZhangExactVector(dimension));
+  std::vector<int> columns(dimension);std::iota(columns.begin(),columns.end(),0);
+  for(int r=0;r<products;++r)for(int c=0;c<dimension;++c)
+   if((r+3*c)%13==0)targets[r][c]=(r+c)%5-2;
+  for(int k=0;k<generators;++k)for(int c=0;c<dimension;++c)
+   kernel[k][c]=(k+2*c)%5-2;
+  ZhangExactMatrix serial(generators,ZhangExactVector(products)),parallel;
+  const double oldSeconds=seconds([&] {
+   for(int r=0;r<products;++r)for(int k=0;k<generators;++k)
+    for(int c=0;c<dimension;++c)
+     serial[k][r]+=targets[r][columns[c]]*kernel[k][c];
+  });
+  const double fastSeconds=seconds([&] {
+   parallel=zhangProjectTargetsOnKernel(targets,columns,kernel);
+  });
+  require(serial==parallel,"parallel product projection mismatch");
+  std::cout<<"PARALLEL_PRODUCT_BENCH products="<<products
+   <<" columns="<<dimension<<" generators="<<generators
+   <<" workers_max="<<zhangR51ParallelThreads()
+   <<" dense_s="<<oldSeconds<<" sparse_parallel_s="<<fastSeconds
+   <<" speedup="<<oldSeconds/fastSeconds<<" exact_equal=1\n";
+  return 0;
+ }
+ if(argc>=2 && std::string(argv[1])=="--parallel-kf") {
+  const int n=argc>=3?std::stoi(argv[2]):1024;
+  const int m=argc>=4?std::stoi(argv[3]):384;
+  require(n>0 && m>0,"invalid sparse projection dimensions");
+  MatrixXd a=MatrixXd::Zero(m,n),p=MatrixXd::Identity(n,n)*2;
+  for(int r=0;r<m;++r)for(int k=0;k<3;++k)
+   a(r,(r*13+k*71)%n)+=k==1?-1.0:1.0;
+  for(int i=0;i<n;++i)for(int j=0;j<n;++j)
+   p(i,j)+=0.001*((i%7)+1)*((j%7)+1);
+  MatrixXd referenceCross,referenceCov,fastCross,fastCov;
+  const double oldSeconds=seconds([&] {
+   referenceCross=a*p;
+   referenceCov=(0.5*(referenceCross*a.transpose()+a*referenceCross.transpose())).eval();
+  });
+  std::size_t nonzeros=0;
+  bool sparse=false;
+  const double fastSeconds=seconds([&] {
+   const ZhangParallelRowProjection projection(a);
+   nonzeros=projection.nonzeros;
+   sparse=projection.sparse;
+   fastCross=projection.multiply(p);
+   fastCov=projection.covariance(fastCross);
+  });
+  const double error=std::max((referenceCross-fastCross).cwiseAbs().maxCoeff(),
+   (referenceCov-fastCov).cwiseAbs().maxCoeff());
+  require(sparse && error<1e-9,"parallel sparse projection mismatch");
+  std::cout<<"PARALLEL_KF_BENCH rows="<<m<<" columns="<<n
+   <<" nonzeros="<<nonzeros<<" workers_max="<<zhangR51ParallelThreads()
+   <<" dense_s="<<oldSeconds<<" sparse_s="<<fastSeconds
+   <<" speedup="<<oldSeconds/fastSeconds<<" max_abs_error="<<error<<"\n";
+  return 0;
+ }
  if(argc>=2 && std::string(argv[1])=="--projection") {
   const int m=argc>=3?std::stoi(argv[2]):400;
   const int n=m/2+72;

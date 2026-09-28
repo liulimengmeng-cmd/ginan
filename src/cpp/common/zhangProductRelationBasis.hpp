@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "common/zhangIntegerAudit.hpp"
+#include "common/zhangIntegerDecisionProof.hpp"
 #include "common/zhangWholeProductLattice.hpp"
 
 /** One named satellite-minus-reference product relation, independently
@@ -100,6 +101,12 @@ struct ZhangProductRelationBasis
     std::string                             privatePublicationGate;
     Eigen::MatrixXd                         transform;
     ZhangExactVector                        affineOffsets;
+    // Accepted history decisions used to replace an unavailable physical
+    // target by an affine row on the current posterior.  An algebraic
+    // entailment alone is never a publication certificate.
+    ZhangDecisionProofs                     affineRecoveryParents;
+    std::vector<bool>                       namedAffineRecovered;
+    std::vector<bool>                       namedAlternativeSupportRecovered;
     int                                     fullTargetRank = 0;
     int                                     mappableTargetRank = 0;
     int                                     primitiveRank = 0;

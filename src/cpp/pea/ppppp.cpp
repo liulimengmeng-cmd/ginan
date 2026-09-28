@@ -3,10 +3,14 @@
 #include "pea/ppp.hpp"
 #include "pea/zhangReference.hpp"
 #include "pea/zhangPppAr.hpp"
+#include <algorithm>
+#include <chrono>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -35,6 +39,29 @@ using std::map;
 using std::string;
 using std::stringstream;
 using std::tuple;
+
+class ZhangFloatPhaseTimer
+{
+    Trace& trace;
+    std::string phase,epoch;
+    std::chrono::steady_clock::time_point start=std::chrono::steady_clock::now();
+    double children=0;
+    ZhangFloatPhaseTimer* parent;
+    inline static thread_local ZhangFloatPhaseTimer* current=nullptr;
+public:
+    ZhangFloatPhaseTimer(Trace& t,std::string p,std::string e)
+        :trace(t),phase(std::move(p)),epoch(std::move(e)),parent(current)
+    {current=this;}
+    ~ZhangFloatPhaseTimer()
+    {
+        const double ms=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-start).count();
+        current=parent;if(parent)parent->children+=ms;
+        trace<<"\nZHANG_FLOAT_PHASE_TIMER phase="<<phase<<" epoch="<<std::quoted(epoch)
+             <<" inclusive_ms="<<ms<<" exclusive_ms="<<std::max(0.0,ms-children)
+             <<" root="<<(parent==nullptr);
+    }
+};
 
 static void outputZhangPureObservationRank(
     Trace&           trace,
@@ -1999,17 +2026,25 @@ bool ppp(
 )
 {
     DOCS_REFERENCE(Main_Filter__);
-
-    updateFilter(trace, receiverMap, kfState);
-    configureZhangE18FactorCapture(kfState);
-    configureZhangL1MeasurementReplayTransitionCapture(kfState);
+    const std::string floatEpoch=tsync.to_string(0);
+    ZhangFloatPhaseTimer floatTimer(trace,"FLOAT_TOTAL",floatEpoch);
+    {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_FILTER_PREPARE",floatEpoch);
+        updateFilter(trace, receiverMap, kfState);
+        configureZhangE18FactorCapture(kfState);
+        configureZhangL1MeasurementReplayTransitionCapture(kfState);
+    }
 
     // add process noise and dynamics to existing states as a prediction of current state
     if (kfState.assume_linearity == false)
     {
         BOOST_LOG_TRIVIAL(info) << " ------- DOING STATE TRANSITION       --------" << "\n";
 
-        if (!kfState.stateTransition(trace, tsync))
+        const bool transitioned=[&]() {
+            ZhangFloatPhaseTimer timer(trace,"FLOAT_PRIOR_TRANSITION",floatEpoch);
+            return kfState.stateTransition(trace, tsync);
+        }();
+        if (!transitioned)
         {
             trace << "\nPPP AUTHORITATIVE PREDICTION TRANSACTION REJECTED"
                   << " reason=" << kfState.lastFactorTransactionFailureReason;
@@ -2034,52 +2069,71 @@ bool ppp(
 
     // prepare a map of lists of measurements for use below
     map<string, KFMeasEntryList> receiverKFEntryListMap;
-    for (auto& [id, rec] : receiverMap)
+    std::vector<std::pair<Receiver*,KFMeasEntryList*>> measurementWork;
     {
-        receiverKFEntryListMap[rec.id] = KFMeasEntryList();
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_RECEIVER_WORK_INDEX",floatEpoch);
+        measurementWork.reserve(receiverMap.size());
+        for (auto& [id, rec] : receiverMap)
+        {
+            auto [it,inserted]=receiverKFEntryListMap.try_emplace(rec.id);
+            measurementWork.emplace_back(&rec,&it->second);
+        }
     }
 
     {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_RECEIVER_MEASUREMENTS",floatEpoch);
         BOOST_LOG_TRIVIAL(info) << " ------- CALCULATING PPP MEASUREMENTS --------" << "\n";
-
+        std::vector<double> stationMs(measurementWork.size());
         // calculate the measurements for each receiver
 #ifdef ENABLE_PARALLELISATION
         Eigen::setNbThreads(1);
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic,1)
 #endif
-        for (int i = 0; i < receiverMap.size(); i++)
+        for (int i = 0; i < static_cast<int>(measurementWork.size()); i++)
         {
-            auto recIterator = receiverMap.begin();
-            std::advance(recIterator, i);
-
-            auto& [id, rec] = *recIterator;
+            auto& rec=*measurementWork[i].first;
 
             if (rec.ready == false || rec.obsList.empty())
             {
                 continue;
             }
-
-            auto& kfMeasEntryList = receiverKFEntryListMap[rec.id];
-
-            perRecMeasurements(trace, rec, receiverMap, kfMeasEntryList, kfState, remoteState);
+            const auto started=std::chrono::steady_clock::now();
+            perRecMeasurements(trace, rec, receiverMap,*measurementWork[i].second,
+                kfState, remoteState);
+            stationMs[i]=std::chrono::duration<double,std::milli>(
+                std::chrono::steady_clock::now()-started).count();
         }
         Eigen::setNbThreads(0);
+        std::erase_if(stationMs,[](double ms){return ms<=0;});
+        std::sort(stationMs.begin(),stationMs.end());
+        const auto quantile=[&](double fraction) {
+            if(stationMs.empty())return 0.0;
+            return stationMs[static_cast<std::size_t>(fraction*(stationMs.size()-1))];
+        };
+        trace<<"\nZHANG_FLOAT_STATION_WORK epoch="<<floatEpoch
+             <<" active_stations="<<stationMs.size()
+             <<" station_ms_sum="<<std::accumulate(stationMs.begin(),stationMs.end(),0.0)
+             <<" station_ms_p50="<<quantile(0.50)
+             <<" station_ms_p95="<<quantile(0.95)
+             <<" station_ms_max="<<quantile(1.0);
     }
 
     // combine all lists of measurements into a single list
     KFMeasEntryList kfMeasEntryList;
-    for (auto& [rec, receiverKFEntryList] : receiverKFEntryListMap)
-        for (auto& kfMeasEntry : receiverKFEntryList)
-        {
-            if (kfMeasEntry.valid)
+    {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_MEASUREMENT_MERGE",floatEpoch);
+        for (auto& [rec, receiverKFEntryList] : receiverKFEntryListMap)
+            for (auto& kfMeasEntry : receiverKFEntryList)
             {
-                kfMeasEntryList.push_back(std::move(kfMeasEntry));
+                if (kfMeasEntry.valid)
+                    kfMeasEntryList.push_back(std::move(kfMeasEntry));
             }
-        }
+    }
 
     KFMeasEntryList zhangPureObservationEntries;
     if (acsConfig.zhangFullRank.enable && acsConfig.zhangFullRank.output_diagnostics)
     {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_PURE_OBSERVATION_COPY",floatEpoch);
         for (auto& entry : kfMeasEntryList)
         {
             if (entry.obsKey.type == KF::CODE_MEAS ||
@@ -2090,17 +2144,21 @@ bool ppp(
         }
     }
 
-    pppPseudoObs(trace, receiverMap, kfState, kfMeasEntryList);
-
-    if (acsConfig.pppOpts.merge_correlated_states)
     {
-        mergeCorrelated(trace, kfState, kfMeasEntryList);
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_PSEUDO_OBSERVATIONS",floatEpoch);
+        pppPseudoObs(trace, receiverMap, kfState, kfMeasEntryList);
+        if (acsConfig.pppOpts.merge_correlated_states)
+            mergeCorrelated(trace, kfState, kfMeasEntryList);
     }
 
     // use state transition to initialise new state elements
     BOOST_LOG_TRIVIAL(info) << " ------- DOING STATE TRANSITION       --------" << "\n";
 
-    if (!kfState.stateTransition(trace, tsync))
+    const bool initialised=[&]() {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_STATE_INITIALISATION",floatEpoch);
+        return kfState.stateTransition(trace, tsync);
+    }();
+    if (!initialised)
     {
         trace << "\nPPP AUTHORITATIVE INITIALISATION TRANSACTION REJECTED"
               << " reason=" << kfState.lastFactorTransactionFailureReason;
@@ -2119,27 +2177,33 @@ bool ppp(
         );
     }
 
-    outputZhangPureObservationRank(trace, kfState, zhangPureObservationEntries);
-
-    std::sort(
-        kfMeasEntryList.begin(),
-        kfMeasEntryList.end(),
-        [](KFMeasEntry& a, KFMeasEntry& b) { return a.obsKey < b.obsKey; }
-    );
-
-    KFMeas kfMeas(kfState, kfMeasEntryList, tsync);
-
-    pppLinearCombinations(kfMeas, kfState);
-
-    if (acsConfig.explain_measurements)
     {
-        explainMeasurements(trace, kfMeas, kfState);
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_MEASUREMENT_ORDER",floatEpoch);
+        outputZhangPureObservationRank(trace, kfState, zhangPureObservationEntries);
+        std::sort(
+            kfMeasEntryList.begin(),
+            kfMeasEntryList.end(),
+            [](KFMeasEntry& a, KFMeasEntry& b) { return a.obsKey < b.obsKey; }
+        );
     }
 
-    alternatePostfits(trace, kfMeas, kfState);
+    KFMeas kfMeas=[&]() {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_MEASUREMENT_MATRIX",floatEpoch);
+        KFMeas result(kfState,kfMeasEntryList,tsync);
+        pppLinearCombinations(result,kfState);
+        return result;
+    }();
+
+    {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_PRE_FILTER_DIAGNOSTICS",floatEpoch);
+        if (acsConfig.explain_measurements)
+            explainMeasurements(trace, kfMeas, kfState);
+        alternatePostfits(trace, kfMeas, kfState);
+    }
 
     if (kfState.lsqRequired)
     {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_LSQ_INITIALISATION",floatEpoch);
         BOOST_LOG_TRIVIAL(info) << "-------INITIALISING PPPPP USING LEAST SQUARES--------" << "\n";
 
         string suffix = "/LSQ";
@@ -2156,7 +2220,10 @@ bool ppp(
     map<string, FilterChunk>     filterChunkMap;
     map<string, PooledTraceFile> traceList;  // keep in large scope as we're using pointers
 
-    chunkFilter(trace, kfState, kfMeas, receiverMap, filterChunkMap, traceList);
+    {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_CHUNK_SETUP",floatEpoch);
+        chunkFilter(trace, kfState, kfMeas, receiverMap, filterChunkMap, traceList);
+    }
 
     BOOST_LOG_TRIVIAL(info) << " ------- DOING PPPPP KALMAN FILTER    --------" << "\n";
 
@@ -2165,13 +2232,11 @@ bool ppp(
         acsConfig.zhangPppAr.l1_measurement_replay_target_epoch ==
             kfState.time.to_string(0);
     KFState finalMeasurementPrior;
-    const KFFilterResult filterResult = kfState.filterKalman(
-        trace,
-        kfMeas,
-        "/PPP",
-        true,
-        &filterChunkMap,
-        &finalMeasurementPrior);
+    const KFFilterResult filterResult=[&]() {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_KF_UPDATE",floatEpoch);
+        return kfState.filterKalman(
+            trace,kfMeas,"/PPP",true,&filterChunkMap,&finalMeasurementPrior);
+    }();
     if (filterResult != KFFilterResult::COMMITTED)
     {
         trace << "\nPPP AUTHORITATIVE MEASUREMENT TRANSACTION REJECTED"
@@ -2194,7 +2259,10 @@ bool ppp(
         );
     }
 
-    postFilterChecks(tsync, receiverMap, kfState, kfMeas);
+    {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_POSTFIT_QC",floatEpoch);
+        postFilterChecks(tsync, receiverMap, kfState, kfMeas);
+    }
 
     if (!kfState.lastPppQcConverged)
     {

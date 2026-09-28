@@ -469,8 +469,8 @@ BOOST_AUTO_TEST_CASE(bundle_read_failure_does_not_replace_callers_live_bundle)
 	auto readResult = readZhangCheckpointBundle(
 		file.path.string(), expectations, destination);
 	BOOST_CHECK(!readResult.valid);
-	BOOST_CHECK_EQUAL(
-		readResult.failureReason, "CHECKPOINT_PROVENANCE_MISMATCH");
+	BOOST_CHECK(readResult.failureReason.starts_with(
+		"CHECKPOINT_PROVENANCE_MISMATCH:CONFIG_SHA256:"));
 	BOOST_CHECK_EQUAL(destination.manifest.runtimeId, "live-sentinel");
 	BOOST_CHECK_EQUAL(destination.manifest.checkpointId, "must-survive");
 }
