@@ -1,0 +1,9 @@
+__pycache__/
+build/
+*.o
+*.exe
+*.dll
+*.log
+*.zip
+*.tar.gz
+*.f64
