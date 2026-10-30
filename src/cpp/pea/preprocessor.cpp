@@ -6,6 +6,7 @@
 #include "ambres/GNSSambres.hpp"
 #include "architectureDocs.hpp"
 #include "common/acsConfig.hpp"
+#include "common/zhangMultiGnssSelection.hpp"
 #include "common/acsQC.hpp"
 #include "common/constants.hpp"
 #include "common/navigation.hpp"
@@ -797,6 +798,15 @@ void preprocessor(
         {
             obs.excludeSystem = true;
 
+            continue;
+        }
+
+        if (!zhangMultiGnssSatelliteAllowed(acsConfig, obs.Sat))
+        {
+            obs.excludeConfig = true;
+            trace << "\nZHANG_BDS_SELECTION time=" << obs.time.to_string(0)
+                  << " receiver=" << rec.id << " satellite=" << obs.Sat.id()
+                  << " accepted=0 reason=NOT_IN_EXPLICIT_BDS3_WHITELIST";
             continue;
         }
 

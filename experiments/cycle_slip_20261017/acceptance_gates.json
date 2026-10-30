@@ -1,0 +1,48 @@
+{
+  "scope": "GPS network receiver-link slip QC; not a user PPP algorithm change",
+  "network_joint_nis": "must remain skipped in ZHANG_R51_RATIO_ONLY=1",
+  "raw_input_policy": "read-only; old outputs/checkpoint preserved",
+  "required_builds": ["pea", "unit_tests"],
+  "required_tests": [
+    "all registered CTest regressions",
+    "actual acsQC.cpp adapter, selective primary frequency retirement",
+    "old receiver-schema-2 checkpoint decode",
+    "new receiver-schema-3 detector history export/decode",
+    "MAL2 original RINEX + production SP3/CLK + old-detector-state warmup",
+    "raw-derived injected integer grid with and without auxiliary L5",
+    "independent-noise holdout; report quarantines separately from retirements",
+    "same-noise paired controls for current-epoch causal coverage",
+    "rapid smooth ionospheric trend and Doppler-only blunder controls",
+    "independent dense covariance reference for tridiagonal Doppler whitening",
+    "previous sample archive version migration with Doppler explicitly unavailable",
+    "past-only GF qualification and independent raw-variable temporal covariance reference",
+    "independent dense GLS reference for lagged Doppler and unknown bias prediction",
+    "MAL2 production reader and raw warmup with all GPS Doppler fields actually blanked",
+    "named long-tail regression delays, not only new-noise average detection"
+  ],
+  "scientific_limits": [
+    "Natural LLI=0 data are not perfect no-slip ground truth",
+    "Detector candidate acceptance is not proof of a physical hardware slip",
+    "Weak common-cycle slips have measurable nonzero detection latency",
+    "Dual-frequency unknown-continuity retirement is not an identified integer repair",
+    "Independent-geometry fixtures are not full KF/graph/product replay",
+    "Gaussian simulation error rates are not calibrated real-world network error rates"
+  ],
+  "restart_requires": [
+    "successful complete build and regression tests",
+    "successful original-data production-QC replay",
+    "no false integer certificate in the injected cases",
+    "all recorded current-epoch and maximum-delay readiness gates pass",
+    "restart authorized by the user's request only after tests pass"
+  ],
+  "current_epoch_readiness": {
+    "scope": "controlled test gates, not calibrated real-world guarantees",
+    "with_doppler": {"minimum_paired_current_epoch_rate": 0.99, "maximum_delay_s": 60},
+    "rapid_ionosphere_with_doppler": {"minimum_paired_current_epoch_rate": 0.98, "maximum_delay_s": 120},
+    "without_doppler": {"minimum_paired_current_epoch_rate": 0.85, "maximum_delay_s": 330},
+    "false_integer_certificates": 0,
+    "null_retirements": 0,
+    "maximum_null_quarantine_event_rate_per_link_epoch": 0.0001
+  },
+  "restart_approved": false
+}

@@ -1,5 +1,6 @@
 #pragma once
 #include "common/zhangQuotientIntegerLattice.hpp"
+#include "common/zhangPrivateUnitMembership.hpp"
 
 /** The complete named catalogue and the independently searchable lattice are
  * separate objects. searchNamedRows*z = searchPosteriorRows*a + searchOffsets.
@@ -81,8 +82,17 @@ inline ZhangWholeProductLattice zhangCompileWholeProductLattice(
         out.searchOffsets.push_back(offset);
     }
     const std::size_t compactDimension = std::count(available.begin(), available.end(), true);
-    const auto smith = zhangIntegerRowLatticeContains(
-        out.searchPosteriorRows, ZhangExactVector(compactDimension));
+    // One exact factorisation for the complete immutable recovery catalogue,
+    // not one factorisation per named satellite relation.
+    ZhangExactMatrix recoveryTargets(1,ZhangExactVector(compactDimension));
+    for(const auto& row:named) {
+        ZhangExactVector compact;
+        for(std::size_t c=0;c<available.size();++c)if(available[c])compact.push_back(row[c]);
+        recoveryTargets.push_back(std::move(compact));
+    }
+    const auto recoveryMemberships=zhangPrivateUnitLatticeMembershipBatch(
+        out.searchPosteriorRows,recoveryTargets);
+    const auto& smith = recoveryMemberships.front();
     out.searchSmithInvariants = smith.smithInvariants;
     out.primitiveSearchImage = std::all_of(smith.smithInvariants.begin(),
         smith.smithInvariants.end(), [](const auto& d) { return zhangExactAbs(d) == 1; });
@@ -113,7 +123,7 @@ inline ZhangWholeProductLattice zhangCompileWholeProductLattice(
         for (std::size_t c = 0; c < available.size(); ++c)
             if (available[c]) compact.push_back(named[n][c]);
             else supported &= named[n][c] == 0;
-        auto membership = zhangIntegerRowLatticeContains(out.searchPosteriorRows, compact);
+        const auto& membership = recoveryMemberships[n+1];
         const bool recoverable = supported && membership.contained;
         ZhangExactVector recovery(out.wholeAvailableRank);
         ZhangExactInteger shift = offsets[n];

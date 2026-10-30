@@ -21,6 +21,7 @@
 #include "common/streamSp3.hpp"
 #include "common/streamUbx.hpp"
 #include "common/tides.hpp"
+#include "common/zhangFloatInputMemory.hpp"
 #include "iono/geomagField.hpp"
 #include "orbprop/aod.hpp"
 #include "orbprop/centerMassCorrections.hpp"
@@ -32,6 +33,41 @@
 #include "pea/inputsOutputs.hpp"
 #include "sbas/sisnet.hpp"
 #include "trop/tropModels.hpp"
+
+namespace
+{
+// Resource boundaries only: retain every input, its load order and the parser
+// behaviour. The inventory here is limited to precise navigation entries;
+// receiver/KF inventory is recorded by the main-loop boundaries.
+class FloatInputLoadMemoryBoundary
+{
+    const char* phase_;
+    const std::string& filename_;
+
+    void record(const char* boundary) const noexcept
+    {
+        if (!zhangFloatInputMemoryEnabled()) return;
+        try
+        {
+            ZhangFloatInputInventory inventory;
+            // The remaining inventory fields deliberately stay unknown (-1).
+            inventory.preciseOrbitEpochs = 0;
+            inventory.preciseClockEpochs = 0;
+            for (const auto& entry : nav.pephMap)
+                inventory.preciseOrbitEpochs += entry.second.size();
+            for (const auto& entry : nav.pclkMap)
+                inventory.preciseClockEpochs += entry.second.size();
+            zhangFloatInputMemoryBoundary(phase_,boundary,"",filename_,inventory);
+        }
+        catch (...) {}
+    }
+public:
+    FloatInputLoadMemoryBoundary(const char* phase, const std::string& filename)
+        : phase_(phase), filename_(filename) { record("BEGIN"); }
+    ~FloatInputLoadMemoryBoundary() noexcept { record("END"); }
+};
+}
+
 Input Input_Files__()
 {
     DOCS_REFERENCE(UBX__);
@@ -317,6 +353,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading ATX file " << atxfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_ATX",atxfile);
 
         readantexf(atxfile, nav);
     }
@@ -330,6 +367,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading SP3 file " << sp3file;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_SP3",sp3file);
 
         readSp3ToNav(sp3file, nav, 0);
     }
@@ -369,6 +407,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading NAV file " << navfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_NAV",navfile);
 
         auto rinexStream =
             make_unique<StreamParser>(make_unique<FileStream>(navfile), make_unique<RinexParser>());
@@ -385,6 +424,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading ERP file " << erpfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_ERP",erpfile);
 
         readErp(erpfile, nav.erp);
     }
@@ -399,6 +439,7 @@ void reloadInputFiles()
 
         /* CLK file - RINEX 3 */
         BOOST_LOG_TRIVIAL(info) << "Loading CLK file " << clkfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_CLK",clkfile);
 
         auto rinexStream =
             make_unique<StreamParser>(make_unique<FileStream>(clkfile), make_unique<RinexParser>());
@@ -430,6 +471,7 @@ void reloadInputFiles()
 
         /* BSX file*/
         BOOST_LOG_TRIVIAL(info) << "Loading BSX file " << bsxfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_BSX",bsxfile);
 
         readBiasSinex(bsxfile);
     }
@@ -443,6 +485,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading ION file " << ionfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_ION",ionfile);
 
         readTec(ionfile, &nav);
     }
@@ -456,6 +499,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading IGRF file " << igrffile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_IGRF",igrffile);
 
         readIGRF(igrffile);
     }
@@ -469,6 +513,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading SNX file " << snxfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_SNX",snxfile);
 
         bool pass = readSinex(snxfile);
         if (pass == false)
@@ -528,6 +573,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading GPT file " << gpt2gridfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_GPT",gpt2gridfile);
 
         readgrid(gpt2gridfile);
     }
@@ -541,6 +587,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading Ocean Pole Tide file " << optfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_OCEAN_POLE",optfile);
 
         readOceanPoleCoeff(optfile);
     }
@@ -554,6 +601,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading Ocean Tide Loading BLQ file " << otlfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_OCEAN_BLQ",otlfile);
 
         readBlq(otlfile, E_LoadingType::OCEAN);
     }
@@ -567,6 +615,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading Atmos Tide Loading BLQ file " << atlfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_ATMOS_BLQ",atlfile);
 
         readBlq(atlfile, E_LoadingType::ATMOSPHERIC);
     }
@@ -625,6 +674,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading EGM file " << egmfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_EGM",egmfile);
 
         egm.read(egmfile, acsConfig.propagationOptions.egm_degree);
     }
@@ -651,6 +701,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading Tide file " << tidefile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_TIDE",tidefile);
 
         oceanTide.read(tidefile, acsConfig.propagationOptions.egm_degree);
     }
@@ -729,6 +780,7 @@ void reloadInputFiles()
         }
 
         BOOST_LOG_TRIVIAL(info) << "Loading planetary ephemeris file " << jplfile;
+        FloatInputLoadMemoryBoundary memoryBoundary("INPUT_LOAD_JPL",jplfile);
 
         nav.jplEph_ptr = (struct jpl_eph_data*)jpl_init_ephemeris(
             jplfile.c_str(),

@@ -1,0 +1,26 @@
+{
+  "scope": "WL/L1 conditioning and FLOAT matrix/copy optimization; not cycle-slip qualification or a full-hour AR experiment",
+  "ratio": 2,
+  "joint_nis": false,
+  "epoch_only_ar": true,
+  "float_symmetric_update_eligibility": {
+    "minimum_noise_fraction": 1e-6,
+    "minimum_innovation_reciprocal_condition_estimate": 1e-6,
+    "unsafe_case_action": "Use the original covariance update, not a statistical veto"
+  },
+  "baseline_binary_sha256": "668fff07bea7a371750bd8b91306e102b37691a206fa5af4e8494e4cb9a70735",
+  "conditioner_maximum_mean_and_covariance_difference": 2e-10,
+  "conditioner_status_rank_and_failure_reason_changes": 0,
+  "float_kernel_maximum_mean_and_covariance_difference": 2e-11,
+  "real_float_mean_relative_norm": 2e-10,
+  "real_float_covariance_relative_frobenius": 2e-11,
+  "real_float_maximum_mean_component_scaled": 2e-10,
+  "real_float_maximum_covariance_entry_scaled": 2e-11,
+  "product_maximum_value_difference_m": 1e-7,
+  "product_maximum_covariance_difference_m2": 1e-9,
+  "publication_and_segment_flag_changes": 0,
+  "real_epoch": "2024-07-17 02:00:00",
+  "real_epoch_probe_exit_code": 130,
+  "hour_experiment_started": false,
+  "scientific_cycle_slip_readiness": "unchanged; not established by numerical-kernel tests"
+}

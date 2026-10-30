@@ -1,4 +1,5 @@
 #pragma once
+#include <charconv>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +11,41 @@ inline bool zhangRatioOnly()
 {
     const char* value=std::getenv("ZHANG_R51_RATIO_ONLY");
     return value && std::strcmp(value,"1")==0;
+}
+
+// The explicit threshold override is scoped to the R51 ratio-only
+// experiment. An unset override preserves the configured threshold; invalid
+// input fails closed rather than silently weakening the acceptance policy.
+inline bool zhangR51RatioOverrideActive()
+{
+    const char* enabled = std::getenv("ZHANG_R51_ENABLE");
+    return enabled && std::strcmp(enabled, "1") == 0 && zhangRatioOnly();
+}
+inline bool zhangR51ParseRatioThreshold(const char* setting, double& threshold)
+{
+    if (!setting || !*setting) return false;
+    double parsed = 0;
+    const auto end = setting + std::strlen(setting);
+    const auto result = std::from_chars(setting, end, parsed, std::chars_format::general);
+    if (result.ec != std::errc{} || result.ptr != end ||
+        !std::isfinite(parsed) || parsed <= 1) return false;
+    threshold = parsed;
+    return true;
+}
+inline double zhangR51EffectiveRatioThreshold(double configured)
+{
+    if (!zhangR51RatioOverrideActive()) return configured;
+    const char* setting = std::getenv("ZHANG_R51_RATIO_THRESHOLD");
+    if (!setting) return configured;
+    double threshold = 0;
+    return zhangR51ParseRatioThreshold(setting, threshold)
+        ? threshold : std::numeric_limits<double>::quiet_NaN();
+}
+inline bool zhangR51RatioPolicyValid(double configured)
+{
+    if (!zhangR51RatioOverrideActive()) return true;
+    const double effective = zhangR51EffectiveRatioThreshold(configured);
+    return std::isfinite(effective) && effective > 1;
 }
 // Product runs avoid diagnostic-only decompositions by default. This switch
 // must never bypass a solver, integer-validity check, or writer authorization.

@@ -14,6 +14,7 @@
 #include <vector>
 #include <boost/multiprecision/cpp_int.hpp>
 #include "common/zhangFullRank.hpp"
+#include "common/zhangExactWorkBudget.hpp"
 
 using ZhangExactInteger = boost::multiprecision::cpp_int;
 using ZhangExactVector  = std::vector<ZhangExactInteger>;
@@ -61,16 +62,19 @@ inline int zhangIntegerCapacityMaxFlow(
     int flow = 0;
     while (true)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::vector<int> parent(size, -1);
         std::queue<std::size_t> pending;
         pending.push(source);
         parent[source] = static_cast<int>(source);
         while (!pending.empty() && parent[sink] < 0)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::size_t from = pending.front();
             pending.pop();
             for (std::size_t to = 0; to < size; to++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (parent[to] < 0 && capacity[from][to] > 0)
                 {
                     parent[to] = static_cast<int>(from);
@@ -85,12 +89,14 @@ inline int zhangIntegerCapacityMaxFlow(
         int increment = std::numeric_limits<int>::max();
         for (std::size_t node = sink; node != source;)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::size_t from = static_cast<std::size_t>(parent[node]);
             increment = std::min(increment, capacity[from][node]);
             node = from;
         }
         for (std::size_t node = sink; node != source;)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::size_t from = static_cast<std::size_t>(parent[node]);
             capacity[from][node] -= increment;
             capacity[node][from] += increment;
@@ -109,16 +115,20 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
     std::map<std::string, std::set<SatSys>> byReceiver;
     for (const auto& edge : physicalEdges)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         result.satellites.insert(edge.satellite);
         byReceiver[edge.receiver].insert(edge.satellite);
     }
     for (const auto& [receiver, satellites] : byReceiver)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         for (auto left = satellites.begin(); left != satellites.end(); left++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             auto right = left;
             for (++right; right != satellites.end(); right++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 result.supportCounts[{*left, *right}]++;
             }
         }
@@ -134,6 +144,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
     result.minimumSupport = std::numeric_limits<int>::max();
     for (const auto& [pair, support] : result.supportCounts)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         supportSum += support;
         result.minimumSupport = std::min(result.minimumSupport, support);
         result.maximumSupport = std::max(result.maximumSupport, support);
@@ -147,6 +158,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
     std::map<SatSys, std::size_t> index;
     for (std::size_t node = 0; node < satellites.size(); node++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         index[satellites[node]] = node;
     }
     std::vector<std::vector<std::size_t>> adjacency(satellites.size());
@@ -155,6 +167,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
     );
     for (const auto& [pair, support] : result.supportCounts)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t left = index.at(pair.first);
         std::size_t right = index.at(pair.second);
         adjacency[left].push_back(right);
@@ -171,6 +184,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
         discovery[node] = low[node] = clock++;
         for (std::size_t next : adjacency[node])
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (discovery[next] < 0)
             {
                 self(self, next, node);
@@ -193,6 +207,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
 
     for (std::size_t start = 0; start < satellites.size(); start++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (discovery[start] >= 0)
         {
             continue;
@@ -204,10 +219,12 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
         component.insert(start);
         while (!pending.empty())
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::size_t node = pending.front();
             pending.pop();
             for (std::size_t next : adjacency[node])
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (component.insert(next).second)
                 {
                     pending.push(next);
@@ -226,6 +243,7 @@ inline ZhangSatelliteSupportMetrics zhangSatelliteSupportMetrics(
         result.edgeConnectivity = std::numeric_limits<int>::max();
         for (std::size_t target = 1; target < satellites.size(); target++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             result.edgeConnectivity = std::min(
                 result.edgeConnectivity,
                 zhangIntegerCapacityMaxFlow(capacities, 0, target)
@@ -255,6 +273,7 @@ inline int zhangAlternativePhysicalPathCount(
     };
     for (const auto& edge : physicalEdges)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         nodes.insert(receiverNode(edge.receiver));
         nodes.insert(satelliteNode(edge.satellite));
     }
@@ -262,6 +281,7 @@ inline int zhangAlternativePhysicalPathCount(
     std::map<std::string, std::size_t> index;
     for (std::size_t node = 0; node < ordered.size(); node++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         index[ordered[node]] = node;
     }
     auto source = index.find(receiverNode(target.receiver));
@@ -275,6 +295,7 @@ inline int zhangAlternativePhysicalPathCount(
     );
     for (const auto& edge : physicalEdges)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (edge == target)
         {
             continue;
@@ -293,6 +314,7 @@ inline std::uint64_t zhangAuditFnv1a(std::uint64_t hash, const std::string& text
 {
     for (unsigned char character : text)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         hash ^= character;
         hash *= 1099511628211ULL;
     }
@@ -304,8 +326,10 @@ inline std::string zhangExactMatrixFingerprint(const ZhangExactMatrix& matrix)
     std::uint64_t hash = 1469598103934665603ULL;
     for (const auto& row : matrix)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         for (const auto& value : row)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             hash = zhangAuditFnv1a(hash, value.convert_to<std::string>());
             hash = zhangAuditFnv1a(hash, ",");
         }
@@ -322,10 +346,12 @@ inline std::string zhangIntegerComponentId(const ZhangGraphBasis& basis)
     hash = zhangAuditFnv1a(hash, basis.rootReceiver);
     for (const auto& receiver : basis.receivers)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         hash = zhangAuditFnv1a(hash, "R:" + receiver + ";");
     }
     for (const auto& satellite : basis.satellites)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         hash = zhangAuditFnv1a(
             hash,
             "S:" + std::to_string(static_cast<int>(satellite.sys)) + ":" +
@@ -354,6 +380,7 @@ inline ZhangExactMatrix zhangExactIdentityMatrix(std::size_t size)
     ZhangExactMatrix identity = zhangExactZeroMatrix(size, size);
     for (std::size_t index = 0; index < size; index++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         identity[index][index] = 1;
     }
     return identity;
@@ -372,12 +399,14 @@ inline ZhangExactVector zhangExactRowTimesMatrix(
     ZhangExactVector result(matrix.front().size());
     for (std::size_t inner = 0; inner < row.size(); inner++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row[inner] == 0)
         {
             continue;
         }
         for (std::size_t column = 0; column < result.size(); column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             result[column] += row[inner] * matrix[inner][column];
         }
     }
@@ -397,6 +426,7 @@ inline ZhangExactMatrix zhangExactMultiply(
     ZhangExactMatrix result = zhangExactZeroMatrix(left.size(), right.front().size());
     for (std::size_t row = 0; row < left.size(); row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         result[row] = zhangExactRowTimesMatrix(left[row], right);
     }
     return result;
@@ -410,8 +440,10 @@ inline ZhangExactVector zhangExactMatrixTimesColumn(
     ZhangExactVector result(matrix.size());
     for (std::size_t row = 0; row < matrix.size(); row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         for (std::size_t index = 0; index < column.size(); index++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             result[row] += matrix[row][index] * column[index];
         }
     }
@@ -427,6 +459,7 @@ inline ZhangExactInteger zhangExactDeterminant(ZhangExactMatrix matrix)
     }
     for (const auto& row : matrix)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row.size() != size)
         {
             return 0;
@@ -437,9 +470,11 @@ inline ZhangExactInteger zhangExactDeterminant(ZhangExactMatrix matrix)
     ZhangExactInteger previousPivot = 1;
     for (std::size_t pivot = 0; pivot + 1 < size; pivot++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selected = pivot;
         while (selected < size && matrix[selected][pivot] == 0)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             selected++;
         }
         if (selected == size)
@@ -455,8 +490,10 @@ inline ZhangExactInteger zhangExactDeterminant(ZhangExactMatrix matrix)
         ZhangExactInteger pivotValue = matrix[pivot][pivot];
         for (std::size_t row = pivot + 1; row < size; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             for (std::size_t column = pivot + 1; column < size; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 matrix[row][column] =
                     (matrix[row][column] * pivotValue -
                      matrix[row][pivot] * matrix[pivot][column]) /
@@ -525,6 +562,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
     const std::size_t columns = rows.front().size();
     for (const auto& row : rows)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row.size() != columns)
         {
             result.consistent = false;
@@ -552,6 +590,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
     {
         for (std::size_t column = 0; column < columns; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             rows[destination][column] += multiplier * rows[source][column];
         }
         values[destination] += multiplier * values[source];
@@ -560,6 +599,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
             for (std::size_t column = 0;
                  column < rowTransform.size(); column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 rowTransform[destination][column] +=
                     multiplier * rowTransform[source][column];
             }
@@ -569,6 +609,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
     {
         for (auto& value : rows[row])
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             value = -value;
         }
         values[row] = -values[row];
@@ -576,6 +617,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
         {
             for (auto& value : rowTransform[row])
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 value = -value;
             }
         }
@@ -586,15 +628,20 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
          column < columns && pivotRow < rows.size();
          column++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selected = rows.size();
         for (std::size_t row = pivotRow; row < rows.size(); row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (rows[row][column] != 0 &&
                 (selected == rows.size() ||
                  zhangExactAbs(rows[row][column]) <
                      zhangExactAbs(rows[selected][column])))
             {
                 selected = row;
+                // A nonzero integer cannot have absolute value below one.
+                // The old strict-< scan also chose this FIRST unit pivot.
+                if (zhangExactAbs(rows[row][column]) == 1) break;
             }
         }
         if (selected == rows.size())
@@ -614,6 +661,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
             reduced = true;
             for (std::size_t row = pivotRow + 1; row < rows.size(); row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (rows[row][column] == 0)
                 {
                     continue;
@@ -643,6 +691,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
         }
         for (std::size_t row = 0; row < pivotRow; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (rows[row][column] == 0)
             {
                 continue;
@@ -658,6 +707,7 @@ inline ZhangExactRowHnf zhangExactRowHermiteNormalForm(
 
     for (std::size_t row = 0; row < rows.size(); row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         bool nonzero = std::any_of(
             rows[row].begin(),
             rows[row].end(),
@@ -695,6 +745,7 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
         : matrix.front().size();
     for (const auto& row : matrix)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row.size() != columnCount)
         {
             return {};
@@ -705,6 +756,7 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
         ZhangExactMatrix kernel;
         for (std::size_t column = 0; column < columnCount; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             ZhangExactVector unit(columnCount);
             unit[column] = 1;
             kernel.push_back(std::move(unit));
@@ -723,6 +775,7 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     {
         for (std::size_t column = 0; column < columnCount; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             matrix[destination][column] += multiplier * matrix[source][column];
         }
     };
@@ -730,10 +783,12 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     {
         for (auto& row : matrix)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::swap(row[left], row[right]);
         }
         for (auto& row : rightTransform)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::swap(row[left], row[right]);
         }
     };
@@ -743,10 +798,12 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     {
         for (auto& row : matrix)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             row[destination] += multiplier * row[source];
         }
         for (auto& row : rightTransform)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             row[destination] += multiplier * row[source];
         }
     };
@@ -754,12 +811,16 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     std::size_t rank = 0;
     while (rank < rowCount && rank < columnCount)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selectedRow = rowCount;
         std::size_t selectedColumn = columnCount;
-        for (std::size_t row = rank; row < rowCount; row++)
+        bool unitPivot = false;
+        for (std::size_t row = rank; row < rowCount && !unitPivot; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             for (std::size_t column = rank; column < columnCount; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][column] != 0 &&
                     (selectedRow == rowCount ||
                      zhangExactAbs(matrix[row][column]) <
@@ -767,6 +828,8 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
                 {
                     selectedRow = row;
                     selectedColumn = column;
+                    if (zhangExactAbs(matrix[row][column]) == 1)
+                    { unitPivot = true; break; }
                 }
             }
         }
@@ -779,9 +842,11 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
 
         while (true)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             bool restart = false;
             for (std::size_t row = rank + 1; row < rowCount; row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][rank] == 0)
                 {
                     continue;
@@ -804,6 +869,7 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
                  column < columnCount;
                  column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[rank][column] == 0)
                 {
                     continue;
@@ -829,9 +895,11 @@ inline ZhangExactMatrix zhangExactIntegerKernel(
     ZhangExactMatrix kernel;
     for (std::size_t column = rank; column < columnCount; column++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector vector(columnCount);
         for (std::size_t row = 0; row < columnCount; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             vector[row] = rightTransform[row][column];
         }
         kernel.push_back(std::move(vector));
@@ -863,26 +931,43 @@ inline ZhangExactMatrix zhangExactProjectedKernelColumns(
     auto addRowMultiple=[&](std::size_t dst,std::size_t src,
         const ZhangExactInteger& factor)
     {
-        for (std::size_t c=0;c<columns;++c)
+        for (std::size_t c=0;c<columns;++c) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_ROW_OPERATION");
             matrix[dst][c]+=factor*matrix[src][c];
+        }
     };
     auto swapColumns=[&](std::size_t a,std::size_t b)
     {
-        for (auto& row:matrix) std::swap(row[a],row[b]);
-        for (auto& row:targets) std::swap(row[a],row[b]);
+        for (auto& row:matrix) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_COLUMN_SWAP");
+            std::swap(row[a],row[b]);
+        }
+        for (auto& row:targets) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_TARGET_SWAP");
+            std::swap(row[a],row[b]);
+        }
     };
     auto addColumnMultiple=[&](std::size_t dst,std::size_t src,
         const ZhangExactInteger& factor)
     {
-        for (auto& row:matrix) row[dst]+=factor*row[src];
-        for (auto& row:targets) row[dst]+=factor*row[src];
+        for (auto& row:matrix) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_COLUMN_OPERATION");
+            row[dst]+=factor*row[src];
+        }
+        for (auto& row:targets) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_TARGET_OPERATION");
+            row[dst]+=factor*row[src];
+        }
     };
     std::size_t rank=0;
     while (rank<rows && rank<columns)
     {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selectedRow=rows,selectedColumn=columns;
-        for (std::size_t row=rank;row<rows;++row)
-        for (std::size_t column=rank;column<columns;++column)
+        bool unitPivot=false;
+        for (std::size_t row=rank;row<rows && !unitPivot;++row)
+        for (std::size_t column=rank;column<columns;++column) {
+            zhangExactWorkCheckpoint("PROJECTED_KERNEL_PIVOT_SCAN");
             if (matrix[row][column]!=0 &&
                 (selectedRow==rows ||
                  zhangExactAbs(matrix[row][column])<
@@ -890,15 +975,20 @@ inline ZhangExactMatrix zhangExactProjectedKernelColumns(
             {
                 selectedRow=row;
                 selectedColumn=column;
+                if (zhangExactAbs(matrix[row][column])==1)
+                {unitPivot=true;break;}
             }
+        }
         if (selectedRow==rows) break;
         swapRows(rank,selectedRow);
         swapColumns(rank,selectedColumn);
         while (true)
         {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             bool restart=false;
             for (std::size_t row=rank+1;row<rows;++row)
             {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][rank]==0) continue;
                 const ZhangExactInteger quotient=
                     matrix[row][rank]/matrix[rank][rank];
@@ -910,6 +1000,7 @@ inline ZhangExactMatrix zhangExactProjectedKernelColumns(
             if (restart) continue;
             for (std::size_t column=rank+1;column<columns;++column)
             {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[rank][column]==0) continue;
                 const ZhangExactInteger quotient=
                     matrix[rank][column]/matrix[rank][rank];
@@ -924,8 +1015,10 @@ inline ZhangExactMatrix zhangExactProjectedKernelColumns(
     }
     ZhangExactMatrix image(targets.size(),ZhangExactVector(columns-rank));
     for (std::size_t row=0;row<targets.size();++row)
-    for (std::size_t column=rank;column<columns;++column)
+    for (std::size_t column=rank;column<columns;++column) {
+        zhangExactWorkCheckpoint("PROJECTED_KERNEL_IMAGE_COPY");
         image[row][column-rank]=std::move(targets[row][column]);
+    }
     return image;
 }
 
@@ -961,6 +1054,7 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     }
     for (const auto& row : rows)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row.size() != survivingColumns.size())
         {
             result.consistent = false;
@@ -972,11 +1066,13 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     std::vector<std::size_t> removed;
     for (std::size_t column = 0; column < survivingColumns.size(); column++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         (survivingColumns[column] ? surviving : removed).push_back(column);
     }
     std::vector<std::size_t> untouchedRows, touchedRows;
     for (std::size_t index = 0; index < rows.size(); ++index)
     {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         const bool touchesRemoved = std::any_of(
             removed.begin(), removed.end(),
             [&](std::size_t column) { return rows[index][column] != 0; }
@@ -1005,8 +1101,10 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     );
     for (std::size_t removedRow = 0; removedRow < removed.size(); removedRow++)
     {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         for (std::size_t touched = 0; touched < touchedRows.size(); touched++)
         {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             removedTranspose[removedRow][touched] =
                 rows[touchedRows[touched]][removed[removedRow]];
         }
@@ -1028,6 +1126,7 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     if (trackRowTransform) sources.reserve(result.combinationRank);
     for (const auto index : untouchedRows)
     {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector row(surviving.size());
         for (std::size_t column = 0; column < surviving.size(); ++column)
             row[column] = rows[index][surviving[column]];
@@ -1037,16 +1136,19 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
     }
     for (const auto& combination : combinations)
     {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector row(surviving.size());
         ZhangExactInteger value = 0;
         std::vector<SourceTerm> source;
         for (std::size_t touched = 0; touched < touchedRows.size(); touched++)
         {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (combination[touched] == 0) continue;
             const auto heldRow = touchedRows[touched];
             value += combination[touched] * values[heldRow];
             for (std::size_t column = 0; column < surviving.size(); column++)
             {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 row[column] +=
                     combination[touched] * rows[heldRow][surviving[column]];
             }
@@ -1069,6 +1171,7 @@ inline ZhangExactSurvivingLattice zhangExactSurvivingLattice(
         for (std::size_t r=0; r<hnf.rowTransform.size(); ++r)
         for (std::size_t k=0; k<sources.size(); ++k)
         {
+    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (hnf.rowTransform[r][k]==0) continue;
             for (const auto& [index, coefficient] : sources[k])
                 result.rowTransform[r][index] += hnf.rowTransform[r][k]*coefficient;
@@ -1119,6 +1222,7 @@ inline ZhangExactCurrentDomainProjection zhangExactCurrentDomain(
 	}
 	for(const auto& row:sourceRows)
 	{
+	    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
 		if(row.size()!=sourceToCurrent.size())
 		{
 			result.failureReason="SOURCE_ROW_DIMENSION_MISMATCH";
@@ -1129,6 +1233,7 @@ inline ZhangExactCurrentDomainProjection zhangExactCurrentDomain(
 	std::vector<bool> currentOwned(currentDimension,false);
 	for(std::size_t source=0;source<sourceToCurrent.size();++source)
 	{
+	    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
 		const int current=sourceToCurrent[source];
 		if(current<0)
 		{
@@ -1155,10 +1260,12 @@ inline ZhangExactCurrentDomainProjection zhangExactCurrentDomain(
 	projectedRows.reserve(surviving.basis.size());
 	for(const auto& compact:surviving.basis)
 	{
+	    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
 		ZhangExactVector projected(currentDimension);
 		std::size_t compactColumn=0;
 		for(std::size_t source=0;source<sourceToCurrent.size();++source)
 		{
+		    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
 			if(!survivingColumns[source]) continue;
 			if(compactColumn>=compact.size())
 			{
@@ -1214,6 +1321,7 @@ zhangExactProjectCanonicalAffineLattice(
     for (int canonical = 0;
          canonical < static_cast<int>(canonicalToCurrent.size()); canonical++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         const int current = canonicalToCurrent[canonical];
         if (current < 0) continue;
         if (current >= currentDimension || currentOwners[current] >= 0)
@@ -1238,6 +1346,7 @@ zhangExactProjectCanonicalAffineLattice(
     ZhangExactVector directValues;
     for (int row = 0; row < static_cast<int>(canonicalRows.size()); row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         bool direct = true;
         for (int column = 0; column < static_cast<int>(available.size()); column++)
             direct &= available[column] || canonicalRows[row][column] == 0;
@@ -1259,11 +1368,13 @@ zhangExactProjectCanonicalAffineLattice(
     ZhangExactMatrix projectedRows;
     for (const auto& compact : surviving.basis)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector projected(currentDimension);
         int compactColumn = 0;
         for (int canonical = 0;
              canonical < static_cast<int>(available.size()); canonical++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (!available[canonical]) continue;
             if (compactColumn >= static_cast<int>(compact.size())) return result;
             projected[canonicalToCurrent[canonical]] = compact[compactColumn++];
@@ -1292,7 +1403,8 @@ zhangExactProjectCanonicalAffineLattice(
 inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     const ZhangExactMatrix& rows,
     const ZhangExactVector& target,
-    bool recoverCombination = true
+    bool recoverCombination = true,
+    bool compactCombination = false
 )
 {
     ZhangIntegerLatticeMembership result;
@@ -1306,6 +1418,7 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     const std::size_t dimension = target.size();
     for (const auto& row : rows)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (row.size() != dimension)
         {
             return result;
@@ -1316,8 +1429,10 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     ZhangExactMatrix matrix = zhangExactZeroMatrix(dimension, rowCount);
     for (std::size_t row = 0; row < rowCount; row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         for (std::size_t column = 0; column < dimension; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             matrix[column][row] = rows[row][column];
         }
     }
@@ -1325,7 +1440,17 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     // Feasibility and rank queries need divisibility, not a combination
     // witness. Avoid the potentially large square right transform for them.
     ZhangExactMatrix rightTransform;
-    if (recoverCombination)
+    // The optional tape follows exactly the same Smith column operations as
+    // the legacy right transform. It recovers ONE requested combination, not
+    // a changed basis or a saturated substitute for the integer lattice.
+    struct ColumnOperation
+    {
+        bool swap;
+        std::size_t destination, source;
+        ZhangExactInteger multiplier;
+    };
+    std::vector<ColumnOperation> columnOperations;
+    if (recoverCombination && !compactCombination)
     {
         rightTransform = zhangExactIdentityMatrix(rowCount);
     }
@@ -1341,18 +1466,23 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     {
         for (std::size_t column = 0; column < rowCount; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             matrix[destination][column] += multiplier * matrix[source][column];
         }
         transformed[destination] += multiplier * transformed[source];
     };
     auto swapColumns = [&](std::size_t left, std::size_t right)
     {
+        if (recoverCombination && compactCombination && left != right)
+            columnOperations.push_back({true, left, right, 0});
         for (auto& row : matrix)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::swap(row[left], row[right]);
         }
         for (auto& row : rightTransform)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             std::swap(row[left], row[right]);
         }
     };
@@ -1360,12 +1490,16 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
                                  std::size_t source,
                                  const ZhangExactInteger& multiplier)
     {
+        if (recoverCombination && compactCombination && multiplier != 0)
+            columnOperations.push_back({false, destination, source, multiplier});
         for (auto& row : matrix)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             row[destination] += multiplier * row[source];
         }
         for (auto& row : rightTransform)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             row[destination] += multiplier * row[source];
         }
     };
@@ -1373,12 +1507,16 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     std::size_t pivot = 0;
     while (pivot < dimension && pivot < rowCount)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selectedRow = dimension;
         std::size_t selectedColumn = rowCount;
-        for (std::size_t row = pivot; row < dimension; row++)
+        bool unitPivot = false;
+        for (std::size_t row = pivot; row < dimension && !unitPivot; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             for (std::size_t column = pivot; column < rowCount; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][column] != 0 &&
                     (selectedRow == dimension ||
                      zhangExactAbs(matrix[row][column]) <
@@ -1386,6 +1524,8 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
                 {
                     selectedRow = row;
                     selectedColumn = column;
+                    if (zhangExactAbs(matrix[row][column]) == 1)
+                    { unitPivot = true; break; }
                 }
             }
         }
@@ -1398,9 +1538,11 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
 
         while (true)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             bool restart = false;
             for (std::size_t row = pivot + 1; row < dimension; row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][pivot] == 0)
                 {
                     continue;
@@ -1421,6 +1563,7 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
 
             for (std::size_t column = pivot + 1; column < rowCount; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[pivot][column] == 0)
                 {
                     continue;
@@ -1441,10 +1584,15 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
             }
 
             std::size_t offendingRow = dimension;
-            for (std::size_t row = pivot + 1; row < dimension; row++)
+            // +/-1 divides EVERY remaining integer. Avoid the cubic scan,
+            // not the divisibility gate for any nonunit Smith pivot.
+            for (std::size_t row = pivot + 1;
+                 row < dimension && zhangExactAbs(matrix[pivot][pivot]) != 1; row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 for (std::size_t column = pivot + 1; column < rowCount; column++)
                 {
+                    zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                     if (matrix[row][column] % matrix[pivot][pivot] != 0)
                     {
                         offendingRow = row;
@@ -1476,6 +1624,7 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     result.contained = true;
     for (std::size_t row = 0; row < pivot; row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (transformed[row] % matrix[row][row] != 0)
         {
             result.contained = false;
@@ -1483,6 +1632,7 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
     }
     for (std::size_t row = pivot; row < dimension; row++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (transformed[row] != 0)
         {
             result.contained = false;
@@ -1493,12 +1643,28 @@ inline ZhangIntegerLatticeMembership zhangIntegerRowLatticeContains(
         ZhangExactVector diagonalCoordinates(rowCount);
         for (std::size_t row = 0; row < pivot; row++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             diagonalCoordinates[row] = transformed[row] / matrix[row][row];
         }
-        result.combination = zhangExactMatrixTimesColumn(
-            rightTransform,
-            diagonalCoordinates
-        );
+        if (compactCombination)
+        {
+            // V=E1*...*Ek. Apply Ek through E1 to the requested diagonal
+            // vector. For column(dst)+=m*column(src), E*v changes v[src].
+            for (auto operation = columnOperations.rbegin();
+                 operation != columnOperations.rend(); ++operation)
+            {
+                zhangExactWorkCheckpoint("INTEGER_COMPACT_COMBINATION_RECOVERY");
+                if (operation->swap)
+                    std::swap(diagonalCoordinates[operation->destination],
+                              diagonalCoordinates[operation->source]);
+                else
+                    diagonalCoordinates[operation->source] += operation->multiplier *
+                        diagonalCoordinates[operation->destination];
+            }
+            result.combination = std::move(diagonalCoordinates);
+        }
+        else result.combination = zhangExactMatrixTimesColumn(
+            rightTransform, diagonalCoordinates);
     }
     return result;
 }
@@ -1573,11 +1739,14 @@ zhangIntegerRowLatticeContainsBatch(
     std::size_t pivot = 0;
     while (pivot < dimension && pivot < rowCount)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         std::size_t selectedRow = dimension;
         std::size_t selectedColumn = rowCount;
-        for (std::size_t row = pivot; row < dimension; row++)
+        bool unitPivot = false;
+        for (std::size_t row = pivot; row < dimension && !unitPivot; row++)
         for (std::size_t column = pivot; column < rowCount; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (matrix[row][column] != 0 &&
                 (selectedRow == dimension ||
                  zhangExactAbs(matrix[row][column]) <
@@ -1585,6 +1754,8 @@ zhangIntegerRowLatticeContainsBatch(
             {
                 selectedRow = row;
                 selectedColumn = column;
+                if (zhangExactAbs(matrix[row][column]) == 1)
+                { unitPivot = true; break; }
             }
         }
         if (selectedRow == dimension) break;
@@ -1593,9 +1764,11 @@ zhangIntegerRowLatticeContainsBatch(
 
         while (true)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             bool restart = false;
             for (std::size_t row = pivot + 1; row < dimension; row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][pivot] == 0) continue;
                 const ZhangExactInteger quotient =
                     matrix[row][pivot] / matrix[pivot][pivot];
@@ -1608,6 +1781,7 @@ zhangIntegerRowLatticeContainsBatch(
             for (std::size_t column = pivot + 1;
                  column < rowCount; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[pivot][column] == 0) continue;
                 const ZhangExactInteger quotient =
                     matrix[pivot][column] / matrix[pivot][pivot];
@@ -1620,10 +1794,12 @@ zhangIntegerRowLatticeContainsBatch(
             if (restart) continue;
             std::size_t offendingRow = dimension;
             for (std::size_t row = pivot + 1;
-                 row < dimension && offendingRow == dimension; row++)
+                 row < dimension && offendingRow == dimension &&
+                 zhangExactAbs(matrix[pivot][pivot]) != 1; row++)
             for (std::size_t column = pivot + 1;
                  column < rowCount; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 if (matrix[row][column] % matrix[pivot][pivot] != 0)
                 {
                     offendingRow = row;
@@ -1647,6 +1823,7 @@ zhangIntegerRowLatticeContainsBatch(
         invariants.push_back(matrix[row][row]);
     for (std::size_t target = 0; target < targets.size(); target++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         auto& result = results[target];
         result.rank = static_cast<int>(pivot);
         result.smithInvariants = invariants;
@@ -1685,6 +1862,7 @@ inline ZhangDualSignalLatticeValidity zhangClassifyDualSignalLattice(
     targets.reserve(3 * signalDimension);
     for (std::size_t index = 0; index < signalDimension; index++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector l1(2 * signalDimension);
         ZhangExactVector l2(2 * signalDimension);
         ZhangExactVector wideLane(2 * signalDimension);
@@ -1700,6 +1878,7 @@ inline ZhangDualSignalLatticeValidity zhangClassifyDualSignalLattice(
         heldRows, targets);
     for (std::size_t index = 0; index < signalDimension; index++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         validity.l1 &= memberships[3 * index].contained;
         validity.l2 &= memberships[3 * index + 1].contained;
         validity.wideLane &= memberships[3 * index + 2].contained;
@@ -1754,9 +1933,11 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
     bool progress = true;
     while (progress)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         progress = false;
         for (std::size_t edgeIndex = 0; edgeIndex < treeSize; edgeIndex++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             const auto& edge = audit.treeEdges[edgeIndex];
             std::string receiver = receiverNode(edge.receiver);
             std::string satellite = satelliteNode(edge.satellite);
@@ -1772,6 +1953,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
             ZhangExactVector expression = nodeExpression.at(known);
             for (auto& coefficient : expression)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 coefficient = -coefficient;
             }
             expression[edgeIndex] += 1;
@@ -1788,6 +1970,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
 
     for (const auto& receiver : basis.receivers)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (receiver != basis.rootReceiver)
         {
             audit.coordinateNodes.push_back(receiverNode(receiver));
@@ -1795,10 +1978,12 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
     }
     for (const auto& satellite : basis.satellites)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         audit.coordinateNodes.push_back(satelliteNode(satellite));
     }
     for (const auto& node : audit.coordinateNodes)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         auto expression = nodeExpression.find(node);
         if (expression == nodeExpression.end())
         {
@@ -1811,6 +1996,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
     audit.chordTreeMap = zhangExactZeroMatrix(audit.chordEdges.size(), treeSize);
     for (std::size_t chord = 0; chord < audit.chordEdges.size(); chord++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         const auto& edge = audit.chordEdges[chord];
         auto receiver = nodeExpression.find(receiverNode(edge.receiver));
         auto satellite = nodeExpression.find(satelliteNode(edge.satellite));
@@ -1823,6 +2009,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
         }
         for (std::size_t column = 0; column < treeSize; column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             audit.chordTreeMap[chord][column] =
                 receiver->second[column] + satellite->second[column];
         }
@@ -1840,12 +2027,15 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
         audit.canonicalToArc = zhangExactZeroMatrix(arcCount, arcCount);
         for (std::size_t edge = 0; edge < treeSize; edge++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             audit.canonicalToArc[edge][edge] = 1;
         }
         for (std::size_t chord = 0; chord < audit.chordEdges.size(); chord++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             for (std::size_t tree = 0; tree < treeSize; tree++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 audit.canonicalToArc[treeSize + chord][tree] =
                     audit.chordTreeMap[chord][tree];
             }
@@ -1865,6 +2055,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
         );
         for (std::size_t edge = 0; edge < treeSize; edge++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             hash = zhangAuditFnv1a(
                 hash,
                 std::to_string(edge) + ":" + std::to_string(edge) + ":1;"
@@ -1872,8 +2063,10 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
         }
         for (std::size_t chord = 0; chord < audit.chordEdges.size(); chord++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             for (std::size_t tree = 0; tree < treeSize; tree++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 const auto& coefficient = audit.chordTreeMap[chord][tree];
                 if (coefficient == 0)
                 {
@@ -1910,6 +2103,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
         }
         for (const auto& satellite : basis.satellites)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             if (satellite == referenceSatellite)
             {
                 continue;
@@ -1925,6 +2119,7 @@ inline ZhangCanonicalIntegerAudit zhangCanonicalIntegerAudit(
             ZhangExactVector difference = expression->second;
             for (std::size_t column = 0; column < treeSize; column++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 difference[column] -= reference->second[column];
             }
             audit.satelliteDatumSingleDifferences.push_back(std::move(difference));
@@ -2002,6 +2197,7 @@ inline ZhangSatelliteProductTarget zhangCanonicalSatelliteProductTarget(
     for (std::size_t column = 0;
          column < result.canonicalSatellites.size(); column++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (column == referenceColumn) continue;
         ZhangExactVector row(result.canonicalSatellites.size());
         row[column] = 1;
@@ -2129,6 +2325,7 @@ inline ZhangSatelliteProductTarget zhangBuildSatelliteProductTarget(
     map<ZhangGraphEdge, std::size_t> productTreeIndex;
     for (std::size_t edge = 0; edge < product.treeEdges.size(); edge++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         productTreeIndex[product.treeEdges[edge]] = edge;
     }
     ZhangExactMatrix treeSelection = zhangExactZeroMatrix(
@@ -2136,6 +2333,7 @@ inline ZhangSatelliteProductTarget zhangBuildSatelliteProductTarget(
     );
     for (std::size_t chord = 0; chord < current.chordEdges.size(); chord++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         auto treeEdge = productTreeIndex.find(current.chordEdges[chord]);
         if (treeEdge != productTreeIndex.end())
         {
@@ -2152,6 +2350,7 @@ inline ZhangSatelliteProductTarget zhangBuildSatelliteProductTarget(
     std::size_t row = satelliteOffset;
     for (const auto& satellite : effectiveProductBasis.satellites)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         satelliteRow[satellite] = row++;
     }
     const auto& reference = nodeOffsets.at(
@@ -2159,6 +2358,7 @@ inline ZhangSatelliteProductTarget zhangBuildSatelliteProductTarget(
     );
     for (const auto& satellite : effectiveProductBasis.satellites)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         if (satellite == result.referenceSatellite)
         {
             continue;
@@ -2166,6 +2366,7 @@ inline ZhangSatelliteProductTarget zhangBuildSatelliteProductTarget(
         ZhangExactVector target = nodeOffsets.at(satelliteRow.at(satellite));
         for (std::size_t column = 0; column < target.size(); column++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             target[column] -= reference[column];
         }
         result.targetSatellites.push_back(satellite);
@@ -2211,6 +2412,7 @@ struct ProductConstraintPromotion
         targets.reserve(namedTargetCount);
         for (std::size_t target = 0; target < namedTargetCount; target++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             ZhangExactVector unit(namedTargetCount);
             unit[target] = 1;
             targets.push_back(std::move(unit));
@@ -2219,6 +2421,7 @@ struct ProductConstraintPromotion
             fixedRows, targets);
         for (std::size_t target = 0; target < namedTargetCount; target++)
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             const ZhangIntegerLatticeMembership& membership =
                 memberships[target];
             if (!membership.contained ||
@@ -2229,6 +2432,7 @@ struct ProductConstraintPromotion
             ZhangExactInteger value = 0;
             for (std::size_t row = 0; row < fixedValues.size(); row++)
             {
+                zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
                 value += membership.combination[row] * fixedValues[row];
             }
             recovered[target] = value;
@@ -2257,19 +2461,23 @@ inline ZhangExactMatrix zhangCanonicalTransition(
     std::map<ZhangGraphEdge, std::size_t> oldArcIndex;
     for (std::size_t index = 0; index < oldArcs.size(); index++)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         oldArcIndex[oldArcs[index]] = index;
     }
 
     ZhangExactMatrix transition;
     for (const auto& edge : newAudit.treeEdges)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         transition.push_back(oldAudit.canonicalToArc.at(oldArcIndex.at(edge)));
     }
     for (const auto& chord : newAudit.chordEdges)
     {
+        zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
         ZhangExactVector rawCycle(oldArcs.size());
         for (const auto& [edge, coefficient] : zhangFundamentalCycle(newBasis, chord))
         {
+            zhangExactWorkCheckpoint("zhangIntegerAudit_LOOP");
             rawCycle[oldArcIndex.at(edge)] = coefficient;
         }
         transition.push_back(

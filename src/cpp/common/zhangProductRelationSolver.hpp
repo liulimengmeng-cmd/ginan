@@ -52,6 +52,7 @@ inline ZhangExactRowHnf zhangAppliedLatticeProductImage(
 	if (memberships.size() != intersection.rows.size()) return result;
 	for (std::size_t i = 0; i < memberships.size(); ++i)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!memberships[i].contained || memberships[i].combination.size() != offsets.size())
 			return result;
 		auto value = intersection.firstValues[i];
@@ -165,6 +166,7 @@ inline ZhangExactRowProofBinding zhangBindExactRowDecisionProofs(
 		if (exactTransform->size()!=targetRows.size()) return result;
 		for (const auto& combination:*exactTransform)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			ZhangIntegerLatticeMembership item;
 			item.contained=true; item.combination=combination;
 			membership.push_back(std::move(item));
@@ -174,6 +176,7 @@ inline ZhangExactRowProofBinding zhangBindExactRowDecisionProofs(
 	if (membership.size()!=targetRows.size()) return result;
 	for(std::size_t r=0;r<targetRows.size();++r)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& item=membership[r];
 		if(!item.contained || item.combination.size()!=sourceRows.size())
 		{ result.reason="ROW_PROOF_NOT_INTEGER_CONSEQUENCE"; return result; }
@@ -182,6 +185,7 @@ inline ZhangExactRowProofBinding zhangBindExactRowDecisionProofs(
 		ZhangDecisionProofs proofs;
 		for(std::size_t k=0;k<sourceRows.size();++k)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			if(item.combination[k]==0) continue;
 			if(sourceProofs[k].empty() || !zhangDecisionRiskClosure(sourceProofs[k]).valid)
 			{ result.reason="ROW_PROOF_SOURCE_MISSING"; return result; }
@@ -341,9 +345,11 @@ inline void zhangPropagateProductPairProvenance(
 	std::map<Edge, std::pair<bool, bool>> provenance;
 	for (const auto* source : sources)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!source) continue;
 		for (const auto& pair : source->dualFrequencyCertifiedPairs)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			if (pair.firstNode < 0 || pair.secondNode < 0 ||
 				pair.firstNode == pair.secondNode) continue;
 			const Edge edge{std::min(pair.firstNode, pair.secondNode),
@@ -355,6 +361,7 @@ inline void zhangPropagateProductPairProvenance(
 	}
 	for (auto& pair : output.dualFrequencyCertifiedPairs)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (pair.firstNode < 0 || pair.secondNode < 0 ||
 			pair.firstNode == pair.secondNode) continue;
 		const Edge edge{std::min(pair.firstNode, pair.secondNode),
@@ -588,6 +595,7 @@ zhangSelectComponentGaugeEvidenceBlocks(
 	frontier[{0, 0}] = {};
 	for (int index = 0; index < static_cast<int>(blocks.size()); index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& block = blocks[index];
 		const bool authoritative =
 			zhangComponentGaugeBlockProvidesAuthoritativeEvidence(block);
@@ -608,6 +616,7 @@ zhangSelectComponentGaugeEvidenceBlocks(
 		auto next = frontier;
 		for (const auto& [score, state] : frontier)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const double combinedProbability = state.probability + probability;
 			if (combinedProbability > budget + tolerance) continue;
 			const std::pair<int, int> combinedScore{
@@ -631,6 +640,7 @@ zhangSelectComponentGaugeEvidenceBlocks(
 	State best;
 	for (const auto& [score, state] : frontier)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (score > bestScore ||
 			(score == bestScore && state.probability < best.probability - tolerance))
 		{
@@ -644,6 +654,7 @@ zhangSelectComponentGaugeEvidenceBlocks(
 	result.familyFailureProbability = best.probability;
 	for (const int index : result.selectedBlockIndices)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (zhangComponentGaugeBlockProvidesAuthoritativeEvidence(blocks[index]))
 			result.selectedAuthoritativeBlocks++;
 		else
@@ -835,6 +846,7 @@ zhangPrimitiveComponentGaugeCandidates(
 	for (int first = 0; first < componentCount; first++)
 	for (int second = first + 1; second < componentCount; second++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		ZhangExactVector row(gauges);
 		if (first > 0) row[first - 1] += 1;
 		if (second > 0) row[second - 1] -= 1;
@@ -849,6 +861,7 @@ zhangPrimitiveComponentGaugeCandidates(
 		1e-14 * std::max(1.0, covariance.norm()));
 	for (int index = 0; index < static_cast<int>(rows.size()); index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!allowedPairLattice.empty() &&
 			(memberships.size() != rows.size() ||
 			 !memberships[index].contained)) continue;
@@ -892,6 +905,7 @@ inline int zhangNamedEdgeGraphRankGain(
 	{
 		while (parent[node] != node)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			parent[node] = parent[parent[node]];
 			node = parent[node];
 		}
@@ -912,6 +926,7 @@ inline int zhangNamedEdgeGraphRankGain(
 		std::map<int, int> representative;
 		for (int node = 0; node < nodeCount; node++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const int label = existingComponentLabels[node];
 			auto [iterator, inserted] = representative.try_emplace(label, node);
 			if (!inserted) unite(iterator->second, node);
@@ -920,6 +935,7 @@ inline int zhangNamedEdgeGraphRankGain(
 	int gain = 0;
 	for (const auto& edge : edges)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (edge.size() != 2) continue;
 		gain += unite(edge[0], edge[1]);
 	}
@@ -959,6 +975,7 @@ zhangNamedPairForestBeamLevels(
 		std::vector<std::vector<int>> dualEdges;
 		for (int index : selected)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			if (index < 0 || index >= static_cast<int>(candidates.size()))
 				return ZhangNamedPairBeamBranch{};
 			branch.maximumPerr = std::max(
@@ -1010,12 +1027,14 @@ zhangNamedPairForestBeamLevels(
 	for (int targetRank = 1;
 		targetRank <= dimension && !frontier.empty(); targetRank++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		std::map<std::vector<int>, ZhangNamedPairBeamBranch> unique;
 		int expanded = 0;
 		bool cappedThisLevel = false;
 		for (const auto& parent : frontier)
 		for (int index = 0; index < static_cast<int>(candidates.size()); index++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			// The LAMBDA evaluation cap must also bound the preceding exact
 			// forest construction.  Otherwise a large all-pair dictionary can
 			// allocate and score thousands of temporary HNF/gain candidates before
@@ -1066,6 +1085,7 @@ inline bool zhangProductNamedOrderingMatches(
 	for (std::size_t local = 0;
 		 local < first.mappableNamedIndices.size(); local++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const int firstIndex = first.mappableNamedIndices[local];
 		const int secondIndex = second.mappableNamedIndices[local];
 		if (firstIndex < 0 || secondIndex < 0 ||
@@ -1136,10 +1156,12 @@ inline bool zhangPullBackProductIntegerConstraints(
 		ZhangExactInteger rhs = integer;
 		for (int product = 0; product < productRank; product++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const ZhangExactInteger multiplier = productRow[product];
 			if (multiplier == 0) continue;
 			for (int column = 0; column < networkDimension; column++)
 			{
+			    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 				ZhangExactInteger first = 0;
 				ZhangExactInteger second = 0;
 				if (!exactBasisCoefficient(firstBasis.transform,
@@ -1161,6 +1183,7 @@ inline bool zhangPullBackProductIntegerConstraints(
 	};
 	for (std::size_t row = 0; row < wideLaneRows.size(); row++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!append(wideLaneRows[row], wideLaneIntegers[row], true))
 		{
 			failureReason = "WL_PRODUCT_TO_NETWORK_MAPPING_FAILED";
@@ -1169,6 +1192,7 @@ inline bool zhangPullBackProductIntegerConstraints(
 	}
 	for (std::size_t row = 0; row < firstSignalRows.size(); row++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!append(firstSignalRows[row], firstSignalIntegers[row], false))
 		{
 			failureReason = "L1_PRODUCT_TO_NETWORK_MAPPING_FAILED";
@@ -1217,11 +1241,13 @@ inline ZhangExactMatrix zhangWideLaneFirstRowsToSignalRows(
 	signalRows.reserve(wideLaneFirstRows.size());
 	for (const auto& row : wideLaneFirstRows)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (row.size() != static_cast<std::size_t>(2 * signalDimension))
 			return {};
 		ZhangExactVector signalRow(2 * signalDimension);
 		for (int column = 0; column < signalDimension; column++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			signalRow[column] = row[column] + row[signalDimension + column];
 			signalRow[signalDimension + column] = -row[column];
 		}
@@ -1270,6 +1296,7 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	int ambientDimension,
     ZhangExactQuotientWork work=ZhangExactQuotientWork::FULL_SEARCH_COORDINATES)
 {
+    ZhangPhaseTimer affineTimer("EXACT_AFFINE_TOTAL");
     ZhangR48ExactTimer feasibilityTimer("R48_EXACT_FEASIBILITY",deterministicRows,ambientDimension);
 	ZhangExactAffineIntegerQuotient result;
 	result.ambientDimension = ambientDimension;
@@ -1281,14 +1308,17 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	}
 	for (const auto& row : deterministicRows)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (row.size() != static_cast<std::size_t>(ambientDimension))
 		{
 			result.failureReason = "AFFINE_QUOTIENT_INVALID_ROW";
 			return result;
 		}
 	}
-	const auto hnf = zhangExactRowHermiteNormalForm(
-		deterministicRows, deterministicValues);
+	const auto hnf = [&]() {
+        ZhangPhaseTimer timer("EXACT_AFFINE_ROW_HNF");
+        return zhangExactRowHermiteNormalForm(deterministicRows, deterministicValues);
+    }();
 	if (!hnf.consistent)
 	{
 		result.failureReason = "AFFINE_QUOTIENT_INTEGER_CONFLICT";
@@ -1313,8 +1343,10 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		ZhangExactMatrix columns(ambientDimension,
 			ZhangExactVector(result.deterministicRank));
 		for (int column = 0; column < ambientDimension; ++column)
-		for (int row = 0; row < result.deterministicRank; ++row)
+		for (int row = 0; row < result.deterministicRank; ++row) {
+			zhangExactWorkCheckpoint("AFFINE_FEASIBILITY_TRANSPOSE");
 			columns[column][row] = result.deterministicBasis[row][column];
+		}
 		const auto feasibility = zhangIntegerRowLatticeContains(
 			columns, result.deterministicValues, false);
 		result.smithInvariants = feasibility.smithInvariants;
@@ -1324,16 +1356,6 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 		return result;
 	}
 
-	const auto primitive = zhangIntegerRowLatticeContains(
-		result.deterministicBasis, ZhangExactVector(ambientDimension), false);
-	result.smithInvariants = primitive.smithInvariants;
-	// A nonprimitive equation is not infeasible: 2*a=6 is a=3. The exact
-	// column-lattice membership below enforces divisibility (2*a=5 fails).
-	if (primitive.rank != result.deterministicRank)
-	{
-		result.failureReason = "AFFINE_QUOTIENT_RANK_MISMATCH";
-		return result;
-	}
 	if (result.deterministicRank == 0)
 	{
 		result.particularSolution = ZhangExactVector(ambientDimension);
@@ -1351,10 +1373,26 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	ZhangExactMatrix columnGenerators(ambientDimension,
 		ZhangExactVector(result.deterministicRank));
 	for (int column = 0; column < ambientDimension; column++)
-	for (int row = 0; row < result.deterministicRank; row++)
+	for (int row = 0; row < result.deterministicRank; row++) {
+		zhangExactWorkCheckpoint("AFFINE_PARTICULAR_TRANSPOSE");
 		columnGenerators[column][row] = result.deterministicBasis[row][column];
-	const auto particular = zhangIntegerRowLatticeContains(
-		columnGenerators, result.deterministicValues);
+	}
+	const auto particular = [&]() {
+        ZhangPhaseTimer timer("EXACT_AFFINE_SMITH_ORIGIN");
+        // One Smith decomposition proves divisibility, rank and invariants.
+        // H and H^T have the same nonzero Smith factors: decomposing H^T
+        // separately for a zero membership query proves nothing additional.
+        // Replay the SAME column-operation tape for this single RHS instead
+        // of storing an ambientDimension^2 right-transform matrix.
+        return zhangIntegerRowLatticeContains(
+            columnGenerators, result.deterministicValues, true, true);
+    }();
+    result.smithInvariants = particular.smithInvariants;
+    if (particular.rank != result.deterministicRank)
+    {
+        result.failureReason = "AFFINE_QUOTIENT_RANK_MISMATCH";
+        return result;
+    }
 	if (!particular.contained ||
 		particular.combination.size() !=
 			static_cast<std::size_t>(ambientDimension))
@@ -1373,6 +1411,7 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 
     feasibilityTimer.finish();
     {
+        ZhangPhaseTimer kernelTimer("EXACT_AFFINE_KERNEL");
         ZhangR48ExactTimer timer("R48_EXACT_KERNEL",result.deterministicBasis,ambientDimension);
 	    result.kernelBasis = zhangExactIntegerKernel(result.deterministicBasis, ambientDimension);
     }
@@ -1401,6 +1440,7 @@ inline ZhangExactAffineIntegerQuotient zhangExactAffineIntegerQuotient(
 	result.quotientProjector.reserve(result.quotientRank);
 	for (int quotient = 0; quotient < result.quotientRank; quotient++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& inverseRow=inverseRows[quotient];
 		if (!inverseRow.contained ||
 			inverseRow.combination.size() !=
@@ -1473,6 +1513,7 @@ inline ZhangPrimitiveImageCoordinates zhangPrimitiveImageCoordinates(const Zhang
 	ZhangExactMatrix columns(n, ZhangExactVector(m));
 	for (int i=0; i<m; ++i)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (rows[i].size() != n) return result;
 		for (int j=0; j<n; ++j) columns[j][i]=rows[i][j];
 	}
@@ -1486,6 +1527,7 @@ inline ZhangPrimitiveImageCoordinates zhangPrimitiveImageCoordinates(const Zhang
     const auto memberships=zhangIntegerRowLatticeContainsBatch(image.basis,columns);
 	for (int j=0;j<n;++j)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& membership = memberships[j];
 		if (!membership.contained || membership.combination.size() != r) return result;
 		for (int k=0;k<r;++k) result.primitiveRows[k][j]=membership.combination[k];
@@ -1534,6 +1576,7 @@ inline ZhangCertificateRiskAudit zhangAuditCertificateFamilyRisk(
 	}
 	for (const auto& receipt : receipts)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!receipt.decisionProofs.empty())
 		{
 			const auto closure = zhangDecisionRiskClosure(receipt.decisionProofs);
@@ -1544,6 +1587,7 @@ inline ZhangCertificateRiskAudit zhangAuditCertificateFamilyRisk(
 			}
 			for (const auto& [id, atom] : closure.atoms)
 			{
+			    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 				if (receipt.currentReauthorised)
 					current[id] = std::max(current[id], atom->conditionalFailureBound);
 				lifetime[id] = std::max(lifetime[id], atom->conditionalFailureBound);
@@ -1838,6 +1882,7 @@ inline ZhangDualSignalIntegerSupport zhangSplitJointProductIntegerSupport(
 	}
 	for (const auto& row : jointRows)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (row.size() != static_cast<std::size_t>(2 * productDimension))
 		{
 			result.invalidRows++;
@@ -1921,6 +1966,7 @@ zhangRecoverCompleteNamedProductSubset(
 	}
 	for (int index = 0; index < namedCount; index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!recovered.contains(index)) return {};
 	}
 	return recovered;
@@ -1970,6 +2016,7 @@ zhangRecoverCertifiedPairRelations(
 	for (int first = 0; first <= namedCount; first++)
 	for (int second = first + 1; second <= namedCount; second++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		ZhangExactVector pairRow(namedCount);
 		if (first < namedCount) pairRow[first] += 1;
 		if (second < namedCount) pairRow[second] -= 1;
@@ -1985,6 +2032,7 @@ zhangRecoverCertifiedPairRelations(
 	if (memberships.size() != pairRows.size()) return {};
 	for (int pair = 0; pair < static_cast<int>(pairRows.size()); pair++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& membership = memberships[pair];
 		if (!membership.contained ||
 			membership.combination.size() != fixedValues.size())
@@ -1994,6 +2042,7 @@ zhangRecoverCertifiedPairRelations(
 		ZhangExactInteger value = 0;
 		for (std::size_t row = 0; row < fixedValues.size(); row++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			value += membership.combination[row] * fixedValues[row];
 		}
 		result.push_back({pairNodes[pair].first, pairNodes[pair].second, value,
@@ -2049,6 +2098,7 @@ inline ZhangExactDualGraphProfile zhangExactDualGraphProfile(
 	std::set<int> nodes;
 	for (const auto& pair : wl)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!firstPairs.count({pair.firstNode, pair.secondNode})) continue;
 		if (pair.firstNode < 0 || pair.firstNode > namedCount ||
 			pair.secondNode < 0 || pair.secondNode > namedCount) continue;
@@ -2063,6 +2113,7 @@ inline ZhangExactDualGraphProfile zhangExactDualGraphProfile(
 	result.componentSizeByNode.resize(namedCount + 1);
 	for (int node = 0; node <= namedCount; node++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		result.componentByNode[node] = root(node);
 		result.componentSizeByNode[node] = sizes[root(node)];
 	}
@@ -2092,6 +2143,7 @@ inline int zhangFinalizeHistoricalProductPairAuthorization(
 {
 	for (auto& pair : constraints.dualFrequencyCertifiedPairs)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		pair.currentPosteriorReauthorized = false;
 		pair.exactHistoricalTransportWitness = false;
 		pair.productGaugeComponentVersion = 0;
@@ -2137,6 +2189,7 @@ inline int zhangFinalizeHistoricalProductPairAuthorization(
 	decisionIds.reserve(proofClosure.atoms.size());
 	for (const auto& [id, proof] : proofClosure.atoms)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		(void)proof;
 		if (id.empty()) return 0;
 		decisionIds.push_back(id);
@@ -2165,6 +2218,7 @@ inline int zhangFinalizeHistoricalProductPairAuthorization(
 	int authorised = 0;
 	for (auto& pair : constraints.dualFrequencyCertifiedPairs)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		int first = pair.firstNode;
 		int second = pair.secondNode;
 		ZhangExactInteger value = pair.value;
@@ -2238,6 +2292,7 @@ inline MatrixXd zhangAllPairIncidence(int namedCount)
 	for (int first = 0; first < nodeCount; first++)
 	for (int second = first + 1; second < nodeCount; second++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (first < namedCount) result(row, first) += 1;
 		if (second < namedCount) result(row, second) -= 1;
 		row++;
@@ -2289,6 +2344,7 @@ inline ZhangExactConditioningAudit zhangConditionExactProductRows(
 	const VectorXd coordinates = eigen.eigenvectors().transpose() * innovation;
 	for (int index = 0; index < rows.rows(); index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (eigen.eigenvalues()(index) > tolerance)
 		{
 			inverse(index) = 1 / eigen.eigenvalues()(index);
@@ -2375,6 +2431,7 @@ inline ZhangComponentGaugeProductRow zhangComponentGaugeToProductRow(
 	const int datumAnchor = componentAnchors.front();
 	for (int gauge = 0; gauge < static_cast<int>(gaugeCombination.size()); gauge++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const auto& coefficient = gaugeCombination[gauge];
 		const int componentAnchor = componentAnchors[gauge + 1];
 		if (componentAnchor < namedDimension)
@@ -2435,6 +2492,7 @@ inline ZhangComponentGaugeGls zhangComponentGaugeGls(
 	Eigen::VectorXd inverse = Eigen::VectorXd::Zero(count);
 	for (int index = 0; index < count; index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (eigen.eigenvalues()(index) <= tolerance) continue;
 		inverse(index) = 1 / eigen.eigenvalues()(index);
 		result.measurementRank++;
@@ -2468,6 +2526,7 @@ inline ZhangComponentGaugeGls zhangComponentGaugeGls(
 	result.maximumNullResidual = nullResidual.lpNorm<Eigen::Infinity>();
 	for (int mode = 0; mode < eigen.eigenvalues().size(); mode++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (eigen.eigenvalues()(mode) <= tolerance)
 		{
 			const auto& vector = eigen.eigenvectors().col(mode);
@@ -2507,9 +2566,11 @@ inline std::vector<int> zhangMaxEstimableDualGaugeForest(
 	int rank = 0;
 	for (int gauge = 0; gauge < gaugeCount; gauge++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		std::vector<int> columns;
 		for (const int existing : selected)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			columns.push_back(existing);
 			columns.push_back(gaugeCount + existing);
 		}
@@ -2593,6 +2654,7 @@ zhangComponentGaugeLeaveOneGroupOut(
 	std::vector<bool> removed(count, false);
 	for (const int index : removedIndices)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (index < 0 || index >= count || removed[index]) continue;
 		removed[index] = true;
 		result.removedCount++;
@@ -2609,6 +2671,7 @@ zhangComponentGaugeLeaveOneGroupOut(
 		if (!removed[index]) retained.push_back(index);
 	for (int row = 0; row < result.retainedCount; row++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		retainedMeasurements(row) = measurements(retained[row]);
 		retainedDesign.row(row) = design.row(retained[row]);
 		for (int column = 0; column < result.retainedCount; column++)
@@ -2669,6 +2732,7 @@ zhangMaximumEstimableDualComponentForest(
 	std::vector<WeightedEdge> eligible;
 	for (const auto& candidate : candidates)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		const int first = candidate.firstComponent;
 		const int second = candidate.secondComponent;
 		if (first < 0 || second < 0 || first >= componentCount ||
@@ -2707,6 +2771,7 @@ zhangMaximumEstimableDualComponentForest(
 		int value = node;
 		while (parent[value] != value)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			parent[value] = parent[parent[value]];
 			value = parent[value];
 		}
@@ -2717,6 +2782,7 @@ zhangMaximumEstimableDualComponentForest(
 	std::set<std::string> usedArcs;
 	while (forest.size() + 1 < static_cast<std::size_t>(componentCount))
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		int bestIndex = -1;
 		double bestWeakestInformation = -1;
 		double bestConditionalInformation = -1;
@@ -2724,6 +2790,7 @@ zhangMaximumEstimableDualComponentForest(
 		int bestArcNovelty = -1;
 		for (int index = 0; index < static_cast<int>(eligible.size()); index++)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const auto& weighted = eligible[index];
 			if (root(weighted.edge.firstComponent) ==
 				root(weighted.edge.secondComponent)) continue;
@@ -2809,6 +2876,7 @@ inline std::vector<std::vector<int>> zhangDualComponentSupportBlocks(
 		int value = node;
 		while (parent[value] != value)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			parent[value] = parent[parent[value]];
 			value = parent[value];
 		}
@@ -2816,6 +2884,7 @@ inline std::vector<std::vector<int>> zhangDualComponentSupportBlocks(
 	};
 	for (const auto& edge : dualSupportEdges)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (edge.firstComponent < 0 || edge.secondComponent < 0 ||
 			edge.firstComponent >= componentCount ||
 			edge.secondComponent >= componentCount ||
@@ -2829,6 +2898,7 @@ inline std::vector<std::vector<int>> zhangDualComponentSupportBlocks(
 		grouped[root(component)].push_back(component);
 	for (auto& [_, block] : grouped)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		std::sort(block.begin(), block.end());
 		blocks.push_back(std::move(block));
 	}
@@ -2851,6 +2921,7 @@ inline std::vector<ZhangNullConflict> zhangLocalizeNullConflicts(
 	if (gls.residual.size() != static_cast<int>(edges.size())) return conflicts;
 	for (const auto& mode : gls.nullModes)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (mode.size() != gls.residual.size()) continue;
 		ZhangNullConflict conflict;
 		conflict.nullResidual = mode.dot(gls.residual);
@@ -2861,6 +2932,7 @@ inline std::vector<ZhangNullConflict> zhangLocalizeNullConflicts(
 				std::abs(mode(right) * gls.residual(right)); });
 		for (const int index : order)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const double contribution = mode(index) * gls.residual(index);
 			if (std::abs(contribution) <= 1e-10) break;
 			conflict.dominantEdges.push_back(edges[index]);
@@ -2901,6 +2973,7 @@ inline ZhangComponentBridgeGls zhangComponentBridgeGls(
 	VectorXd inverse = VectorXd::Zero(count);
 	for (int index = 0; index < count; index++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (eigen.eigenvalues()(index) > tolerance)
 		{
 			inverse(index) = 1 / eigen.eigenvalues()(index);
@@ -2954,6 +3027,7 @@ inline std::vector<ZhangPairReliabilityEdge> zhangPairReliabilityForest(
 		while (parent[value] != value) value = parent[value];
 		while (parent[node] != node)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			const int next = parent[node];
 			parent[node] = value;
 			node = next;
@@ -2962,6 +3036,7 @@ inline std::vector<ZhangPairReliabilityEdge> zhangPairReliabilityForest(
 	};
 	for (const auto& edge : edges)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (!std::isfinite(edge.perr) || edge.perr > maximumPerr ||
 			edge.firstNode < 0 || edge.secondNode < 0 ||
 			edge.firstNode >= nodeCount || edge.secondNode >= nodeCount)
@@ -3068,6 +3143,7 @@ zhangScoreProductConstraintCompletion(
 		std::vector<ZhangPairReliabilityEdge> common;
 		for (const auto& pair : firstPairs)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			if (wideIds.contains({pair.firstNode, pair.secondNode}))
 				common.push_back({pair.firstNode, pair.secondNode, 0, 0});
 		}
@@ -3151,6 +3227,7 @@ inline ZhangExactMatrix zhangComponentRelativeGaugeBasis(
 	}
 	for (int satellite = 0; satellite < satelliteCount; satellite++)
 	{
+	    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 		if (satellite == anchorIndex) continue;
 		ZhangExactVector row(satelliteCount);
 		row[satellite] = 1;
@@ -3181,6 +3258,7 @@ inline std::vector<std::vector<int>> zhangProductNamedBackwardChildren(
 		std::vector<int> exactSeed;
 		for (int local : recoverableLocalIndices)
 		{
+		    zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
 			if (local >= 0 && local < static_cast<int>(selected.size()))
 			{
 				exactSeed.push_back(selected.at(local));
@@ -3284,6 +3362,7 @@ inline bool zhangCertifiedPairPhysicalRhs(
     ZhangExactInteger rhs = 0;
     for (std::size_t i = 0; i < parentCombination.size(); ++i)
     {
+        zhangExactWorkCheckpoint("zhangProductRelationSolver_LOOP");
         const auto& row = parentProductRows[parentOffset + i];
         if (row.size() != pairRow.size()) return false;
         for (std::size_t j = 0; j < pairRow.size(); ++j)

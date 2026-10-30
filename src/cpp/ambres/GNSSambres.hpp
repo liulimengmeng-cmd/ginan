@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <cmath>
 #include <string>
+#include <sstream>
 
 #include "common/algebra.hpp"
 #include "common/common.hpp"
@@ -19,6 +21,30 @@ extern bool   AR_VERBO;
 
 struct KFState;
 struct ZhangCheckpointSnapshotReferenceSummary;
+struct ZhangCurrentEpochNumericConstraint;
+
+/** Apply all current product conditions to a PRIVATE FLOAT-state copy using
+ * the production square-root/Gram conditioner. Never call on the FLOAT owner. */
+bool zhangConditionCurrentProductPosterior(
+    std::ostream& trace,KFState& privateState,
+    const std::vector<ZhangCurrentEpochNumericConstraint>& constraints,
+    std::string& reason);
+
+/** Full ordered KF identity, losslessly encoded (not dimension-only or a
+ * hash). A PSD token is usable only together with its immutable x/P root. */
+inline std::string zhangCurrentEvidenceStateOrderId(const std::map<KFKey,int>& indices)
+{
+    std::vector<std::string> order(indices.size());
+    std::vector<bool> seen(indices.size());
+    for(const auto& [key,index]:indices) {
+        if(index<0 || index>=order.size() || seen[index])return {};
+        order[index]=static_cast<std::string>(key);seen[index]=true;
+    }
+    std::ostringstream identity;identity<<"R51_FULL_STATE_ORDER_V1|";
+    for(std::size_t index=0;index<order.size();++index)
+        identity<<index<<"="<<order[index].size()<<":"<<order[index]<<";";
+    return identity.str();
+}
 
 /** Bootstrapped success probability for the suffix actually retained by
  * LAMBDA/PAR.  Keeping this calculation independent of the initial proposal
@@ -121,6 +147,9 @@ struct GinAR_mtx
         double bootstrapBest1d=0, bootstrapFull=0, effectiveSuccess=0, localAlpha=0;
         bool ratioExecuted=false, localNisExecuted=false;
         bool ilsComplete=false;int ilsCalls=0;
+        bool topTwoComplete=false, wallTimedOut=false, nodeLimited=false;
+        std::uint64_t visitedNodes=0;
+        double factorSeconds=0, reductionSeconds=0, enumerationSeconds=0, totalSeconds=0;
         double bestSquaredDistance=0,secondSquaredDistance=0,ratio=0;
         string mode="NOT_EVALUATED", reason="NOT_EVALUATED";
     } searchDiagnostic;
@@ -173,6 +202,13 @@ struct GinAR_opt
 
     int nset = 0;                   /* candidate set size for lambda */
     int nitr = 3;                   /* number of iterations for iter_rnd */
+
+    /** Absolute monotonic deadline checked inside factorisation, reduction and
+     * enumeration. It does not turn a partial top-two candidate set into an
+     * accepted ratio. The default retains the existing unbounded wall time. */
+    std::chrono::steady_clock::time_point search_deadline =
+        std::chrono::steady_clock::time_point::max();
+    std::uint64_t lambda_node_limit = 2000000;
 
     /** Optional cap on the nested LAMBDA PAR dimension.  Zero leaves the
      * bootstrap-success selection unchanged.  A positive value makes LAMBDA
@@ -284,7 +320,8 @@ int GNSS_AR(Trace& trace, GinAR_mtx& mtrx, GinAR_opt opt);
 /** Expose the unimodular LAMBDA decorrelation rows for diagnostics and
  * bounded shadow candidate dictionaries.  Calling this function does not
  * perform fixing or estimator feedback. */
-int Ztrans_reduction(Trace& trace, GinAR_mtx& mtrx);
+int Ztrans_reduction(Trace& trace, GinAR_mtx& mtrx,
+    const GinAR_opt* options = nullptr);
 
 GinAR_lambda_beam_result GNSS_AR_LAMBDA_BEAM_SHADOW(
     Trace&                         trace,

@@ -22,6 +22,9 @@
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
 #include "common/zhangIntegerSupportResidualAudit.hpp"
+#include "common/zhangSystemClockDatum.hpp"
+#include "common/zhangClockLifecycle.hpp"
+#include "common/zhangEffectiveClockDatum.hpp"
 #include "pea/zhangReference.hpp"
 #include "orbprop/coordinates.hpp"
 
@@ -65,6 +68,20 @@ void outputApriori(ReceiverMap& receiverMap)
 
         // apriori_clocks:
         {
+            if (zhangUsesSystemReceiverClocks(acsConfig))
+            {
+                for (const auto system : zhangSystemReceiverClockSystems(acsConfig))
+                {
+                    double clock = 0;
+                    const KFKey sppKey{KF::REC_SYS_BIAS, SatSys(system, 0), id};
+                    if (rec.sol.sppState.getKFValue(sppKey, clock) == E_Source::NONE)
+                        continue;
+                    const KFKey key = zhangReceiverClockKey(
+                        acsConfig, id, system, 0, KF::REC_CLOCK, &rec);
+                    aprioriState.addKFState(key, {.x = clock});
+                }
+                continue;
+            }
             KFKey kfKey;
             kfKey.str  = id;
             kfKey.Sat  = SatSys(E_Sys::GPS);
@@ -584,9 +601,9 @@ void updateAprioriRecClk(
 
                 E_Source found;
                 {
-                    KFKey kfKey;
-                    kfKey.type = KF::REC_CLOCK;
-                    kfKey.str  = rec.id;
+                    KFKey kfKey = zhangReceiverClockKey(
+                        acsConfig, rec.id, rec.sol.clkRefSys, 0,
+                        KF::REC_CLOCK, &rec);
 
                     double dummy;
 
@@ -1211,19 +1228,57 @@ void updateSppPppClkOffsets(ReceiverMap& receiverMap, KFState& kfState)
             continue;
         }
 
-        KFKey clkKey;
-        clkKey.type    = KF::REC_CLOCK;
-        clkKey.str     = id;
-        clkKey.rec_ptr = &rec;
+        if (zhangUsesEffectiveNetworkClocks(acsConfig))
+        {
+            if (kfState.time != tsync)
+            {
+                zhangClockLifecycleRecord("SPP_OFFSET_SAVE_SKIPPED", rec, &kfState,
+                    {{"skip_reason", "SPP_AND_COMMITTED_KF_EPOCH_MISMATCH"}});
+                continue;
+            }
+            for (const auto system : zhangSystemReceiverClockSystems(acsConfig))
+            {
+                double sppClock = 0;
+                if (!zhangSppClockForSystem(rec, system, sppClock)) continue;
+                const KFKey key = zhangReceiverClockKey(
+                    acsConfig, id, system, 0, KF::REC_CLOCK, &rec);
+                double filteredClock = 0;
+                if (kfState.getKFValue(key, filteredClock) == E_Source::NONE) continue;
+                const double offset = filteredClock - sppClock;
+                const auto chart = zhangSppPhysicalClockChart(rec.sol, system);
+                kfState.metaDataMap[zhangClockLifecycleMetadataKey("SPP_OFFSET", system, id)] =
+                    boost::json::serialize(boost::json::object{
+                        {"epoch", kfState.time.to_string(9)}, {"chart", chart}, {"offset_m", offset}});
+                // Preserve the old scalar/checkpoint fields for diagnostics
+                // and wire compatibility, but never use them as proof of an
+                // external chart after a legacy import.
+                if (system == rec.sol.clkRefSys)
+                {
+                    rec.sol.sppPppClkOffset = offset;
+                    rec.sol.sppPppClkOffsetSys = system;
+                    rec.sol.clkAdjustReady = true;
+                }
+                zhangClockLifecycleRecord("SPP_OFFSET_SAVE_AFTER", rec, &kfState,
+                    {{"system", enum_to_string(system)}, {"spp_system_clock_m", sppClock},
+                     {"saved_system_offset_m", offset}, {"external_chart", chart}});
+            }
+            continue;
+        }
+
+        KFKey clkKey = zhangReceiverClockKey(
+            acsConfig, id, rec.sol.clkRefSys, 0, KF::REC_CLOCK, &rec);
 
         double   recClk_m = 0;
         E_Source foundSrc = kfState.getKFValue(clkKey, recClk_m);
 
         if (foundSrc != E_Source::NONE)
         {
+            zhangClockLifecycleRecord("SPP_OFFSET_SAVE_BEFORE", rec, &kfState);
             rec.sol.sppPppClkOffset =
                 recClk_m - rec.sol.sppClk;  // Save SPP to PPP clock offset for next epoch
+            rec.sol.sppPppClkOffsetSys = rec.sol.clkRefSys;
             rec.sol.clkAdjustReady = true;
+            zhangClockLifecycleRecord("SPP_OFFSET_SAVE_AFTER", rec, &kfState);
         }
     }
 }

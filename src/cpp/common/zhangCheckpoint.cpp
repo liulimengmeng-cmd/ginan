@@ -11,6 +11,7 @@
 #include <limits>
 #include <set>
 #include <sstream>
+#include <streambuf>
 #include <system_error>
 #include <vector>
 
@@ -36,16 +37,10 @@ std::string boostBinarySerialize(const TYPE& value)
 	return output.str();
 }
 
-std::string boostBinarySerializeCoreWithoutTime(
-	const ZhangCheckpointKfCore& snapshot)
+template <class ARCHIVE>
+void serializeCoreMetadataFields(
+	ARCHIVE& archive, const ZhangCheckpointKfCore& snapshot)
 {
-	std::ostringstream output(std::ios::binary | std::ios::out);
-	boost::archive::binary_oarchive archive(output, boost::archive::no_header);
-	archive & snapshot.x;
-	archive & snapshot.P;
-	archive & snapshot.dx;
-	archive & snapshot.prefitRatios;
-	archive & snapshot.postfitRatios;
 	archive & snapshot.kfIndexMap;
 	archive & snapshot.stateTransitionMap;
 	archive & snapshot.gaussMarkovTauMap;
@@ -73,8 +68,151 @@ std::string boostBinarySerializeCoreWithoutTime(
 	archive & snapshot.outputMongoMeasurements;
 	archive & snapshot.statisticsMap;
 	archive & snapshot.statisticsMapSum;
+}
+
+std::string boostBinarySerializeCoreMetadata(
+	const ZhangCheckpointKfCore& snapshot)
+{
+	std::ostringstream output(std::ios::binary | std::ios::out);
+	boost::archive::binary_oarchive archive(output, boost::archive::no_header);
+	serializeCoreMetadataFields(archive, snapshot);
 	return output.str();
 }
+
+template <class MATRIX>
+bool denseBitwiseEqual(const MATRIX& left, const MATRIX& right)
+{
+	return left.rows() == right.rows() && left.cols() == right.cols() &&
+		(left.size() == 0 || std::memcmp(left.data(), right.data(),
+			static_cast<std::size_t>(left.size()) * sizeof(double)) == 0);
+}
+
+bool denseCoreBitwiseEqual(
+	const ZhangCheckpointKfCore& left, const ZhangCheckpointKfCore& right)
+{
+	return denseBitwiseEqual(left.x, right.x) &&
+		denseBitwiseEqual(left.P, right.P) &&
+		denseBitwiseEqual(left.dx, right.dx) &&
+		denseBitwiseEqual(left.prefitRatios, right.prefitRatios) &&
+		denseBitwiseEqual(left.postfitRatios, right.postfitRatios);
+}
+
+// Boost/Eigen writes scalar doubles individually. Buffer those small writes
+// before hashing, while retaining the exact legacy archive byte stream.
+class Sha256ArchiveStreamBuffer : public std::streambuf
+{
+	std::array<char, 64 * 1024> buffer{};
+	EVP_MD_CTX* context = nullptr;
+	bool healthy = false;
+
+	bool flushBuffer()
+	{
+		if (!healthy) return false;
+		const auto count = static_cast<std::size_t>(pptr() - pbase());
+		if (count && EVP_DigestUpdate(context, pbase(), count) != 1)
+		{
+			healthy = false;
+			return false;
+		}
+		setp(buffer.data(), buffer.data() + buffer.size());
+		return true;
+	}
+
+	int_type overflow(int_type character) override
+	{
+		if (!flushBuffer()) return traits_type::eof();
+		if (!traits_type::eq_int_type(character, traits_type::eof()))
+		{
+			*pptr() = traits_type::to_char_type(character);
+			pbump(1);
+		}
+		return traits_type::not_eof(character);
+	}
+
+	std::streamsize xsputn(const char* data, std::streamsize count) override
+	{
+		if (!healthy || count < 0) return 0;
+		const auto requested = count;
+		while (count)
+		{
+			if (pptr() == epptr() && !flushBuffer()) return requested - count;
+			const auto available = static_cast<std::streamsize>(epptr() - pptr());
+			const auto copied = std::min(count, available);
+			std::memcpy(pptr(), data, static_cast<std::size_t>(copied));
+			pbump(static_cast<int>(copied));
+			data += copied;
+			count -= copied;
+		}
+		return requested;
+	}
+
+	int sync() override { return flushBuffer() ? 0 : -1; }
+
+public:
+	Sha256ArchiveStreamBuffer()
+	{
+		context = EVP_MD_CTX_new();
+		healthy = context && EVP_DigestInit_ex(context, EVP_sha256(), nullptr) == 1;
+		setp(buffer.data(), buffer.data() + buffer.size());
+	}
+	~Sha256ArchiveStreamBuffer() override { EVP_MD_CTX_free(context); }
+	Sha256ArchiveStreamBuffer(const Sha256ArchiveStreamBuffer&) = delete;
+	Sha256ArchiveStreamBuffer& operator=(const Sha256ArchiveStreamBuffer&) = delete;
+
+	std::string finish()
+	{
+		if (!flushBuffer()) return {};
+		std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
+		unsigned int length = 0;
+		if (EVP_DigestFinal_ex(context, digest.data(), &length) != 1) return {};
+		healthy = false;
+		std::ostringstream text;
+		text << std::hex << std::setfill('0');
+		for (unsigned int i = 0; i < length; ++i)
+			text << std::setw(2) << static_cast<unsigned int>(digest[i]);
+		return text.str();
+	}
+};
+
+template <class TYPE>
+std::string streamingArchiveSha256(const TYPE& value)
+{
+	try
+	{
+		Sha256ArchiveStreamBuffer buffer;
+		std::ostream output(&buffer);
+		{
+			boost::archive::binary_oarchive archive(output, boost::archive::no_header);
+			archive << value;
+		}
+		output.flush();
+		return output ? buffer.finish() : std::string{};
+	}
+	catch (const std::exception&)
+	{
+		return {};
+	}
+}
+
+// This archive view has the same field sequence and class version as the
+// complete core. Independent tests require its digest to equal the legacy
+// full snapshot's archive, including every map/key and dense coefficient.
+struct LiveCoreArchiveView
+{
+	const ZhangCheckpointKfCore& metadata;
+	const KFState& state;
+	template <class ARCHIVE>
+	void serialize(ARCHIVE& archive, const unsigned int&)
+	{
+		archive & metadata.time;
+		archive & state.x;
+		archive & state.P;
+		archive & state.dx;
+		archive & state.prefitRatios;
+		archive & state.postfitRatios;
+		serializeCoreMetadataFields(archive, metadata);
+	}
+};
 
 template <typename TYPE>
 bool boostBinaryDeserialize(
@@ -288,15 +426,21 @@ GTime restoreZhangCheckpointTime(const ZhangCheckpointTime& stored)
 	return time;
 }
 
-ZhangCheckpointKfCore captureZhangCheckpointKfCore(const KFState& state)
+namespace
+{
+ZhangCheckpointKfCore captureZhangCheckpointKfCoreImpl(
+	const KFState& state, bool includeDense)
 {
 	ZhangCheckpointKfCore snapshot;
 	snapshot.time = captureZhangCheckpointTime(state.time);
-	snapshot.x = state.x;
-	snapshot.P = state.P;
-	snapshot.dx = state.dx;
-	snapshot.prefitRatios = state.prefitRatios;
-	snapshot.postfitRatios = state.postfitRatios;
+	if (includeDense)
+	{
+		snapshot.x = state.x;
+		snapshot.P = state.P;
+		snapshot.dx = state.dx;
+		snapshot.prefitRatios = state.prefitRatios;
+		snapshot.postfitRatios = state.postfitRatios;
+	}
 	for (const auto& [key, index] : state.kfIndexMap)
 	{
 		snapshot.kfIndexMap[checkpointKey(key)] = index;
@@ -353,6 +497,12 @@ ZhangCheckpointKfCore captureZhangCheckpointKfCore(const KFState& state)
 	snapshot.statisticsMap = state.statisticsMap;
 	snapshot.statisticsMapSum = state.statisticsMapSum;
 	return snapshot;
+}
+}
+
+ZhangCheckpointKfCore captureZhangCheckpointKfCore(const KFState& state)
+{
+	return captureZhangCheckpointKfCoreImpl(state, true);
 }
 
 bool bindZhangCheckpointRuntimeId(
@@ -1007,10 +1157,39 @@ bool zhangCheckpointKfCoreBitwiseEqual(
 {
 	// Boost's binary long-double representation may include ABI padding bytes.
 	// GTime persists only bigTime, so compare that mathematical value directly
-	// and require an identical binary archive for every remaining field.
+	// and require identical dense bits and archive bytes for all other fields.
 	return left.time.bigTimeBytes == right.time.bigTimeBytes &&
-		boostBinarySerializeCoreWithoutTime(left) ==
-		boostBinarySerializeCoreWithoutTime(right);
+		denseCoreBitwiseEqual(left, right) &&
+		boostBinarySerializeCoreMetadata(left) ==
+		boostBinarySerializeCoreMetadata(right);
+}
+
+bool zhangCheckpointKfCoreMatchesState(
+	const ZhangCheckpointKfCore& snapshot, const KFState& state)
+{
+	if (snapshot.time.bigTimeBytes !=
+		captureZhangCheckpointTime(state.time).bigTimeBytes ||
+		!denseBitwiseEqual(snapshot.x, state.x) ||
+		!denseBitwiseEqual(snapshot.P, state.P) ||
+		!denseBitwiseEqual(snapshot.dx, state.dx) ||
+		!denseBitwiseEqual(snapshot.prefitRatios, state.prefitRatios) ||
+		!denseBitwiseEqual(snapshot.postfitRatios, state.postfitRatios))
+		return false;
+	const auto metadata = captureZhangCheckpointKfCoreImpl(state, false);
+	return boostBinarySerializeCoreMetadata(snapshot) ==
+		boostBinarySerializeCoreMetadata(metadata);
+}
+
+std::string zhangCheckpointKfCoreSha256Streaming(
+	const ZhangCheckpointKfCore& snapshot)
+{
+	return streamingArchiveSha256(snapshot);
+}
+
+std::string zhangCheckpointKfStateCoreSha256Streaming(const KFState& state)
+{
+	const auto metadata = captureZhangCheckpointKfCoreImpl(state, false);
+	return streamingArchiveSha256(LiveCoreArchiveView{metadata, state});
 }
 
 bool validateZhangCheckpointRequiredSections(

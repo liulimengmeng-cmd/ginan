@@ -631,6 +631,9 @@ struct ZhangFullRankOptions
 {
     bool enable             = false;
     bool output_diagnostics = true;
+    // Explicit generation selection, never inferred from a PRN threshold.
+    bool bds3_only = false;
+    vector<string> bds3_satellite_whitelist;
 
     map<E_Sys, ZhangFullRankSystemOptions> sysOpts;
 };

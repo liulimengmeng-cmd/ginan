@@ -346,6 +346,21 @@ bool zhangCheckpointKfCoreBitwiseEqual(
 	const ZhangCheckpointKfCore& left,
 	const ZhangCheckpointKfCore& right);
 
+/** Compare the complete persisted core without copying the state's dense
+ * matrices. This remains a bitwise comparison, not a hash-only certificate. */
+bool zhangCheckpointKfCoreMatchesState(
+	const ZhangCheckpointKfCore& snapshot,
+	const KFState& state);
+
+/** SHA-256 of exactly serializeZhangCheckpointSectionPayload(snapshot), using
+ * bounded archive buffering instead of materialising the complete payload. */
+std::string zhangCheckpointKfCoreSha256Streaming(
+	const ZhangCheckpointKfCore& snapshot);
+
+/** The same full-core archive digest directly from a live state. Pointer-free
+ * metadata is captured privately; no incomplete checkpoint is exposed. */
+std::string zhangCheckpointKfStateCoreSha256Streaming(const KFState& state);
+
 bool validateZhangCheckpointRequiredSections(
 	const ZhangCheckpointBundle& bundle,
 	const std::vector<ZhangCheckpointSectionRequirement>& requirements,

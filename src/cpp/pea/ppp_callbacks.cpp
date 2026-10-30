@@ -70,6 +70,10 @@ bool deweightMeas(RejectCallbackDetails rejectDetails)
 
     map<string, void*>& metaDataMap = kfMeas.metaDataMaps[measIndex];
 
+    // Robust rejection retains the row with enlarged covariance. Its presence
+    // in the final KFMeas therefore is not current signal admission evidence.
+    metaDataMap["zhangPppDeweighted"] = (void*)true;
+
     GObs* obs_ptr = (GObs*)metaDataMap["sppObs_ptr"];
 
     if (obs_ptr)
@@ -197,6 +201,8 @@ bool deweightStationMeas(RejectCallbackDetails rejectDetails)
             kfMeas.H_star.row(i) *= deweightFactor;
 
         map<string, void*>& metaDataMap = kfMeas.metaDataMaps[i];
+
+        metaDataMap["zhangPppDeweighted"] = (void*)true;
 
         bool* used_ptr = (bool*)metaDataMap["used_ptr"];
 

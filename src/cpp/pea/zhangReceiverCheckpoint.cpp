@@ -27,6 +27,7 @@
 #include <boost/serialization/string.hpp>
 #include <boost/serialization/utility.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/serialization/version.hpp>
 
 #include "common/acsConfig.hpp"
 #include "common/navigation.hpp"
@@ -188,6 +189,7 @@ struct ZhangRuntimeSignalStatus
 	unsigned int phaseRejectCount = 0;
     ZhangSignalTracking tracking;
     bool phaseQuarantined=false, codeQuarantined=false, previousPhaseQuarantined=false;
+    bool phaseContinuityUnproven=false;
 
 	template <class ARCHIVE>
 	void serialize(ARCHIVE& ar, const unsigned int& version)
@@ -196,6 +198,7 @@ struct ZhangRuntimeSignalStatus
 		ar & slipFlags;
 		ar & phaseRejectCount;
         ar & tracking & phaseQuarantined & codeQuarantined & previousPhaseQuarantined;
+        if(version>=1)ar & phaseContinuityUnproven;
 	}
 };
 
@@ -215,6 +218,7 @@ struct ZhangRuntimeSatelliteStatus
 	double melbourneWubbena = 0;
 	double geometryFree = 0;
     ZhangCombinationDetector acceptedGf, acceptedMw;
+    ZhangSlipEvidenceState slipEvidence;
 	ZhangRuntimeSlipFilter slipFilter;
 	ZhangRuntimeLcState previousCombination;
 	ZhangRuntimeLcState currentCombination;
@@ -265,8 +269,15 @@ struct ZhangRuntimeSatelliteStatus
 		ar & nadir;
 		ar & slip;
 		ar & signalStatuses;
+        if(version>=1) ar & slipEvidence;
 	}
 };
+
+} // namespace (class version 0 remains readable from the old FLOAT checkpoint)
+BOOST_CLASS_VERSION(ZhangRuntimeSatelliteStatus, 1)
+BOOST_CLASS_VERSION(ZhangRuntimeSignalStatus, 1)
+namespace
+{
 
 template <typename TYPE>
 struct ZhangRuntimeMetadataField
@@ -1315,6 +1326,7 @@ ZhangRuntimeSatelliteStatus captureSatelliteStatus(const SatStat& input)
 	output.melbourneWubbena = input.mw;
 	output.geometryFree = input.gf;
     output.acceptedGf=input.acceptedGf; output.acceptedMw=input.acceptedMw;
+    output.slipEvidence=input.slipEvidence;
 	output.slipFilter.slip = input.flt.slip;
 	output.slipFilter.epochCount = input.flt.ne;
 	output.slipFilter.previousCombination = captureLcState(input.flt.lc_pre);
@@ -1338,7 +1350,7 @@ ZhangRuntimeSatelliteStatus captureSatelliteStatus(const SatStat& input)
 			status.savedSlip.any,
 			status.slip.any,
 			status.phaseRejectCount, status.tracking, status.phaseQuarantined,
-            status.codeQuarantined, status.previousPhaseQuarantined};
+            status.codeQuarantined, status.previousPhaseQuarantined,status.phaseContinuityUnproven};
 	}
 	return output;
 }
@@ -1366,6 +1378,7 @@ SatStat restoreSatelliteStatus(const ZhangRuntimeSatelliteStatus& input)
 	output.mw = input.melbourneWubbena;
 	output.gf = input.geometryFree;
     output.acceptedGf=input.acceptedGf; output.acceptedMw=input.acceptedMw;
+    output.slipEvidence=input.slipEvidence;
 	output.flt.slip = input.slipFilter.slip;
 	output.flt.ne = input.slipFilter.epochCount;
 	output.flt.lc_pre = restoreLcState(input.slipFilter.previousCombination);
@@ -1394,6 +1407,7 @@ SatStat restoreSatelliteStatus(const ZhangRuntimeSatelliteStatus& input)
         restored.phaseQuarantined=status.phaseQuarantined;
         restored.codeQuarantined=status.codeQuarantined;
         restored.previousPhaseQuarantined=status.previousPhaseQuarantined;
+        restored.phaseContinuityUnproven=status.phaseContinuityUnproven;
 		output.sigStatMap[signal] = restored;
 	}
 	return output;
@@ -1404,6 +1418,23 @@ bool validSatelliteStatus(
 	const ZhangRuntimeSatelliteStatus& input,
 	string& failureReason)
 {
+    if(input.slipEvidence.accepted.size()>32 || input.slipEvidence.screening.size()>96)
+    { failureReason="RECEIVER_RUNTIME_CHECKPOINT_INVALID_SLIP_EVIDENCE";return false; }
+    double evidenceTime=-std::numeric_limits<double>::infinity();
+    for(const auto* history:{&input.slipEvidence.accepted,&input.slipEvidence.screening})
+    {
+      evidenceTime=-std::numeric_limits<double>::infinity();
+      for(const auto& sample:*history)
+      {
+        bool valid=std::isfinite(sample.time) && sample.time>evidenceTime &&
+            std::isfinite(sample.rawIf) && std::isfinite(sample.clock) && std::isfinite(sample.gfRate);
+        for(double value:sample.value) valid &= std::isfinite(value);
+        for(double value:sample.covariance) valid &= std::isfinite(value);
+        for(int i=0;i<4;i++) valid &= sample.covariance[4*i+i]>=0;
+        if(!valid) {failureReason="RECEIVER_RUNTIME_CHECKPOINT_INVALID_SLIP_EVIDENCE";return false;}
+        evidenceTime=sample.time;
+      }
+    }
     for (const auto* detector : {&input.acceptedGf, &input.acceptedMw})
     {
         bool valid=detector->accepted.size()<=8 &&
@@ -2107,6 +2138,9 @@ bool restoreSolution(
 	output.sppClk = input.sppClock;
 	output.clkRefSys = static_cast<E_Sys>(input.clockReferenceSystem);
 	output.sppPppClkOffset = input.sppPppClockOffset;
+	// Infra-0 remains GPS-only. Do not infer a multi-system offset source from
+	// a legacy scalar that did not persist its constellation provenance.
+	output.sppPppClkOffsetSys = E_Sys::NONE;
 	output.clkAdjustReady = input.clockAdjustmentReady;
 	output.status = static_cast<E_Solution>(input.status);
 	output.numMeas = input.measurementCount;
@@ -2542,8 +2576,8 @@ bool decodeAndValidateReceiverEnvelope(
 	{
 		return false;
 	}
-	if (envelope.schemaVersion
-			!= ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION
+	if ((envelope.schemaVersion != 2 && envelope.schemaVersion
+			!= ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION)
 		|| envelope.sectionName
 			!= ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME)
 	{
@@ -3027,6 +3061,75 @@ void fillSatelliteResultFromPlan(
 	result.svnHistoryCount = plan.svnHistoryCount;
 }
 }  // namespace
+
+ZhangReceiverRuntimeBoundaryResetAudit
+auditZhangReceiverCheckpointBoundaryResetEquivalence(
+	const std::string& runtimeId,
+	const std::string& sourcePayload,
+	const std::string& actualAfterPayload)
+{
+	ZhangReceiverRuntimeBoundaryResetAudit audit;
+	audit.sourcePayloadSha256 = zhangCheckpointSha256(sourcePayload);
+	audit.afterPayloadSha256 = zhangCheckpointSha256(actualAfterPayload);
+	auto fail = [&](const string& reason)
+	{
+		audit.failureReason = reason;
+		return audit;
+	};
+	if (audit.sourcePayloadSha256.empty() || audit.afterPayloadSha256.empty())
+		return fail("RECEIVER_BOUNDARY_RESET_HASH_FAILED");
+	ZhangReceiverRuntimeEnvelope source, after;
+	ZhangReceiverRuntimeCheckpointResult sourceResult, afterResult;
+	if (!decodeAndValidateReceiverEnvelope(sourcePayload, runtimeId, source, sourceResult))
+		return fail("RECEIVER_BOUNDARY_RESET_SOURCE_INVALID:" + sourceResult.failureReason);
+	if (!decodeAndValidateReceiverEnvelope(actualAfterPayload, runtimeId, after, afterResult))
+		return fail("RECEIVER_BOUNDARY_RESET_AFTER_INVALID:" + afterResult.failureReason);
+	if (source.schemaVersion != 3 || after.schemaVersion != 3 ||
+		source.boundary != POST_EPOCH_BOUNDARY || after.boundary != POST_EPOCH_BOUNDARY ||
+		source.readyPolicy != READY_POLICY || after.readyPolicy != READY_POLICY ||
+		source.observationPolicy != OBSERVATION_POLICY || after.observationPolicy != OBSERVATION_POLICY)
+		return fail("RECEIVER_BOUNDARY_RESET_EXACT_SCHEMA_OR_POLICY_REQUIRED");
+	// Reject non-canonical/trailing wire representations before allowing even
+	// the two known resets. No decode/re-encode side effect can be smuggled
+	// into the persistent-state comparison below.
+	string sourceRoundtrip, afterRoundtrip, failure;
+	if (!serializePayload(source, sourceRoundtrip, failure, "RECEIVER_BOUNDARY_RESET") ||
+		!serializePayload(after, afterRoundtrip, failure, "RECEIVER_BOUNDARY_RESET"))
+		return fail(failure);
+	if (sourceRoundtrip != sourcePayload || afterRoundtrip != actualAfterPayload)
+		return fail("RECEIVER_BOUNDARY_RESET_WIRE_ROUNDTRIP_CHANGED");
+	audit.receiverCount = source.receivers.size();
+	for (auto& receiver : source.receivers)
+	{
+		if (receiver.ready)
+		{
+			++audit.readyResetCount;
+			audit.readyResetReceiverIds.push_back(receiver.mapKey);
+		}
+		if (receiver.resetObservationCount != 0)
+		{
+			if (receiver.resetObservationCount >
+				std::numeric_limits<std::size_t>::max() - audit.discardedObservationWorksetCount)
+				return fail("RECEIVER_BOUNDARY_RESET_WORKSET_COUNT_OVERFLOW");
+			++audit.observationWorksetResetReceiverCount;
+			audit.discardedObservationWorksetCount += receiver.resetObservationCount;
+			audit.observationWorksetResetReceiverIds.push_back(receiver.mapKey);
+		}
+		// These are the ONLY mutations, on the temporary source envelope.
+		receiver.ready = false;
+		receiver.resetObservationCount = 0;
+	}
+	string normalized;
+	if (!serializePayload(source, normalized, failure, "RECEIVER_BOUNDARY_RESET"))
+		return fail(failure);
+	audit.normalizedSourcePayloadSha256 = zhangCheckpointSha256(normalized);
+	if (normalized != actualAfterPayload)
+		return fail("RECEIVER_BOUNDARY_RESET_PERSISTENT_PAYLOAD_CHANGED");
+	audit.rawPayloadsExact = sourcePayload == actualAfterPayload;
+	audit.valid = true;
+	audit.failureReason = "NONE";
+	return audit;
+}
 
 ZhangReceiverRuntimeCheckpointResult
 exportZhangReceiverRuntimeCheckpointSection(

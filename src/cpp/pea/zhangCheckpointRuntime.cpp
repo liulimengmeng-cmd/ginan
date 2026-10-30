@@ -20,6 +20,7 @@
 #include "ambres/GNSSambres.hpp"
 #include "common/navigation.hpp"
 #include "common/receiver.hpp"
+#include "common/zhangMultiGnssFloatCheckpoint.hpp"
 #include "pea/zhangPppAr.hpp"
 
 namespace
@@ -109,12 +110,35 @@ std::string nativeEndianness()
 bool prepareProvenance(
 	const ZhangE29CheckpointProvenance& provenance,
 	PreparedProvenance& prepared,
-	std::string& failureReason)
+	std::string& failureReason,
+	const ZhangGec134MigrationAuthority* migration = nullptr,
+	const ZhangGec134ArContinuationAuthority* continuation = nullptr)
 {
+	if (migration && continuation)
+	{
+		failureReason = "GEC134_FLOAT_MIGRATION_AR_CONTINUATION_CONFLICT";
+		return false;
+	}
 	if (provenance.experimentMode != ZHANG_E29_CHECKPOINT_EXPERIMENT_MODE)
 	{
-		failureReason = "E29_CHECKPOINT_EXPERIMENT_MODE_UNSUPPORTED";
-		return false;
+		// The legacy mode remains unchanged. A new FLOAT mode is accepted
+		// only when the live bounded configuration independently authorises
+		// this exact system/signal mode; a supplied name/prefix is not authority.
+		std::string policyFailure;
+		const auto configuredMode = zhangCheckpointModeForConfig(acsConfig, policyFailure);
+		const bool sourceMigration = migration && migration->valid() &&
+			configuredMode == ZHANG_GEC134_AR_MODE &&
+			provenance.experimentMode == ZHANG_GEC134_SOURCE_MODE &&
+			provenance.binaryPath == ZHANG_GEC134_SOURCE_BINARY_PATH;
+		if ((!zhangMultiGnssFloatCheckpointActive(acsConfig) &&
+			 !zhangMultiGnssArCheckpointActive(acsConfig)) ||
+			configuredMode.empty() ||
+			(configuredMode != provenance.experimentMode && !sourceMigration))
+		{
+			failureReason = "E29_CHECKPOINT_EXPERIMENT_MODE_UNSUPPORTED";
+			if (!policyFailure.empty()) failureReason += ":" + policyFailure;
+			return false;
+		}
 	}
 	if (provenance.binaryPath.empty() || provenance.configText.empty()
 		|| provenance.inputManifestText.empty())
@@ -133,6 +157,19 @@ bool prepareProvenance(
 	prepared.configSha256 = zhangCheckpointSha256(provenance.configText);
 	prepared.inputManifestSha256 =
 		zhangCheckpointSha256(provenance.inputManifestText);
+	if (migration && !migration->matchesSource(provenance.experimentMode,
+		prepared.binarySha256, prepared.configSha256, prepared.inputManifestSha256))
+	{
+		failureReason = "GEC134_MIGRATION_SOURCE_PROVENANCE_REJECTED";
+		return false;
+	}
+	if (continuation && (!continuation->matchesSource(provenance.experimentMode,
+		prepared.binarySha256, prepared.configSha256, prepared.inputManifestSha256) ||
+		provenance.binaryPath != ZHANG_GEC134_AR_E122_BINARY_PATH))
+	{
+		failureReason = "GEC134_AR_CONTINUATION_SOURCE_PROVENANCE_REJECTED";
+		return false;
+	}
 	if (prepared.configSha256.empty()
 		|| prepared.inputManifestSha256.empty())
 	{
@@ -431,7 +468,49 @@ bool validateExactSections(
 	const ZhangCheckpointBundle& bundle,
 	std::string& failureReason)
 {
-	const auto& required = zhangE29CheckpointRequiredSections();
+	// The PPP-AR payload reader explicitly migrates schema 3 to schema 4.
+	// Admit only that legacy outer section version here; all other required
+	// versions, payload hashes, and the PPP-AR import preflight stay strict.
+	auto required = zhangE29CheckpointRequiredSections();
+	if (bundle.manifest.experimentMode == ZHANG_GEC134_AR_MODE)
+		required.push_back({ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME,
+			ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SCHEMA_VERSION});
+    // Receiver schema 3 adds bounded local slip evidence. Its Boost class-
+    // versioned reader accepts schema 2 and seeds the missing local history
+    // from the previous raw LC/independent precise geometry, not KF innovations.
+    const auto legacyReceiver=bundle.sections.find(ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME);
+    if(legacyReceiver!=bundle.sections.end() && legacyReceiver->second.schemaVersion==2)
+        for(auto& requirement:required)
+            if(requirement.name==ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME)
+                requirement.schemaVersion=2;
+	const auto legacyGraph = bundle.sections.find(
+		ZHANG_GRAPH_CHECKPOINT_SECTION_NAME);
+	if (legacyGraph != bundle.sections.end() &&
+		legacyGraph->second.schemaVersion == 3)
+	{
+		for (auto& requirement : required)
+			if (requirement.name == ZHANG_GRAPH_CHECKPOINT_SECTION_NAME)
+			{
+				requirement.schemaVersion = 3;
+				break;
+			}
+	}
+	const auto legacyPppAr = bundle.sections.find(
+		ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME);
+	if (legacyPppAr != bundle.sections.end()
+		&& (legacyPppAr->second.schemaVersion == 3 ||
+			legacyPppAr->second.schemaVersion == 4 ||
+			legacyPppAr->second.schemaVersion == 5))
+	{
+		for (auto& requirement : required)
+		{
+			if (requirement.name == ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME)
+			{
+				requirement.schemaVersion = legacyPppAr->second.schemaVersion;
+				break;
+			}
+		}
+	}
 	if (!validateZhangCheckpointRequiredSections(
 		bundle, required, &failureReason))
 	{
@@ -630,6 +709,12 @@ ZhangE29CheckpointResult captureZhangE29CheckpointBundle(
 		return checkpointFailure(
 			"E29_CHECKPOINT_CONTROLLER_FILTER_EPOCH_MISMATCH");
 	}
+	if (zhangMultiGnssFloatCheckpointActive(acsConfig)
+		&& (!authoritativeState.lastPppTransactionCommitted ||
+			!authoritativeState.lastPppQcConverged))
+	{
+		return checkpointFailure("MULTI_GNSS_FLOAT_CHECKPOINT_REQUIRES_COMMITTED_QC");
+	}
 
 	PreparedProvenance prepared;
 	std::string failureReason;
@@ -778,6 +863,16 @@ ZhangE29CheckpointResult captureZhangE29CheckpointBundle(
 	{
 		return checkpointFailure(failureReason);
 	}
+	if (provenance.experimentMode == ZHANG_GEC134_AR_MODE)
+	{
+		payload.clear();
+		if (!exportZhangGecArRuntimeSection(authoritativeState, identity.runtimeId,
+			payload, failureReason) ||
+			!addSection(candidate, ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME,
+				ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SCHEMA_VERSION,
+				std::move(payload), failureReason))
+			return checkpointFailure("E29_CHECKPOINT_GEC_AR_EXPORT_FAILED:" + failureReason);
+	}
 
 	ZhangCheckpointSnapshotReferenceSummary pppArSummary;
 	ZhangCheckpointSnapshotReferenceSummary ambresSummary;
@@ -836,6 +931,190 @@ ZhangE29CheckpointResult captureZhangE29CheckpointBundle(
 	result.sectionCount = bundle.sections.size();
 	result.stateDimension = static_cast<int>(bundle.kfCore.x.size());
 	return result;
+}
+
+ZhangE29CheckpointResult auditAndWriteZhangGec134RestoredState(
+	const std::string& targetDirectory,
+	const ZhangCheckpointBundle& sourceBundle,
+	const KFState& authoritativeState,
+	const ReceiverMap& receivers,
+	const Navigation& navigation,
+	const std::multimap<std::string, StreamParserPtr>& streams,
+	const std::map<std::string, bool>& streamDoneMap,
+	const ZhangPeaControllerCheckpointState& controller,
+	const ZhangE29CheckpointProvenance& targetProvenance,
+	const ZhangGec134MigrationAuthority* migration,
+	const ZhangGec134ArContinuationAuthority* continuation)
+{
+	std::lock_guard<std::recursive_mutex> lock(e29CheckpointRuntimeMutex);
+	if (targetProvenance.experimentMode != ZHANG_GEC134_AR_MODE || receivers.size() != 134 ||
+		(migration && continuation) ||
+		(migration && (!migration->valid() ||
+		targetProvenance.configText != migration->targetConfigText() ||
+		!migration->matchesSource(sourceBundle.manifest.experimentMode,
+			sourceBundle.manifest.binarySha256, sourceBundle.manifest.configSha256,
+			sourceBundle.manifest.inputManifestSha256) ||
+		sourceBundle.manifest.checkpointId != ZHANG_GEC134_SOURCE_CHECKPOINT_ID ||
+		controller.completedEpoch != 121 || controller.nextEpoch != 122)) ||
+		(!migration && !continuation && (sourceBundle.manifest.experimentMode != ZHANG_GEC134_AR_MODE ||
+			sourceBundle.manifest.configText != targetProvenance.configText ||
+			sourceBundle.manifest.inputManifestText != targetProvenance.inputManifestText ||
+			sourceBundle.manifest.binarySha256 != zhangCheckpointFileSha256(targetProvenance.binaryPath))) ||
+		(continuation && (!continuation->matchesSource(sourceBundle.manifest.experimentMode,
+			sourceBundle.manifest.binarySha256, sourceBundle.manifest.configSha256,
+			sourceBundle.manifest.inputManifestSha256) ||
+			!continuation->matchesTarget(targetProvenance.experimentMode, targetProvenance.binaryPath,
+				zhangCheckpointFileSha256(targetProvenance.binaryPath), targetProvenance.configText,
+				zhangCheckpointSha256(targetProvenance.inputManifestText)) ||
+			sourceBundle.manifest.checkpointId != ZHANG_GEC134_AR_E122_ID ||
+			sourceBundle.manifest.runtimeId != ZHANG_GEC134_SOURCE_RUNTIME_ID ||
+			sourceBundle.manifest.epoch != "2024-07-17 01:00:30" ||
+			sourceBundle.kfCore.x.size() != 7196 || sourceBundle.sections.size() != 9 ||
+			controller.completedEpoch != 122 || controller.nextEpoch != 123)) ||
+		controller.epochIntervalSeconds != 30)
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_IDENTITY_REJECTED");
+	if (!zhangCheckpointKfCoreBitwiseEqual(sourceBundle.kfCore,
+		captureZhangCheckpointKfCore(authoritativeState)))
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_CORE_CHANGED");
+	for (const auto& [key, index] : authoritativeState.kfIndexMap)
+		if (key.type == KF::REC_POS || key.type == KF::REC_POS_RATE ||
+			(key.type == KF::ORBIT && !key.str.empty()))
+			return checkpointFailure("GEC134_MIGRATION_FIXED_COORDINATE_STATE_CHANGED");
+	ZhangE29CheckpointIdentity identity;
+	identity.runtimeId = ZHANG_GEC134_SOURCE_RUNTIME_ID;
+	identity.checkpointId = sourceBundle.manifest.checkpointId + "-after-restore";
+	identity.parentCheckpointId = sourceBundle.manifest.checkpointId;
+	ZhangCheckpointBundle after;
+	auto captured = captureZhangE29CheckpointBundle(authoritativeState, receivers,
+		navigation, streams, streamDoneMap, controller, identity, targetProvenance, after);
+	if (!captured.valid) return captured;
+	if (!zhangCheckpointKfCoreBitwiseEqual(sourceBundle.kfCore, after.kfCore))
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_CAPTURE_CORE_CHANGED");
+	// Compare complete separately exported payloads, not selected means. The
+	// receiver schema alone declares two post-epoch workset audit fields that
+	// intentionally reset on import. Its strict comparator normalizes ONLY
+	// those fields in a temporary source copy; every persistent receiver field
+	// still participates in a complete byte-for-byte envelope comparison.
+	std::vector<std::string> changedSections;
+	ZhangReceiverRuntimeBoundaryResetAudit receiverBoundaryAudit;
+	for (const auto& [name, source] : sourceBundle.sections)
+	{
+		const auto found = after.sections.find(name);
+		if (name == ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME &&
+			found != after.sections.end() && source.schemaVersion == found->second.schemaVersion)
+		{
+			receiverBoundaryAudit = auditZhangReceiverCheckpointBoundaryResetEquivalence(
+				sourceBundle.manifest.runtimeId, source.payload, found->second.payload);
+			if (receiverBoundaryAudit.valid) continue;
+		}
+		if (found == after.sections.end() || source.schemaVersion != found->second.schemaVersion ||
+			source.payload != found->second.payload ||
+			(name == ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME && !receiverBoundaryAudit.valid))
+			changedSections.push_back(name);
+	}
+	if (!changedSections.empty())
+	{
+		// Rejection diagnostics are explicitly outside the valid checkpoint tree.
+		// Do not publish a success receipt or consume an epoch. Independent field
+		// readers can distinguish a lost persistent field from the documented
+		// post-epoch ready/workset reset policy without bypassing this gate.
+		const auto rejected = std::filesystem::path(targetDirectory + ".rejected");
+		std::error_code error;
+		if (std::filesystem::exists(rejected, error) || error ||
+			!std::filesystem::create_directories(rejected, error) || error)
+			return checkpointFailure("GEC134_REJECTED_AUDIT_DIRECTORY_UNAVAILABLE");
+		auto raw = [&](const std::string& filename, const std::string& bytes)
+		{
+			std::ofstream output(rejected / filename, std::ios::binary | std::ios::out);
+			output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+			output.flush();
+			return static_cast<bool>(output);
+		};
+		std::ostringstream details;
+		details << "{\"accepted\":false,\"next_epoch_consumed\":false,\"sections\":[";
+		bool first = true;
+		for (const auto& [name, source] : sourceBundle.sections)
+		{
+			const auto found = after.sections.find(name);
+			if (found == after.sections.end()) continue;
+			if (!raw("source_" + name + ".payload", source.payload) ||
+				!raw("after_" + name + ".payload", found->second.payload))
+				return checkpointFailure("GEC134_REJECTED_RAW_SECTION_WRITE_FAILED:" + name);
+			if (!first) details << ',';
+			first = false;
+			details << "{\"name\":\"" << jsonEscape(name) << "\",\"source_sha256\":\""
+				<< zhangCheckpointSha256(source.payload) << "\",\"after_sha256\":\""
+				<< zhangCheckpointSha256(found->second.payload) << "\"}";
+		}
+		details << "]}";
+		if (!raw("core.payload", serializeZhangCheckpointSectionPayload(after.kfCore)) ||
+			!raw("rejection.json", details.str()))
+			return checkpointFailure("GEC134_REJECTED_AUDIT_WRITE_FAILED");
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_SECTION_CHANGED:" + changedSections.front());
+	}
+	if (after.sections.size() != sourceBundle.sections.size() + (migration ? 1 : 0) ||
+		!after.sections.count(ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME))
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_SECTION_REGISTRY_CHANGED");
+	auto written = writeZhangE29CheckpointDirectory(targetDirectory, after);
+	if (!written.valid) return written;
+	// Separate raw scientific exports let an independent reader compare the
+	// original bundle bytes without trusting this function's own equality test.
+	// The receipt is published last; without it this is an incomplete audit,
+	// never permission to consume the next epoch.
+	std::ostringstream receipt;
+	receipt << "{\n  \"validation_only\": true,\n  \"policy\": \""
+		<< (continuation ? ZHANG_GEC134_AR_CONTINUATION_POLICY : ZHANG_GEC134_MIGRATION_POLICY)
+		<< "\",\n  \"source_checkpoint_id\": \""
+		<< jsonEscape(sourceBundle.manifest.checkpointId)
+		<< "\",\n  \"source_payloads_exact\": "
+		<< (receiverBoundaryAudit.rawPayloadsExact ? "true" : "false")
+		<< ",\n  \"source_persistent_state_exact\": true,\n  \"next_epoch_consumed\": false,\n"
+		<< "  \"receiver_boundary_reset\": {\"policy\":\"POST_EPOCH_READY_WORKSET_RESET_V1\","
+		<< "\"receiver_count\":" << receiverBoundaryAudit.receiverCount
+		<< ",\"ready_reset_count\":" << receiverBoundaryAudit.readyResetCount
+		<< ",\"observation_workset_reset_receiver_count\":" << receiverBoundaryAudit.observationWorksetResetReceiverCount
+		<< ",\"discarded_post_epoch_workset_count\":" << receiverBoundaryAudit.discardedObservationWorksetCount
+		<< ",\"source_sha256\":\"" << receiverBoundaryAudit.sourcePayloadSha256
+		<< "\",\"after_sha256\":\"" << receiverBoundaryAudit.afterPayloadSha256
+		<< "\",\"normalized_source_sha256\":\"" << receiverBoundaryAudit.normalizedSourcePayloadSha256
+		<< "\"},\n"
+		<< "  \"completed_epoch\": " << controller.completedEpoch
+		<< ",\n  \"next_epoch\": " << controller.nextEpoch << ",\n  \"files\": {\n";
+	bool first = true;
+	auto writeRaw = [&](const std::string& name, const std::string& bytes)
+	{
+		const auto path = std::filesystem::path(targetDirectory) / name;
+		std::ofstream output(path, std::ios::binary | std::ios::out | std::ios::trunc);
+		if (!output) return false;
+		output.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+		output.flush();
+		if (!output) return false;
+		output.close();
+		if (!output || zhangCheckpointFileSha256(path.string()) != zhangCheckpointSha256(bytes))
+			return false;
+		if (!first) receipt << ",\n";
+		first = false;
+		receipt << "    \"" << jsonEscape(name) << "\": {\"bytes\": " << bytes.size()
+			<< ", \"sha256\": \"" << zhangCheckpointSha256(bytes) << "\"}";
+		return true;
+	};
+	if (!writeRaw("core.payload", serializeZhangCheckpointSectionPayload(after.kfCore)))
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_RAW_CORE_WRITE_FAILED");
+	for (const auto& [name, section] : after.sections)
+		if (!writeRaw(name + ".payload", section.payload))
+			return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_RAW_SECTION_WRITE_FAILED:" + name);
+	if (!writeRaw("source_" + std::string(ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME) + ".payload",
+		sourceBundle.sections.at(ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SECTION_NAME).payload))
+		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_SOURCE_RECEIVER_WRITE_FAILED");
+	receipt << "\n  }\n}\n";
+	std::ofstream receiptFile(std::filesystem::path(targetDirectory) / "restore_validation_receipt.json",
+		std::ios::binary | std::ios::out | std::ios::trunc);
+	receiptFile << receipt.str();
+	receiptFile.flush();
+	if (!receiptFile) return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_RECEIPT_WRITE_FAILED");
+	receiptFile.close();
+	if (!receiptFile) return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_RECEIPT_CLOSE_FAILED");
+	return written;
 }
 
 ZhangE29CheckpointResult writeZhangE29CheckpointDirectory(
@@ -989,7 +1268,9 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 	const std::string& checkpointDirectory,
 	const ZhangE29CheckpointProvenance& provenance,
 	const std::string& expectedRuntimeId,
-	ZhangCheckpointBundle& bundle)
+	ZhangCheckpointBundle& bundle,
+	const ZhangGec134MigrationAuthority* migration,
+	const ZhangGec134ArContinuationAuthority* continuation)
 {
 	std::lock_guard<std::recursive_mutex> lock(e29CheckpointRuntimeMutex);
 	if (checkpointDirectory.empty() || expectedRuntimeId.empty())
@@ -998,7 +1279,7 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 	}
 	PreparedProvenance prepared;
 	std::string failureReason;
-	if (!prepareProvenance(provenance, prepared, failureReason))
+	if (!prepareProvenance(provenance, prepared, failureReason, migration, continuation))
 	{
 		return checkpointFailure(failureReason);
 	}
@@ -1008,6 +1289,12 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 		directory / ZHANG_E29_CHECKPOINT_BUNDLE_FILENAME;
 	const std::filesystem::path manifestPath =
 		directory / ZHANG_E29_CHECKPOINT_MANIFEST_FILENAME;
+	if (migration && (checkpointDirectory != ZHANG_GEC134_SOURCE_CHECKPOINT_PATH ||
+		zhangCheckpointFileSha256(bundlePath.string()) != ZHANG_GEC134_SOURCE_BUNDLE_SHA256))
+		return checkpointFailure("GEC134_MIGRATION_SOURCE_BUNDLE_REJECTED");
+	if (continuation && (checkpointDirectory != ZHANG_GEC134_AR_E122_PATH ||
+		zhangCheckpointFileSha256(bundlePath.string()) != ZHANG_GEC134_AR_E122_BUNDLE_SHA256))
+		return checkpointFailure("GEC134_AR_CONTINUATION_SOURCE_BUNDLE_REJECTED");
 	std::error_code error;
 	if (!std::filesystem::is_directory(directory, error) || error
 		|| !std::filesystem::is_regular_file(bundlePath, error) || error
@@ -1027,6 +1314,11 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 		return checkpointFailure(
 			"E29_CHECKPOINT_BUNDLE_READ_FAILED:" + ioResult.failureReason);
 	}
+	if (continuation && (ioResult.payloadSha256 != ZHANG_GEC134_AR_E122_PAYLOAD_SHA256 ||
+		candidate.manifest.checkpointId != ZHANG_GEC134_AR_E122_ID ||
+		candidate.manifest.epoch != "2024-07-17 01:00:30" || candidate.kfCore.x.size() != 7196 ||
+		candidate.sections.size() != 9))
+		return checkpointFailure("GEC134_AR_CONTINUATION_SOURCE_E122_REJECTED");
 	if (!manifestMatchesProvenance(
 		candidate.manifest, provenance, prepared, failureReason))
 	{
@@ -1077,12 +1369,14 @@ ZhangE29CheckpointResult preflightZhangE29CheckpointBundle(
 	const std::multimap<std::string, StreamParserPtr>& configuredStreams,
 	const std::map<std::string, bool>& configuredStreamDoneMap,
 	double expectedEpochIntervalSeconds,
-	ZhangE29CheckpointRestorePlan& plan)
+	ZhangE29CheckpointRestorePlan& plan,
+	const ZhangGec134MigrationAuthority* migration,
+	const ZhangGec134ArContinuationAuthority* continuation)
 {
 	std::lock_guard<std::recursive_mutex> lock(e29CheckpointRuntimeMutex);
 	std::string failureReason;
 	PreparedProvenance prepared;
-	if (!prepareProvenance(provenance, prepared, failureReason))
+	if (!prepareProvenance(provenance, prepared, failureReason, migration, continuation))
 	{
 		return checkpointFailure(failureReason);
 	}
@@ -1091,6 +1385,17 @@ ZhangE29CheckpointResult preflightZhangE29CheckpointBundle(
 	{
 		return checkpointFailure(failureReason);
 	}
+	if (migration && (bundle.manifest.checkpointId != ZHANG_GEC134_SOURCE_CHECKPOINT_ID ||
+		bundle.manifest.runtimeId != ZHANG_GEC134_SOURCE_RUNTIME_ID ||
+		bundle.manifest.epoch != "2024-07-17 01:00:00" || bundle.kfCore.x.size() != 7230))
+		return checkpointFailure("GEC134_MIGRATION_SOURCE_E121_REJECTED");
+	if (migration && !zhangGecArRuntimeRegistriesEmpty())
+		return checkpointFailure("GEC134_MIGRATION_COLD_TARGET_PRIVATE_REGISTRY_NONEMPTY");
+	if (continuation && (bundle.manifest.checkpointId != ZHANG_GEC134_AR_E122_ID ||
+		bundle.manifest.runtimeId != ZHANG_GEC134_SOURCE_RUNTIME_ID ||
+		bundle.manifest.epoch != "2024-07-17 01:00:30" || bundle.kfCore.x.size() != 7196 ||
+		bundle.sections.size() != 9))
+		return checkpointFailure("GEC134_AR_CONTINUATION_SOURCE_E122_REJECTED");
 	if (!validateExactSections(bundle, failureReason))
 	{
 		return checkpointFailure(failureReason);
@@ -1200,6 +1505,10 @@ ZhangE29CheckpointResult preflightZhangE29CheckpointBundle(
 			"E29_CHECKPOINT_CONTROLLER_PREFLIGHT_FAILED:" +
 			controllerResult.failureReason);
 	}
+	if (continuation && (candidatePlan.controller.state.completedEpoch != 122 ||
+		candidatePlan.controller.state.nextEpoch != 123 ||
+		candidatePlan.controller.state.epochIntervalSeconds != 30))
+		return checkpointFailure("GEC134_AR_CONTINUATION_SOURCE_CONTROLLER_REJECTED");
 	if (restoreZhangCheckpointTime(
 		candidatePlan.controller.state.completedTsync) != candidateCore.time)
 	{
@@ -1264,6 +1573,15 @@ ZhangE29CheckpointResult preflightZhangE29CheckpointBundle(
 			"E29_CHECKPOINT_AMBRES_PREFLIGHT_FAILED:" +
 			ambresResult.failureReason);
 	}
+	if (bundle.manifest.experimentMode == ZHANG_GEC134_AR_MODE)
+	{
+		const auto& payload = bundle.sections.at(ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME).payload;
+		// Validate bindings against the staged incoming full posterior, not the
+		// empty/configured live KF. No runtime registry may mutate here.
+		if (!importZhangGecArRuntimeSection(candidateCore, bundle.manifest.runtimeId,
+			payload, true, candidatePlan.stateDimension, failureReason))
+			return checkpointFailure("E29_CHECKPOINT_GEC_AR_PREFLIGHT_FAILED:" + failureReason);
+	}
 	if (!zhangCheckpointKfCoreBitwiseEqual(
 		configuredCoreBefore, captureZhangCheckpointKfCore(configuredState)))
 	{
@@ -1318,7 +1636,9 @@ ZhangE29CheckpointResult commitZhangE29CheckpointBundle(
 	std::multimap<std::string, StreamParserPtr>& streams,
 	std::map<std::string, bool>& streamDoneMap,
 	const ZhangE29CheckpointRestorePlan& plan,
-	ZhangPeaControllerCheckpointState& restoredController)
+	ZhangPeaControllerCheckpointState& restoredController,
+	const ZhangGec134MigrationAuthority* migration,
+	const ZhangGec134ArContinuationAuthority* continuation)
 {
 	std::lock_guard<std::recursive_mutex> lock(e29CheckpointRuntimeMutex);
 	if (!plan.valid || plan.runtimeId != bundle.manifest.runtimeId
@@ -1333,7 +1653,7 @@ ZhangE29CheckpointResult commitZhangE29CheckpointBundle(
 	auto preflightResult = preflightZhangE29CheckpointBundle(
 		bundle, provenance, authoritativeState, receivers, navigation,
 		streams, streamDoneMap,
-		plan.controller.state.epochIntervalSeconds, checkedPlan);
+		plan.controller.state.epochIntervalSeconds, checkedPlan, migration, continuation);
 	if (!preflightResult.valid)
 	{
 		return preflightResult;
@@ -1427,6 +1747,11 @@ ZhangE29CheckpointResult commitZhangE29CheckpointBundle(
 			"E29_CHECKPOINT_AMBRES_COMMIT_FAILED:" +
 			ambresResult.failureReason);
 	}
+	if (bundle.manifest.experimentMode == ZHANG_GEC134_AR_MODE &&
+		!importZhangGecArRuntimeSection(authoritativeState, bundle.manifest.runtimeId,
+			bundle.sections.at(ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME).payload,
+			false, checkedPlan.stateDimension, failureReason))
+		return commitFailure("E29_CHECKPOINT_GEC_AR_COMMIT_FAILED:" + failureReason);
 
 	configureZhangE18FactorCapture(authoritativeState);
 	auto controllerResult = commitZhangPeaControllerCheckpointSection(

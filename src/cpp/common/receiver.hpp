@@ -23,6 +23,9 @@ struct Solution
     double     sppClk    = 0;  ///< receiver clock/system biases to receiver reference system (m)
     E_Sys      clkRefSys = E_Sys::NONE;             ///< receiver clock reference system
     double     sppPppClkOffset = 0;                 ///< SPP to PPP offset of receiver clock
+    // Provenance of the single SPP/PPP offset. NONE invalidates this optional
+    // metadata after an old GPS-only checkpoint import in a multi-system run.
+    E_Sys      sppPppClkOffsetSys = E_Sys::NONE;
     bool       clkAdjustReady  = false;             ///< if SPP to PPP offset is ready
     E_Solution status          = E_Solution::NONE;  ///< solution status
     int        numMeas         = 0;  ///< number of valid measurements used to estimate solution

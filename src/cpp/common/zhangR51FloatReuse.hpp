@@ -1,6 +1,29 @@
 #pragma once
+#include "common/zhangRatioOnly.hpp"
 #include <map>
 #include <string>
+
+// Optional fields were absent from the original fixture. Absence means its
+// pinned ratio=3 configuration, never permission to migrate fixed integers
+// across a different acceptance policy. The FLOAT fixture contains no AR
+// decisions and can start the separately identified ratio=2 experiment.
+inline bool zhangR51FixtureRatioPolicyAllowed(
+    const std::map<std::string, std::string>& environment, bool unfixedFloat)
+{
+    double effective = 3;
+    const auto overrideSetting = environment.find("ZHANG_R51_RATIO_THRESHOLD");
+    if (overrideSetting != environment.end() && overrideSetting->second != "UNSET")
+        if (!zhangR51ParseRatioThreshold(overrideSetting->second.c_str(), effective))
+            return false;
+    const auto recorded = environment.find("ZHANG_R51_EFFECTIVE_RATIO_THRESHOLD");
+    if (recorded != environment.end())
+    {
+        double recordedThreshold = 0;
+        if (!zhangR51ParseRatioThreshold(recorded->second.c_str(), recordedThreshold) ||
+            recordedThreshold != effective) return false;
+    }
+    return effective == 3 || (unfixedFloat && effective == 2);
+}
 
 // Deliberately fixture-specific migration, NOT a general provenance bypass.
 // This validates the audited target AR configuration before the source
@@ -36,6 +59,7 @@ inline bool zhangR51AuditedFloatReuseAllowed(
         valueOf("OMP_NUM_THREADS") == "4" &&
         valueOf("OPENBLAS_NUM_THREADS") == "4";
     if (!controlledEightOne && !originalFourFour) return false;
+    if (!zhangR51FixtureRatioPolicyAllowed(environment, true)) return false;
     return bundleSha == "ab397e655774da5c0a9632becd08fe171508b93ffeaf2dd7b04de899bae2182a"
         && binarySha == "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38"
         && configSha == "02bbaabbe2a836ec3dfc08d2ad206326c9dbddf41237692e0d3806b0043b764f"
@@ -61,6 +85,7 @@ inline bool zhangR51AuditedRatioReuseAllowed(
         const auto it = environment.find(name);
         if (it == environment.end() || it->second != value) return false;
     }
+    if (!zhangR51FixtureRatioPolicyAllowed(environment, false)) return false;
     return bundleSha == "9e5ea901db26708ecb2f772b7ad5efde886d919491811a536302a915ec776c3d"
         && binarySha == "4463f3a4c97f0e213c15b995d9e215a873178428a0cf7bcab7e436c98f96b80a"
         && configSha == "6ee5be509848128c71ff23e267b9e10df839c746ec06cd363fe3462ccbbbe841"

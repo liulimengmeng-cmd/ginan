@@ -29,6 +29,8 @@
 #include "common/phaseClockOsb.hpp"
 #include "common/sanityCheckers/ConfigSanityManager.hpp"
 #include "common/zhangFullRank.hpp"
+#include "common/zhangMultiGnssFloatCheckpoint.hpp"
+#include "common/zhangYamlReadOnlyLookup.hpp"
 #include "configurator/htmlFooterTemplate.hpp"
 #include "configurator/htmlHeaderTemplate.hpp"
 #include "pea/inputsOutputs.hpp"
@@ -1573,11 +1575,9 @@ NodeStack stringsToYamlObject(
         string dummy;
         string shortDesc = nonNumericStack(desc, dummy, false);
 
-        bool test = false;
-        if (currentNode[shortDesc])
-            test = true;
-
-        currentNode.reset(currentNode[shortDesc]);
+        const YAML::Node child = zhangYamlReadOnlyChildPreservingFallback(currentNode, shortDesc);
+        const bool test = static_cast<bool>(child);
+        currentNode.reset(child);
         stack += desc + ":";
 
         // 		string test = currentNode.Scalar();
@@ -7016,6 +7016,16 @@ bool ACSConfig::parse(
                         {"@ output_diagnostics"},
                         "Output the configured Zhang S-basis and retained-state diagnostics"
                     );
+                    tryGetFromYaml(
+                        zhangFullRank.bds3_only, zhang_full_rank,
+                        {"@ bds3_only"},
+                        "Restrict BDS to an explicit metadata-audited BDS-3 satellite whitelist"
+                    );
+                    tryGetFromYaml(
+                        zhangFullRank.bds3_satellite_whitelist, zhang_full_rank,
+                        {"@ bds3_satellite_whitelist"},
+                        "BDS-3 satellite IDs verified against dated satellite metadata; no PRN inference"
+                    );
 
                     for (E_Sys sys : magic_enum::enum_values<E_Sys>())
                     {
@@ -9782,6 +9792,39 @@ bool ACSConfig::parse(
     {
         bool valid = true;
 
+        int activeZhangSystems = 0;
+        for (const auto& [system, enabled] : process_sys)
+            if (enabled && zhangFullRank.sysOpts.contains(system)) ++activeZhangSystems;
+        if (activeZhangSystems > 1 && output_bias_sinex)
+            throw std::runtime_error(
+                "ZHANG_MULTI_GNSS_STANDARD_BIAS_EXPORT_NOT_VALIDATED: "
+                "use the internal joint-product bundle; Bias-SINEX conversion is not yet supported");
+
+        if (zhangFullRank.bds3_only && process_sys[E_Sys::BDS])
+        {
+            std::set<string> unique;
+            if (zhangFullRank.bds3_satellite_whitelist.empty())
+            {
+                BOOST_LOG_TRIVIAL(error) << "BDS-3 selection requires a nonempty explicit satellite whitelist";
+                valid = false;
+            }
+            for (const auto& id : zhangFullRank.bds3_satellite_whitelist)
+            {
+                const SatSys satellite(id.c_str());
+                if (satellite.sys != E_Sys::BDS || satellite.prn <= 0 ||
+                    satellite.id() != id || !unique.insert(id).second)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "Invalid or duplicate BDS-3 whitelist entry: " << id;
+                    valid = false;
+                }
+            }
+            BOOST_LOG_TRIVIAL(info) << "ZHANG_BDS_SELECTION mode=EXPLICIT_WHITELIST"
+                << " satellites=" << unique.size() << " generation_inferred_from_prn=0"
+                << " metadata_provenance_required=1";
+            if (!valid)
+                throw std::runtime_error("ZHANG_BDS3_SELECTION_INVALID");
+        }
+
         if (phaseClockOsb.enable)
         {
             BOOST_LOG_TRIVIAL(error)
@@ -9969,25 +10012,11 @@ bool ACSConfig::parse(
 					   "and capture epochs or a restore path";
 				valid = false;
 			}
-			for (const auto& [system, process] : process_sys)
+			std::string checkpointScopeFailure;
+			if (zhangCheckpointModeForConfig(*this, checkpointScopeFailure).empty())
 			{
-				if (process && system != E_Sys::GPS)
-				{
-					BOOST_LOG_TRIVIAL(error)
-						<< "Infra-0 v1 is restricted to GPS-only E29 processing";
-					valid = false;
-				}
-			}
-			const auto& checkpointCodes =
-				zhangFullRank.sysOpts[E_Sys::GPS].baseline_observables;
-			if (checkpointCodes.size() != 2 ||
-				checkpointCodes[0] != E_ObsCode::L1C ||
-				checkpointCodes[1] != E_ObsCode::L2W ||
-				(std::abs(epoch_interval - 60) > 1e-9 && std::abs(epoch_interval - 30) > 1e-9))
-			{
-				BOOST_LOG_TRIVIAL(error)
-					<< "Infra-0 v1 requires ordered GPS L1C/L2W baselines "
-					   "and a 30 or 60 second processing interval";
+				BOOST_LOG_TRIVIAL(error) << "Deterministic checkpoint scope rejected: "
+					<< checkpointScopeFailure;
 				valid = false;
 			}
 		}

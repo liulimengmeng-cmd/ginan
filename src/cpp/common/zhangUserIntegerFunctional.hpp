@@ -23,6 +23,10 @@ struct ZhangProductIntegerFunctional
 {
 	SatSys					 satellite;
 	SatSys					 referenceSatellite;
+	// A physical arc version is meaningful only together with this signal.
+	// NONE is retained for legacy callers, which must not authorize a
+	// signal-versioned product from such a functional.
+	E_ObsCode				 observable = E_ObsCode::NONE;
 	std::vector<ZhangGraphEdge> physicalEdges;
 	ZhangExactVector			 networkCoefficients;
 	std::vector<int>			 physicalArcVersions;
@@ -42,6 +46,7 @@ struct ZhangProductIntegerFunctional
  */
 struct ZhangProductIntegerTransition
 {
+	E_ObsCode                 observable = E_ObsCode::NONE;
 	std::vector<ZhangGraphEdge> physicalEdges;
 	std::vector<int>            physicalArcVersions;
 	ZhangExactVector            coefficients;
@@ -125,6 +130,7 @@ inline ZhangProductIntegerTransition zhangProductIntegerFunctionalDifferenceImpl
 {
 	ZhangProductIntegerTransition result;
 	if (!previous.valid || !current.valid
+	 || previous.observable != current.observable
 	 || (requireSameSatellite && previous.satellite != current.satellite)
 	 || previous.physicalEdges.size() != previous.networkCoefficients.size()
 	 || previous.physicalEdges.size() != previous.physicalArcVersions.size()
@@ -136,6 +142,7 @@ inline ZhangProductIntegerTransition zhangProductIntegerFunctionalDifferenceImpl
 	}
 
 	using VersionedEdge = std::pair<ZhangGraphEdge, int>;
+	result.observable = current.observable;
 	std::map<VersionedEdge, ZhangExactInteger> difference;
 	for (std::size_t index = 0; index < previous.physicalEdges.size(); index++)
 	{
@@ -217,7 +224,8 @@ inline std::string zhangProductPhysicalFunctionalFingerprint(
 		return "INVALID";
 	}
 	std::ostringstream stream;
-	stream << zhangAuditSatelliteLabel(functional.referenceSatellite) << "->"
+	stream << "signal=" << static_cast<int>(functional.observable) << ":"
+		   << zhangAuditSatelliteLabel(functional.referenceSatellite) << "->"
 		   << zhangAuditSatelliteLabel(functional.satellite) << ":";
 	for (std::size_t index = 0; index < functional.physicalEdges.size(); index++)
 	{
@@ -258,7 +266,8 @@ zhangBuildProductIntegerFunctionals(
 	const ZhangGraphBasis&               productBasis,
 	const std::map<ZhangGraphEdge, int>& arcVersions,
 	const SatSys&                        requestedReference = SatSys(),
-	int                                  temporalBasisVersion = 0)
+	int                                  temporalBasisVersion = 0,
+	E_ObsCode                            observable = E_ObsCode::NONE)
 {
 	std::map<SatSys, ZhangProductIntegerFunctional> result;
 	ZhangCanonicalIntegerAudit audit =
@@ -291,6 +300,7 @@ zhangBuildProductIntegerFunctionals(
 		ZhangProductIntegerFunctional functional;
 		functional.satellite = satellite;
 		functional.referenceSatellite = reference;
+		functional.observable = observable;
 		functional.physicalEdges = physicalEdges;
 		functional.networkCoefficients = ZhangExactVector(physicalEdges.size());
 		functional.physicalArcVersions.reserve(physicalEdges.size());
@@ -299,7 +309,9 @@ zhangBuildProductIntegerFunctionals(
 		{
 			auto version = arcVersions.find(edge);
 			functional.physicalArcVersions.push_back(
-				version == arcVersions.end() ? 0 : version->second);
+				version == arcVersions.end()
+					? (observable == E_ObsCode::NONE ? 0 : -1)
+					: version->second);
 		}
 		functional.valid = true;
 		return functional;
@@ -330,9 +342,46 @@ zhangBuildProductIntegerFunctionals(
 			functional.networkCoefficients[
 				physicalIndex.at(audit.treeEdges[edge])] = treeRow[edge];
 		}
-		result[satellite] = std::move(functional);
+		bool knownPhysicalSupport = true;
+		for (std::size_t edge = 0; edge < physicalEdges.size(); edge++)
+			if (functional.networkCoefficients[edge] != 0 &&
+				functional.physicalArcVersions[edge] < 0)
+			{
+				knownPhysicalSupport = false;
+				break;
+			}
+		if (knownPhysicalSupport)
+			result[satellite] = std::move(functional);
 	}
 	return result;
+}
+
+/** Build signal-specific physical product identities. A missing version on a
+ * target's nonzero path rejects that target; an unused chord may remain
+ * unknown. Substituting an edge topology generation or zero would make a
+ * different physical arc look like the same integer variable. */
+inline std::map<SatSys, ZhangProductIntegerFunctional>
+zhangBuildProductIntegerFunctionals(
+	const ZhangGraphBasis& productBasis,
+	const std::map<ZhangGraphEdge, std::map<int, int>>& signalArcVersions,
+	E_ObsCode observable,
+	const SatSys& requestedReference = SatSys(),
+	int temporalBasisVersion = 0)
+{
+	if (observable == E_ObsCode::NONE)
+		return {};
+	std::map<ZhangGraphEdge, int> versions;
+	for (const auto& edge : productBasis.edges)
+	{
+		const auto found = signalArcVersions.find(edge);
+		if (found == signalArcVersions.end()) continue;
+		const auto code = found->second.find(static_cast<int>(observable));
+		if (code != found->second.end() && code->second >= 0)
+			versions.emplace(edge, code->second);
+	}
+	return zhangBuildProductIntegerFunctionals(
+		productBasis, versions, requestedReference,
+		temporalBasisVersion, observable);
 }
 
 /** Joint network-user integer functional after applying the phase product.

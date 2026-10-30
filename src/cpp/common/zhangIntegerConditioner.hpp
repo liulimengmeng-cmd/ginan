@@ -1,13 +1,19 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "common/eigenIncluder.hpp"
 #include "common/zhangIarGainAudit.hpp"
+#include "common/zhangArThreading.hpp"
 
 struct ZhangIntegerConditionedState
 {
@@ -119,7 +125,7 @@ inline ZhangPosteriorEffectiveWorkspace zhangBuildPosteriorEffectiveWorkspace(
 		return result;
 	}
 	const MatrixXd symmetric = 0.5 * (covariance + covariance.transpose());
-	Eigen::SelfAdjointEigenSolver<MatrixXd> eigen(symmetric);
+	auto eigen = ZhangArThreading::eigenSelfAdjoint(symmetric);
 	if (eigen.info() != Eigen::Success || !eigen.eigenvalues().allFinite())
 	{
 		result.failureReason = "POSTERIOR_EFFECTIVE_BASIS_EIGEN_FAILED";
@@ -154,6 +160,118 @@ inline ZhangPosteriorEffectiveWorkspace zhangBuildPosteriorEffectiveWorkspace(
 	result.failureReason = "NONE";
 	return result;
 }
+
+// A lease contains ONLY the original effective eigendecomposition. Means,
+// target moments, conditioning decisions and proofs are never cached here.
+struct ZhangPosteriorEffectiveWorkspaceLease
+{
+	std::shared_ptr<const ZhangPosteriorEffectiveWorkspace> workspace;
+	bool cacheHit = false;
+	std::uint64_t ownerId = 0, generation = 0;
+	std::string reason = "CALL_LOCAL";
+};
+
+// Owned by one AR transaction (ZhangR49FloatRootScope), not by history or a
+// process-global pointer/hash. One immutable covariance snapshot and one root
+// fit inside a hard cache-only byte budget. Active borrowers may keep their
+// own prior lease alive; eviction never mutates a borrowed decomposition.
+class ZhangPosteriorEffectiveWorkspaceCache
+{
+	inline static std::atomic<std::uint64_t> nextOwnerId{0};
+	const std::uint64_t ownerId = ++nextOwnerId;
+	const std::uint64_t maximumBytes;
+	MatrixXd covariance;
+	std::vector<std::string> stateOrder;
+	std::string epoch;
+	std::shared_ptr<const ZhangPosteriorEffectiveWorkspace> retained;
+
+	static bool sameCovariance(const MatrixXd& a, const MatrixXd& b)
+	{
+		return a.rows() == b.rows() && a.cols() == b.cols() &&
+			(a.size() == 0 || std::memcmp(a.data(), b.data(),
+				static_cast<std::size_t>(a.size()) * sizeof(double)) == 0);
+	}
+	void release()
+	{
+		retained.reset();
+		MatrixXd().swap(covariance);
+		stateOrder.clear();
+		epoch.clear();
+		retainedBytes = 0;
+	}
+public:
+	std::uint64_t hits = 0, misses = 0, builds = 0, invalidations = 0;
+	std::uint64_t capacityBypasses = 0, identityBypasses = 0, generation = 0;
+	std::uint64_t retainedBytes = 0;
+	double lookupSeconds = 0, buildSeconds = 0;
+	explicit ZhangPosteriorEffectiveWorkspaceCache(
+		std::uint64_t byteBudget = 256ULL * 1024 * 1024) : maximumBytes(byteBudget) {}
+	std::uint64_t id() const { return ownerId; }
+	std::uint64_t byteBudget() const { return maximumBytes; }
+	void clear()
+	{
+		if (retained) ++invalidations;
+		release();
+		++generation;
+	}
+	ZhangPosteriorEffectiveWorkspaceLease acquire(const MatrixXd& p,
+		const std::vector<std::string>& order, const std::string& time)
+	{
+		const auto lookupStart = std::chrono::steady_clock::now();
+		const bool completeIdentity = !time.empty() && p.rows() > 0 &&
+			p.rows() == p.cols() && order.size() == static_cast<std::size_t>(p.rows());
+		std::string reason = "EMPTY_CACHE";
+		if (!completeIdentity) reason = "INCOMPLETE_ROOT_IDENTITY";
+		else if (retained)
+		{
+			if (epoch != time) reason = "EPOCH_CHANGED";
+			else if (stateOrder != order) reason = "STATE_ORDER_CHANGED";
+			else if (!sameCovariance(covariance, p)) reason = "COVARIANCE_CHANGED";
+			else
+			{
+				++hits;
+				lookupSeconds += std::chrono::duration<double>(
+					std::chrono::steady_clock::now() - lookupStart).count();
+				return {retained, true, ownerId, generation, "EXACT_ROOT_HIT"};
+			}
+		}
+		++misses;
+		if (retained) ++invalidations;
+		release();
+		++generation;
+		lookupSeconds += std::chrono::duration<double>(
+			std::chrono::steady_clock::now() - lookupStart).count();
+		const auto buildStart = std::chrono::steady_clock::now();
+		auto workspace = std::make_shared<const ZhangPosteriorEffectiveWorkspace>(
+			zhangBuildPosteriorEffectiveWorkspace(p));
+		++builds;
+		buildSeconds += std::chrono::duration<double>(
+			std::chrono::steady_clock::now() - buildStart).count();
+		if (!workspace->valid) reason = "BUILD_REJECTED:" + workspace->failureReason;
+		else if (!completeIdentity) ++identityBypasses;
+		else
+		{
+			const auto coefficients = static_cast<std::uint64_t>(p.size()) +
+				static_cast<std::uint64_t>(workspace->squareRoot.size());
+			if (coefficients > maximumBytes / sizeof(double))
+			{
+				++capacityBypasses;
+				reason = "CACHE_BYTE_BUDGET_EXCEEDED";
+			}
+			else
+			{
+				covariance = p;
+				stateOrder = order;
+				epoch = time;
+				retained = workspace;
+				retainedBytes = coefficients * sizeof(double);
+			}
+		}
+		return {std::move(workspace), false, ownerId, generation, std::move(reason)};
+	}
+	ZhangPosteriorEffectiveWorkspaceCache(const ZhangPosteriorEffectiveWorkspaceCache&) = delete;
+	ZhangPosteriorEffectiveWorkspaceCache& operator=(const ZhangPosteriorEffectiveWorkspaceCache&) = delete;
+};
 
 inline ZhangPosteriorDeterministicCertificateAudit
 zhangAuditPosteriorDeterministicCertificate(
@@ -301,7 +419,7 @@ zhangPosteriorConditionalInnovationResiduals(
 		const MatrixXd cross = rows * covariance * stochasticRows.transpose();
 		const MatrixXd stochasticCovariance = stochasticRows * covariance *
 			stochasticRows.transpose();
-		Eigen::SelfAdjointEigenSolver<MatrixXd> eigen(
+		auto eigen = ZhangArThreading::eigenSelfAdjoint(
 			0.5 * (stochasticCovariance + stochasticCovariance.transpose()));
 		if (eigen.info() != Eigen::Success || !eigen.eigenvalues().allFinite())
 		{
@@ -361,7 +479,7 @@ zhangConditionIntegersSquareRootOrthogonal(
 
 	const MatrixXd symmetric =
 		0.5 * (covariance + covariance.transpose());
-	Eigen::SelfAdjointEigenSolver<MatrixXd> eigen(symmetric);
+	auto eigen = ZhangArThreading::eigenSelfAdjoint(symmetric);
 	if (eigen.info() != Eigen::Success || !eigen.eigenvalues().allFinite())
 	{
 		result.failureReason = "INTEGER_SQUARE_ROOT_EIGEN_FAILED";
@@ -484,7 +602,7 @@ inline bool zhangFactorConstraintCovariance(
 	constraintCovariance = constraints * cross;
 	constraintCovariance = 0.5
 		* (constraintCovariance + constraintCovariance.transpose());
-	Eigen::SelfAdjointEigenSolver<MatrixXd> eigen(constraintCovariance);
+	auto eigen = ZhangArThreading::eigenSelfAdjoint(constraintCovariance);
 	if (eigen.info() != Eigen::Success || !eigen.eigenvalues().allFinite())
 	{
 		result.failureReason = "INTEGER_CONSTRAINT_EIGEN_FAILED";
@@ -570,7 +688,9 @@ zhangConditionPosteriorEffectiveIntegers(
 	const MatrixXd& covariance,
 	const MatrixXd& rows,
 	const VectorXd& integers,
-	double deterministicRelativeTolerance = 1e-7)
+	double deterministicRelativeTolerance = 1e-7,
+	const ZhangPosteriorEffectiveWorkspace* workspace = nullptr,
+	ZhangPosteriorEffectiveRowBasis* basisUsed = nullptr)
 {
 	ZhangPosteriorEffectiveConditioningResult result;
 	result.inputRows = rows.rows();
@@ -583,8 +703,9 @@ zhangConditionPosteriorEffectiveIntegers(
 		result.failureReason = "POSTERIOR_EFFECTIVE_CONDITIONING_INPUT_INVALID";
 		return result;
 	}
-	const auto effective = zhangPosteriorEffectiveIntegerRowBasis(
-		covariance, rows);
+	const auto effective = workspace
+		? zhangPosteriorEffectiveIntegerRowBasis(*workspace, rows)
+		: zhangPosteriorEffectiveIntegerRowBasis(covariance, rows);
 	if (!effective.valid)
 	{
 		result.failureReason = effective.failureReason;
@@ -592,6 +713,14 @@ zhangConditionPosteriorEffectiveIntegers(
 	}
 	result.conditionerRank = effective.posteriorRank;
 	result.deterministicRows = effective.deterministicRows.size();
+	if (basisUsed) *basisUsed = effective;
+	// Conditional innovations are consistency constraints only for discarded
+	// deterministic rows. With a fully stochastic block their computation is
+	// unused; the retained block is still rank/PSD checked by the exact solve.
+	// Keep the complete legacy validation/error order for ordinary callers and
+	// every strict fallback. Only an owned, certified workspace uses this skip.
+	if (!workspace || !effective.deterministicRows.empty())
+	{
 	const auto conditional = zhangPosteriorConditionalInnovationResiduals(
 		covariance, rows, integers - rows * mean, effective);
 	if (!conditional.valid)
@@ -610,6 +739,7 @@ zhangConditionPosteriorEffectiveIntegers(
 			result.failureReason = "POSTERIOR_DETERMINISTIC_AFFINE_CONFLICT";
 			return result;
 		}
+	}
 	}
 	if (effective.retainedRows.empty())
 	{

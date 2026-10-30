@@ -4,7 +4,9 @@
 
 /** Compile intended physical targets, never private chord labels, into the
  * authoritative posterior. The complete chart and the available posterior
- * chart are distinct: a subgraph change can be rectangular. */
+ * chart are distinct: a subgraph change can be rectangular. Repair mode can
+ * retain unknown UNUSED columns, but every intended nonzero physical target
+ * must still roundtrip exactly; it cannot be downgraded to a zero target. */
 struct ZhangProductPhysicalPullback
 {
     bool valid = false;
@@ -22,9 +24,14 @@ inline ZhangProductPhysicalPullback zhangPullbackProductPhysicalRelations(
     const std::map<ZhangGraphEdge, int>& versions,
     const std::vector<ZhangGraphEdge>& authoritativeChords,
     const std::map<ZhangGraphEdge, int>& posteriorColumns,
-    int posteriorSize)
+    int posteriorSize,
+    bool retainUnknownColumns=false)
 {
     ZhangProductPhysicalPullback out;
+    if(posteriorSize<0) {
+        out.failureReason="POSTERIOR_COORDINATE_DIMENSION_INVALID";
+        return out;
+    }
     ZhangProductPhysicalCycleChart complete, posterior;
     complete.columns = authoritativeChords.size();
     posterior.columns = posteriorSize;
@@ -33,14 +40,14 @@ inline ZhangProductPhysicalPullback zhangPullbackProductPhysicalRelations(
     const std::string signal = enum_to_string(target.observable);
     for (int c = 0; c < complete.columns; ++c)
     {
-        if (!complete.add(c, signal, authoritativeChords[c], authoritative, versions))
+        if (!complete.add(c, signal, authoritativeChords[c], authoritative, versions, retainUnknownColumns))
         {
             out.failureReason = "AUTHORITATIVE_PHYSICAL_CHART_INVALID";
             return out;
         }
         auto column = posteriorColumns.find(authoritativeChords[c]);
         if (column != posteriorColumns.end() &&
-            !posterior.add(column->second, signal, authoritativeChords[c], authoritative, versions))
+            !posterior.add(column->second, signal, authoritativeChords[c], authoritative, versions, retainUnknownColumns))
         {
             out.failureReason = "POSTERIOR_PHYSICAL_CHART_INVALID";
             return out;
@@ -54,7 +61,7 @@ inline ZhangProductPhysicalPullback zhangPullbackProductPhysicalRelations(
         {
             if (value == 0) continue;
             auto version = versions.find(edge);
-            if (version == versions.end())
+            if (version == versions.end() || version->second < 0)
             {
                 out.failureReason = "INTENDED_PHYSICAL_ARC_UNVERSIONED";
                 return out;

@@ -3,12 +3,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 struct Navigation;
 struct ReceiverMap;
 
 inline constexpr std::uint32_t
-	ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 2;
+	ZHANG_RECEIVER_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 3;
 inline constexpr std::uint32_t
 	ZHANG_SATELLITE_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 1;
 
@@ -40,6 +41,37 @@ struct ZhangSatelliteRuntimeCheckpointResult
 	std::size_t satelliteAliasCount = 0;
 	std::size_t svnHistoryCount = 0;
 };
+
+/** Read-only post-restore boundary audit. Only the declared, discarded
+ * completed-epoch workset markers may differ. No live receiver is changed
+ * and no numerical tolerance or field-wise persistent-state exemption is
+ * available. Raw hashes remain distinct when the two resets occurred. */
+struct ZhangReceiverRuntimeBoundaryResetAudit
+{
+	bool valid = false;
+	bool rawPayloadsExact = false;
+	std::string failureReason;
+	std::string sourcePayloadSha256;
+	std::string afterPayloadSha256;
+	std::string normalizedSourcePayloadSha256;
+	std::size_t receiverCount = 0;
+	std::size_t readyResetCount = 0;
+	std::size_t observationWorksetResetReceiverCount = 0;
+	std::size_t discardedObservationWorksetCount = 0;
+	std::vector<std::string> readyResetReceiverIds;
+	std::vector<std::string> observationWorksetResetReceiverIds;
+};
+
+/** Decode and validate two schema-3 receiver payloads with the same owner.
+ * In a temporary copy of source only, set each top-level receiver.ready to
+ * false and resetObservationCount to zero under the exact declared boundary
+ * policies. The complete resulting archive must then equal actualAfter
+ * byte-for-byte. The immutable input bytes and live state are untouched. */
+ZhangReceiverRuntimeBoundaryResetAudit
+auditZhangReceiverCheckpointBoundaryResetEquivalence(
+	const std::string& runtimeId,
+	const std::string& sourcePayload,
+	const std::string& actualAfterPayload);
 
 /** A preflight plan retains the exact validated bytes.  Import rechecks the
  * digest, runtime identity, configured object inventory and all pointer

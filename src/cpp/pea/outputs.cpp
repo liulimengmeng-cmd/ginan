@@ -1,6 +1,8 @@
 // #pragma GCC optimize ("O0")
 
 #include <chrono>
+#include <set>
+#include <stdexcept>
 #include <thread>
 #include <unordered_set>
 #include "architectureDocs.hpp"
@@ -31,11 +33,13 @@
 #include "common/streamSbf.hpp"
 #include "common/streamUbx.hpp"
 #include "common/summary.hpp"
+#include "common/zhangProductPublicationGate.hpp"
 #include "iono/ionoModel.hpp"
 #include "orbprop/orbitProp.hpp"
 #include "pea/inputsOutputs.hpp"
 #include "pea/minimumConstraints.hpp"
 #include "pea/zhangPppAr.hpp"
+#include "pea/zhangReference.hpp"
 #include "sbas/sbas.hpp"
 
 using boost::date_time::not_a_date_time;
@@ -1117,19 +1121,22 @@ void perEpochPostProcessingAndOutputs(
         if (arPossible && acsConfig.ambrOpts.mode != E_ARmode::OFF &&
             acsConfig.ambrOpts.once_per_epoch)
         {
-            KFState* arState_ptr;
-
+            // The legacy output copy is not the Zhang service owner. Zhang
+            // transactional AR already creates and conditions its own private
+            // branches, while the caller's FLOAT KF remains authoritative for
+            // product evidence, graph state, and the subsequent checkpoint.
+            auto& arState = selectZhangPerEpochArState(
+                kfState, augmentedKF, hold, inRts);
             if (hold)
-            {
-                arState_ptr = &kfState;
                 BOOST_LOG_TRIVIAL(info) << "Performing AR with fix and hold";
-            }
-            else
-            {
-                arState_ptr = &augmentedKF;
-            }
-
-            auto& arState = *arState_ptr;
+            pppTrace << "\nZHANG_PER_EPOCH_AR_OWNER time=" << time.to_string(0)
+                     << " authoritative_object=" << static_cast<const void*>(&kfState)
+                     << " selected_object=" << static_cast<const void*>(&arState)
+                     << " augmented_object=" << static_cast<const void*>(&augmentedKF)
+                     << " authoritative_selected=" << (&arState == &kfState)
+                     << " transactional=" << (acsConfig.zhangFullRank.enable &&
+                          acsConfig.zhangPppAr.transactional_integer_fixing)
+                     << " legacy_hold=" << hold;
 
             fixAndHoldAmbiguities(pppTrace, arState);
 
@@ -1146,6 +1153,28 @@ void perEpochPostProcessingAndOutputs(
             // outputs will have to revert this below because AR is supposed to be temporary in
             // once_per_epoch mode
             nav.erp.filterValues = getErpFromFilter(arState);
+        }
+
+        // AR may run on augmentedKF rather than the authoritative FLOAT
+        // filter, or be skipped entirely. Sweep the authoritative unconditioned
+        // FLOAT registry separately; never copy AR-conditioned auxiliaries back.
+        bool handoffRegistryValid = retireZhangGraphProductEventAuxiliaries(
+            pppTrace, kfState, "PRIMARY_OUTPUT");
+        if (handoffRegistryValid && !zhangR51SingleBasisHandoffEnabled())
+        {
+            std::string reason;
+            handoffRegistryValid = zhangGraphProductHandoffStateValid(kfState, reason);
+            if (!handoffRegistryValid) kfState.lastFactorTransactionFailureReason = reason;
+        }
+        if (!handoffRegistryValid)
+        {
+            pppTrace << "\nZHANG_PRODUCT_HANDOFF_PRIMARY_STATE_RETIREMENT_FAILED time="
+                     << kfState.time.to_string(0) << " reason="
+                     << kfState.lastFactorTransactionFailureReason;
+            pppTrace.flush();
+            throw std::runtime_error(
+                "ZHANG_PRODUCT_HANDOFF_PRIMARY_STATE_RETIREMENT_FAILED:" +
+                kfState.lastFactorTransactionFailureReason);
         }
 
         traceZhangPppArUserDiagnostics(pppTrace, receiverMap, kfState);

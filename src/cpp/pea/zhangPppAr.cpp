@@ -12,14 +12,18 @@
 #include <iomanip>
 #include <limits>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <stdexcept>
 #if defined(__linux__)
 #include <sys/resource.h>
@@ -43,13 +47,27 @@
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
 #include "common/zhangPhaseContinuity.hpp"
+#include "common/zhangCurrentEpochEvidence.hpp"
+#include "common/zhangCurrentBridgeWorkIdentity.hpp"
+#include "common/zhangProductConditioningReceipt.hpp"
+#include "common/zhangPrivateGraphState.hpp"
+#include "common/zhangFullJointHandoff.hpp"
+#include "common/zhangSharedProductEvent.hpp"
+#include "common/zhangCurrentProductBridgePlan.hpp"
+#include "common/zhangExactWorkBudget.hpp"
+#include "common/zhangHandoffSearchBudget.hpp"
+#include "common/zhangR51CommittedBundle.hpp"
+#include "common/zhangProductPublicationGate.hpp"
+#include "common/zhangProductNumericalContinuity.hpp"
 #include "common/zhangProductIntegerLedger.hpp"
 #include "common/zhangProductGaugeCertificateLedger.hpp"
 #include "common/zhangProductRelationBasis.hpp"
 #include "common/zhangProductRelationSolver.hpp"
 #include "common/zhangProductRelationAdmission.hpp"
 #include "common/zhangCheckpoint.hpp"
+#include "common/zhangMultiGnssFloatCheckpoint.hpp"
 #include "common/zhangIntegerAudit.hpp"
+#include "common/zhangMultiGnssInteger.hpp"
 #include "common/zhangIntegerCandidateNis.hpp"
 #include "common/zhangIfUser.hpp"
 #include "common/zhangIfWideLane.hpp"
@@ -295,6 +313,17 @@ map<ProductKey, ZhangPhaseContinuityState> continuityMap;
 map<E_Sys, ZhangProductDatumVersionTracker> houProductDatumVersionTrackers;
 map<ProductKey, string> houProductPhysicalFunctionalIdentities;
 map<ProductKey, ZhangProductIntegerFunctional> houProductPhysicalFunctionals;
+// This is the last actually committed public definition.  The structural
+// houProductPhysicalFunctionals cache may advance during a failed candidate
+// or a diagnostic branch and must never be mistaken for publication history.
+map<ProductKey, ZhangProductIntegerFunctional> publishedProductFunctionals;
+// Native and segment-start targets are distinct. These maps store structure
+// only; previous accepted integer values are never publication authority.
+map<ProductKey, ZhangProductIntegerFunctional> publishedSegmentFunctionals;
+map<ProductKey, ZhangProductIntegerTransition> publishedFullJointDifferences;
+// Independent from publication history: only exact structural chart links.
+// Unpublished epochs may advance this tail, but never a public integer value.
+map<ProductKey, ZhangFullJointStructuralChain> productStructuralTransportChains;
 map<ProductKey, string> houProductSBasisFingerprints;
 map<ProductKey, string> houProductPhaseSegmentIdentities;
 map<ProductKey, long long> houProductTreeAlignmentCycles;
@@ -319,6 +348,7 @@ map<std::pair<E_Sys, E_ObsCode>, ZhangSatelliteDatumManager>
     satelliteDatumManagers;
 map<tuple<string, E_Sys, string, E_ObsCode>,
 	ZhangHybridRealGaugeTransport> hybridRealGaugeTransports;
+using ZhangHybridRealGaugeRegistry = decltype(hybridRealGaugeTransports);
 map<string, ZhangFactorCaptureBuffer> e18FactorCaptureBuffers;
 
 struct ZhangFactorCaptureCallbackAudit
@@ -526,6 +556,50 @@ void e27TransformSensitivities(
     }
 }
 
+/** Scientific sidecars are outside KFState_'s rollback snapshot.  Keep only
+ * this runtime's enabled E27/BESD entries, never another network x/P copy.
+ * Capture itself is evaluated on its existing disposable candidate and is
+ * moved into place only after every potentially throwing operation succeeds. */
+class ZhangExactTransformConsumerTransaction
+{
+public:
+    explicit ZhangExactTransformConsumerTransaction(const string& runtimeId)
+    {
+        if (e27JointNoiseEnabled())
+            if (auto found = e27JointNoiseRuntimes.find(runtimeId);
+                found != e27JointNoiseRuntimes.end())
+            {
+                joint = &found->second;
+                jointBefore.emplace(found->second);
+            }
+        if (acsConfig.zhangPppAr.targeted_besd_capture_shadow)
+            if (auto found = targetedBesdRuntimes.find(runtimeId);
+                found != targetedBesdRuntimes.end())
+            {
+                besd = &found->second;
+                besdBefore.emplace(found->second);
+            }
+    }
+    ZhangExactTransformConsumerTransaction(const ZhangExactTransformConsumerTransaction&) = delete;
+    ZhangExactTransformConsumerTransaction& operator=(const ZhangExactTransformConsumerTransaction&) = delete;
+    ~ZhangExactTransformConsumerTransaction() noexcept
+    {
+        static_assert(std::is_nothrow_swappable_v<E27JointNoiseRuntime>);
+        static_assert(std::is_nothrow_swappable_v<vector<ZhangTargetedBesdRuntime>>);
+        if (committed) return;
+        if (joint) std::swap(*joint, *jointBefore);
+        if (besd) std::swap(*besd, *besdBefore);
+    }
+    void commit() noexcept { committed = true; }
+
+private:
+    E27JointNoiseRuntime* joint = nullptr;
+    vector<ZhangTargetedBesdRuntime>* besd = nullptr;
+    std::optional<E27JointNoiseRuntime> jointBefore;
+    std::optional<vector<ZhangTargetedBesdRuntime>> besdBefore;
+    bool committed = false;
+};
+
 struct PromotionEvidenceKey
 {
     E_Sys      system = E_Sys::NONE;
@@ -603,6 +677,8 @@ struct ProductLookupKey
 
 map<ProductLookupKey, ZhangInternalProduct> productMap;
 string loadedProductFilename;
+long int loadedProductEpoch = -1;
+string loadedProductBase;
 
 struct ProductCovarianceKey
 {
@@ -667,6 +743,14 @@ struct ProductHistory
     double correction = 0;
     int    discontinuityCounter = 0;
     int    datumVersion = 0;
+	// Publication identity is deliberately not restored from the legacy
+	// checkpoint schema.  On the first epoch after an old checkpoint the
+	// absence of these fields forces a new public segment, rather than
+	// silently claiming a temporal handoff that was never certified.
+	std::string phaseSegmentId;
+	std::string productFunctional;
+	int backendGeneration = -1;
+	double correctionSigma = 0;
 };
 
 map<ProductHistoryKey, ProductHistory> productHistoryMap;
@@ -1073,6 +1157,26 @@ struct ProductHistoryCheckpoint
 	}
 };
 
+// Kept outside ProductHistoryCheckpoint so the original schema-3 archive
+// layout remains readable.  Schema 4 appends this small publication identity
+// table after all schema-3 fields.
+struct ProductPublicationIdentityCheckpoint
+{
+	string phaseSegmentId;
+	string productFunctional;
+	int backendGeneration = -1;
+	double correctionSigma = 0;
+
+	template<class Archive>
+	void serialize(Archive& ar, const unsigned int)
+	{
+		ar & phaseSegmentId;
+		ar & productFunctional;
+		ar & backendGeneration;
+		ar & correctionSigma;
+	}
+};
+
 struct ZhangGraphEdgeCheckpoint
 {
 	string receiver;
@@ -1131,6 +1235,20 @@ struct ZhangProductIntegerTransitionCheckpoint
 		ar & affineOffsetCycles;
 		ar & valid;
 		ar & failureReason;
+	}
+};
+
+struct ZhangFullJointStructuralChainCheckpoint
+{
+	string publishedNativeFingerprint, publishedSegment, tailNativeFingerprint;
+	int publishedBackend = -1, tailBackend = -1;
+	std::uint64_t linkCount = 0;
+	ZhangProductIntegerTransitionCheckpoint nativeToSegment;
+	template<class Archive>
+	void serialize(Archive& ar, const unsigned int)
+	{
+		ar & publishedNativeFingerprint & publishedSegment & tailNativeFingerprint;
+		ar & publishedBackend & tailBackend & linkCount & nativeToSegment;
 	}
 };
 
@@ -1263,6 +1381,13 @@ struct ZhangPppArCheckpointEnvelope
 	map<ProductHistoryKey, ProductHistoryCheckpoint> productHistory;
 	map<UserReferenceKey, UserReferenceState> userReferences;
 	map<UserDualReferenceKey, SatSys> userDualReferences;
+	map<ProductHistoryKey, ProductPublicationIdentityCheckpoint>
+		productPublicationIdentity;
+	map<ProductKey, ZhangProductIntegerFunctionalCheckpoint>
+		publishedPhysicalFunctionals;
+	map<ProductKey, ZhangProductIntegerFunctionalCheckpoint> segmentPhysicalFunctionals;
+	map<ProductKey, ZhangProductIntegerTransitionCheckpoint> fullJointDifferences;
+	map<ProductKey, ZhangFullJointStructuralChainCheckpoint> structuralTransportChains;
 
 	template<class Archive>
 	void serialize(Archive& ar, const unsigned int)
@@ -1296,8 +1421,241 @@ struct ZhangPppArCheckpointEnvelope
 		ar & productHistory;
 		ar & userReferences;
 		ar & userDualReferences;
+		if (schemaVersion >= 4)
+		{
+			ar & productPublicationIdentity;
+			ar & publishedPhysicalFunctionals;
+		}
+		if (schemaVersion >= 5)
+		{
+			ar & segmentPhysicalFunctionals;
+			ar & fullJointDifferences;
+		}
+		if (schemaVersion >= 6) ar & structuralTransportChains;
 	}
 };
+
+bool finiteFloatContinuityTime(const GTime& time)
+{
+	return std::isfinite(time.bigTime);
+}
+
+bool finiteFloatContinuityTime(const ZhangCheckpointTime& time)
+{
+	return finiteFloatContinuityTime(restoreZhangCheckpointTime(time));
+}
+
+/** The opt-in bounded pre-AR schedule is a cold FLOAT carrier, not a new AR
+ * archive format. Graph callbacks legitimately maintain physical continuity
+ * and singleton satellite chart metadata during FLOAT warm-up. Preserve those
+ * complete records; neither an alpha=0 singleton nor an exact affine chart
+ * shift is an accepted integer relation. All integer authority and full-writer
+ * histories remain forbidden. Never clear private state to manufacture an
+ * acceptable archive. Old GPS behavior and schemas remain unchanged. */
+bool multiGnssFloatPppArCheckpointAllowed(
+	const ZhangPppArCheckpointEnvelope& snapshot, string& failureReason)
+{
+	if (!zhangMultiGnssFloatCheckpointActive(acsConfig)) return true;
+	const auto reject = [&](const char* field)
+	{
+		failureReason = string("PPP_AR_MULTI_GNSS_FLOAT_PRIVATE_STATE_NONEMPTY:") + field;
+		return false;
+	};
+	// Some legacy adapters omit an empty registered outer object from their
+	// DTO. Reject its live presence too, including before importing an empty
+	// carrier into a process with unsupported private state. Callback ownership
+	// and e18ConfiguredFactorCaptureStates are configuration and stay allowed.
+#define ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(field) \
+	if (!field.empty()) return reject("live_" #field)
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(pendingProductTransitions);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(pendingSnapshotPins);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(e18FactorCaptureBuffers);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(e18PersistentProductDatumRegistries);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(e27RawNoiseRows);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(e27JointNoiseRuntimes);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(targetedBesdRuntimes);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductDatumVersionTrackers);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductPhysicalFunctionalIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductPhysicalFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductSBasisFingerprints);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductPhaseSegmentIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductTreeAlignmentCycles);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(houProductSnapshotIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(hybridRealGaugeTransports);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(promotionEvidence);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(relinkEvidence);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(productHistoryMap);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(userReferenceMap);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(userDualReferenceMap);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(publishedProductFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(publishedSegmentFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(publishedFullJointDifferences);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY(productStructuralTransportChains);
+#undef ZHANG_FLOAT_PPP_AR_REQUIRE_LIVE_EMPTY
+	if (snapshot.hasPendingSnapshotPins) return reject("hasPendingSnapshotPins");
+	if (snapshot.hasFactorCapture) return reject("hasFactorCapture");
+	if (snapshot.hasPersistentProductDatumRegistry)
+		return reject("hasPersistentProductDatumRegistry");
+	if (snapshot.hasE27JointNoiseRuntime) return reject("hasE27JointNoiseRuntime");
+#define ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(field) \
+	if (!snapshot.field.empty()) return reject(#field)
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(pendingTransitions);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(e27RawRows);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(productDatumVersionTrackers);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(physicalFunctionalIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(physicalFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(sBasisFingerprints);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(phaseSegmentIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(treeAlignmentCycles);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(snapshotIdentities);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(hybridRealGauges);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(promotionEvidence);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(relinkEvidence);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(productHistory);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(userReferences);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(userDualReferences);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(productPublicationIdentity);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(publishedPhysicalFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(segmentPhysicalFunctionals);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(fullJointDifferences);
+	ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY(structuralTransportChains);
+#undef ZHANG_FLOAT_PPP_AR_REQUIRE_EMPTY
+	const auto allowedSystem = [&](E_Sys system)
+	{
+		if (system != E_Sys::GPS && system != E_Sys::GAL && system != E_Sys::BDS)
+			return false;
+		const auto enabled = acsConfig.process_sys.find(system);
+		return enabled != acsConfig.process_sys.end() && enabled->second;
+	};
+	const auto allowedSignal = [&](E_Sys system, E_ObsCode observable)
+	{
+		if (!allowedSystem(system)) return false;
+		const auto configured = acsConfig.zhangPppAr.baseline_observables.find(system);
+		if (configured == acsConfig.zhangPppAr.baseline_observables.end()) return false;
+		return std::find(configured->second.begin(), configured->second.end(), observable)
+			!= configured->second.end();
+	};
+	const auto allowedProduct = [&](const ProductKey& key)
+	{
+		return key.satellite.prn > 0 && allowedSignal(key.satellite.sys, key.observable);
+	};
+	const auto continuityAllowed = [&](const auto& values)
+	{
+		for (const auto& [key, state] : values)
+		{
+			if (!allowedProduct(key)) return reject("continuity_signal");
+			if (state.hasFixedDatum) return reject("continuity_hasFixedDatum");
+			if (state.counter < 0 || state.datumVersion < 0 || state.iod < 0 ||
+				state.stabilizationRemaining < 0 || !std::isfinite(state.fractionalShiftCycles) ||
+				!finiteFloatContinuityTime(state.validFrom) ||
+				!finiteFloatContinuityTime(state.lastEpoch))
+				return reject("continuity_invalid_metadata");
+		}
+		return true;
+	};
+	const auto globalAllowed = [&](const auto& values)
+	{
+		for (const auto& [key, state] : values)
+			if (!allowedSignal(key.first, key.second) || state.counter < 0 ||
+				state.datumVersion < 0 || state.iod < 0 || state.stabilizationRemaining < 0 ||
+				!finiteFloatContinuityTime(state.validFrom))
+				return reject("globalContinuity_invalid_metadata");
+		return true;
+	};
+	const auto managerAllowed = [&](const ZhangSatelliteDatumManagerCheckpoint& state)
+	{
+		if (!allowedSignal(state.system, state.observable))
+			return reject("satelliteDatumManagers_signal");
+		if (!state.precisionValid.empty()) return reject("satelliteDatumManagers_precisionValid");
+		if (!state.relations.empty()) return reject("satelliteDatumManagers_relations");
+		if (!state.redundantRelations.empty()) return reject("satelliteDatumManagers_redundantRelations");
+		if (!state.eventCounts.empty()) return reject("satelliteDatumManagers_eventCounts");
+		if (state.conflictCount != 0) return reject("satelliteDatumManagers_conflictCount");
+		// The existing generic restorer validates every node/system, segment,
+		// counter and generation, and rebuilds singleton components only here.
+		ZhangSatelliteDatumManager checked;
+		string reason;
+		if (!checked.restoreCheckpointState(state, &reason))
+			return reject("satelliteDatumManagers_invalid_metadata");
+		return true;
+	};
+	if (!continuityAllowed(continuityMap) || !continuityAllowed(snapshot.continuity) ||
+		!globalAllowed(globalContinuityMap) || !globalAllowed(snapshot.globalContinuity)) return false;
+	for (const auto& [key, manager] : satelliteDatumManagers)
+	{
+		const auto state = manager.checkpointState();
+		if (key != std::make_pair(state.system, state.observable))
+			return reject("satelliteDatumManagers_live_identity");
+		if (!managerAllowed(state)) return false;
+	}
+	for (const auto& state : snapshot.satelliteDatumManagers)
+		if (!managerAllowed(state)) return false;
+	// False presence flags must not hide populated payloads, old event times,
+	// failure counters, retained targets or other private evidence. Comparing
+	// the complete same-schema wire form also covers future appended members.
+	// factorCaptureConfigured alone installs a callback and is not evidence.
+	ZhangPppArCheckpointEnvelope allowed;
+	allowed.schemaVersion = snapshot.schemaVersion;
+	allowed.runtimeId = snapshot.runtimeId;
+	allowed.factorCaptureConfigured = snapshot.factorCaptureConfigured;
+	// Field-wise copies deliberately do not automatically whitelist future
+	// appended nested members. No metadata, affine shift, or physical event is
+	// dropped from the actual snapshot or the restored live runtime.
+	for (const auto& [key, state] : snapshot.continuity)
+	{
+		auto& value = allowed.continuity[key];
+		value.counter = state.counter;
+		value.integerShiftCycles = state.integerShiftCycles;
+		value.fractionalShiftCycles = state.fractionalShiftCycles;
+		value.datumVersion = state.datumVersion;
+		value.validFrom = state.validFrom;
+		value.iod = state.iod;
+		value.resetReason = state.resetReason;
+		value.stabilizationRemaining = state.stabilizationRemaining;
+		value.lastEpoch = state.lastEpoch;
+	}
+	for (const auto& [key, state] : snapshot.globalContinuity)
+	{
+		auto& value = allowed.globalContinuity[key];
+		value.counter = state.counter;
+		value.datumVersion = state.datumVersion;
+		value.validFrom = state.validFrom;
+		value.iod = state.iod;
+		value.resetReason = state.resetReason;
+		value.stabilizationRemaining = state.stabilizationRemaining;
+	}
+	for (const auto& state : snapshot.satelliteDatumManagers)
+	{
+		ZhangSatelliteDatumManagerCheckpoint value;
+		value.system = state.system;
+		value.observable = state.observable;
+		value.currentSegments = state.currentSegments;
+		value.discontinuityCounters = state.discontinuityCounters;
+		value.datumVersions = state.datumVersions;
+		value.alignmentCycles = state.alignmentCycles;
+		value.alignmentKnown = state.alignmentKnown;
+		value.topologyVersion = state.topologyVersion;
+		value.alignmentGeneration = state.alignmentGeneration;
+		allowed.satelliteDatumManagers.push_back(std::move(value));
+	}
+	const auto wire = [](const ZhangPppArCheckpointEnvelope& value)
+	{
+		std::ostringstream output(std::ios::binary | std::ios::out);
+		boost::archive::binary_oarchive archive(output, boost::archive::no_header);
+		archive << value;
+		return output.str();
+	};
+	try
+	{
+		if (wire(snapshot) != wire(allowed)) return reject("inactive_payload_or_history");
+	}
+	catch (const std::exception&)
+	{
+		failureReason = "PPP_AR_MULTI_GNSS_FLOAT_PRIVATE_STATE_AUDIT_FAILED";
+		return false;
+	}
+	return true;
+}
 
 // The continuity/Hou-datum/satellite-datum maps above form one product-service
 // instance.  They are intentionally singleton in this PEA process and are
@@ -1327,9 +1685,38 @@ bool resolveZhangPppArRuntimeOwner(
 	{
 		return false;
 	}
+	// AMBRES/graph branches retain the parent's checkpoint metadata but have a
+	// separate branch lease. They cannot own the root product-service runtime,
+	// even when the root has not installed factor-capture callbacks.
+	if (auto branch = state.metaDataMap.find(
+		ZHANG_CHECKPOINT_RUNTIME_BRANCH_ID_METADATA);
+		branch != state.metaDataMap.end() && !branch->second.empty())
+	{
+		return false;
+	}
 	auto [binding, inserted] = e18RuntimeObjectBindings.emplace(
 		runtimeId, &state);
 	return inserted || binding->second == &state;
+}
+
+void reportZhangPppArOwnerConflict(
+	const KFState& state,
+	const string& runtimeId,
+	const char* operation)
+{
+	const auto binding = e18RuntimeObjectBindings.find(runtimeId);
+	const auto branch = state.metaDataMap.find(
+		ZHANG_CHECKPOINT_RUNTIME_BRANCH_ID_METADATA);
+	BOOST_LOG_TRIVIAL(error)
+		<< "ZHANG_RUNTIME_OWNER_CONFLICT operation=" << operation
+		<< " runtime_id=" << runtimeId
+		<< " state_id=" << state.id
+		<< " requested_object=" << static_cast<const void*>(&state)
+		<< " bound_object=" << static_cast<const void*>(
+			binding == e18RuntimeObjectBindings.end() ? nullptr : binding->second)
+		<< " branch_id=" << (branch == state.metaDataMap.end() ? "" : branch->second)
+		<< " factor_capture_configured="
+		<< (e18ConfiguredFactorCaptureStates.count(runtimeId) != 0);
 }
 
 bool claimZhangPppArServiceRuntime(
@@ -1844,6 +2231,9 @@ bool restoreFunctional(
 		{
 			return false;
 		}
+		if (snapshot.physicalArcVersions[index] < -1 ||
+			(coefficient != 0 && snapshot.physicalArcVersions[index] < 0))
+		{ failureReason = "PPP_AR_CHECKPOINT_UNKNOWN_NONZERO_SIGNAL_ARC"; return false; }
 		candidate.networkCoefficients.push_back(coefficient);
 	}
 	candidate.physicalArcVersions = snapshot.physicalArcVersions;
@@ -1906,6 +2296,9 @@ bool restoreTransition(
 		{
 			return false;
 		}
+		if (snapshot.physicalArcVersions[index] < -1 ||
+			(coefficient != 0 && snapshot.physicalArcVersions[index] < 0))
+		{ failureReason = "PPP_AR_CHECKPOINT_UNKNOWN_NONZERO_BRIDGE_ARC"; return false; }
 		candidate.coefficients.push_back(coefficient);
 	}
 	candidate.physicalArcVersions = snapshot.physicalArcVersions;
@@ -1980,6 +2373,9 @@ bool restorePendingTransition(
 		return false;
 	}
 	candidate.oldIdentity = snapshot.oldIdentity;
+	candidate.oldFunctional.observable = snapshot.observable;
+	candidate.newFunctional.observable = snapshot.observable;
+	candidate.transition.observable = snapshot.observable;
 	candidate.newIdentity = snapshot.newIdentity;
 	candidate.oldSBasisFingerprint = snapshot.oldSBasisFingerprint;
 	candidate.newSBasisFingerprint = snapshot.newSBasisFingerprint;
@@ -2168,7 +2564,9 @@ bool ensureProductFileHeader()
 		"certified_relation_count,redundant_relation_count,"
 		"cycle_closure_valid,dual_frequency_ar_valid,product_state,"
 		"discontinuity,ar_valid,support_segment_fingerprint,"
-		"backend_s_basis_generation";
+		"backend_s_basis_generation,same_segment_continuous,"
+		"requires_user_ambiguity_reset,public_phase_segment_id," +
+        std::string(zhangPublishedContinuityCsvHeader);
 
     const string& filename = acsConfig.zhangPppAr.product_filename;
     if (filename.empty())
@@ -2223,11 +2621,23 @@ bool ensureProductFileHeader()
 	return true;
 }
 
-void appendProduct(const ZhangInternalProduct& product)
+void appendProduct(const ZhangInternalProduct& inputProduct)
 {
+    auto product = inputProduct;
+    if (product.published_continuity.bundleId == "UNAVAILABLE")
+        product.published_continuity.bundleId = std::to_string(
+            static_cast<long long>(std::llround(product.time.bigTime))) + ":" + product.solution;
+    if (!product.published_continuity.jointCovarianceComplete)
+    {
+        product.ppp_usable = product.pppar_usable = product.ar_valid = false;
+        product.dual_frequency_ar_valid = false;
+        if (product.product_state == "AR_VALID") product.product_state = "AR_SUSPENDED";
+        if (product.invalid_reason.empty() || product.invalid_reason == "NONE")
+            product.invalid_reason = "PUBLISHED_JOINT_COVARIANCE_UNAVAILABLE";
+    }
     if (!ensureProductFileHeader())
 	{
-		return;
+		throw std::runtime_error("ZHANG_PRODUCT_HEADER_WRITE_FAILED");
 	}
 
     std::ofstream output(acsConfig.zhangPppAr.product_filename, std::ios::app);
@@ -2280,7 +2690,15 @@ void appendProduct(const ZhangInternalProduct& product)
 		   << product.discontinuity << ","
 		   << product.ar_valid << ","
 		   << product.support_segment_fingerprint << ","
-		   << product.backend_s_basis_generation << "\n";
+		   << product.backend_s_basis_generation << ","
+		   << product.same_segment_continuous << ","
+		   << product.requires_user_ambiguity_reset << ","
+		   << product.public_phase_segment_id << ",";
+    zhangWritePublishedContinuityCsv(output, product.published_continuity);
+    output << '\n';
+	output.flush();
+	if (!output)
+		throw std::runtime_error("ZHANG_PRODUCT_ROW_WRITE_FAILED");
 }
 
 struct ProductCovarianceParameter
@@ -2291,6 +2709,103 @@ struct ProductCovarianceParameter
     E_ObsCode   observable = E_ObsCode::NONE;
     vector<pair<int, double>> stateTerms;
 };
+
+struct ZhangProductPhaseProjection
+{
+	bool valid = false;
+	std::string reason = "NOT_EVALUATED";
+	vector<pair<int, double>> stateTerms;
+	double mean = 0;
+	double variance = 0;
+	double clockCovariance = 0;
+};
+
+/** The product tree selects a target functional; it is not a second KF
+ * state basis.  Pull z_P=z_S+Gk back into the one current S chart and retain
+ * the complete sparse Jacobian for both the writer and covariance sidecar. */
+static ZhangProductPhaseProjection zhangProductPhaseProjection(
+	const KFState& state,
+	const ZhangSatelliteProductTarget& target,
+	const SatSys& satellite,
+	E_ObsCode observable,
+	double lambda)
+{
+	ZhangProductPhaseProjection result;
+	if (!target.valid || !(lambda > 0) || !std::isfinite(lambda))
+	{
+		result.reason = "PRODUCT_TARGET_OR_WAVELENGTH_INVALID";
+		return result;
+	}
+	KFKey phaseKey;
+	phaseKey.type = KF::PHASE_BIAS;
+	phaseKey.Sat = satellite;
+	phaseKey.num = static_cast<int>(observable);
+	KFKey clockKey;
+	clockKey.type = KF::SAT_CLOCK;
+	clockKey.Sat = satellite;
+	const auto phase = state.kfIndexMap.find(phaseKey);
+	const auto clock = state.kfIndexMap.find(clockKey);
+	if (phase == state.kfIndexMap.end() || clock == state.kfIndexMap.end())
+	{
+		result.reason = "PRODUCT_PHASE_OR_CLOCK_STATE_MISSING";
+		return result;
+	}
+	result.stateTerms.push_back({phase->second, 1.0});
+	if (satellite != target.referenceSatellite)
+	{
+		const auto named = std::find(
+			target.targetSatellites.begin(),
+			target.targetSatellites.end(), satellite);
+		if (named == target.targetSatellites.end())
+		{
+			result.reason = "SATELLITE_OUTSIDE_PRODUCT_TARGET";
+			return result;
+		}
+		const auto& row = target.matrix.at(
+			std::distance(target.targetSatellites.begin(), named));
+		if (row.size() != target.currentChords.size())
+		{
+			result.reason = "PRODUCT_TARGET_ROW_DIMENSION_MISMATCH";
+			return result;
+		}
+		for (std::size_t chord = 0; chord < row.size(); chord++)
+		{
+			if (row[chord] == 0) continue;
+			KFKey ambiguityKey;
+			ambiguityKey.type = KF::AMBIGUITY;
+			ambiguityKey.str = target.currentChords[chord].receiver;
+			ambiguityKey.Sat = target.currentChords[chord].satellite;
+			ambiguityKey.num = static_cast<int>(observable);
+			const auto ambiguity = state.kfIndexMap.find(ambiguityKey);
+			if (ambiguity == state.kfIndexMap.end())
+			{
+				result.reason = "PRODUCT_TARGET_AMBIGUITY_STATE_MISSING";
+				return result;
+			}
+			const double coefficient = lambda * row[chord].convert_to<double>();
+			if (!std::isfinite(coefficient))
+			{
+				result.reason = "PRODUCT_TARGET_COEFFICIENT_NONFINITE";
+				return result;
+			}
+			result.stateTerms.push_back({ambiguity->second, coefficient});
+		}
+	}
+	for (const auto& [index, coefficient] : result.stateTerms)
+	{
+		result.mean += coefficient * state.x(index);
+		result.clockCovariance += coefficient * state.P(index, clock->second);
+		for (const auto& [otherIndex, otherCoefficient] : result.stateTerms)
+			result.variance += coefficient * otherCoefficient *
+				state.P(index, otherIndex);
+	}
+	result.valid = std::isfinite(result.mean) &&
+		std::isfinite(result.variance) &&
+		std::isfinite(result.clockCovariance) && result.variance >= -1e-12;
+	result.reason = result.valid ? "EXACT_PRODUCT_TARGET_FULL_P" :
+		"PRODUCT_TARGET_MOMENT_NONFINITE";
+	return result;
+}
 
 bool ensureProductCovarianceFileHeader()
 {
@@ -2359,7 +2874,8 @@ void appendProductCovariance(
     const string&  solution,
     const KFState& graphState,
 	vector<ZhangInternalProduct>& epochProducts,
-    std::string* deferredOutput = nullptr
+    std::string* deferredOutput = nullptr,
+	ZhangHybridRealGaugeRegistry* deferredFrontend = nullptr
 )
 {
     const string& filename =
@@ -2368,6 +2884,25 @@ void appendProductCovariance(
     {
         return;
     }
+	const bool exactProductTarget = zhangR51SingleBasisHandoffEnabled() &&
+		acsConfig.zhangPppAr.product_mode == "HOU_OSB_LIKE";
+	auto rejectProductProjection = [&](const std::string& reason)
+	{
+		for (auto& product : epochProducts)
+		{
+			if (product.solution != solution) continue;
+			product.numeric_valid = false;
+			product.integer_valid = false;
+			product.pppar_usable = false;
+			product.ar_valid = false;
+			product.invalid_reason = reason;
+		}
+		BOOST_LOG_TRIVIAL(error)
+			<< "ZHANG_PRODUCT_TARGET_PROJECTION_REJECT time="
+			<< state.time.to_string(0) << " solution=" << solution
+			<< " reason=" << reason;
+	};
+	map<E_Sys, ZhangSatelliteProductTarget> exactTargets;
 
     vector<ProductCovarianceParameter> parameters;
     set<SatSys> satellites;
@@ -2423,11 +2958,31 @@ void appendProductCovariance(
                 continue;
             }
             vector<pair<int, double>> phaseTerms = {{phaseIt->second, 1.0}};
-			// The product tree is a backend coordinate and relation-evidence
-			// source only.  The broadcast phase primitive is the satellite
-			// phase state plus an exact integer potential from the persistent
-			// G_AR manager; that potential is a constant and adds no covariance
-			// terms.  Never leak ambiguity-tree rows into the frontend covariance.
+			if (exactProductTarget)
+			{
+			auto target = exactTargets.find(satellite.sys);
+				if (target == exactTargets.end())
+				{
+					ZhangGraphIntegerContext graph;
+					if (!zhangGraphIntegerContext(graphState, satellite.sys, graph))
+					{
+						rejectProductProjection("PRODUCT_GRAPH_CONTEXT_MISSING");
+						return;
+					}
+					target = exactTargets.emplace(satellite.sys,
+						zhangBuildSatelliteProductTarget(
+							graph.basis, graph.productBasis)).first;
+				}
+				const auto projection = zhangProductPhaseProjection(
+					state, target->second, satellite, observable,
+					wavelength(satellite.sys, observable));
+				if (!projection.valid)
+				{
+					rejectProductProjection(projection.reason);
+					return;
+				}
+				phaseTerms = projection.stateTerms;
+			}
             parameters.push_back({
                 phaseKey, satellite, "PHASE", observable, std::move(phaseTerms)
             });
@@ -2566,7 +3121,8 @@ void appendProductCovariance(
 			parameters[index].parameter,
 			parameters[index].observable}].push_back(index);
 	}
-	if (acsConfig.zhangPppAr.product_mode == "HOU_OSB_LIKE")
+	if (acsConfig.zhangPppAr.product_mode == "HOU_OSB_LIKE" &&
+		!zhangR51SingleBasisHandoffEnabled())
 	{
 		using RealGaugeKey = tuple<string, E_Sys, string, E_ObsCode>;
 		ZhangHybridStableFrontend frontendController;
@@ -2647,22 +3203,36 @@ void appendProductCovariance(
 			failGaugeTransaction(transactionFailure);
 			return;
 		}
-		frontendController.validateIntegerAlignment(frontendCandidate, true);
-		frontendController.validateRealGauge(frontendCandidate, true);
-		frontendController.validateComponentConsistency(frontendCandidate, true);
-		frontendController.validateMetadata(frontendCandidate, true);
-		if (!frontendController.commit(
-			hybridRealGaugeTransports, frontendCandidate))
+		if (deferredFrontend)
 		{
-			failGaugeTransaction("HYBRID_STABLE_FRONTEND_COMMIT_REJECTED_" +
-				frontendCandidate.failureReason);
-			return;
+			// PRODUCT_FIXED is only a candidate here.  Its gauge history
+			// belongs to the same publication transaction as its final product
+			// rows, and is committed after the temporal/numeric gate.
+			*deferredFrontend = std::move(frontendCandidate.preparedState);
+		}
+		else if (!zhangR51Enabled())
+		{
+			// Preserve the legacy non-R51 behaviour; R51 FLOAT and network
+			// diagnostic branches are read-only views of the public frontend.
+			frontendController.validateIntegerAlignment(frontendCandidate, true);
+			frontendController.validateRealGauge(frontendCandidate, true);
+			frontendController.validateComponentConsistency(frontendCandidate, true);
+			frontendController.validateMetadata(frontendCandidate, true);
+			if (!frontendController.commit(
+				hybridRealGaugeTransports, frontendCandidate))
+			{
+				failGaugeTransaction("HYBRID_STABLE_FRONTEND_COMMIT_REJECTED_" +
+					frontendCandidate.failureReason);
+				return;
+			}
 		}
 		BOOST_LOG_TRIVIAL(info)
 			<< "ZHANG_HYBRID_REAL_GAUGE_TRANSACTION time="
 			<< state.time.to_string(0)
 			<< " solution=" << solution
-			<< " status=COMMITTED blocks=" << evaluatedGaugeBlocks
+			<< " status=" << (deferredFrontend ? "STAGED" :
+				(zhangR51Enabled() ? "DIAGNOSTIC_ONLY" : "COMMITTED"))
+			<< " blocks=" << evaluatedGaugeBlocks
 			<< " controller=ZHANG_HYBRID_STABLE_FRONTEND"
 			<< " covariance_transform=FULL_AFFINE";
 	}
@@ -2789,16 +3359,73 @@ vector<string> splitCsv(const string& line)
     return fields;
 }
 
+ZhangR51VerifiedBundle verifiedR51BundleForEpoch(
+    const GTime& time, bool requireAr)
+{
+    ZhangR51VerifiedBundle selected;
+    selected.failureReason = "R51_EPOCH_BUNDLE_MISSING";
+    const std::filesystem::path base(
+        acsConfig.zhangPppAr.product_filename + ".epochs");
+    if (!std::filesystem::is_directory(base))
+        return selected;
+    std::string tag = time.to_string(0);
+    for (auto& character : tag)
+        if (character == ':' || character == ' ') character = '_';
+    const std::string prefix = tag + "_";
+    for (const auto& item : std::filesystem::directory_iterator(base))
+    {
+        if (!item.is_directory()) continue;
+        const std::string name = item.path().filename().string();
+        if (!name.starts_with(prefix) || name.ends_with(".pending"))
+            continue;
+        const auto candidate = zhangR51VerifyCommittedBundle(
+            item.path(), requireAr);
+        if (!candidate.valid || candidate.epoch != time.to_string(0))
+        {
+            selected.valid = false;
+            selected.failureReason = candidate.valid
+                ? "R51_EPOCH_BUNDLE_MANIFEST_TIME_MISMATCH"
+                : candidate.failureReason;
+            return selected;
+        }
+        if (selected.valid)
+        {
+            selected.valid = false;
+            selected.failureReason = "R51_DUPLICATE_COMMITTED_EPOCH";
+            return selected;
+        }
+        selected = candidate;
+    }
+    return selected;
+}
+
 bool loadProductCovarianceEpoch(long int targetEpoch, const string& solution)
 {
     auto& reader = productCovarianceReader;
-    const string& filename = acsConfig.zhangPppAr.product_covariance_filename;
-    if (reader.cache.epoch == targetEpoch &&
-        reader.cache.solution == solution)
+    std::string filename = acsConfig.zhangPppAr.product_covariance_filename;
+    const std::filesystem::path bundleBase(
+        acsConfig.zhangPppAr.product_filename + ".epochs");
+    if (zhangR51SingleBasisHandoffEnabled() ||
+        std::filesystem::is_directory(bundleBase))
     {
-        return reader.cache.valid;
+        GTime time;
+        time.bigTime = targetEpoch;
+        const auto bundle = verifiedR51BundleForEpoch(time, true);
+        if (!bundle.valid)
+        {
+            reader.stream.close();
+            reader.filename.clear();
+            reader.cache = {};
+            reader.cache.epoch = targetEpoch;
+            reader.cache.solution = solution;
+            reader.cache.failureReason = bundle.failureReason;
+            return false;
+        }
+        filename = bundle.covariance.string();
     }
-
+    if (reader.cache.valid && reader.cache.epoch == targetEpoch &&
+        reader.cache.solution == solution && reader.filename == filename)
+        return true;
     const bool reset = reader.filename != filename || !reader.stream.is_open() ||
         targetEpoch < reader.lastRequestedEpoch;
     if (reset)
@@ -2901,6 +3528,42 @@ bool loadProductCovarianceEpoch(long int targetEpoch, const string& solution)
         return false;
     }
 
+    // A sparse sidecar does not imply zero cross-covariance. The factor
+    // columns are shared across G/E/C and may only be constructed from a
+    // complete canonical triangle for the declared epoch and solution.
+    using CovariancePair = std::pair<ProductCovarianceKey, ProductCovarianceKey>;
+    std::map<CovariancePair, double> canonicalEntries;
+    for (const auto& entry : entries)
+    {
+        const auto pair = entry.column < entry.row
+            ? CovariancePair{entry.column, entry.row}
+            : CovariancePair{entry.row, entry.column};
+        const auto [position, inserted] = canonicalEntries.emplace(pair, entry.covariance);
+        if (!inserted && std::abs(position->second - entry.covariance) >
+            1e-12 * std::max({1.0, std::abs(position->second), std::abs(entry.covariance)}))
+        {
+            reader.cache.failureReason = "COVARIANCE_CONFLICTING_CANONICAL_PAIR";
+            return false;
+        }
+    }
+    const std::size_t requiredPairs = parameters.size() * (parameters.size() + 1) / 2;
+    if (canonicalEntries.size() != requiredPairs)
+    {
+        reader.cache.failureReason = "COVARIANCE_INCOMPLETE_JOINT_TRIANGLE";
+        return false;
+    }
+    for (const auto& [key, product] : productMap)
+    {
+        if (key.epoch != targetEpoch || key.solution != solution || !product.ppp_usable)
+            continue;
+        if (!parameters.contains({key.satellite, "CLOCK", E_ObsCode::NONE}) ||
+            !parameters.contains({key.satellite, "PHASE", key.observable}))
+        {
+            reader.cache.failureReason = "COVARIANCE_PUBLISHED_PRODUCT_PARAMETER_MISSING";
+            return false;
+        }
+    }
+
     int index = 0;
     for (const auto& parameter : parameters)
     {
@@ -2958,12 +3621,37 @@ bool loadProductCovarianceEpoch(long int targetEpoch, const string& solution)
     return reader.cache.valid;
 }
 
-bool loadProducts()
+bool loadProducts(const GTime& time)
 {
-    const string& filename = acsConfig.zhangPppAr.product_filename;
+    std::string filename = acsConfig.zhangPppAr.product_filename;
     if (filename.empty())
     {
         return false;
+    }
+    const std::filesystem::path bundleBase(filename + ".epochs");
+    const bool bundled = zhangR51SingleBasisHandoffEnabled() ||
+        std::filesystem::is_directory(bundleBase);
+    const long int epoch =
+        static_cast<long int>(std::llround(time.bigTime));
+    if (bundled)
+    {
+        if (loadedProductEpoch == epoch &&
+            loadedProductBase == filename && !productMap.empty())
+            return true;
+        const auto bundle = verifiedR51BundleForEpoch(time, false);
+        if (!bundle.valid)
+        {
+            productMap.clear();
+            loadedProductFilename.clear();
+            loadedProductEpoch = -1;
+            loadedProductBase.clear();
+            BOOST_LOG_TRIVIAL(error)
+                << "R51 committed product unavailable epoch="
+                << time.to_string(0)
+                << " reason=" << bundle.failureReason;
+            return false;
+        }
+        filename = bundle.products.string();
     }
     if (loadedProductFilename == filename && !productMap.empty())
     {
@@ -2981,14 +3669,86 @@ bool loadProducts()
     productMap.clear();
     string line;
     std::getline(input, line);
+    // The current writer appends a versioned continuity contract to the 52
+    // legacy columns. Do not silently skip every current row as an unknown
+    // legacy width, or discard the very transport evidence needed by users.
+    const auto currentColumns = splitCsv(
+        "gpst_seconds,solution,satellite,observable,clock_m,clock_sigma_m,"
+        "phase_m,phase_sigma_m,clock_phase_covariance_m2,correction_m,"
+        "correction_sigma_m,discontinuity_counter,integer_shift_cycles,"
+        "fractional_shift_cycles,datum_version,valid_from_gpst_seconds,"
+        "product_iod,reset_reason,persistent_relation_known,current_alignment_state,"
+        "integer_structure_valid,integer_datum_continuous,integer_precision_valid,integer_valid,"
+        "integer_component_id,integer_datum_id,solution_interval_start_gpst_seconds,"
+        "solution_interval_end_gpst_seconds,numeric_valid,branch_valid,continuity_valid,"
+        "ppp_usable,pppar_usable,invalid_reason,phase_product_segment_id,"
+        "integer_component_version,integer_alignment_generation,real_gauge_generation,"
+        "integer_component_size,integer_component_rank,certified_relation_count,"
+        "redundant_relation_count,cycle_closure_valid,dual_frequency_ar_valid,"
+        "product_state,discontinuity,ar_valid,support_segment_fingerprint,"
+        "backend_s_basis_generation,same_segment_continuous,requires_user_ambiguity_reset,"
+        "public_phase_segment_id," + std::string(zhangPublishedContinuityCsvHeader));
+    vector<string> inputColumns;
+    try { inputColumns = zhangMultiGnssCsvFields(line); }
+    catch (const std::exception& error)
+    {
+        loadedProductFilename.clear();
+        loadedProductEpoch = -1;
+        loadedProductBase.clear();
+        BOOST_LOG_TRIVIAL(error) << "ZHANG_PRODUCT_INPUT_REJECTED file=" << filename
+            << " reason=" << error.what();
+        return false;
+    }
+    const bool currentFormat = inputColumns.size() > 52 ||
+        std::find(inputColumns.begin(), inputColumns.end(), "continuity_contract_version") != inputColumns.end();
+    std::map<string, std::size_t> inputColumnIndex;
+    auto rejectInput = [&](const std::string& reason)
+    {
+        productMap.clear();
+        loadedProductFilename.clear();
+        loadedProductEpoch = -1;
+        loadedProductBase.clear();
+        BOOST_LOG_TRIVIAL(error) << "ZHANG_PRODUCT_INPUT_REJECTED file=" << filename
+            << " reason=" << reason;
+        return false;
+    };
+    if (currentFormat)
+    {
+        for (std::size_t i = 0; i < inputColumns.size(); ++i)
+            if (!inputColumnIndex.emplace(inputColumns[i], i).second)
+                return rejectInput("DUPLICATE_CURRENT_COLUMN");
+        if (inputColumns.size() != currentColumns.size())
+            return rejectInput("INCOMPLETE_OR_UNKNOWN_CONTINUITY_SCHEMA");
+        for (const auto& column : currentColumns)
+            if (!inputColumnIndex.contains(column))
+                return rejectInput("CURRENT_COLUMN_MISSING:" + column);
+    }
+    decltype(productMap) parsedProducts;
+    try
+    {
     while (std::getline(input, line))
     {
-        auto fields = splitCsv(line);
+        if (line.empty()) continue;
+        auto fields = currentFormat ? zhangMultiGnssCsvFields(line) : splitCsv(line);
+        vector<string> continuityFields;
+        if (currentFormat)
+        {
+            if (fields.size() != inputColumns.size())
+                return rejectInput("CURRENT_ROW_WIDTH_INVALID");
+            vector<string> ordered;
+            ordered.reserve(currentColumns.size());
+            for (const auto& column : currentColumns)
+                ordered.push_back(fields.at(inputColumnIndex.at(column)));
+            continuityFields.assign(ordered.begin() + 52, ordered.end());
+            ordered.resize(52);
+            fields = std::move(ordered);
+        }
         if (fields.size() != 19 && fields.size() != 23 &&
             fields.size() != 26 && fields.size() != 28 &&
             fields.size() != 33 && fields.size() != 34 &&
 			fields.size() != 45 && fields.size() != 48 &&
-			fields.size() != 49)
+			fields.size() != 49 && fields.size() != 51 &&
+			fields.size() != 52)
         {
             continue;
         }
@@ -3014,7 +3774,8 @@ bool loadProducts()
         product.reset_reason                  = fields[17];
         if (fields.size() == 28 || fields.size() == 33
 		 || fields.size() == 34 || fields.size() == 45
-		 || fields.size() == 48 || fields.size() == 49)
+		 || fields.size() == 48 || fields.size() == 49
+		 || fields.size() == 51 || fields.size() == 52)
         {
             product.persistent_relation_known = std::stoi(fields[18]) != 0;
             product.current_alignment_state   = fields[19];
@@ -3035,7 +3796,8 @@ bool loadProducts()
                 product.continuity_valid = product.ppp_usable;
             }
             else if (fields.size() == 34 || fields.size() == 45
-			      || fields.size() == 48 || fields.size() == 49)
+			      || fields.size() == 48 || fields.size() == 49
+			      || fields.size() == 51 || fields.size() == 52)
             {
                 product.numeric_valid = std::stoi(fields[28]) != 0;
                 product.branch_valid  = std::stoi(fields[29]) != 0;
@@ -3044,7 +3806,8 @@ bool loadProducts()
                 product.pppar_usable  = std::stoi(fields[32]) != 0;
                 product.invalid_reason = fields[33];
 				if (fields.size() == 45 || fields.size() == 48
-				 || fields.size() == 49)
+				 || fields.size() == 49 || fields.size() == 51 ||
+				 fields.size() == 52)
 				{
 					product.phase_product_segment_id = fields[34];
 					product.integer_component_version = std::stoi(fields[35]);
@@ -3057,15 +3820,26 @@ bool loadProducts()
 					product.cycle_closure_valid = std::stoi(fields[42]) != 0;
 					product.dual_frequency_ar_valid = std::stoi(fields[43]) != 0;
 					product.product_state = fields[44];
-					if (fields.size() == 48 || fields.size() == 49)
+					if (fields.size() == 48 || fields.size() == 49
+					 || fields.size() == 51 || fields.size() == 52)
 					{
 						product.discontinuity = std::stoi(fields[45]) != 0;
 						product.ar_valid = std::stoi(fields[46]) != 0;
 						product.support_segment_fingerprint = fields[47];
-						if (fields.size() == 49)
+						if (fields.size() == 49 || fields.size() == 51 ||
+							fields.size() == 52)
 						{
 							product.backend_s_basis_generation =
 								std::stoi(fields[48]);
+						}
+						if (fields.size() == 51 || fields.size() == 52)
+						{
+							product.same_segment_continuous =
+								std::stoi(fields[49]) != 0;
+							product.requires_user_ambiguity_reset =
+								std::stoi(fields[50]) != 0;
+							if (fields.size() == 52)
+								product.public_phase_segment_id = fields[51];
 						}
 					}
 				}
@@ -3110,7 +3884,8 @@ bool loadProducts()
 
         if (fields.size() != 33 && fields.size() != 34
 		 && fields.size() != 45 && fields.size() != 48
-		 && fields.size() != 49)
+		 && fields.size() != 49 && fields.size() != 51 &&
+		 fields.size() != 52)
         {
             product.numeric_valid =
                 std::isfinite(product.clock_m) &&
@@ -3137,6 +3912,56 @@ bool loadProducts()
                 ? "LEGACY_PRODUCT"
                 : "LEGACY_NUMERIC_FAILURE";
 		}
+        if (currentFormat)
+        {
+            auto strictInteger = [](const std::string& text)
+            {
+                std::size_t used = 0;
+                const long long value = std::stoll(text, &used);
+                if (used != text.size()) throw std::runtime_error("CONTINUITY_INTEGER_INVALID");
+                return value;
+            };
+            auto strictInt = [&](const std::string& text)
+            {
+                const auto value = strictInteger(text);
+                if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max())
+                    throw std::runtime_error("CONTINUITY_INTEGER_OUT_OF_RANGE");
+                return static_cast<int>(value);
+            };
+            auto strictDouble = [](const std::string& text)
+            {
+                std::size_t used = 0;
+                const double value = std::stod(text, &used);
+                if (used != text.size()) throw std::runtime_error("CONTINUITY_NUMBER_INVALID");
+                return value;
+            };
+            auto strictFlag = [](const std::string& text)
+            {
+                if (text != "0" && text != "1") throw std::runtime_error("CONTINUITY_FLAG_INVALID");
+                return text == "1";
+            };
+            auto& contract = product.published_continuity;
+            contract.version = strictInt(continuityFields[0]);
+            contract.previousEpochGpstSeconds = strictDouble(continuityFields[1]);
+            contract.previousCounter = strictInt(continuityFields[2]);
+            contract.previousDatumVersion = strictInt(continuityFields[3]);
+            contract.previousPublicSegment = continuityFields[4];
+            contract.floatTransportValid = strictFlag(continuityFields[5]);
+            contract.floatCorrectionShiftMetres = strictDouble(continuityFields[6]);
+            contract.integerTransportValid = strictFlag(continuityFields[7]);
+            if (contract.integerTransportValid)
+                contract.integerTransportShiftCycles = strictInteger(continuityFields[8]);
+            else if (!std::isnan(strictDouble(continuityFields[8])))
+                throw std::runtime_error("UNKNOWN_INTEGER_TRANSPORT_MUST_BE_NAN");
+            contract.proofId = continuityFields[9];
+            contract.kind = continuityFields[10];
+            contract.jointCovarianceComplete = strictFlag(continuityFields[11]);
+            contract.bundleId = continuityFields[12];
+            if (!zhangPublishedContinuityValid(contract, static_cast<double>(product.time.bigTime),
+                    product.public_phase_segment_id) ||
+                (product.ppp_usable && !contract.jointCovarianceComplete))
+                throw std::runtime_error("PUBLISHED_CONTINUITY_CONTRACT_INVALID");
+        }
 		// Do not trust an historical network-FIXED row merely because its CSV
 		// predates the product-lattice admission gate and claims pppar_usable=1.
 		// Such rows remain valid PPP controls, but only PRODUCT_FIXED may carry
@@ -3149,10 +3974,17 @@ bool loadProducts()
             product.observable,
             product.solution
         };
-        productMap[key] = product;
+        if (!parsedProducts.emplace(key, std::move(product)).second)
+            return rejectInput("DUPLICATE_PRODUCT_IDENTITY");
     }
+    }
+    catch (const std::exception& error) { return rejectInput(error.what()); }
+    if (input.bad()) return rejectInput("PRODUCT_READ_FAILED");
+    productMap = std::move(parsedProducts);
 
     loadedProductFilename = filename;
+    loadedProductEpoch = bundled ? epoch : -1;
+    loadedProductBase = acsConfig.zhangPppAr.product_filename;
     BOOST_LOG_TRIVIAL(info)
         << "Loaded " << productMap.size()
         << " Zhang internal product records from " << filename;
@@ -3439,6 +4271,31 @@ bool transformUserReference(
 }
 }  // namespace
 
+KFState& selectZhangPerEpochArState(
+	KFState& authoritativeState,
+	KFState& augmentedOutputState,
+	bool hold,
+	bool inRts)
+{
+	if (!acsConfig.zhangFullRank.enable ||
+		!acsConfig.zhangPppAr.transactional_integer_fixing)
+	{
+		return hold ? authoritativeState : augmentedOutputState;
+	}
+	if (inRts)
+		throw std::runtime_error("ZHANG_TRANSACTIONAL_AR_RTS_OWNER_UNSUPPORTED");
+	if (acsConfig.reference_clock != "NO_REFERENCE" ||
+		acsConfig.reference_bias != "NO_REFERENCE")
+		throw std::runtime_error("ZHANG_TRANSACTIONAL_AR_PREPIVOTED_OWNER_UNSUPPORTED");
+	if (acsConfig.process_minimum_constraints && acsConfig.minconOpts.once_per_epoch)
+		throw std::runtime_error("ZHANG_TRANSACTIONAL_AR_MINCON_OWNER_UNSUPPORTED");
+	if (auto branch = authoritativeState.metaDataMap.find(
+		ZHANG_CHECKPOINT_RUNTIME_BRANCH_ID_METADATA);
+		branch != authoritativeState.metaDataMap.end() && !branch->second.empty())
+		throw std::runtime_error("ZHANG_TRANSACTIONAL_AR_OWNER_IS_DISPOSABLE_BRANCH");
+	return authoritativeState;
+}
+
 ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 	const KFState& owner,
 	const string& runtimeId,
@@ -3462,6 +4319,7 @@ ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 	if (!resolveZhangPppArRuntimeOwner(owner, resolvedRuntimeId)
 	 || resolvedRuntimeId != runtimeId)
 	{
+		reportZhangPppArOwnerConflict(owner, runtimeId, "CHECKPOINT_EXPORT_RESOLVE");
 		result.failureReason = "PPP_AR_CHECKPOINT_RUNTIME_OBJECT_CONFLICT";
 		return result;
 	}
@@ -3477,6 +4335,7 @@ ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 		if (binding == e18RuntimeObjectBindings.end()
 		 || binding->second != &owner)
 		{
+			reportZhangPppArOwnerConflict(owner, runtimeId, "CHECKPOINT_EXPORT_CALLBACK_OWNER");
 			result.failureReason =
 				"PPP_AR_CHECKPOINT_RUNTIME_OBJECT_CONFLICT";
 			return result;
@@ -3573,7 +4432,24 @@ ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 	{
 		snapshot.productHistory.emplace(
 			key, checkpointProductHistory(history));
+		snapshot.productPublicationIdentity.emplace(key,
+			ProductPublicationIdentityCheckpoint{
+				history.phaseSegmentId, history.productFunctional,
+				history.backendGeneration, history.correctionSigma});
 	}
+	for (const auto& [key, functional] : publishedProductFunctionals)
+		snapshot.publishedPhysicalFunctionals.emplace(
+			key, checkpointFunctional(functional));
+	for (const auto& [key, functional] : publishedSegmentFunctionals)
+		snapshot.segmentPhysicalFunctionals.emplace(key, checkpointFunctional(functional));
+	for (const auto& [key, difference] : publishedFullJointDifferences)
+		snapshot.fullJointDifferences.emplace(key, checkpointTransition(difference));
+	for (const auto& [key, chain] : productStructuralTransportChains)
+		snapshot.structuralTransportChains.emplace(key,
+			ZhangFullJointStructuralChainCheckpoint{chain.publishedNativeFingerprint,
+				chain.publishedSegment, chain.tailNativeFingerprint,
+				chain.publishedBackend, chain.tailBackend, chain.linkCount,
+				checkpointTransition(chain.nativeToSegment)});
 	for (const auto& [key, state] : userReferenceMap)
 	{
 		if (key.runtimeId == runtimeId)
@@ -3587,6 +4463,10 @@ ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 		{
 			snapshot.userDualReferences.emplace(key, reference);
 		}
+	}
+	if (!multiGnssFloatPppArCheckpointAllowed(snapshot, result.failureReason))
+	{
+		return result;
 	}
 	try
 	{
@@ -3650,6 +4530,21 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 		result.failureReason = "PPP_AR_CHECKPOINT_OWNER_RUNTIME_ID_MISMATCH";
 		return result;
 	}
+	if (auto branch = owner.metaDataMap.find(
+		ZHANG_CHECKPOINT_RUNTIME_BRANCH_ID_METADATA);
+		branch != owner.metaDataMap.end() && !branch->second.empty())
+	{
+		reportZhangPppArOwnerConflict(owner, runtimeId, "CHECKPOINT_IMPORT_BRANCH");
+		result.failureReason = "PPP_AR_CHECKPOINT_OWNER_IS_DISPOSABLE_BRANCH";
+		return result;
+	}
+	if (auto binding = e18RuntimeObjectBindings.find(runtimeId);
+		binding != e18RuntimeObjectBindings.end() && binding->second != &owner)
+	{
+		reportZhangPppArOwnerConflict(owner, runtimeId, "CHECKPOINT_IMPORT_DESTINATION");
+		result.failureReason = "PPP_AR_CHECKPOINT_RUNTIME_OBJECT_CONFLICT";
+		return result;
+	}
 
 	ZhangPppArCheckpointEnvelope snapshot;
 	try
@@ -3673,7 +4568,12 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 			string("PPP_AR_CHECKPOINT_DESERIALIZE_FAILED:") + exception.what();
 		return result;
 	}
-	if (snapshot.schemaVersion != ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION)
+	if (!multiGnssFloatPppArCheckpointAllowed(snapshot, result.failureReason))
+	{
+		return result;
+	}
+	if (snapshot.schemaVersion != 3 && snapshot.schemaVersion != 4 && snapshot.schemaVersion != 5 &&
+		snapshot.schemaVersion != ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION)
 	{
 		result.failureReason = "PPP_AR_CHECKPOINT_SCHEMA_MISMATCH";
 		return result;
@@ -3894,7 +4794,45 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 				: failureReason;
 			return result;
 		}
+		restored.observable = key.observable;
 		restoredFunctionals.emplace(key, std::move(restored));
+	}
+	map<ProductKey, ZhangProductIntegerFunctional> restoredPublishedFunctionals;
+	for (const auto& [key, functional] :
+		snapshot.publishedPhysicalFunctionals)
+	{
+		ZhangProductIntegerFunctional restored;
+		if (!validateProductKey(key) ||
+			!restoreFunctional(functional, restored, failureReason) ||
+			!restored.valid || restored.satellite != key.satellite)
+		{
+			result.failureReason = failureReason.empty()
+				? "PPP_AR_CHECKPOINT_PUBLISHED_FUNCTIONAL_INVALID"
+				: failureReason;
+			return result;
+		}
+		restored.observable = key.observable;
+		restoredPublishedFunctionals.emplace(key, std::move(restored));
+	}
+	map<ProductKey, ZhangProductIntegerFunctional> restoredSegmentFunctionals;
+	map<ProductKey, ZhangProductIntegerTransition> restoredJointDifferences;
+	for (const auto& [key, stored] : snapshot.segmentPhysicalFunctionals)
+	{
+		ZhangProductIntegerFunctional functional;
+		if (!validateProductKey(key) || !restoreFunctional(stored, functional, failureReason) ||
+			!functional.valid || functional.satellite != key.satellite)
+		{ result.failureReason = "PPP_AR_SEGMENT_FUNCTIONAL_INVALID:" + failureReason; return result; }
+		functional.observable = key.observable;
+		restoredSegmentFunctionals.emplace(key, std::move(functional));
+	}
+	for (const auto& [key, stored] : snapshot.fullJointDifferences)
+	{
+		ZhangProductIntegerTransition difference;
+		if (!validateProductKey(key) || !restoreTransition(stored, difference, failureReason) ||
+			!difference.valid || !restoredSegmentFunctionals.contains(key))
+		{ result.failureReason = "PPP_AR_FULL_JOINT_DIFFERENCE_INVALID:" + failureReason; return result; }
+		difference.observable = key.observable;
+		restoredJointDifferences.emplace(key, std::move(difference));
 	}
 	for (const auto& [system, tracker] :
 		snapshot.productDatumVersionTrackers)
@@ -3993,7 +4931,7 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 	map<ProductHistoryKey, ProductHistory> restoredProductHistory;
 	for (const auto& [key, stored] : snapshot.productHistory)
 	{
-		const auto history = restoreProductHistory(stored);
+		auto history = restoreProductHistory(stored);
 		if (key.solution.empty() || key.satellite.prn <= 0
 		 || key.satellite.sys == E_Sys::NONE
 		 || key.observable == E_ObsCode::NONE
@@ -4005,7 +4943,77 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 			result.failureReason = "PPP_AR_CHECKPOINT_INVALID_PRODUCT_HISTORY";
 			return result;
 		}
+		if (const auto identity = snapshot.productPublicationIdentity.find(key);
+			identity != snapshot.productPublicationIdentity.end())
+		{
+			const auto& value = identity->second;
+			if (value.phaseSegmentId.size() > 1024 ||
+				value.productFunctional.size() > 16384 ||
+				value.backendGeneration < -1 ||
+				!std::isfinite(value.correctionSigma) ||
+				value.correctionSigma < 0)
+			{
+				result.failureReason =
+					"PPP_AR_CHECKPOINT_INVALID_PUBLICATION_IDENTITY";
+				return result;
+			}
+			history.phaseSegmentId = value.phaseSegmentId;
+			history.productFunctional = value.productFunctional;
+			history.backendGeneration = value.backendGeneration;
+			history.correctionSigma = value.correctionSigma;
+		}
 		restoredProductHistory.emplace(key, history);
+	}
+	if (snapshot.productPublicationIdentity.size() >
+		snapshot.productHistory.size() ||
+		std::any_of(snapshot.productPublicationIdentity.begin(),
+			snapshot.productPublicationIdentity.end(),
+			[&](const auto& entry)
+			{
+				return !snapshot.productHistory.contains(entry.first);
+			}))
+	{
+		result.failureReason =
+			"PPP_AR_CHECKPOINT_ORPHAN_PUBLICATION_IDENTITY";
+		return result;
+	}
+	for (const auto& [key, functional] : restoredPublishedFunctionals)
+	{
+		const auto history = restoredProductHistory.find({
+			"PRODUCT_FIXED", key.satellite, key.observable});
+		if (history == restoredProductHistory.end() ||
+			history->second.productFunctional.empty() ||
+			zhangProductPhysicalFunctionalFingerprint(functional) !=
+				history->second.productFunctional)
+		{
+			result.failureReason =
+				"PPP_AR_CHECKPOINT_PUBLISHED_FUNCTIONAL_HISTORY_MISMATCH";
+			return result;
+		}
+	}
+	map<ProductKey, ZhangFullJointStructuralChain> restoredStructuralChains;
+	for (const auto& [key, stored] : snapshot.structuralTransportChains)
+	{
+		ZhangFullJointStructuralChain chain;
+		chain.publishedNativeFingerprint = stored.publishedNativeFingerprint;
+		chain.publishedSegment = stored.publishedSegment;
+		chain.publishedBackend = stored.publishedBackend;
+		chain.tailNativeFingerprint = stored.tailNativeFingerprint;
+		chain.tailBackend = stored.tailBackend;
+		chain.linkCount = stored.linkCount;
+		const auto history = restoredProductHistory.find({"PRODUCT_FIXED", key.satellite, key.observable});
+		if (!validateProductKey(key) || !restoredPublishedFunctionals.contains(key) ||
+			!restoredJointDifferences.contains(key) || history == restoredProductHistory.end() ||
+			!restoreTransition(stored.nativeToSegment, chain.nativeToSegment, failureReason))
+		{ result.failureReason = "PPP_AR_STRUCTURAL_CHAIN_INVALID:" + failureReason; return result; }
+		chain.nativeToSegment.observable = key.observable;
+		if (!chain.anchoredTo(history->second.productFunctional,
+			history->second.backendGeneration, history->second.phaseSegmentId) ||
+			!chain.tailMatches(chain.tailNativeFingerprint, chain.tailBackend) ||
+			chain.tailBackend < chain.publishedBackend ||
+			chain.tailNativeFingerprint.size() > 16384)
+		{ result.failureReason = "PPP_AR_STRUCTURAL_CHAIN_PUBLIC_ANCHOR_MISMATCH"; return result; }
+		restoredStructuralChains.emplace(key, std::move(chain));
 	}
 	map<UserReferenceKey, UserReferenceState> restoredUserReferences;
 	for (const auto& [key, state] : snapshot.userReferences)
@@ -4228,10 +5236,10 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 	{
 		newRuntimeObjectBindings.erase(oldRuntimeId);
 	}
-	if (snapshot.factorCaptureConfigured && destinationCallbacksInstalled)
-	{
-		newRuntimeObjectBindings[runtimeId] = &owner;
-	}
+	// Service ownership is independent of whether optional factor capture was
+	// enabled in the archive. A successful import claims its real destination;
+	// a later disposable copy must not acquire this runtime's empty slot.
+	newRuntimeObjectBindings[runtimeId] = &owner;
 	auto newRestoredStates = e18RestoredRuntimeStates;
 	if (!oldRuntimeId.empty())
 	{
@@ -4268,6 +5276,10 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 	houProductPhysicalFunctionalIdentities.swap(
 		snapshot.physicalFunctionalIdentities);
 	houProductPhysicalFunctionals.swap(restoredFunctionals);
+	publishedProductFunctionals.swap(restoredPublishedFunctionals);
+	publishedSegmentFunctionals.swap(restoredSegmentFunctionals);
+	publishedFullJointDifferences.swap(restoredJointDifferences);
+	productStructuralTransportChains.swap(restoredStructuralChains);
 	houProductSBasisFingerprints.swap(snapshot.sBasisFingerprints);
 	houProductPhaseSegmentIdentities.swap(
 		snapshot.phaseSegmentIdentities);
@@ -4279,6 +5291,24 @@ ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 	promotionEvidence.swap(snapshot.promotionEvidence);
 	relinkEvidence.swap(snapshot.relinkEvidence);
 	productHistoryMap.swap(restoredProductHistory);
+	if (snapshot.schemaVersion < 5 || zhangGraphRequiresFreshProductIdentity(owner))
+	{
+		// Legacy topology versions cannot certify signal physical identities.
+		// Preserve FLOAT x/P, discard only unauthenticated publication baselines.
+		publishedProductFunctionals.clear();
+		publishedSegmentFunctionals.clear();
+		publishedFullJointDifferences.clear();
+		productStructuralTransportChains.clear();
+		houProductPhysicalFunctionals.clear();
+		houProductPhysicalFunctionalIdentities.clear();
+		houProductSBasisFingerprints.clear();
+		houProductPhaseSegmentIdentities.clear();
+		houProductTreeAlignmentCycles.clear();
+		houProductSnapshotIdentities.clear();
+		productHistoryMap.clear();
+		continuityMap.clear();
+		pendingProductTransitions.clear();
+	}
 	zhangPppArCheckpointRuntimeId.swap(newRuntimeId);
 	if (!(snapshot.factorCaptureConfigured && destinationCallbacksInstalled))
 	{
@@ -4338,7 +5368,8 @@ ZhangPppArCheckpointResult inspectZhangPppArCheckpointSnapshotReferences(
 			string("PPP_AR_CHECKPOINT_DESERIALIZE_FAILED:") +
 			exception.what());
 	}
-	if (snapshot.schemaVersion != ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION)
+	if (snapshot.schemaVersion != 3 && snapshot.schemaVersion != 4 && snapshot.schemaVersion != 5 &&
+		snapshot.schemaVersion != ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION)
 	{
 		return fail("PPP_AR_CHECKPOINT_SCHEMA_MISMATCH");
 	}
@@ -4661,6 +5692,12 @@ void configureZhangE18FactorCapture(KFState& kfState)
 		kfState.authoritativeFactorTransactionCallback = {};
 		if (validCheckpointRuntimeId(runtimeId))
 		{
+			string resolvedRuntimeId;
+			if (!resolveZhangPppArRuntimeOwner(kfState, resolvedRuntimeId))
+			{
+				reportZhangPppArOwnerConflict(kfState, runtimeId, "DISABLE_FACTOR_CAPTURE");
+				return;
+			}
 			auto binding = e18RuntimeObjectBindings.find(runtimeId);
 			if (binding != e18RuntimeObjectBindings.end()
 			 && binding->second == owner)
@@ -4671,7 +5708,8 @@ void configureZhangE18FactorCapture(KFState& kfState)
 				e18FactorCaptureCallbackAudits.erase(runtimeId);
 				targetedBesdRuntimes.erase(runtimeId);
 				e27JointNoiseRuntimes.erase(runtimeId);
-				e18RuntimeObjectBindings.erase(binding);
+				// Disabling callbacks retires only capture state. The product
+				// service still owns this KF object until an explicit restore.
 			}
 		}
         return;
@@ -5455,38 +6493,6 @@ void configureZhangE18FactorCapture(KFState& kfState)
 				audit.lastRejectReason = "TRANSFORM_OWNER_OBJECT_MISMATCH";
                 return false;
             }
-            if (e27JointNoiseEnabled())
-            {
-                e27TransformSensitivities(
-					runtimeId, transform, source.size(), destination.size(), label);
-            }
-			if (acsConfig.zhangPppAr.targeted_besd_capture_shadow)
-			{
-				auto runtimes = targetedBesdRuntimes.find(runtimeId);
-				if (runtimes != targetedBesdRuntimes.end())
-				{
-					for (auto event = runtimes->second.begin();
-						 event != runtimes->second.end();)
-					{
-						if (!event->tracker.applyExactStateTransform(
-								MatrixXd(transform)))
-						{
-							BOOST_LOG_TRIVIAL(error)
-								<< "ZHANG_TARGETED_BESD_CAPTURE time="
-								<< time.to_string(0)
-								<< " event_time=" << event->eventTime.to_string(0)
-								<< " status=REJECTED reason="
-								<< event->tracker.failureReason()
-								<< " estimator_feedback=0";
-							event = runtimes->second.erase(event);
-						}
-						else
-						{
-							++event;
-						}
-					}
-				}
-			}
 			auto capture = e18FactorCaptureBuffers.find(runtimeId);
             if (capture == e18FactorCaptureBuffers.end())
             {
@@ -5496,30 +6502,24 @@ void configureZhangE18FactorCapture(KFState& kfState)
             }
 			const VectorXd affineOffset = destinationMean - transform * state.x;
 			auto captureCandidate = capture->second;
+			const bool auxiliaryRetirement =
+				label == "ZHANG_PRODUCT_HANDOFF_AUXILIARY_RETIREMENT";
 			bool accepted = captureCandidate.recordCoordinateTransform(
                 time,
                 zhangKeysByIndex(source),
                 zhangKeysByIndex(destination),
                 transform,
                 label,
-                acsConfig.zhangPppAr.temporal_product_transition_shadow,
+                acsConfig.zhangPppAr.temporal_product_transition_shadow ||
+					auxiliaryRetirement,
 				affineOffset,
 				destinationMean,
 				destinationCovariance,
 				beforeCommitSequence,
 				afterCommitSequence
             );
-			if (accepted)
-			{
-				capture->second = std::move(captureCandidate);
-			}
-            auto transformSummary = accepted
-				? capture->second.summary() : captureCandidate.summary();
-			if (accepted)
-			{
-				audit.transformAccepted++;
-			}
-			else
+            auto transformSummary = captureCandidate.summary();
+			if (!accepted)
 			{
 				audit.transformRejected++;
 				audit.lastRejectReason = transformSummary.failureReason.empty()
@@ -5541,8 +6541,41 @@ void configureZhangE18FactorCapture(KFState& kfState)
 				// This projection removed a direction used by the physical target.
 				// It is a real arc/version boundary, not an S-basis exchange.  Close
 				// the old chronology and re-anchor at the next accepted measurement.
-				capture->second.resetForPhysicalArcChange();
+				captureCandidate.resetForPhysicalArcChange();
 				physicalArcReset = true;
+			}
+			// No actual consumer is touched by a rejected capture candidate.
+			// The runtime-local transaction also restores E27/BESD on exceptions.
+			try
+			{
+			ZhangExactTransformConsumerTransaction consumers(runtimeId);
+			if (accepted || physicalArcReset)
+			{
+				if (e27JointNoiseEnabled())
+					e27TransformSensitivities(runtimeId, transform,
+						source.size(), destination.size(), label);
+				if (acsConfig.zhangPppAr.targeted_besd_capture_shadow)
+				{
+					auto runtimes = targetedBesdRuntimes.find(runtimeId);
+					if (runtimes != targetedBesdRuntimes.end())
+					{
+						const MatrixXd denseTransform(transform);
+						for (auto event = runtimes->second.begin();
+							 event != runtimes->second.end();)
+						{
+							if (!event->tracker.applyExactStateTransform(denseTransform))
+							{
+								BOOST_LOG_TRIVIAL(error)
+									<< "ZHANG_TARGETED_BESD_CAPTURE time=" << time.to_string(0)
+									<< " event_time=" << event->eventTime.to_string(0)
+									<< " status=REJECTED reason=" << event->tracker.failureReason()
+									<< " estimator_feedback=0";
+								event = runtimes->second.erase(event);
+							}
+							else ++event;
+						}
+					}
+				}
 			}
             BOOST_LOG_TRIVIAL(info)
                 << "ZHANG_E18_FACTOR_CAPTURE time=" << time.to_string(0)
@@ -5562,6 +6595,8 @@ void configureZhangE18FactorCapture(KFState& kfState)
 					? "ACCEPTED"
 					: physicalArcReset ? "RESET" : "REJECTED")
 				<< " physical_arc_reset=" << physicalArcReset
+				<< " auxiliary_retirement_preserve=" << auxiliaryRetirement
+				<< " scientific_consumers_atomic=1"
 				<< " failure_reason="
 				<< (transformFailure.empty() ? "NONE" : transformFailure)
 				<< " persistent_target_mean_relative_error="
@@ -5569,7 +6604,20 @@ void configureZhangE18FactorCapture(KFState& kfState)
 				<< " persistent_target_covariance_relative_error="
 				<< transformSummary.maximumPersistentTransformCovarianceRelativeError
 				<< " feedback=0";
-			return accepted || physicalArcReset;
+			if (!accepted && !physicalArcReset) return false;
+			// No rejecting/throwing operation follows the final scientific commit.
+			static_assert(std::is_nothrow_move_assignable_v<ZhangFactorCaptureBuffer>);
+			capture->second = std::move(captureCandidate);
+			consumers.commit();
+			if (accepted) audit.transformAccepted++;
+			return true;
+			}
+			catch (...)
+			{
+				if (accepted) audit.transformRejected++;
+				audit.lastRejectReason = "EXACT_TRANSFORM_CONSUMER_EXCEPTION_ROLLED_BACK";
+				throw;
+			}
         };
 
 	// A robust PPP update is one ordered authority packet: every adaptive-QC
@@ -5832,6 +6880,195 @@ void configureZhangE18FactorCapture(KFState& kfState)
 		<< static_cast<bool>(kfState.exactStateTransformCallback)
 		<< " transaction_callback="
 		<< static_cast<bool>(kfState.authoritativeFactorTransactionCallback);
+}
+
+/** Isolated native regression seam. It invokes the production callback bound
+ * by configureZhangE18FactorCapture, never a substitute callback or a network
+ * solve. The reserved runtime is rejected if already owned and fully removed
+ * on every exit; the scientific configuration is restored by scope guard. */
+bool zhangExactTransformConsumerAtomicityContractForAudit(string& report)
+{
+    const string runtimeId = "EXACT_TRANSFORM_CONSUMER_ATOMICITY_AUDIT_V1";
+    if (e18RuntimeObjectBindings.contains(runtimeId) ||
+        e18FactorCaptureBuffers.contains(runtimeId) ||
+        e27JointNoiseRuntimes.contains(runtimeId) || targetedBesdRuntimes.contains(runtimeId))
+    { report = "AUDIT_RUNTIME_ALREADY_OWNED"; return false; }
+    struct RestoreAuditScope
+    {
+        decltype(acsConfig.zhangPppAr) options = acsConfig.zhangPppAr;
+        string runtimeId;
+        ~RestoreAuditScope()
+        {
+            e18RuntimeObjectBindings.erase(runtimeId);
+            e18ConfiguredFactorCaptureStates.erase(runtimeId);
+            e18RestoredRuntimeStates.erase(runtimeId);
+            e18FactorCaptureBuffers.erase(runtimeId);
+            e18FactorCaptureCallbackAudits.erase(runtimeId);
+            e27JointNoiseRuntimes.erase(runtimeId);
+            targetedBesdRuntimes.erase(runtimeId);
+            acsConfig.zhangPppAr = std::move(options);
+        }
+    } restore;
+    restore.runtimeId = runtimeId;
+    int checks = 0;
+    const auto require = [&](bool condition, const char* reason)
+    { ++checks; if (!condition) throw std::runtime_error(reason); };
+    try
+    {
+        acsConfig.zhangPppAr.fixed_lag_factor_capture_shadow = true;
+        acsConfig.zhangPppAr.fixed_lag_factor_capture_max_events = 20;
+        acsConfig.zhangPppAr.targeted_besd_capture_shadow = true;
+        acsConfig.zhangPppAr.user_adapter = true;
+        acsConfig.zhangPppAr.integer_strategy = "CANONICAL_USER_IF_WL_L1";
+        acsConfig.zhangPppAr.temporal_product_transition_shadow = false;
+        KFState owner;
+        owner.kfIndexMap.clear(); owner.stateTransitionMap.clear();
+        owner.metaDataMap[ZHANG_CHECKPOINT_RUNTIME_ID_METADATA] = runtimeId;
+        owner.time.bigTime = 1000000;
+        KFKey old; old.type = KF::PRODUCT_HANDOFF; old.Sat = SatSys("E11");
+        old.num = int(E_ObsCode::L1C); old.str = "AUDIT_OLD_AUXILIARY";
+        KFKey live = old; live.type = KF::PHASE_BIAS; live.Sat = SatSys("E19"); live.str.clear();
+        owner.kfIndexMap[old] = 0; owner.kfIndexMap[live] = 1;
+        owner.stateTransitionMap[old][old][0] = 1;
+        owner.stateTransitionMap[live][live][0] = 1;
+        owner.x = Vector2d(2, 7); owner.dx = Vector2d::Zero();
+        owner.P = Matrix2d::Zero(); owner.P << 4, 1.2, 1.2, 9;
+        configureZhangE18FactorCapture(owner);
+        require(bool(owner.exactStateTransformCallback), "REAL_CALLBACK_NOT_INSTALLED");
+        auto& capture = e18FactorCaptureBuffers.at(runtimeId);
+        KFMeas measurement;
+        measurement.time = owner.time;
+        measurement.H = MatrixXd::Zero(1, 2);
+        measurement.V = VectorXd::Zero(1);
+        measurement.R = MatrixXd::Identity(1, 1);
+        measurement.obsKeys = {live};
+        const auto keys = zhangKeysByIndex(owner.kfIndexMap);
+        require(capture.recordMeasurement(owner.time, keys, owner.x, owner.P,
+            measurement, "/PPP", owner.x, owner.P, 0, 1), "AUDIT_RAW_ANCHOR_FAILED");
+        owner.factorCommitSequence = 1;
+        const Vector2d oldRow(1, 0), liveRow(0, 1);
+        require(capture.bindPersistentSnapshots({{"old-snapshot", "old-arc-v0", oldRow, 0},
+            {"live-snapshot", "live-arc-v0", liveRow, 0}}), "AUDIT_SNAPSHOT_ANCHOR_FAILED");
+        require(capture.recordPhysicalTarget(owner.time, "old-target", "old-arc-v0", "old-segment",
+            {{"old-arc", 0}}, keys, oldRow, 0, owner.x, owner.P, 1, "audit-gauge"),
+            "AUDIT_OLD_TARGET_FAILED");
+        require(capture.recordPhysicalTarget(owner.time, "live-target", "live-arc-v0", "live-segment",
+            {{"live-arc", 0}}, keys, liveRow, 0, owner.x, owner.P, 1, "audit-gauge"),
+            "AUDIT_LIVE_TARGET_FAILED");
+        e27JointNoiseRuntimes.at(runtimeId).sensitivities["noise"] =
+            {owner.time, Vector2d(2, 3), 0.2};
+        ZhangTargetedBesdRuntime besd;
+        besd.eventTime = owner.time; besd.system = E_Sys::GAL; besd.ageEpochs = 3;
+        require(besd.tracker.initialise({"old-target", "live-target"}, Matrix2d::Identity(),
+            Vector2d::Zero(), owner.x, owner.P), "AUDIT_BESD_ANCHOR_FAILED");
+        targetedBesdRuntimes[runtimeId].push_back(std::move(besd));
+        const auto wire = [&]()
+        {
+            std::ostringstream output(std::ios::binary | std::ios::out);
+            boost::archive::binary_oarchive archive(output, boost::archive::no_header);
+            const auto factor = checkpointFactorCapture(
+                e18FactorCaptureBuffers.at(runtimeId).checkpointReplay());
+            const auto joint = checkpointE27JointRuntime(e27JointNoiseRuntimes.at(runtimeId));
+            archive << factor << joint;
+            for (const auto& event : targetedBesdRuntimes.at(runtimeId))
+            {
+                auto marginal = event.tracker.marginal();
+                const bool active = event.tracker.isActive();
+                const int dimension = event.tracker.currentStateDimension();
+                const int count = event.tracker.targetCount();
+                archive << event.eventTime.bigTime << event.system << event.ageEpochs
+                    << event.minimumLagReported << active << dimension << count
+                    << marginal.valid << marginal.mean << marginal.covariance
+                    << marginal.identities << marginal.failureReason
+                    << event.tracker.crossCovariance() << event.tracker.failureReason();
+            }
+            return output.str();
+        };
+        const auto before = wire();
+        const auto marginalBefore = capture.persistentSnapshotMarginal();
+        const auto originalMean = owner.x; const auto originalP = owner.P;
+        SparseMatrix<double> projection(1, 2); projection.insert(0, 1) = 1;
+        projection.makeCompressed();
+        map<KFKey, int> destination{{live, 0}};
+        VectorXd mean = VectorXd::Constant(1, 7);
+        MatrixXd covariance = MatrixXd::Constant(1, 1, 9);
+        const auto invoke = [&](const string& label, std::uint64_t sequence, const MatrixXd& cov)
+        {
+            return owner.exactStateTransformCallback(owner, owner.time, owner.kfIndexMap,
+                destination, projection, label, mean, cov, sequence, sequence + 1);
+        };
+        require(!invoke("AUDIT_BAD_COMMIT_SEQUENCE", 99, covariance), "BAD_SEQUENCE_ACCEPTED");
+        require(wire() == before, "SCIENTIFIC_SIDECARS_CHANGED_AFTER_SEQUENCE_REJECTION");
+        require(!invoke("AUDIT_BAD_MOMENT", 1, MatrixXd::Constant(1, 1, 10)),
+            "BAD_MOMENT_ACCEPTED");
+        require(wire() == before, "SCIENTIFIC_SIDECARS_CHANGED_AFTER_MOMENT_REJECTION");
+        require(!invoke("ZHANG_PRODUCT_HANDOFF_AUXILIARY_RETIREMENT_SUFFIX", 1, covariance),
+            "RETIREMENT_PREFIX_INSTEAD_OF_EXACT_LABEL_ACCEPTED");
+        require(wire() == before, "OTHER_LABEL_LOST_FAIL_CLOSED_TARGET_OR_CONSUMER_STATE");
+        auto savedCapture = std::move(e18FactorCaptureBuffers.at(runtimeId));
+        e18FactorCaptureBuffers.erase(runtimeId);
+        require(!invoke("AUDIT_MISSING_CAPTURE", 1, covariance), "MISSING_CAPTURE_ACCEPTED");
+        e18FactorCaptureBuffers.emplace(runtimeId, std::move(savedCapture));
+        require(wire() == before, "MISSING_CAPTURE_MUTATED_SCIENTIFIC_SIDECARS");
+        // Exercise the same production transaction's exception rollback after
+        // both real sidecar algorithms have already modified their runtime.
+        try
+        {
+            ZhangExactTransformConsumerTransaction transaction(runtimeId);
+            e27TransformSensitivities(runtimeId, projection, 2, 1, "AUDIT_EXCEPTION");
+            require(targetedBesdRuntimes.at(runtimeId).front().tracker.applyExactStateTransform(
+                MatrixXd(projection)), "AUDIT_BESD_EXCEPTION_SETUP_FAILED");
+            throw std::runtime_error("AUDIT_EXPECTED_EXCEPTION");
+        }
+        catch (const std::runtime_error& error)
+        { require(string(error.what()) == "AUDIT_EXPECTED_EXCEPTION", "UNEXPECTED_AUDIT_EXCEPTION"); }
+        require(wire() == before, "SCIENTIFIC_SIDECARS_CHANGED_AFTER_TRANSACTION_EXCEPTION");
+        require(invoke("ZHANG_PRODUCT_HANDOFF_AUXILIARY_RETIREMENT", 1, covariance),
+            "REAL_RETIREMENT_CALLBACK_REJECTED_NORMAL_UNREPRESENTABLE_OLD_TARGET");
+        auto& afterCapture = e18FactorCaptureBuffers.at(runtimeId);
+        const auto marginalAfter = afterCapture.persistentSnapshotMarginal();
+        require(marginalBefore.valid && marginalAfter.valid &&
+            marginalAfter.identities == marginalBefore.identities &&
+            (marginalAfter.mean - marginalBefore.mean).isZero() &&
+            (marginalAfter.covariance - marginalBefore.covariance).cwiseAbs().maxCoeff() < 1e-12,
+            "RETIREMENT_DROPPED_OR_CHANGED_FULL_OLD_AND_LIVE_TARGET_MARGINAL");
+        require(afterCapture.capturedEvents().size() == 2 &&
+            afterCapture.capturedEvents().back().preserveUnrepresentablePersistentTargets &&
+            afterCapture.capturedPhysicalTargets().size() == 2,
+            "RETIREMENT_CLEARED_FACTOR_CHRONOLOGY_OR_TARGET_HISTORY");
+        require(e27JointNoiseRuntimes.at(runtimeId).sensitivities.at("noise").stateDerivative.size() == 1 &&
+            e27JointNoiseRuntimes.at(runtimeId).sensitivities.at("noise").stateDerivative(0) == 3,
+            "ACCEPTED_E27_DERIVATIVE_NOT_COMMITTED_ONCE");
+        require(targetedBesdRuntimes.at(runtimeId).front().tracker.currentStateDimension() == 1 &&
+            targetedBesdRuntimes.at(runtimeId).front().tracker.crossCovariance().cols() == 1,
+            "ACCEPTED_BESD_CROSS_COVARIANCE_NOT_COMMITTED_ONCE");
+        const auto liveKeys = afterCapture.checkpointReplay().currentKeys;
+        KFMeas nextMeasurement;
+        nextMeasurement.time = owner.time;
+        nextMeasurement.H = MatrixXd::Zero(1, 1);
+        nextMeasurement.V = VectorXd::Zero(1);
+        nextMeasurement.R = MatrixXd::Identity(1, 1);
+        nextMeasurement.obsKeys = {live};
+        require(afterCapture.recordMeasurement(owner.time, liveKeys, mean, covariance,
+            nextMeasurement, "/PPP", mean, covariance, 2, 3),
+            "ACCEPTED_EXPIRY_BROKE_NEXT_RAW_MEASUREMENT_CHRONOLOGY");
+        require(!afterCapture.recordPhysicalTarget(owner.time, "old-target", "old-arc-v0", "old-segment",
+            {{"old-arc", 0}}, liveKeys, VectorXd::Ones(1), 0, mean, covariance, 1, "audit-gauge") &&
+            afterCapture.lastTargetReason() == "PERSISTENT_QUOTIENT_FUNCTIONAL_NOT_TRANSPORTABLE",
+            "UNAVAILABLE_OLD_FUNCTIONAL_FALSELY_AUTHORIZED_CURRENT_INTEGER_TARGET");
+        require(afterCapture.recordPhysicalTarget(owner.time, "live-target", "live-arc-v0", "live-segment",
+            {{"live-arc", 0}}, liveKeys, VectorXd::Ones(1), 0, mean, covariance, 1, "audit-gauge"),
+            "UNRELATED_LIVE_TARGET_WAS_CLEARED_OR_QUARANTINED");
+        require((owner.x - originalMean).isZero() && (owner.P - originalP).isZero(),
+            "CALLBACK_TEST_MUTATED_KF_DIRECTLY");
+        report = "EXACT_TRANSFORM_CONSUMER_ATOMICITY_PASS checks=" + std::to_string(checks) +
+            " real_callback=1 scoped_runtime=1 rejection_unchanged=1 exception_rollback=1" +
+            " expiry_preserves_full_marginal=1 missing_functional_not_authorized=1 no_solver=1";
+        return true;
+    }
+    catch (const std::exception& error)
+    { report = "EXACT_TRANSFORM_CONSUMER_ATOMICITY_FAILED checks=" + std::to_string(checks) +
+        " reason=" + error.what(); return false; }
 }
 
 void captureZhangE27WideLaneRawNoiseFactors(
@@ -7587,7 +8824,15 @@ void recordZhangExactPhaseTransforms(
         ProductKey key{satellite, code};
         auto& state = continuityMap[key];
         initialiseContinuityState(key, state);
-        if (houOsbLike)
+        if (houOsbLike && zhangR51SingleBasisHandoffEnabled())
+		{
+			// This value is the last *published* integer gamma in the new
+			// single-basis mode.  A graph S-transform changes the current raw
+			// coordinate, but is not permission to alter the public gamma; only
+			// the current-epoch product handoff transaction may do that.
+			state.resetReason = "single_basis_handoff_pending";
+		}
+        else if (houOsbLike)
         {
             // The complete affine offset defines the fixed Hou product
             // coordinate.  A pure internal-tree exchange is never a product
@@ -7645,6 +8890,16 @@ void recordZhangPhaseReinitialisation(
                  acsConfig.zhangPppAr.hou_product_coordinate ==
                     "HYBRID_STABLE"))
             {
+				if (zhangR51SingleBasisHandoffEnabled())
+				{
+					// The event is not yet a public datum decision. Keep the
+					// last published gamma/segment until the same current FLOAT
+					// posterior either certifies a bridge or the writer commits a
+					// native new segment. Spatial AR eligibility is withdrawn above.
+					state.resetReason =
+						"current_epoch_graph_handoff_pending:" + reason;
+					continue;
+				}
                 // The persistent coordinate is transported only through an
                 // exact invertible S-transform.  A local projection removes
                 // that proof for the affected satellite, so advance only its
@@ -8135,6 +9390,16 @@ void recordZhangSatellitePhaseDiscontinuity(
         ProductKey key{satellite, code};
         auto& state = continuityMap[key];
         initialiseContinuityState(key, state);
+		if (zhangR51SingleBasisHandoffEnabled())
+		{
+			// A satellite-phase event is a candidate physical break, not
+			// permission to discard the old public gamma before the event-local
+			// joint FLOAT posterior has been searched. The final writer owns the
+			// segment/counter mutation.
+			state.resetReason =
+				"current_epoch_satellite_discontinuity_pending:" + reason;
+			continue;
+		}
         state.reinitialise(
             time,
             "satellite_phase_discontinuity:" + reason,
@@ -8283,11 +9548,22 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 	const vector<E_ObsCode>& observables,
 	const ZhangGraphBasis& currentBasis,
 	const ZhangGraphBasis& previousProductBasis,
-	const map<ZhangGraphEdge, int>& previousProductArcVersions,
+	const map<ZhangGraphEdge, map<int, int>>& previousProductArcVersions,
 	const ZhangGraphBasis& proposedProductBasis,
-	const map<ZhangGraphEdge, int>& proposedArcVersions,
+	const map<ZhangGraphEdge, map<int, int>>& proposedArcVersions,
 	GTime time)
 {
+	auto versionsFor = [](const map<ZhangGraphEdge, map<int, int>>& identities,
+		E_ObsCode code)
+	{
+		map<ZhangGraphEdge, int> versions;
+		for (const auto& [edge, signals] : identities)
+		{
+			const auto version = signals.find(static_cast<int>(code));
+			if (version != signals.end()) versions.emplace(edge, version->second);
+		}
+		return versions;
+	};
 	if (!acsConfig.zhangPppAr.temporal_product_transition_shadow)
 	{
 		return true;
@@ -8316,21 +9592,6 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 				  << " status=REJECTED reason=COORDINATE_TARGET_UNAVAILABLE"
 				  << " previous_reason=" << previousTarget.failureReason
 				  << " proposed_reason=" << proposedTarget.failureReason
-				  << " estimator_feedback=0";
-			return false;
-		}
-		const auto previousFunctionals = zhangBuildProductIntegerFunctionals(
-			previousProductBasis, previousProductArcVersions,
-			previousTarget.referenceSatellite);
-		const auto proposedFunctionals = zhangBuildProductIntegerFunctionals(
-			proposedProductBasis, proposedArcVersions,
-			proposedTarget.referenceSatellite);
-		if (previousFunctionals.empty() || proposedFunctionals.empty())
-		{
-			trace << "\nZHANG_TARGETED_BESD_CAPTURE time="
-				  << time.to_string(0)
-				  << " system=" << enum_to_string(system)
-				  << " status=REJECTED reason=PRODUCT_FUNCTIONALS_EMPTY"
 				  << " estimator_feedback=0";
 			return false;
 		}
@@ -8405,6 +9666,13 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 		};
 
 		for (E_ObsCode observable : observables)
+		{
+		const auto previousFunctionals = zhangBuildProductIntegerFunctionals(
+			previousProductBasis, versionsFor(previousProductArcVersions, observable),
+			previousTarget.referenceSatellite, 0, observable);
+		const auto proposedFunctionals = zhangBuildProductIntegerFunctionals(
+			proposedProductBasis, versionsFor(proposedArcVersions, observable),
+			proposedTarget.referenceSatellite, 0, observable);
 		for (const auto& [satellite, previous] : previousFunctionals)
 		{
 			auto proposed = proposedFunctionals.find(satellite);
@@ -8424,7 +9692,7 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 				difference.physicalArcVersions,
 				difference.coefficients);
 			const auto selection = zhangSelectTargetedBesdTransition(
-				difference, proposedProductBasis.edges, proposedArcVersions,
+				difference, proposedProductBasis.edges, versionsFor(proposedArcVersions, observable),
 				held.contained, false);
 			if (!selection.selected)
 			{
@@ -8472,6 +9740,7 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 				  << " held_reason=" << held.reason
 				  << " status=ARMED reason=" << selection.reason
 				  << " estimator_feedback=0";
+		}
 		}
 		if (pairs.empty())
 		{
@@ -8532,24 +9801,14 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
 			  << " feedback=0";
 		return false;
 	}
-	const auto functionals = zhangBuildProductIntegerFunctionals(
-		proposedProductBasis,
-		proposedArcVersions,
-		coordinateTarget.referenceSatellite);
-	if (functionals.empty())
-	{
-		trace << "\nZHANG_TEMPORAL_PRODUCT_PRECAPTURE time="
-			  << time.to_string(0)
-			  << " system=" << enum_to_string(system)
-			  << " requested=0 rejected=0 status=REJECTED reason="
-			  << "PRODUCT_INTEGER_FUNCTIONALS_EMPTY feedback=0";
-		return false;
-	}
 
 	vector<ZhangTemporalProductSnapshotRequest> requests;
 	int rejected = 0;
 	for (E_ObsCode observable : observables)
 	{
+		const auto functionals = zhangBuildProductIntegerFunctionals(
+			proposedProductBasis, versionsFor(proposedArcVersions, observable),
+			coordinateTarget.referenceSatellite, 0, observable);
 		for (const auto& [satellite, functional] : functionals)
 		{
 			ZhangExactVector coordinateRow(
@@ -8872,7 +10131,7 @@ queryZhangPersistentProductRelationMarginalImpl(
 	result.factorSequences = factorEvidence.measurementSequences;
 	result.factorMeasurementRows = factorEvidence.measurementRows;
 
-	map<SatSys, ZhangProductIntegerFunctional> products;
+	map<E_ObsCode, map<SatSys, ZhangProductIntegerFunctional>> productsBySignal;
 	if (!canonicalTarget)
 	{
 		ZhangGraphIntegerContext graph;
@@ -8883,17 +10142,24 @@ queryZhangPersistentProductRelationMarginalImpl(
 		if (!coordinateTarget.valid)
 			return fail("CURRENT_PRODUCT_TARGET_" +
 				coordinateTarget.failureReason);
-		products = zhangBuildProductIntegerFunctionals(
-			graph.productBasis, graph.arcVersions,
-			coordinateTarget.referenceSatellite, graph.productDatumVersion);
-		if (products.empty())
-			return fail("CURRENT_PRODUCT_FUNCTIONALS_EMPTY");
+		for (E_ObsCode code : {firstBasis.observable, secondBasis.observable})
+		{
+			map<ZhangGraphEdge, int> versions;
+			string reason;
+			if (!zhangGraphSignalArcVersions(captureOwner, firstBasis.system, code, versions, reason))
+				return fail("CURRENT_SIGNAL_IDENTITY_" + reason);
+			auto& products = productsBySignal[code];
+			products = zhangBuildProductIntegerFunctionals(graph.productBasis, versions,
+				coordinateTarget.referenceSatellite, graph.productDatumVersion, code);
+			if (products.empty()) return fail("CURRENT_PRODUCT_FUNCTIONALS_EMPTY");
+		}
 	}
 
 	vector<pair<string, string>> endpointPairs;
 	endpointPairs.reserve(2 * rank);
 	auto appendSignal = [&](const ZhangProductRelationBasis& basis)
 	{
+		const auto& products = productsBySignal[basis.observable];
 		for (int local = 0; local < rank; local++)
 		{
 			const auto* relation = relationAt(basis, local);
@@ -9331,10 +10597,12 @@ void writeZhangFloatOnlyProductsNoLifecycle(
 }
 
 std::function<void()> zhangR51CaptureProductRuntime() {
+    auto saved_structuralTransportChains=productStructuralTransportChains;
     auto saved_continuityMap=continuityMap;
     auto saved_houProductDatumVersionTrackers=houProductDatumVersionTrackers;
     auto saved_houProductPhysicalFunctionalIdentities=houProductPhysicalFunctionalIdentities;
     auto saved_houProductPhysicalFunctionals=houProductPhysicalFunctionals;
+    auto saved_publishedProductFunctionals=publishedProductFunctionals;
     auto saved_houProductSBasisFingerprints=houProductSBasisFingerprints;
     auto saved_houProductPhaseSegmentIdentities=houProductPhaseSegmentIdentities;
     auto saved_houProductTreeAlignmentCycles=houProductTreeAlignmentCycles;
@@ -9350,11 +10618,15 @@ std::function<void()> zhangR51CaptureProductRuntime() {
     auto saved_productHistoryMap=productHistoryMap;
     auto saved_productMap=productMap;
     auto saved_e18FactorCaptureBuffers=e18FactorCaptureBuffers;
-    return [saved_continuityMap=std::move(saved_continuityMap),saved_houProductDatumVersionTrackers=std::move(saved_houProductDatumVersionTrackers),saved_houProductPhysicalFunctionalIdentities=std::move(saved_houProductPhysicalFunctionalIdentities),saved_houProductPhysicalFunctionals=std::move(saved_houProductPhysicalFunctionals),saved_houProductSBasisFingerprints=std::move(saved_houProductSBasisFingerprints),saved_houProductPhaseSegmentIdentities=std::move(saved_houProductPhaseSegmentIdentities),saved_houProductTreeAlignmentCycles=std::move(saved_houProductTreeAlignmentCycles),saved_houProductSnapshotIdentities=std::move(saved_houProductSnapshotIdentities),saved_pendingProductTransitions=std::move(saved_pendingProductTransitions),saved_pendingSnapshotPins=std::move(saved_pendingSnapshotPins),saved_globalContinuityMap=std::move(saved_globalContinuityMap),saved_satelliteDatumManagers=std::move(saved_satelliteDatumManagers),saved_hybridRealGaugeTransports=std::move(saved_hybridRealGaugeTransports),saved_e18PersistentProductDatumRegistries=std::move(saved_e18PersistentProductDatumRegistries),saved_promotionEvidence=std::move(saved_promotionEvidence),saved_relinkEvidence=std::move(saved_relinkEvidence),saved_productHistoryMap=std::move(saved_productHistoryMap),saved_productMap=std::move(saved_productMap),saved_e18FactorCaptureBuffers=std::move(saved_e18FactorCaptureBuffers)]() {
+    return [saved_structuralTransportChains=std::move(saved_structuralTransportChains),saved_publishedSegmentFunctionals=publishedSegmentFunctionals,saved_publishedFullJointDifferences=publishedFullJointDifferences,saved_continuityMap=std::move(saved_continuityMap),saved_houProductDatumVersionTrackers=std::move(saved_houProductDatumVersionTrackers),saved_houProductPhysicalFunctionalIdentities=std::move(saved_houProductPhysicalFunctionalIdentities),saved_houProductPhysicalFunctionals=std::move(saved_houProductPhysicalFunctionals),saved_publishedProductFunctionals=std::move(saved_publishedProductFunctionals),saved_houProductSBasisFingerprints=std::move(saved_houProductSBasisFingerprints),saved_houProductPhaseSegmentIdentities=std::move(saved_houProductPhaseSegmentIdentities),saved_houProductTreeAlignmentCycles=std::move(saved_houProductTreeAlignmentCycles),saved_houProductSnapshotIdentities=std::move(saved_houProductSnapshotIdentities),saved_pendingProductTransitions=std::move(saved_pendingProductTransitions),saved_pendingSnapshotPins=std::move(saved_pendingSnapshotPins),saved_globalContinuityMap=std::move(saved_globalContinuityMap),saved_satelliteDatumManagers=std::move(saved_satelliteDatumManagers),saved_hybridRealGaugeTransports=std::move(saved_hybridRealGaugeTransports),saved_e18PersistentProductDatumRegistries=std::move(saved_e18PersistentProductDatumRegistries),saved_promotionEvidence=std::move(saved_promotionEvidence),saved_relinkEvidence=std::move(saved_relinkEvidence),saved_productHistoryMap=std::move(saved_productHistoryMap),saved_productMap=std::move(saved_productMap),saved_e18FactorCaptureBuffers=std::move(saved_e18FactorCaptureBuffers)]() {
+        productStructuralTransportChains=saved_structuralTransportChains;
         continuityMap=saved_continuityMap;
         houProductDatumVersionTrackers=saved_houProductDatumVersionTrackers;
         houProductPhysicalFunctionalIdentities=saved_houProductPhysicalFunctionalIdentities;
         houProductPhysicalFunctionals=saved_houProductPhysicalFunctionals;
+        publishedProductFunctionals=saved_publishedProductFunctionals;
+        publishedSegmentFunctionals=saved_publishedSegmentFunctionals;
+        publishedFullJointDifferences=saved_publishedFullJointDifferences;
         houProductSBasisFingerprints=saved_houProductSBasisFingerprints;
         houProductPhaseSegmentIdentities=saved_houProductPhaseSegmentIdentities;
         houProductTreeAlignmentCycles=saved_houProductTreeAlignmentCycles;
@@ -9373,6 +10645,813 @@ std::function<void()> zhangR51CaptureProductRuntime() {
     };
 }
 
+struct ZhangPreparedProductPublication
+{
+	const KFState* floatOwner = nullptr;
+	std::uint64_t factorCommitSequence = 0;
+	std::string runtimeId, posteriorId, chartId, sourceRoot, sourceOrder;
+	long int epoch = 0;
+	std::map<E_Sys, std::uint64_t> constraintGenerations;
+	std::map<E_Sys, std::pair<std::string, std::string>> evidenceIdentities;
+	std::vector<ZhangCurrentEpochNumericConstraint> numericRecipe;
+	std::map<ProductKey, ZhangFullJointHandoffTask> tasks;
+	ZhangPrivateGraphState state;
+	const KFState* fixedState = nullptr;
+};
+
+// Called by the FLOAT graph lifecycle before any destructive arc/basis change.
+// These are physical dependencies only, never historical integer RHS values.
+void zhangRegisterPublishedProductHandoffDependencies(KFState& state)
+{
+	zhangClearGraphProductHandoffDependencies(state);
+	auto addFunctional = [&](const ProductKey& key, const auto& functional)
+	{
+		if (functional.valid && !zhangRegisterGraphProductHandoffDependencies(state, key.satellite.sys,
+			key.observable, functional.physicalEdges, functional.physicalArcVersions))
+			throw std::runtime_error("PUBLIC_PRODUCT_HANDOFF_DEPENDENCY_REGISTRATION_FAILED:" +
+				key.satellite.id() + ":" + enum_to_string(key.observable));
+	};
+	for (const auto& [key, functional] : publishedProductFunctionals) addFunctional(key, functional);
+	for (const auto& [key, functional] : publishedSegmentFunctionals) addFunctional(key, functional);
+	for (const auto& [key, chain] : productStructuralTransportChains)
+		addFunctional(key, chain.nativeToSegment);
+}
+
+static bool advanceZhangStructuralChainFromCurrentReceipt(
+	ZhangFullJointStructuralChain& chain, const KFState& ledger, GTime time,
+	E_Sys system, E_ObsCode code, SatSys satellite,
+	const std::string& fingerprint, int backend, std::string& reason)
+{
+	if (chain.tailMatches(fingerprint, backend))
+	{ reason = "STRUCTURAL_CHAIN_ALREADY_CURRENT"; return true; }
+	ZhangGraphProductEventReceipt receipt;
+	if (!zhangGraphProductEventReceipt(ledger, system, code, satellite, receipt) || receipt.time != time)
+	{ reason = "CURRENT_STRUCTURAL_CHAIN_EVENT_RECEIPT_MISSING"; return false; }
+	ZhangProductIntegerFunctional old;
+	old.observable = code;
+	old.satellite = satellite;
+	old.referenceSatellite = receipt.productReferenceSatellite;
+	old.physicalEdges = receipt.oldProductFunctionalEdges;
+	old.physicalArcVersions = receipt.oldProductFunctionalArcVersions;
+	old.networkCoefficients = receipt.oldProductFunctionalCoefficients;
+	old.affineOffsetCycles = receipt.oldProductFunctionalAffineOffsetCycles;
+	old.valid = true;
+	ZhangProductIntegerTransition increment;
+	increment.observable = code;
+	increment.physicalEdges = receipt.bridgePhysicalEdges;
+	increment.physicalArcVersions = receipt.bridgePhysicalArcVersions;
+	for (int coefficient : receipt.bridgePhysicalCoefficients) increment.coefficients.push_back(coefficient);
+	increment.valid = true;
+	const bool mapProven = receipt.oldProductProjectionCaptured &&
+		receipt.representableSameTimeMapProven && receipt.actualWriterProjectionBound &&
+		receipt.fullJointMomentTransportProven &&
+		(receipt.sameTimeMapProven || receipt.conditionalProductMapProven);
+	return zhangAdvanceFullJointStructuralChain(chain,
+		zhangProductPhysicalFunctionalFingerprint(old), receipt.oldBackendGeneration,
+		fingerprint, receipt.newBackendGeneration, backend, increment, mapProven, reason);
+}
+
+bool zhangCurrentPublishedStructuralBridgeTargets(
+	const KFState& state, E_Sys system,
+	std::vector<ZhangProductIntegerTransition>& targets, std::string& reason)
+{
+	targets.clear();
+	ZhangGraphIntegerContext graph;
+	if (!zhangGraphIntegerContext(state, system, graph))
+	{ reason = "CURRENT_STRUCTURAL_TARGET_GRAPH_UNAVAILABLE"; return false; }
+	const auto target = zhangBuildSatelliteProductTarget(graph.basis, graph.productBasis);
+	if (!target.valid)
+	{ reason = "CURRENT_STRUCTURAL_TARGET_PRODUCT_FRAME_UNAVAILABLE"; return false; }
+	const auto configured = acsConfig.zhangPppAr.baseline_observables.find(system);
+	if (configured == acsConfig.zhangPppAr.baseline_observables.end())
+	{ reason = "CURRENT_STRUCTURAL_TARGET_OBSERVABLES_UNAVAILABLE"; return false; }
+	std::vector<ZhangProductIntegerTransition> candidate;
+	for (E_ObsCode code : configured->second)
+	{
+		std::map<ZhangGraphEdge, int> versions;
+		if (!zhangGraphSignalArcVersions(state, system, code, versions, reason)) return false;
+		const auto functionals = zhangBuildProductIntegerFunctionals(graph.productBasis,
+			versions, target.referenceSatellite, graph.productDatumVersion, code);
+		for (const auto& [satellite, functional] : functionals)
+		{
+			const ProductKey key{satellite, code};
+			const auto published = publishedProductFunctionals.find(key);
+			if (published == publishedProductFunctionals.end()) continue;
+			const auto prefix = publishedFullJointDifferences.find(key);
+			const auto history = productHistoryMap.find({"PRODUCT_FIXED", satellite, code});
+			if (prefix == publishedFullJointDifferences.end() || history == productHistoryMap.end() ||
+				!publishedSegmentFunctionals.contains(key))
+			{ reason = "CURRENT_STRUCTURAL_TARGET_PUBLIC_ANCHOR_INCOMPLETE"; return false; }
+			const auto fingerprint = zhangProductPhysicalFunctionalFingerprint(published->second);
+			if (fingerprint != history->second.productFunctional)
+			{ reason = "CURRENT_STRUCTURAL_TARGET_PUBLIC_ANCHOR_MISMATCH"; return false; }
+			auto chain = productStructuralTransportChains.contains(key)
+				? productStructuralTransportChains.at(key) : ZhangFullJointStructuralChain{};
+			if (!chain.anchoredTo(fingerprint, history->second.backendGeneration, history->second.phaseSegmentId))
+				chain = zhangAnchorFullJointStructuralChain(fingerprint, history->second.backendGeneration,
+					history->second.phaseSegmentId, prefix->second);
+			if (!advanceZhangStructuralChainFromCurrentReceipt(chain, state, state.time, system, code,
+				satellite, zhangProductPhysicalFunctionalFingerprint(functional), graph.eventId, reason)) return false;
+			candidate.push_back(std::move(chain.nativeToSegment));
+		}
+	}
+	targets = std::move(candidate);
+	reason = "CURRENT_STRUCTURAL_TARGETS_ONLY_NO_INTEGER_AUTHORITY";
+	return true;
+}
+
+static void advanceZhangStructuralProductChains(
+	Trace& trace, const KFState& ledger, const KFState& floatState)
+{
+	for (const auto& [system, observables] : acsConfig.zhangPppAr.baseline_observables)
+	{
+		ZhangGraphIntegerContext graph;
+		if (!zhangGraphIntegerContext(ledger, system, graph)) continue;
+		const auto target = zhangBuildSatelliteProductTarget(graph.basis, graph.productBasis);
+		if (!target.valid) continue;
+		for (E_ObsCode code : observables)
+		{
+			std::map<ZhangGraphEdge, int> versions;
+			std::string reason;
+			if (!zhangGraphSignalArcVersions(ledger, system, code, versions, reason)) continue;
+			const auto current = zhangBuildProductIntegerFunctionals(graph.productBasis,
+				versions, target.referenceSatellite, graph.productDatumVersion, code);
+			for (const auto& [satellite, functional] : current)
+			{
+				const ProductKey key{satellite, code};
+				const auto published = publishedProductFunctionals.find(key);
+				const auto prefix = publishedFullJointDifferences.find(key);
+				const auto history = productHistoryMap.find({"PRODUCT_FIXED", satellite, code});
+				if (published == publishedProductFunctionals.end() ||
+					prefix == publishedFullJointDifferences.end() ||
+					history == productHistoryMap.end() || !publishedSegmentFunctionals.contains(key)) continue;
+				const auto& prior = history->second;
+				const auto publishedFingerprint = zhangProductPhysicalFunctionalFingerprint(published->second);
+				if (publishedFingerprint != prior.productFunctional) continue;
+				auto& chain = productStructuralTransportChains[key];
+				if (!chain.anchoredTo(publishedFingerprint, prior.backendGeneration, prior.phaseSegmentId))
+					chain = zhangAnchorFullJointStructuralChain(publishedFingerprint,
+						prior.backendGeneration, prior.phaseSegmentId, prefix->second);
+				const auto fingerprint = zhangProductPhysicalFunctionalFingerprint(functional);
+				if (chain.tailMatches(fingerprint, graph.eventId)) continue;
+				advanceZhangStructuralChainFromCurrentReceipt(chain, ledger, floatState.time,
+					system, code, satellite, fingerprint, graph.eventId, reason);
+				trace << "\nZHANG_PRODUCT_STRUCTURAL_CHAIN time=" << floatState.time.to_string(0)
+					<< " satellite=" << satellite.id() << " observable=" << enum_to_string(code)
+					<< " published_backend=" << prior.backendGeneration
+					<< " structural_tail_backend=" << chain.tailBackend
+					<< " current_backend=" << graph.eventId << " links=" << chain.linkCount
+					<< " current_tail_proven=" << chain.tailMatches(fingerprint, graph.eventId)
+					<< " previous_integer_authority=0 publication_history_mutation=0 reason=" << reason;
+			}
+		}
+	}
+}
+
+void zhangAdvanceCurrentProductStructuralChains(
+	Trace& trace, const KFState& ledger, const KFState& floatState)
+{
+	if (!zhangR51ProductRepairEnabled() || !floatState.lastPppTransactionCommitted ||
+		!floatState.lastPppQcConverged) return;
+	std::string runtime;
+	if (!claimZhangPppArServiceRuntime(ledger, runtime)) return;
+	advanceZhangStructuralProductChains(trace, ledger, floatState);
+}
+
+std::shared_ptr<const ZhangPreparedProductPublication> prepareZhangCurrentProductPublication(
+	Trace& trace, const KFState& integerLedgerState, const KFState& floatState,
+	const KFState* productFixedState,
+	const ZhangProductIntegerConstraintSet* productCertification,
+	const std::string& currentPosteriorId, const std::string& currentChartId,
+	const ZhangMultiGnssProductDelivery* multiSystemDelivery)
+{
+	if (!zhangR51ProductRepairEnabled() ||
+		!floatState.lastPppTransactionCommitted || !floatState.lastPppQcConverged) return nullptr;
+	std::string integerLedgerRuntimeId;
+	if (!claimZhangPppArServiceRuntime(integerLedgerState, integerLedgerRuntimeId)) return nullptr;
+	// Structural progress does not require a publishable AR branch. Its
+	// complete current-epoch target remains unauthorised until queries below.
+	zhangAdvanceCurrentProductStructuralChains(trace, integerLedgerState, floatState);
+	if (!productFixedState || (!productCertification && !multiSystemDelivery)) return nullptr;
+	if (multiSystemDelivery && (!multiSystemDelivery->valid ||
+		multiSystemDelivery->systems.empty() ||
+		multiSystemDelivery->runtimeId != integerLedgerRuntimeId ||
+		multiSystemDelivery->epochGpstSeconds != static_cast<long int>(std::llround(floatState.time.bigTime)) ||
+		multiSystemDelivery->floatRoot != zhangR51NumericRoot(floatState.x, floatState.P) ||
+		multiSystemDelivery->floatStateOrderId != zhangCurrentEvidenceStateOrderId(floatState.kfIndexMap) ||
+		multiSystemDelivery->conditionedRoot != zhangR51NumericRoot(productFixedState->x, productFixedState->P) ||
+		multiSystemDelivery->conditionedStateOrderId != zhangCurrentEvidenceStateOrderId(productFixedState->kfIndexMap)))
+	{
+		trace << "\nZHANG_MULTI_PRODUCT_DELIVERY status=REJECTED reason=JOINT_FLOAT_OR_CONDITIONED_IDENTITY_MISMATCH";
+		return nullptr;
+	}
+	auto prepared = std::make_shared<ZhangPreparedProductPublication>();
+	prepared->floatOwner = &floatState;
+	prepared->factorCommitSequence = floatState.factorCommitSequence;
+	prepared->epoch = static_cast<long int>(std::llround(floatState.time.bigTime));
+	prepared->runtimeId = integerLedgerRuntimeId;
+	prepared->posteriorId = multiSystemDelivery
+		? "MULTI_JOINT_FLOAT|" + multiSystemDelivery->floatRoot : currentPosteriorId;
+	prepared->chartId = multiSystemDelivery
+		? "MULTI_JOINT_STATE_ORDER|" + multiSystemDelivery->floatStateOrderId : currentChartId;
+	if (multiSystemDelivery)
+		for (const auto& [system, delivery] : multiSystemDelivery->systems)
+		{
+			if (delivery.constraints.system != system || delivery.sourcePosteriorId.empty() ||
+				delivery.authoritativeCycleChartId.empty()) return nullptr;
+			prepared->evidenceIdentities.emplace(system,
+				std::pair{delivery.sourcePosteriorId, delivery.authoritativeCycleChartId});
+		}
+	else prepared->evidenceIdentities.emplace(productCertification->system,
+		std::pair{currentPosteriorId, currentChartId});
+	const auto matchesEvidence = [&](E_Sys system, const auto& evidence)
+	{
+		const auto identity = prepared->evidenceIdentities.find(system);
+		return identity != prepared->evidenceIdentities.end() && evidence.matches(
+			prepared->epoch, identity->second.first, identity->second.second);
+	};
+	auto& fullJointTasks = prepared->tasks;
+	auto& finalProductPosterior = *prepared;
+	const bool productRepair = true;
+	if (productRepair)
+	{
+		const auto prepareStarted = std::chrono::steady_clock::now();
+		const long int epoch = static_cast<long int>(std::llround(floatState.time.bigTime));
+		const std::string fullFloatRoot = zhangR51NumericRoot(floatState.x, floatState.P);
+		const std::string fullFloatOrder = zhangCurrentEvidenceStateOrderId(floatState.kfIndexMap);
+		prepared->sourceRoot = fullFloatRoot;
+		prepared->sourceOrder = fullFloatOrder;
+		std::map<ZhangSharedProductEventKey, ZhangSharedProductEventBatch> eventGroups;
+		std::map<ZhangSharedProductEventKey, std::vector<ProductKey>> eventMembers;
+		std::map<std::string, ProductKey> sharedSlots;
+		std::map<E_Sys, std::shared_ptr<const ZhangCurrentProductFloatOwnerToken>> floatOwners;
+		std::map<ProductKey, std::string> targetSearchReasons;
+		// Collect both signal targets BEFORE searching any event. The graph
+		// receipt is a complete old-to-actual-writer row, including the shared
+		// reference gauge. Published relative q alone is not that identity.
+		for (const auto& [system, observables] : acsConfig.zhangPppAr.baseline_observables)
+		{
+			const auto identity = prepared->evidenceIdentities.find(system);
+			if (identity == prepared->evidenceIdentities.end()) continue;
+			const auto& currentPosteriorId = identity->second.first;
+			const auto& currentChartId = identity->second.second;
+			const auto current = zhangCurrentEpochEvidenceRegistry().find({integerLedgerRuntimeId, system});
+			if (current == zhangCurrentEpochEvidenceRegistry().end() ||
+				!current->second.matches(epoch, currentPosteriorId, currentChartId) ||
+				current->second.floatStateRoot != fullFloatRoot ||
+				current->second.floatPosteriorPsdStateOrderId != fullFloatOrder)
+			{
+				trace << "\nZHANG_FINAL_PRODUCT_POSTERIOR status=REJECTED"
+					<< " reason=CURRENT_EVIDENCE_FULL_FLOAT_ROOT_ORDER_MISMATCH system=" << enum_to_string(system);
+				return nullptr;
+			}
+			ZhangGraphIntegerContext graph;
+			if (!zhangGraphIntegerContext(integerLedgerState, system, graph)) continue;
+			const auto target = zhangBuildSatelliteProductTarget(graph.basis, graph.productBasis);
+			if (!target.valid) continue;
+			for (E_ObsCode code : observables)
+			{
+				std::map<ZhangGraphEdge, int> signalVersions;
+				std::string signalReason;
+				if (!zhangGraphSignalArcVersions(integerLedgerState, system, code,
+					signalVersions, signalReason)) continue;
+				const auto functionals = zhangBuildProductIntegerFunctionals(
+					graph.productBasis, signalVersions, target.referenceSatellite,
+					graph.productDatumVersion, code);
+				for (const auto& [satellite, functional] : functionals)
+				{
+					const ProductKey key{satellite, code};
+					const auto old = publishedProductFunctionals.find(key);
+					const auto prefix = publishedFullJointDifferences.find(key);
+					if (old == publishedProductFunctionals.end() ||
+						prefix == publishedFullJointDifferences.end() ||
+						!publishedSegmentFunctionals.contains(key)) continue;
+					auto& task = fullJointTasks[key];
+					task.eventIdentity = integerLedgerRuntimeId + "|E" + std::to_string(epoch) +
+						"|" + currentPosteriorId + "|" + currentChartId + "|" + satellite.id() +
+						"|" + enum_to_string(code) + "|" +
+						zhangProductPhysicalFunctionalFingerprint(functional);
+					ZhangGraphProductEventReceipt receipt;
+					const bool hasEvent = zhangGraphProductEventReceipt(integerLedgerState,
+						system, code, satellite, receipt) && receipt.time == floatState.time;
+					const auto prior = productHistoryMap.find({"PRODUCT_FIXED", satellite, code});
+					const auto structural = productStructuralTransportChains.find(key);
+					task.mapProven = prior != productHistoryMap.end() &&
+						structural != productStructuralTransportChains.end() &&
+						structural->second.anchoredTo(
+							zhangProductPhysicalFunctionalFingerprint(old->second),
+							prior->second.backendGeneration, prior->second.phaseSegmentId) &&
+						structural->second.tailMatches(
+							zhangProductPhysicalFunctionalFingerprint(functional), graph.eventId);
+					task.mapReason = task.mapProven
+						? (structural->second.linkCount == 0 ? "UNCHANGED_FULL_NATIVE_CHART"
+							: "FULL_JOINT_STRUCTURAL_CHAIN_TO_CURRENT_NATIVE_CHART")
+						: "PUBLISHED_FULL_NATIVE_TRANSPORT_CHAIN_BROKEN";
+					if (!task.mapProven) continue;
+					task.structuralLinkCount = structural->second.linkCount;
+					task.nativeToSegment = structural->second.nativeToSegment;
+					if (!task.nativeToSegment.valid)
+					{ task.mapProven = false; task.mapReason = task.nativeToSegment.failureReason; continue; }
+					task.structuralZero = task.nativeToSegment.coefficients.empty() &&
+						task.nativeToSegment.affineOffsetCycles == 0;
+					if (task.structuralZero)
+					{ task.currentValueProven = true; task.bridgeReason = "STRUCTURAL_IDENTITY_NO_INTEGER_DECISION"; continue; }
+					ZhangSharedProductEventKey sharedKey;
+					std::string sharedReason;
+					const std::string graphComponent = zhangIntegerComponentId(graph.productBasis);
+					if (hasEvent)
+					{
+						if (!zhangMakeSharedProductEventKey(receipt, integerLedgerRuntimeId, epoch,
+							graphComponent, currentPosteriorId, currentChartId,
+							graph.eventId, graph.representationVersion, sharedKey, sharedReason))
+						{ task.mapProven = false; task.mapReason = sharedReason; continue; }
+					}
+					else sharedKey = {integerLedgerRuntimeId, epoch, system, graphComponent,
+						currentPosteriorId, currentChartId, "UNCHANGED_FULL_NATIVE_CHART",
+						graph.eventId, graph.eventId, graph.representationVersion, graph.representationVersion};
+					task.eventIdentity = integerLedgerRuntimeId + "|E" + std::to_string(epoch) +
+						"|" + graphComponent + "|" + sharedKey.fullJointTransportId +
+						"|B" + std::to_string(sharedKey.oldBackendGeneration) + ":" +
+						std::to_string(sharedKey.newBackendGeneration);
+					const std::string slotId = satellite.id() + "|" + enum_to_string(code);
+					auto [group, inserted] = eventGroups.try_emplace(sharedKey, sharedKey);
+					if (!group->second.add({slotId, satellite, satellite, {}},
+						task.nativeToSegment, sharedReason) || !sharedSlots.emplace(slotId, key).second)
+					{ task.mapProven = false; task.mapReason = sharedReason; }
+					else eventMembers[sharedKey].push_back(key);
+				}
+			}
+		}
+		// All complete L1/L2 slots exist before a shared event is searched.
+		// One exact current domain and one immutable FLOAT owner serve every
+		// product in the component. Product slots do not repeat common work.
+		using PairKey = std::tuple<E_Sys, ZhangSharedProductTargetKey,
+			ZhangSharedProductTargetKey, std::uint64_t, ZhangCurrentBridgeConditioningKey>;
+		std::map<PairKey, ZhangHandoffPairOutcome> attemptedPlans;
+		long searchBudgetMilliseconds = ZhangHandoffSearchBudget::defaultTotalMilliseconds;
+		if (!ZhangHandoffSearchBudget::parseTotalMilliseconds(
+			std::getenv("ZHANG_R51_HANDOFF_SEARCH_BUDGET_MS"), searchBudgetMilliseconds))
+			trace << "\nZHANG_HANDOFF_BUDGET_CONFIG status=INVALID_USING_DEFAULT effective_ms="
+				<< searchBudgetMilliseconds;
+		long eventBudgetMilliseconds = ZhangHandoffEventBudget::defaultTotalMilliseconds;
+		if (!ZhangHandoffEventBudget::parseTotalMilliseconds(
+			std::getenv("ZHANG_R51_HANDOFF_EVENT_BUDGET_MS"), eventBudgetMilliseconds))
+			trace << "\nZHANG_HANDOFF_EVENT_BUDGET_CONFIG status=INVALID_USING_DEFAULT effective_ms="
+				<< eventBudgetMilliseconds;
+		std::map<ZhangSharedProductEventKey, ZhangHandoffEventBudget> eventBudgets;
+		std::map<ZhangSharedProductEventKey, std::string> unfinishedEvents;
+		auto markEventUnfinished = [&](const ZhangSharedProductEventKey& identity, const std::string& reason)
+		{
+			unfinishedEvents.insert_or_assign(identity, reason);
+			const auto members = eventMembers.find(identity);
+			if (members == eventMembers.end()) return;
+			for (const auto& key : members->second)
+			{
+				auto& task = fullJointTasks.at(key);
+				task.currentValueProven = false;
+				task.bridgeReason = reason;
+				targetSearchReasons[key] = reason;
+			}
+		};
+		for (const auto& [identity, batch] : eventGroups)
+		{
+			const auto& currentPosteriorId = prepared->evidenceIdentities.at(identity.system).first;
+			const auto& currentChartId = prepared->evidenceIdentities.at(identity.system).second;
+			const auto sharedStarted = std::chrono::steady_clock::now();
+			const auto& eventBudget = eventBudgets.try_emplace(identity,
+				eventBudgetMilliseconds, sharedStarted).first->second;
+			ZhangExactWorkBudget eventWorkBudget;
+			eventWorkBudget.deadline = eventBudget.deadline();
+			ZhangScopedExactWorkBudget eventScope(eventWorkBudget);
+			const char* eventPhase = "SHARED_PREPARATION";
+			try
+			{
+			zhangExactWorkCheckpoint("SHARED_EVENT_PREPARATION_ENTRY", true);
+			if (!floatOwners.contains(identity.system))
+			{
+				std::string ownerReason;
+				floatOwners[identity.system] = zhangBindCurrentProductFloatOwner(floatState,
+					identity.system, epoch, currentPosteriorId, currentChartId, ownerReason,
+					productFixedState);
+				if (!floatOwners.at(identity.system))
+				{ trace << "\nZHANG_SHARED_PRODUCT_EVENT status=REJECTED reason=" << ownerReason; return nullptr; }
+			}
+			// Compile/query the shared CURRENT domain outside the pair allowance.
+			// Otherwise the first HNF can exhaust a one-second event deadline
+			// before any pair is visited. This is timed work, not free work, and
+			// neither a cache entry nor a timeout can authorize publication.
+			const auto domainStarted = std::chrono::steady_clock::now();
+			const auto sharedEvidence = zhangCurrentEpochEvidenceRegistry().find(
+				{integerLedgerRuntimeId, identity.system});
+			if (sharedEvidence == zhangCurrentEpochEvidenceRegistry().end()) return nullptr;
+			sharedEvidence->second.compiledCurrentDomain();
+			zhangExactWorkCheckpoint("SHARED_EVENT_PREPARATION_COMPLETE", true);
+			const double domainSeconds = std::chrono::duration<double>(
+				std::chrono::steady_clock::now() - domainStarted).count();
+			ZhangHandoffSearchBudget searchBudget(searchBudgetMilliseconds);
+			std::size_t attemptedPairCount = 0;
+			std::map<std::string,PairKey> slotPairKeys;
+			double querySeconds = 0, planSeconds = 0;
+			ZhangSharedProductEventSearchReport searchReport;
+			eventPhase = "QUERY_AND_PAIR_WORK";
+			auto query = [&](const ZhangProductIntegerTransition& difference)
+			{
+				const auto started = std::chrono::steady_clock::now();
+				zhangExactWorkCheckpoint("SHARED_EVENT_CONSEQUENCE_QUERY_ENTRY", true);
+				auto proof = zhangQueryCurrentEpochBridge(integerLedgerRuntimeId, identity.system,
+					difference.observable, epoch, currentPosteriorId, currentChartId, difference, false);
+				zhangExactWorkCheckpoint("SHARED_EVENT_CONSEQUENCE_QUERY_COMPLETE", true);
+				querySeconds += std::chrono::duration<double>(
+					std::chrono::steady_clock::now() - started).count();
+				return proof;
+			};
+			auto search = [&](const ZhangSharedProductEventSlot& slot,
+				const ZhangProductIntegerTransition& completeTarget, unsigned retryRound)
+			{
+				ZhangSharedProductEventSearchVisit visit;
+				visit.phase = "PAIR_PREPARATION";
+				const auto planStarted = std::chrono::steady_clock::now();
+				bool planTimeRecorded = false;
+				auto recordPlanTime = [&]()
+				{
+					if (planTimeRecorded) return;
+					planSeconds += std::chrono::duration<double>(
+						std::chrono::steady_clock::now() - planStarted).count();
+					planTimeRecorded = true;
+				};
+				auto finish = [&](const std::string& reason)
+				{
+					recordPlanTime();
+					visit.reason = reason;
+					targetSearchReasons[sharedSlots.at(slot.id)] = reason;
+					return visit;
+				};
+				ZhangCurrentProductBridgePlan plan;
+				plan.immutableFloat = floatOwners.at(identity.system);
+				plan.satellite = slot.satellite;
+				const auto configured = acsConfig.zhangPppAr.baseline_observables.find(identity.system);
+				if (configured == acsConfig.zhangPppAr.baseline_observables.end() ||
+					configured->second.size() != 2)
+					return finish("CURRENT_SYSTEM_BASELINE_PAIR_MISSING");
+				const std::array<E_ObsCode, 2> codes{
+					configured->second[0], configured->second[1]};
+				for (int signal = 0; signal < 2; ++signal)
+				{
+					const auto source = fullJointTasks.find({slot.satellite, codes[signal]});
+					if (source != fullJointTasks.end() && source->second.mapProven &&
+						source->second.nativeToSegment.valid)
+					{
+						plan.completeSignalTargets[signal] = source->second.nativeToSegment;
+						plan.fullJointMapWitness[signal] = source->second.mapReason;
+					}
+					else
+					{
+						plan.completeSignalTargets[signal].observable = codes[signal];
+						plan.completeSignalTargets[signal].valid = true;
+						plan.fullJointMapWitness[signal] =
+							"CURRENT_NATIVE_STRUCTURAL_IDENTITY_ONLY_NOT_OLD_SEGMENT_AUTHORITY";
+					}
+					plan.fullJointMapProven[signal] = true;
+					if (!plan.completeSignalTargets[signal].coefficients.empty())
+						plan.changeMask |= 1 << signal;
+				}
+				ZhangSharedProductTargetKey l1Key, l2Key;
+				std::string reason;
+				if (!zhangCanonicalSharedProductTarget(plan.completeSignalTargets[0], l1Key, reason) ||
+					!zhangCanonicalSharedProductTarget(plan.completeSignalTargets[1], l2Key, reason))
+					return finish(reason);
+				const auto evidence = zhangCurrentEpochEvidenceRegistry().find({integerLedgerRuntimeId, identity.system});
+				if (evidence == zhangCurrentEpochEvidenceRegistry().end())
+					return finish("CURRENT_EVENT_EVIDENCE_MISSING");
+				const auto& owner=*plan.immutableFloat;
+				const PairKey pairKey{identity.system, l1Key, l2Key, evidence->second.constraintGeneration,
+					zhangCurrentBridgeConditioningKey(zhangCurrentEpochEvidenceRegistry(),integerLedgerRuntimeId,
+						epoch,currentPosteriorId,currentChartId,owner.floatRoot(),owner.stateOrder())};
+				slotPairKeys.insert_or_assign(slot.id,pairKey);
+				recordPlanTime();
+				const auto prior = attemptedPlans.find(pairKey);
+				if (prior != attemptedPlans.end() && (retryRound == 0 || !prior->second.retryable()))
+				{
+					visit.phase = "PAIR_RESULT_REUSED";
+					visit.reused = true;
+					visit.incomplete = prior->second.incomplete();
+					visit.lastAttemptReason = prior->second.reason;
+					trace << "\nZHANG_SHARED_PRODUCT_PAIR_REUSE time=" << floatState.time.to_string(0)
+						<< " slot=" << std::quoted(slot.id) << " source_slot=" << std::quoted(prior->second.sourceSlot)
+						<< " generation=" << evidence->second.constraintGeneration
+						<< " admitted=" << prior->second.admitted << " reason=" << prior->second.reason;
+					return finish(prior->second.reason);
+				}
+				if (eventBudget.exhausted())
+				{
+					visit.phase = "EVENT_TOTAL_NOT_COMPLETED";
+					visit.incomplete = true;
+					visit.stopEvent = true;
+					visit.unvisitedReason = "SHARED_EVENT_TOTAL_COOPERATIVE_BUDGET_EXHAUSTED";
+					return finish(visit.unvisitedReason);
+				}
+				if (searchBudget.exhausted())
+				{
+					visit.phase = "NOT_SEARCHED";
+					visit.incomplete = prior != attemptedPlans.end() && prior->second.incomplete();
+					if(prior!=attemptedPlans.end())visit.lastAttemptReason=prior->second.reason;
+					// Continue cheap plan visits so aliases can still reuse the
+					// actual earlier outcome instead of a generic budget reason.
+					return finish("NOT_SEARCHED_SEARCH_BUDGET_EXHAUSTED");
+				}
+				++attemptedPairCount;
+				visit.attempted = true;
+				visit.phase = retryRound == 0 ? "PAIR_ATTEMPT" : "PAIR_RETRY";
+				const unsigned completedAttempts=prior==attemptedPlans.end()?0:prior->second.attempts;
+				const auto pairStarted = std::chrono::steady_clock::now();
+				ZhangExactWorkBudget pairBudget;
+				pairBudget.deadline = eventBudget.pairDeadline(searchBudget, pairStarted,completedAttempts);
+				bool admitted = false;
+				try
+				{
+					ZhangScopedExactWorkBudget scope(pairBudget);
+					admitted = zhangTryAdmitCurrentEventOverlap(trace, floatState, identity.system,
+						completeTarget.observable, slot.satellite, slot.satellite, epoch,
+						currentPosteriorId, currentChartId, completeTarget,
+						zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres), reason, &plan);
+				}
+				catch (const ZhangExactWorkBudgetExceeded&)
+				{
+					reason = "CURRENT_EVENT_PAIR_COOPERATIVE_BUDGET_EXHAUSTED";
+				}
+				catch (...)
+				{
+					searchBudget.charge(pairStarted,std::chrono::steady_clock::now());
+					throw;
+				}
+				searchBudget.charge(pairStarted, std::chrono::steady_clock::now());
+				const ZhangHandoffPairOutcome outcome{reason,slot.id,admitted,completedAttempts+1};
+				attemptedPlans.insert_or_assign(pairKey,outcome);
+				visit.incomplete=outcome.incomplete();
+				visit.lastAttemptReason=reason;
+				visit.retryPending=outcome.retryable() && !searchBudget.exhausted();
+				trace<<"\nZHANG_SHARED_PRODUCT_PAIR_ATTEMPT time="<<floatState.time.to_string(0)
+					<<" slot="<<std::quoted(slot.id)<<" round="<<retryRound
+					<<" plan_attempt="<<outcome.attempts
+					<<" allowance_ms="<<std::chrono::duration<double,std::milli>(pairBudget.deadline-pairStarted).count()
+					<<" incomplete="<<visit.incomplete<<" retry_pending="<<visit.retryPending
+					<<" remaining_budget_seconds="<<searchBudget.remainingSeconds()<<" reason="<<reason;
+				return finish(reason);
+			};
+			std::string reason;
+			try
+			{
+				if (!batch.executeSearchPhase(query, search,
+					[](const ZhangCurrentEpochBridgeProof& proof) { return proof.proven; }, reason, searchReport))
+				{ trace << "\nZHANG_SHARED_PRODUCT_EVENT status=REJECTED reason=" << reason; return nullptr; }
+			}
+			catch (const ZhangExactWorkBudgetExceeded&)
+			{
+				// Incomplete exact work is never evidence. Stop searching this
+				// component; phase two uses only successfully committed proofs.
+				reason = "SHARED_EVENT_TOTAL_COOPERATIVE_BUDGET_EXHAUSTED";
+				throw;
+			}
+			zhangExactWorkCheckpoint("SHARED_EVENT_SEARCH_PHASE_COMPLETE", true);
+			std::size_t notSearchedCount = 0, unknownOutcomeCount = 0;
+			// Aliases do not retry independently. Resolve every failed slot
+			// against the FINAL generation and COMPLETE numerical recipe. A
+			// later admission may have invalidated its initial failure outcome.
+			const auto finalEvidence=zhangCurrentEpochEvidenceRegistry().find(
+				{integerLedgerRuntimeId,identity.system});
+			const auto& finalOwner=*floatOwners.at(identity.system);
+			const auto finalConditioner=zhangCurrentBridgeConditioningKey(
+				zhangCurrentEpochEvidenceRegistry(),integerLedgerRuntimeId,epoch,
+				currentPosteriorId,currentChartId,finalOwner.floatRoot(),finalOwner.stateOrder());
+			for(auto& [slot,visit]:searchReport.visits)
+				if(!visit.currentQueryProven && slotPairKeys.contains(slot) &&
+					finalEvidence!=zhangCurrentEpochEvidenceRegistry().end())
+				{
+					const auto finalKey=zhangCurrentBridgeRekey(slotPairKeys.at(slot),
+						finalEvidence->second.constraintGeneration,finalConditioner);
+					if(const auto outcome=attemptedPlans.find(finalKey);outcome!=attemptedPlans.end())
+					{
+						visit.reason=outcome->second.reason;
+						visit.lastAttemptReason=outcome->second.reason;
+						visit.incomplete=outcome->second.incomplete();
+						targetSearchReasons[sharedSlots.at(slot)]=visit.reason;
+					}
+					else if(finalKey<slotPairKeys.at(slot) || slotPairKeys.at(slot)<finalKey)
+					{
+						visit.reason="NOT_SEARCHED_CURRENT_GENERATION_CHANGED";
+						visit.incomplete=true;
+						visit.retryPending=false;
+						targetSearchReasons[sharedSlots.at(slot)]=visit.reason;
+					}
+				}
+			searchReport.refreshCounts();
+			for (const auto& [slot, visit] : searchReport.visits)
+			{
+				const bool unknownOutcome = visit.phase == "SEARCH_CALLBACK_EXCEPTION";
+				unknownOutcomeCount += unknownOutcome;
+				notSearchedCount += !unknownOutcome && !visit.attempted &&
+					!visit.reused && !visit.currentQueryProven;
+				if (!visit.currentQueryProven && !targetSearchReasons.contains(sharedSlots.at(slot)))
+					targetSearchReasons[sharedSlots.at(slot)] = visit.reason;
+				trace << "\nZHANG_SHARED_PRODUCT_TARGET_WORK time=" << floatState.time.to_string(0)
+					<< " slot=" << std::quoted(slot) << " phase=" << visit.phase
+					<< " attempted=" << visit.attempted << " reused=" << visit.reused
+					<< " current_query_proven=" << visit.currentQueryProven
+					<< " attempts=" << visit.attemptCount << " retries=" << visit.retryCount
+					<< " incomplete=" << visit.incomplete << " last_attempt_reason=" << visit.lastAttemptReason
+					<< " reason=" << visit.reason;
+			}
+			trace << "\nZHANG_SHARED_PRODUCT_EVENT time=" << floatState.time.to_string(0)
+				<< " component=" << std::quoted(identity.graphComponentId)
+				<< " products=" << batch.slotCount() << " unique_targets=" << batch.uniqueTargetCount()
+				<< " attempted_pairs=" << attemptedPairCount
+				<< " retries=" << searchReport.retries << " incomplete_slots=" << searchReport.incomplete
+				<< " pending_retries=" << searchReport.pendingRetries
+				<< " reused_pairs=" << searchReport.reused << " unvisited_slots=" << searchReport.unvisited
+				<< " not_searched_slots=" << notSearchedCount
+				<< " unknown_outcome_slots=" << unknownOutcomeCount
+				<< " initial_queries=" << searchReport.initialQueries
+				<< " domain_preparation_seconds=" << domainSeconds
+				<< " query_seconds=" << querySeconds << " plan_seconds=" << planSeconds
+				<< " pair_work_seconds=" << searchBudget.consumedSeconds()
+				<< " pair_initial_budget_ms=" << ZhangHandoffSearchBudget::pairMilliseconds
+				<< " unused_pair_budget_seconds=" << searchBudget.remainingSeconds()
+				<< " search_total_budget_ms=" << searchBudgetMilliseconds
+				<< " search_budget_exhausted=" << searchBudget.exhausted()
+				<< " event_total_budget_ms=" << eventBudgetMilliseconds
+				<< " event_remaining_seconds=" << eventBudget.remainingSeconds()
+				<< " elapsed_seconds=" << std::chrono::duration<double>(
+					std::chrono::steady_clock::now() - sharedStarted).count()
+				<< " cooperative_deadline=1 hard_wall_bound=0 shared_query_charged_to_pair=0"
+				<< " shared_query_charged_to_event=1 pair_work_includes_preparation_ils_admission=1"
+				<< " phase=SEARCH reason=" << reason;
+			}
+			catch (const ZhangExactWorkBudgetExceeded&)
+			{
+				const std::string reason = std::string(eventPhase) == "SHARED_PREPARATION"
+					? "SHARED_EVENT_PREPARATION_COOPERATIVE_BUDGET_EXHAUSTED"
+					: "SHARED_EVENT_TOTAL_COOPERATIVE_BUDGET_EXHAUSTED";
+				markEventUnfinished(identity, reason);
+				trace << "\nZHANG_SHARED_PRODUCT_EVENT time=" << floatState.time.to_string(0)
+					<< " component=" << std::quoted(identity.graphComponentId)
+					<< " products=" << batch.slotCount() << " phase=" << eventPhase
+					<< " outcome=UNFINISHED same_segment_authorized=0 reason=" << reason
+					<< " last_phase=" << eventWorkBudget.phase
+					<< " event_total_budget_ms=" << eventBudgetMilliseconds
+					<< " elapsed_seconds=" << eventBudget.elapsedSeconds()
+					<< " cooperative_deadline=1 hard_wall_bound=0";
+			}
+		}
+		std::map<E_Sys, std::uint64_t> finalGenerations;
+		std::map<const ZhangDecisionProofs*, std::shared_ptr<const std::vector<std::string>>> sharedProofText;
+		for (const auto& [key, evidence] : zhangCurrentEpochEvidenceRegistry())
+			if (key.first == integerLedgerRuntimeId && matchesEvidence(key.second, evidence))
+				finalGenerations[key.second] = evidence.constraintGeneration;
+		for (const auto& [identity, batch] : eventGroups)
+		{
+			const auto& currentPosteriorId = prepared->evidenceIdentities.at(identity.system).first;
+			const auto& currentChartId = prepared->evidenceIdentities.at(identity.system).second;
+			if (unfinishedEvents.contains(identity)) continue;
+			const auto finalQueryStarted = std::chrono::steady_clock::now();
+			ZhangExactWorkBudget finalQueryBudget;
+			finalQueryBudget.deadline = eventBudgets.at(identity).deadline();
+			ZhangScopedExactWorkBudget finalQueryScope(finalQueryBudget);
+			try
+			{
+			zhangExactWorkCheckpoint("SHARED_EVENT_FINAL_QUERY_ENTRY", true);
+			auto query = [&](const ZhangProductIntegerTransition& difference)
+			{
+				zhangExactWorkCheckpoint("SHARED_EVENT_FINAL_TARGET_QUERY_ENTRY", true);
+				auto proof = zhangQueryCurrentEpochBridge(integerLedgerRuntimeId, identity.system,
+					difference.observable, epoch, currentPosteriorId, currentChartId, difference, false);
+				zhangExactWorkCheckpoint("SHARED_EVENT_FINAL_TARGET_QUERY_COMPLETE", true);
+				return proof;
+			};
+			auto generation = [&]()
+			{
+				const auto evidence = zhangCurrentEpochEvidenceRegistry().find({integerLedgerRuntimeId, identity.system});
+				return evidence == zhangCurrentEpochEvidenceRegistry().end()
+					? std::numeric_limits<std::uint64_t>::max() : evidence->second.constraintGeneration;
+			};
+			std::map<std::string, ZhangCurrentEpochBridgeProof> proofs;
+			std::string reason;
+			if (!finalGenerations.contains(identity.system) ||
+				!batch.finalizeQueryPhase(query, generation, finalGenerations.at(identity.system), proofs, reason))
+			{ trace << "\nZHANG_SHARED_PRODUCT_EVENT status=REJECTED reason=" << reason; return nullptr; }
+			zhangExactWorkCheckpoint("SHARED_EVENT_FINAL_QUERY_COMPLETE", true);
+			trace << "\nZHANG_SHARED_PRODUCT_FINAL_QUERY time=" << floatState.time.to_string(0)
+				<< " component=" << std::quoted(identity.graphComponentId)
+				<< " slots=" << proofs.size() << " generation=" << finalGenerations.at(identity.system)
+				<< " elapsed_seconds=" << std::chrono::duration<double>(
+					std::chrono::steady_clock::now() - finalQueryStarted).count();
+			for (const auto& [slot, proof] : proofs)
+			{
+				auto& task = fullJointTasks.at(sharedSlots.at(slot));
+				task.currentValueProven = proof.proven;
+				task.bridgeReason = !proof.proven && targetSearchReasons.contains(sharedSlots.at(slot))
+					? targetSearchReasons.at(sharedSlots.at(slot)) : proof.reason;
+				if (!proof.proven) continue;
+				task.currentValue = proof.value;
+				task.proofIds = proof.proofIds;
+				const auto shared = proof.sharedProofs ? sharedProofText.find(proof.sharedProofs.get()) : sharedProofText.end();
+				if (shared != sharedProofText.end())
+				{
+					task.sharedProofStatements = shared->second;
+					continue;
+				}
+				auto text = std::make_shared<std::vector<std::string>>();
+				const auto closure = zhangDecisionRiskClosure(proof.proofsView());
+				if (closure.valid) for (const auto& [id, atom] : closure.atoms)
+				{
+					std::ostringstream statement;
+					statement << "id=" << std::quoted(id) << " source=" << std::quoted(atom->observationProvenance)
+						<< " statement=" << std::quoted(atom->originalStatement);
+					text->push_back(statement.str());
+				}
+				task.sharedProofStatements = text;
+				if (proof.sharedProofs) sharedProofText.emplace(proof.sharedProofs.get(), std::move(text));
+			}
+			}
+			catch (const ZhangExactWorkBudgetExceeded&)
+			{
+				const std::string reason = "SHARED_EVENT_FINAL_QUERY_COOPERATIVE_BUDGET_EXHAUSTED";
+				markEventUnfinished(identity, reason);
+				trace << "\nZHANG_SHARED_PRODUCT_FINAL_QUERY time=" << floatState.time.to_string(0)
+					<< " component=" << std::quoted(identity.graphComponentId)
+					<< " outcome=UNFINISHED same_segment_authorized=0 reason=" << reason
+					<< " last_phase=" << finalQueryBudget.phase
+					<< " event_total_budget_ms=" << eventBudgetMilliseconds
+					<< " event_elapsed_seconds=" << eventBudgets.at(identity).elapsedSeconds()
+					<< " cooperative_deadline=1 hard_wall_bound=0";
+			}
+		}
+		std::vector<ZhangCurrentEpochNumericConstraint> allConstraints;
+		bool fullFloatPsdValidated = false;
+		for (const auto& [key, evidence] : zhangCurrentEpochEvidenceRegistry())
+			if (key.first == integerLedgerRuntimeId && matchesEvidence(key.second, evidence) &&
+				evidence.floatStateRoot == fullFloatRoot && evidence.floatPosteriorPsdStateOrderId == fullFloatOrder)
+			{
+				allConstraints.insert(allConstraints.end(), evidence.numericConstraints.begin(),
+					evidence.numericConstraints.end());
+				fullFloatPsdValidated = fullFloatPsdValidated ||
+					(evidence.floatPosteriorPsdValidated && evidence.floatPosteriorPsdRootId == fullFloatRoot &&
+					 evidence.floatPosteriorPsdStateOrderId == fullFloatOrder);
+			}
+		if (allConstraints.empty())
+		{ trace << "\nZHANG_FINAL_PRODUCT_POSTERIOR status=REJECTED reason=CURRENT_NUMERIC_CONSTRAINTS_MISSING"; return nullptr; }
+		std::string recipeReason;
+		if (!zhangNormalizeProductNumericConstraints(allConstraints, prepared->numericRecipe, recipeReason))
+		{ trace << "\nZHANG_FINAL_PRODUCT_POSTERIOR status=REJECTED reason=" << recipeReason; return nullptr; }
+		const auto conditionStarted = std::chrono::steady_clock::now();
+		std::string finalReason;
+		ZhangProductConditioningIdentity conditioningIdentity{
+			integerLedgerRuntimeId, epoch, prepared->posteriorId, prepared->chartId,
+			fullFloatRoot, fullFloatOrder,
+			zhangR51NumericRoot(productFixedState->x, productFixedState->P),
+			zhangCurrentEvidenceStateOrderId(productFixedState->kfIndexMap)};
+		const auto receipt = zhangProductConditioningReceiptRegistry().find(integerLedgerRuntimeId);
+		const bool reusedCompleteRecipe = receipt != zhangProductConditioningReceiptRegistry().end() &&
+			receipt->second.matches(conditioningIdentity, allConstraints, finalReason);
+		bool finalValid = reusedCompleteRecipe;
+		if (!reusedCompleteRecipe)
+		{
+			// A copied KF inherits its parent's metadata. Give it a distinct
+			// graph lease BEFORE any operation which can fail or release it.
+			if (!zhangMakePrivateGraphState(floatState, integerLedgerRuntimeId,
+				"final-product", [](const KFState& source, const KFState& destination,
+					std::string& reason)
+				{ return cloneZhangGraphRuntime(source, destination, &reason); },
+				eraseZhangGraphRuntime, finalProductPosterior.state, finalReason))
+			{
+				trace << "\nZHANG_FINAL_PRODUCT_POSTERIOR status=REJECTED reason=" << finalReason;
+				return nullptr;
+			}
+			// New current event rows require a fresh update from protected FLOAT,
+			// never a second update of an already conditioned correlated branch.
+			finalValid = zhangConditionCurrentProductPosterior(trace,
+				*finalProductPosterior.state, allConstraints, finalReason);
+		}
+		trace << "\nZHANG_FINAL_PRODUCT_POSTERIOR time=" << floatState.time.to_string(0)
+			<< " valid=" << finalValid << " constraints=" << allConstraints.size()
+			<< " preparation_seconds=" << std::chrono::duration<double>(conditionStarted - prepareStarted).count()
+			<< " conditioning_seconds=" << std::chrono::duration<double>(std::chrono::steady_clock::now() - conditionStarted).count()
+			<< " source_psd_token=" << fullFloatPsdValidated
+			<< " reused_complete_recipe=" << reusedCompleteRecipe
+			<< " validation=FULL_ROOT_GRAM_CONDITIONER reason=" << finalReason << " float_feedback=0";
+		if (!finalValid) return nullptr;
+		if (!reusedCompleteRecipe)
+		{
+			productFixedState = finalProductPosterior.state.get();
+		}
+	}
+	prepared->fixedState = productFixedState;
+	for (const auto& [key, evidence] : zhangCurrentEpochEvidenceRegistry())
+		if (key.first == integerLedgerRuntimeId && matchesEvidence(key.second, evidence))
+			prepared->constraintGenerations[key.second] = evidence.constraintGeneration;
+	return prepared;
+}
+
+
 void writeZhangInternalProducts(
     Trace&         trace,
     const KFState& integerLedgerState,
@@ -9386,11 +11465,17 @@ void writeZhangInternalProducts(
     bool           fixedBranchValid,
     bool           networkIntegerReady,
     const ZhangProductIntegerConstraintSet* productCertification,
-    bool* productTransactionCommitted
+    bool* productTransactionCommitted,
+    const string& currentPosteriorId,
+    const string& currentChartId,
+    std::string* handoffCertificateText,
+    std::shared_ptr<const ZhangPreparedProductPublication> preparedPublication,
+    const ZhangMultiGnssProductDelivery* multiSystemDelivery
 )
 {
 	ZhangP0ResourceScope p0Writer(trace,"INTERNAL_PRODUCT_WRITER",floatState.time.to_string(0));
 	if(productTransactionCommitted) *productTransactionCommitted=false;
+	if(handoffCertificateText) handoffCertificateText->clear();
     if (!acsConfig.zhangPppAr.output_products)
     {
         return;
@@ -9401,8 +11486,113 @@ void writeZhangInternalProducts(
 		writeZhangFloatOnlyProductsNoLifecycle(trace, floatState);
 		return;
 	}
-	const bool productFixedMode = productFixedState != nullptr &&
-		productCertification != nullptr;
+	std::map<E_Sys, const ZhangProductIntegerConstraintSet*> productCertifications;
+	if (multiSystemDelivery)
+	{
+		if (!multiSystemDelivery->valid || multiSystemDelivery->systems.empty() ||
+			!productFixedState ||
+			multiSystemDelivery->epochGpstSeconds != static_cast<long int>(std::llround(floatState.time.bigTime)) ||
+			multiSystemDelivery->floatRoot != zhangR51NumericRoot(floatState.x, floatState.P) ||
+			multiSystemDelivery->floatStateOrderId != zhangCurrentEvidenceStateOrderId(floatState.kfIndexMap) ||
+			multiSystemDelivery->conditionedRoot != zhangR51NumericRoot(productFixedState->x, productFixedState->P) ||
+			multiSystemDelivery->conditionedStateOrderId != zhangCurrentEvidenceStateOrderId(productFixedState->kfIndexMap))
+		{
+			writeZhangFloatOnlyProductsNoLifecycle(trace, floatState, "INVALID_MULTI_JOINT_PRODUCT_DELIVERY");
+			return;
+		}
+		for (const auto& [system, delivery] : multiSystemDelivery->systems)
+		{
+			if (delivery.constraints.system != system)
+			{
+				writeZhangFloatOnlyProductsNoLifecycle(trace, floatState, "MULTI_PRODUCT_CERTIFICATE_SYSTEM_MISMATCH");
+				return;
+			}
+			productCertifications.emplace(system, &delivery.constraints);
+		}
+	}
+	else if (productCertification)
+		productCertifications.emplace(productCertification->system, productCertification);
+	const bool productFixedMode = productFixedState != nullptr && !productCertifications.empty();
+	const bool productRepair = productFixedMode && zhangR51ProductRepairEnabled();
+	string integerLedgerRuntimeId;
+	if (!claimZhangPppArServiceRuntime(integerLedgerState, integerLedgerRuntimeId))
+	{
+		trace << "\nZHANG_RUNTIME_ID status=REJECTED operation=WRITE_INTERNAL_PRODUCTS"
+			<< " reason=CHECKPOINT_RUNTIME_ID_UNBOUND_OR_CONFLICT feedback=0";
+		return;
+	}
+	if (multiSystemDelivery && multiSystemDelivery->runtimeId != integerLedgerRuntimeId)
+	{
+		writeZhangFloatOnlyProductsNoLifecycle(trace, floatState, "MULTI_PRODUCT_RUNTIME_MISMATCH");
+		return;
+	}
+	const auto scopedEvidenceIdentity = [&](E_Sys system)
+	{
+		if (multiSystemDelivery)
+		{
+			const auto found = multiSystemDelivery->systems.find(system);
+			if (found != multiSystemDelivery->systems.end())
+				return std::pair{found->second.sourcePosteriorId,
+					found->second.authoritativeCycleChartId};
+			return std::pair<std::string, std::string>{};
+		}
+		return std::pair{currentPosteriorId, currentChartId};
+	};
+	const auto preparedEvidenceMatches = [&](E_Sys system, const auto& evidence)
+	{
+		if (!productCertifications.contains(system)) return false;
+		const auto identity = scopedEvidenceIdentity(system);
+		return evidence.matches(static_cast<long int>(std::llround(floatState.time.bigTime)),
+			identity.first, identity.second);
+	};
+	const std::map<ProductKey, ZhangFullJointHandoffTask> emptyFullJointTasks;
+	if (productRepair)
+	{
+		bool preparedValid = preparedPublication && preparedPublication->fixedState &&
+			preparedPublication->floatOwner == &floatState &&
+			preparedPublication->factorCommitSequence == floatState.factorCommitSequence &&
+			preparedPublication->runtimeId == integerLedgerRuntimeId &&
+			preparedPublication->epoch == static_cast<long int>(std::llround(floatState.time.bigTime)) &&
+			preparedPublication->posteriorId == (multiSystemDelivery
+				? "MULTI_JOINT_FLOAT|" + multiSystemDelivery->floatRoot : currentPosteriorId) &&
+			preparedPublication->chartId == (multiSystemDelivery
+				? "MULTI_JOINT_STATE_ORDER|" + multiSystemDelivery->floatStateOrderId : currentChartId) &&
+			preparedPublication->evidenceIdentities.size() == productCertifications.size() &&
+			preparedPublication->sourceOrder == zhangCurrentEvidenceStateOrderId(floatState.kfIndexMap);
+		if (preparedValid)
+			for (const auto& [system, generation] : preparedPublication->constraintGenerations)
+			{
+				const auto evidence = zhangCurrentEpochEvidenceRegistry().find({integerLedgerRuntimeId, system});
+				preparedValid = preparedValid && evidence != zhangCurrentEpochEvidenceRegistry().end() &&
+					preparedEvidenceMatches(system, evidence->second) &&
+					preparedPublication->evidenceIdentities.contains(system) &&
+					preparedPublication->evidenceIdentities.at(system) == scopedEvidenceIdentity(system) &&
+					evidence->second.floatStateRoot == preparedPublication->sourceRoot &&
+					evidence->second.constraintGeneration == generation;
+			}
+		if (preparedValid)
+		{
+			std::vector<ZhangCurrentEpochNumericConstraint> currentRecipe, normalizedRecipe;
+			for (const auto& [key, evidence] : zhangCurrentEpochEvidenceRegistry())
+				if (key.first == integerLedgerRuntimeId && preparedEvidenceMatches(key.second, evidence) &&
+					evidence.floatStateRoot == preparedPublication->sourceRoot)
+					currentRecipe.insert(currentRecipe.end(), evidence.numericConstraints.begin(), evidence.numericConstraints.end());
+			std::string recipeReason;
+			preparedValid = zhangNormalizeProductNumericConstraints(currentRecipe, normalizedRecipe, recipeReason) &&
+				normalizedRecipe.size() == preparedPublication->numericRecipe.size();
+			for (std::size_t row = 0; preparedValid && row < normalizedRecipe.size(); ++row)
+				preparedValid = normalizedRecipe[row].rowCycles == preparedPublication->numericRecipe[row].rowCycles &&
+					normalizedRecipe[row].value == preparedPublication->numericRecipe[row].value;
+		}
+		if (!preparedValid)
+		{
+			trace << "\nZHANG_PRODUCT_WRITER_PREPARED_CONTEXT status=REJECTED"
+				<< " reason=MISSING_STALE_OR_MUTATED_CURRENT_PUBLICATION";
+			return;
+		}
+		productFixedState = preparedPublication->fixedState;
+	}
+	const auto& fullJointTasks = productRepair ? preparedPublication->tasks : emptyFullJointTasks;
 	const KFState& fixedState = productFixedMode
 		? *productFixedState
 		: networkFixedDiagnosticState
@@ -9427,15 +11617,26 @@ void writeZhangInternalProducts(
 	const bool persistentHouCoordinate = houOsbLike &&
 		(acsConfig.zhangPppAr.hou_product_coordinate == "PERSISTENT_DYNAMIC" ||
 		 acsConfig.zhangPppAr.hou_product_coordinate == "HYBRID_STABLE");
-	string integerLedgerRuntimeId;
-	if (!claimZhangPppArServiceRuntime(
-		integerLedgerState, integerLedgerRuntimeId))
+	const bool singleBasisHandoff = houOsbLike && persistentHouCoordinate &&
+		zhangR51SingleBasisHandoffEnabled();
+	// The mutable structural cache is not itself publication history.  Use
+	// its old functional only when it matches the last actually published
+	// PRODUCT_FIXED identity.  After a rejected epoch this match can fail;
+	// that is an unproved handoff, never permission to borrow a stale row.
+	map<ProductKey, ZhangProductIntegerFunctional> publishedBefore;
+	if (singleBasisHandoff)
 	{
-		trace << "\nZHANG_RUNTIME_ID status=REJECTED"
-			  << " reason=CHECKPOINT_RUNTIME_ID_UNBOUND_OR_CONFLICT"
-			  << " operation=WRITE_INTERNAL_PRODUCTS"
-			  << " feedback=0";
-		return;
+		for (const auto& [historyKey, history] : productHistoryMap)
+		{
+			if (historyKey.solution != "PRODUCT_FIXED" ||
+				history.productFunctional.empty()) continue;
+			ProductKey key{historyKey.satellite, historyKey.observable};
+			const auto old = publishedProductFunctionals.find(key);
+			if (old != publishedProductFunctionals.end() &&
+				zhangProductPhysicalFunctionalFingerprint(old->second) ==
+					history.productFunctional)
+				publishedBefore.emplace(key, old->second);
+		}
 	}
 	struct P0HeldSupportKey
 	{
@@ -9647,11 +11848,11 @@ void writeZhangInternalProducts(
 		bool valid = false;
 		std::string failureReason = "NOT_INITIALISED";
 	};
-	std::map<ZhangP0GraphStamp, E25bSystemStructure> e25bStructures;
-	auto e25bStructure = [&](E_Sys system) -> E25bSystemStructure&
+	std::map<std::pair<ZhangP0GraphStamp, E_ObsCode>, E25bSystemStructure> e25bStructures;
+	auto e25bStructure = [&](E_Sys system, E_ObsCode observable) -> E25bSystemStructure&
 	{
 		auto [iterator, inserted] = e25bStructures.try_emplace(
-			zhangGraphIntegerContextStamp(fixedState, system));
+			std::make_pair(zhangGraphIntegerContextStamp(fixedState, system), observable));
 		auto& structure = iterator->second;
 		if (!inserted)
 		{
@@ -9673,11 +11874,14 @@ void writeZhangInternalProducts(
 				"COORDINATE_TARGET_" + structure.coordinateTarget.failureReason;
 			return structure;
 		}
+		std::map<ZhangGraphEdge, int> signalVersions;
+		if (!zhangGraphSignalArcVersions(fixedState, system, observable,
+			signalVersions, structure.failureReason)) return structure;
 		structure.products = zhangBuildProductIntegerFunctionals(
 			graph.productBasis,
-			graph.arcVersions,
+			signalVersions,
 			structure.coordinateTarget.referenceSatellite,
-			graph.productDatumVersion);
+			graph.productDatumVersion, observable);
 		if (structure.products.empty())
 		{
 			structure.failureReason = "PRODUCT_INTEGER_FUNCTIONALS_EMPTY";
@@ -9696,6 +11900,7 @@ void writeZhangInternalProducts(
 	};
 
     vector<ZhangInternalProduct> epochProducts;
+	map<ProductKey, ZhangProductPhaseProjection> currentProductProjections;
 	bool formalProductMetadataGatePassed =
 		floatState.lastPppTransactionCommitted &&
 		floatState.lastPppQcConverged;
@@ -9767,13 +11972,14 @@ void writeZhangInternalProducts(
             double rawPhase = state.x(phaseIndex);
             double houAlignmentCycles =
                 static_cast<double>(continuity.integerShiftCycles) +
-                continuity.fractionalShiftCycles;
+				(singleBasisHandoff ? 0 : continuity.fractionalShiftCycles);
             double productAlignmentCycles = houOsbLike
                 ? houAlignmentCycles
                 : static_cast<double>(datumStatus.alignmentCycles);
 			bool e25bStructuralValid = false;
 			bool e25bAlignmentEvaluable = false;
 			bool e25bRuntimeAlignmentProven = false;
+			bool singleBasisProjectionValid = !singleBasisHandoff;
 			ZhangExactVector e25bCoordinateRow;
 			VectorXd e25bFullStateRow;
 			string e25bSnapshotIdentity;
@@ -9791,7 +11997,7 @@ void writeZhangInternalProducts(
 			const ZhangProductIntegerFunctional* e25bStructuralFunctional = nullptr;
 			if (houOsbLike)
 			{
-				auto& e25b = e25bStructure(phaseKey.Sat.sys);
+				auto& e25b = e25bStructure(phaseKey.Sat.sys, code);
 				auto structural = e25b.products.find(phaseKey.Sat);
 				e25bStructuralValid = e25b.valid && structural != e25b.products.end();
 				if (e25bStructuralValid)
@@ -9925,13 +12131,18 @@ void writeZhangInternalProducts(
 						houProductPhaseSegmentIdentities.at(productKey);
 					const string previousSnapshotIdentity =
 						houProductSnapshotIdentities[productKey];
-					const auto transport = functionalDifferenceSupport(
-						code, previousFunctional,
-						*e25bStructuralFunctional);
+					ZhangNamedProductIntegerSupport transport;
+					if (singleBasisHandoff)
+						transport.reason = "CURRENT_EPOCH_HANDOFF_PENDING";
+					else
+						transport = functionalDifferenceSupport(
+							code, previousFunctional,
+							*e25bStructuralFunctional);
 					const bool phaseSegmentChanged =
 						previousPhaseSegmentIdentity != e25bPhaseSegmentIdentity;
 					const bool exactIntegerTransport =
-						transport.contained && !phaseSegmentChanged;
+						!singleBasisHandoff && transport.contained &&
+						!phaseSegmentChanged;
 					ZhangProductFunctionalEventDiagnostic eventDiagnostic;
 					vector<ZhangGraphEdge> oldSupportEdges;
 					vector<int> oldSupportVersions;
@@ -9973,7 +12184,14 @@ void writeZhangInternalProducts(
 						e25bPhaseSegmentIdentity;
 					houProductSnapshotIdentities[productKey] =
 						e25bSnapshotIdentity;
-					if (exactIntegerTransport)
+					if (singleBasisHandoff)
+					{
+						// This is only a structural observation.  No historical
+						// integer row, segment reset, or datum-manager quarantine
+						// may decide the public handoff before the current posterior
+						// and its independent WL/L1 decisions are available.
+					}
+					else if (exactIntegerTransport)
 					{
 						houProductTreeAlignmentCycles[productKey] -= transport.value;
 						continuity.resetReason =
@@ -10164,7 +12382,7 @@ void writeZhangInternalProducts(
 					std::vector<std::pair<int, double>> emittedPhaseTerms = {
 						{phaseIndex, +1.0}
 					};
-					const auto& e25b = e25bStructure(phaseKey.Sat.sys);
+					const auto& e25b = e25bStructure(phaseKey.Sat.sys, code);
 					for (std::size_t chord = 0;
 						 chord < e25bCoordinateRow.size(); chord++)
 					{
@@ -10217,14 +12435,38 @@ void writeZhangInternalProducts(
 			}
 			if (houOsbLike && persistentHouCoordinate)
 			{
-				// Final frontend integer coordinate.  G_obs/product-tree
-				// quantities above remain diagnostics and relation evidence;
-				// only the persistent satellite potential kappa enters the
-				// broadcast phase bias.
-				emittedPhase = rawPhase
-					+ lambda * static_cast<double>(datumStatus.alignmentCycles);
-				phaseVariance = state.P(phaseIndex, phaseIndex);
-				covariance = state.P(clockIndex, phaseIndex);
+				// Gamma is a committed integer constant.  The distinct product
+				// target chart contributes the stochastic G*k functional; its
+				// full covariance must travel with the emitted phase row.
+				if (singleBasisHandoff)
+				{
+					const auto projection = zhangProductPhaseProjection(
+						state, e25bStructure(phaseKey.Sat.sys, code).coordinateTarget,
+						phaseKey.Sat, code, lambda);
+					singleBasisProjectionValid = projection.valid;
+					if (solution == "PRODUCT_FIXED")
+						currentProductProjections[productKey] = projection;
+					if (projection.valid)
+					{
+						emittedPhase = projection.mean +
+							lambda * houAlignmentCycles;
+						phaseVariance = projection.variance;
+						covariance = projection.clockCovariance;
+						e25bRuntimeAlignmentProven = true;
+						e25bAppliedRelativeAlignment =
+							e25bExpectedRelativeAlignment;
+						e25bAlignmentError = 0;
+					}
+					else
+						e25bRuntimeAlignmentProven = false;
+				}
+				else
+				{
+					emittedPhase = rawPhase + lambda *
+						static_cast<double>(datumStatus.alignmentCycles);
+					phaseVariance = state.P(phaseIndex, phaseIndex);
+					covariance = state.P(clockIndex, phaseIndex);
+				}
 				correction = clock - emittedPhase;
 				correctionVariance = clockVariance + phaseVariance
 					- 2 * covariance;
@@ -10259,9 +12501,10 @@ void writeZhangInternalProducts(
                 product.correction_sigma_m <=
                     acsConfig.zhangPppAr.maximum_pppar_correction_sigma_m;
             ZhangNamedProductIntegerSupport namedIntegerSupport;
-            if (houOsbLike && solution == "FIXED")
+			if (houOsbLike && zhangNeedsNamedProductIntegerMembership(
+					zhangR51Enabled(), productFixedMode, solution))
             {
-                const auto& e25b = e25bStructure(phaseKey.Sat.sys);
+                const auto& e25b = e25bStructure(phaseKey.Sat.sys, code);
                 auto functional = e25b.products.find(phaseKey.Sat);
                 if (functional != e25b.products.end())
                 {
@@ -10278,6 +12521,11 @@ void writeZhangInternalProducts(
                     namedIntegerSupport.reason = "NO_NAMED_PRODUCT_FUNCTIONAL";
                 }
             }
+			else if (houOsbLike && solution == "FIXED")
+			{
+				namedIntegerSupport.reason =
+					"R51_NETWORK_FIXED_DIAGNOSTIC_ONLY";
+			}
 			const auto hybridInitialGate = zhangHybridInitialIntegerGate(
 				persistentHouCoordinate,
 				structureValid,
@@ -10317,8 +12565,10 @@ void writeZhangInternalProducts(
             product.discontinuity_counter = houOsbLike
                 ? continuity.counter
                 : datumStatus.discontinuityCounter;
-            product.integer_shift_cycles = datumStatus.alignmentCycles;
-            product.fractional_shift_cycles = continuity.fractionalShiftCycles;
+            product.integer_shift_cycles = singleBasisHandoff
+				? continuity.integerShiftCycles : datumStatus.alignmentCycles;
+            product.fractional_shift_cycles = singleBasisHandoff
+				? 0 : continuity.fractionalShiftCycles;
             product.datum_version = houOsbLike
                 ? continuity.datumVersion
                 : datumStatus.datumVersion;
@@ -10378,7 +12628,8 @@ void writeZhangInternalProducts(
                 covariance * covariance <=
                     clockVariance * phaseVariance +
                     1e-10 * covarianceScale * covarianceScale;
-            product.numeric_valid = finite && covarianceValid;
+            product.numeric_valid = finite && covarianceValid &&
+				singleBasisProjectionValid;
             product.continuity_valid =
 				!houOsbLike || persistentHouCoordinate ||
 				e25bRuntimeAlignmentProven;
@@ -10387,7 +12638,9 @@ void writeZhangInternalProducts(
             product.pppar_usable =
                 product.ppp_usable && product.integer_valid &&
 				isFormalFixedSolution(solution);
-            product.invalid_reason = !product.branch_valid
+            product.invalid_reason = !singleBasisProjectionValid
+				? "EXACT_PRODUCT_TARGET_PROJECTION_UNAVAILABLE"
+				: !product.branch_valid
                 ? "FIXED_TRANSACTION_ABORTED"
                 : (!finite
                        ? "NONFINITE_PRODUCT"
@@ -10489,18 +12742,18 @@ void writeZhangInternalProducts(
 						  << " alignment_error_cycles="
 						  << e25bAlignmentError
 						  << " max_real_nuisance_coefficient="
-						  << e25bStructure(phaseKey.Sat.sys).
+						  << e25bStructure(phaseKey.Sat.sys, code).
 							 jointAudit.maximumNuisanceCoefficient
 						  << " max_affine_integer_error="
-						  << e25bStructure(phaseKey.Sat.sys).
+						  << e25bStructure(phaseKey.Sat.sys, code).
 							 jointAudit.maximumAffineIntegerError
 						  << " primitive_admissible="
-						  << e25bStructure(phaseKey.Sat.sys).
+						  << e25bStructure(phaseKey.Sat.sys, code).
 							 jointAudit.primitiveAdmissible
 						  << " structural_failure_reason="
-						  << e25bStructure(phaseKey.Sat.sys).failureReason
+						  << e25bStructure(phaseKey.Sat.sys, code).failureReason
 						  << " temporal_basis_version="
-						  << e25bStructure(phaseKey.Sat.sys).
+						  << e25bStructure(phaseKey.Sat.sys, code).
 							 productDatumVersion
 						  << " functional=" << e25bFunctionalFingerprint;
 				}
@@ -10660,17 +12913,24 @@ void writeZhangInternalProducts(
 					datumManager.alignmentState(product.satellite));
                 product.integer_datum_continuous =
                     status.integerDatumContinuous;
-				const double integerAlignmentDeltaMetres = wavelength(
-					system, observable) * static_cast<double>(
-						status.alignmentCycles - product.integer_shift_cycles);
-				product.phase_m += integerAlignmentDeltaMetres;
-				product.correction_m = product.clock_m - product.phase_m;
+				if (!singleBasisHandoff)
+				{
+					const double integerAlignmentDeltaMetres = wavelength(
+						system, observable) * static_cast<double>(
+							status.alignmentCycles - product.integer_shift_cycles);
+					product.phase_m += integerAlignmentDeltaMetres;
+					product.correction_m = product.clock_m - product.phase_m;
+				}
                 const bool precisionPass =
                     acsConfig.zhangPppAr.maximum_pppar_correction_sigma_m <= 0
                     || product.correction_sigma_m <=
                        acsConfig.zhangPppAr.maximum_pppar_correction_sigma_m;
-				auto& continuity = continuityMap[
+				auto& committedContinuity = continuityMap[
 					{product.satellite, observable}];
+				// The legacy datum manager may classify a diagnostic component,
+				// but it must not advance the public single-basis segment before
+				// the current product/covariance transaction commits.
+				auto continuity = committedContinuity;
 				if (product.integer_structure_valid
 				 && status.integerDatumContinuous
 				 && status.integerPrecisionValid
@@ -10688,6 +12948,8 @@ void writeZhangInternalProducts(
 						"hybrid_component_ar_gate_unavailable",
 						acsConfig.zhangPppAr.stabilization_epochs);
 				}
+				if (!singleBasisHandoff)
+					committedContinuity = continuity;
                 product.integer_precision_valid =
                     status.integerPrecisionValid
 					&& continuity.integerValid()
@@ -10699,9 +12961,10 @@ void writeZhangInternalProducts(
                     && product.cycle_closure_valid
                     && product.integer_component_size >= 2;
 				product.discontinuity_counter = continuity.counter;
-				product.integer_shift_cycles = status.alignmentCycles;
-				product.fractional_shift_cycles =
-					continuity.fractionalShiftCycles;
+				if (!singleBasisHandoff)
+					product.integer_shift_cycles = status.alignmentCycles;
+				product.fractional_shift_cycles = singleBasisHandoff
+					? 0 : continuity.fractionalShiftCycles;
 				product.datum_version = continuity.datumVersion;
 				product.valid_from = continuity.validFrom;
 				product.product_iod = continuity.iod;
@@ -10858,18 +13121,18 @@ void writeZhangInternalProducts(
     // A reference-satellite zero row is structurally contained in every
     // lattice, but it cannot authorize PPP-AR by itself.  Require at least
     // one supported non-reference partner in the same solution/signal group.
-    map<pair<string, E_ObsCode>, int> integerProductCounts;
+    map<tuple<string, E_Sys, E_ObsCode>, int> integerProductCounts;
     for (const auto& product : epochProducts)
     {
         if (product.integer_valid)
         {
-            integerProductCounts[{product.solution, product.observable}]++;
+            integerProductCounts[{product.solution, product.satellite.sys, product.observable}]++;
         }
     }
     for (auto& product : epochProducts)
     {
         if (product.integer_valid &&
-            integerProductCounts[{product.solution, product.observable}] < 2)
+            integerProductCounts[{product.solution, product.satellite.sys, product.observable}] < 2)
         {
             product.integer_precision_valid = false;
             product.integer_valid = false;
@@ -10883,6 +13146,7 @@ void writeZhangInternalProducts(
 	// blocks, and are then consumed by both the product CSV and the user noise
 	// adapter.
     std::string r47DeferredProductCovariance;
+	ZhangHybridRealGaugeRegistry r47DeferredFrontend;
     appendProductCovariance(
 		floatState, "FLOAT", fixedState, epochProducts);
     if (wideLaneState && wideLaneBranchValid)
@@ -10899,7 +13163,8 @@ void writeZhangInternalProducts(
 				"NETWORK_FIXED_DIAGNOSTIC", fixedState, epochProducts);
 		}
 		appendProductCovariance(*productFixedState,
-			"PRODUCT_FIXED", fixedState, epochProducts,&r47DeferredProductCovariance);
+			"PRODUCT_FIXED", fixedState, epochProducts,
+			&r47DeferredProductCovariance, &r47DeferredFrontend);
 	}
 	else if (networkFixedDiagnosticState)
 	{
@@ -10923,6 +13188,27 @@ void writeZhangInternalProducts(
 	// of its common satellite gauge.
 	if (productFixedMode)
 	{
+		// A system without a current certificate is FLOAT-only even if another
+		// constellation produced a valid joint conditioner. Clear once, then
+		// each local certificate may promote only rows of its own system.
+		if (multiSystemDelivery)
+			for (auto& product : epochProducts)
+				if (product.solution == "PRODUCT_FIXED")
+				{
+					product.integer_structure_valid = false;
+					product.integer_datum_continuous = false;
+					product.integer_precision_valid = false;
+					product.integer_valid = false;
+					product.dual_frequency_ar_valid = false;
+					product.pppar_usable = false;
+					product.ar_valid = false;
+					product.invalid_reason = "NO_CURRENT_SYSTEM_PRODUCT_CERTIFICATE";
+				}
+		bool allSystemEvidenceCommitted = true;
+		for (const auto& [certificateSystem, systemCertification] : productCertifications)
+		{
+		const auto* productCertification = systemCertification;
+		r47EvidenceCommitted = false;
 		struct ProductEffect
 		{
 			bool valid = false;
@@ -11480,7 +13766,8 @@ void writeZhangInternalProducts(
 
 		for (auto& product : epochProducts)
 		{
-			if (product.solution != "PRODUCT_FIXED") continue;
+			if (product.solution != "PRODUCT_FIXED" ||
+				product.satellite.sys != certificateSystem) continue;
 			product.integer_structure_valid = false;
 			product.integer_datum_continuous = false;
 			product.integer_precision_valid = false;
@@ -11491,6 +13778,14 @@ void writeZhangInternalProducts(
 			auto component = satelliteComponents.find(product.satellite);
 			if (component == satelliteComponents.end())
 			{
+				product.integer_component_id.clear();
+				product.integer_datum_id.clear();
+				product.integer_component_size = 0;
+				product.integer_component_rank = 0;
+				product.certified_relation_count = 0;
+				product.cycle_closure_valid = false;
+				product.persistent_relation_known = false;
+				product.current_alignment_state = "CURRENT_ALIGNMENT_UNKNOWN";
 				product.invalid_reason = "NO_PRODUCT_LATTICE_CERTIFICATE";
 				continue;
 			}
@@ -11806,11 +14101,29 @@ void writeZhangInternalProducts(
 					  << zhangProductIntegerLedgerSourceName(held.source);
 			}
 		}
+		allSystemEvidenceCommitted = allSystemEvidenceCommitted && r47EvidenceCommitted;
+		if (!productLedgerWriterAuthorized) break;
+		}
+		r47EvidenceCommitted = allSystemEvidenceCommitted;
 	}
 	writerMemoryBoundary("WRITER_AFTER_INTEGER_AUTHORITY");
 
 	if (!productLedgerWriterAuthorized)
 	{
+		if (multiSystemDelivery)
+		{
+			// The rejected rows have already affected a full joint posterior,
+			// including other systems through shared XYZ/ZTD cross-covariance.
+			// Clearing only one constellation's flags would still publish a
+			// contaminated mean/Q elsewhere. Reject this entire joint branch.
+			trace << "\nZHANG_MULTI_PRODUCT_JOINT_BRANCH status=REJECTED system="
+				<< enum_to_string(productLedgerWriterSystem)
+				<< " reason=" << productLedgerWriterFailureReason
+				<< " fallback=UNCONDITIONED_FLOAT full_cross_covariance=1";
+			writeZhangFloatOnlyProductsNoLifecycle(trace, floatState,
+				"MULTI_JOINT_CONDITIONER_REJECTED:" + productLedgerWriterFailureReason);
+			return;
+		}
 		// This is the last PRODUCT_FIXED publication boundary.  The upstream
 		// search normally catches an affine conflict before a product state is
 		// constructed, but a conflict first discovered while registering writer
@@ -11821,7 +14134,7 @@ void writeZhangInternalProducts(
 		for (auto& product : epochProducts)
 		{
 			if (product.solution != "PRODUCT_FIXED" ||
-				product.satellite.sys != productLedgerWriterSystem) continue;
+				(!multiSystemDelivery && product.satellite.sys != productLedgerWriterSystem)) continue;
 			product.integer_valid = false;
 			product.integer_structure_valid = false;
 			product.integer_datum_continuous = false;
@@ -11834,7 +14147,9 @@ void writeZhangInternalProducts(
 			product.integer_component_rank = 0;
 			product.certified_relation_count = 0;
 			product.product_state = "AR_SUSPENDED";
-			product.invalid_reason = productLedgerWriterFailureReason;
+			product.invalid_reason = multiSystemDelivery
+				? "MULTI_JOINT_CONDITIONER_REJECTED:" + productLedgerWriterFailureReason
+				: productLedgerWriterFailureReason;
 		}
 		trace << "\nZHANG_PRODUCT_PUBLICATION_AUTHORITY time="
 			  << fixedState.time.to_string(0)
@@ -11849,35 +14164,337 @@ void writeZhangInternalProducts(
 			  << " reason=" << productLedgerWriterFailureReason;
 	}
 
-	const bool r47Commit=productFixedMode && productLedgerWriterAuthorized &&
-		productLedgerWriterTransactionValid && r47EvidenceCommitted;
-	if(!r47Commit)
-		std::erase_if(epochProducts,[](const auto& product){return product.solution=="PRODUCT_FIXED";});
-	else if(!r47DeferredProductCovariance.empty() && ensureProductCovarianceFileHeader())
+	// This is only an in-memory candidate.  The final per-row temporal and
+	// numerical gate below must run before the covariance sidecar or the R51
+	// bundle is allowed to commit.
+	const bool r47CandidateAuthorized = productFixedMode &&
+		productLedgerWriterAuthorized && productLedgerWriterTransactionValid &&
+		r47EvidenceCommitted;
+
+	struct CurrentPublicationPlan
 	{
-		std::ofstream covariance(acsConfig.zhangPppAr.product_covariance_filename,std::ios::app);
-		covariance<<r47DeferredProductCovariance;
+		ZhangProductPublicationEvidence evidence;
+		long long proposedGamma = 0;
+		bool gammaReady = false;
+		bool numericalGammaResetApplied = false;
+		bool nativeFullMomentMapProven = false;
+		long long gammaBeforePublicationReset = 0;
+		double appliedPhaseAdjustmentMetres = 0;
+		bool graphEventDocumented = false;
+		std::string mapReason = "NOT_EVALUATED";
+		std::string bridgeReason = "NOT_EVALUATED";
+		std::vector<std::string> bridgeProofIds;
+		std::vector<std::string> bridgeProofStatements;
+		std::shared_ptr<const std::vector<std::string>> sharedBridgeProofStatements;
+		const std::vector<std::string>& bridgeProofStatementsView() const
+		{ return sharedBridgeProofStatements ? *sharedBridgeProofStatements : bridgeProofStatements; }
+	};
+	map<ProductKey, CurrentPublicationPlan> publicationPlans;
+	if (singleBasisHandoff && r47CandidateAuthorized)
+	{
+		const long int epoch =
+			static_cast<long int>(std::llround(fixedState.time.bigTime));
+		for (auto& product : epochProducts)
+		{
+			if (product.solution != "PRODUCT_FIXED") continue;
+			const auto scopedIdentity = scopedEvidenceIdentity(product.satellite.sys);
+			const auto& currentPosteriorId = scopedIdentity.first;
+			const auto& currentChartId = scopedIdentity.second;
+			const ProductKey key{product.satellite, product.observable};
+			auto& plan = publicationPlans[key];
+			auto& evidence = plan.evidence;
+			const ProductHistoryKey historyKey{
+				"PRODUCT_FIXED", product.satellite, product.observable};
+			const auto previous = productHistoryMap.find(historyKey);
+			evidence.priorPublishedIdentity =
+				previous != productHistoryMap.end();
+			evidence.currentSpatialCertificateValid =
+				product.integer_valid && product.dual_frequency_ar_valid;
+			evidence.numericalStepValid = true;
+			const double lambda = wavelength(
+				product.satellite.sys, product.observable);
+			KFKey phaseKey;
+			phaseKey.type = KF::PHASE_BIAS;
+			phaseKey.Sat = product.satellite;
+			phaseKey.num = static_cast<int>(product.observable);
+			KFKey clockKey;
+			clockKey.type = KF::SAT_CLOCK;
+			clockKey.Sat = product.satellite;
+			const auto phase = fixedState.kfIndexMap.find(phaseKey);
+			const auto clock = fixedState.kfIndexMap.find(clockKey);
+			const auto close = [](double observed, double expected)
+			{
+				return std::isfinite(observed) && std::isfinite(expected) &&
+					std::abs(observed - expected) <=
+						1e-8 * std::max({1.0, std::abs(observed),
+							std::abs(expected)});
+			};
+			const auto projected = currentProductProjections.find(key);
+			const bool exactTargetRow =
+				projected != currentProductProjections.end() &&
+				projected->second.valid;
+			const bool actualWriterProjection = exactTargetRow && lambda > 0 &&
+				phase != fixedState.kfIndexMap.end() &&
+				clock != fixedState.kfIndexMap.end() &&
+				close(product.phase_m,
+					projected->second.mean +
+					lambda * static_cast<double>(product.integer_shift_cycles)) &&
+				close(product.clock_m, fixedState.x(clock->second)) &&
+				close(product.phase_sigma_m * product.phase_sigma_m,
+					projected->second.variance) &&
+				close(product.clock_sigma_m * product.clock_sigma_m,
+					fixedState.P(clock->second, clock->second)) &&
+				close(product.clock_phase_covariance_m2,
+					projected->second.clockCovariance) &&
+				close(product.correction_m,
+					product.clock_m - product.phase_m);
+			evidence.nativeProductValid = product.numeric_valid &&
+				product.branch_valid && actualWriterProjection;
+			plan.mapReason = actualWriterProjection
+				? "ACTUAL_WRITER_EXACT_TARGET_AND_FULL_P_ROW"
+				: "ACTUAL_WRITER_PROJECTION_MISMATCH";
+			if (evidence.priorPublishedIdentity)
+			{
+				const auto& prior = previous->second;
+				evidence.samePhysicalSegment =
+					!prior.phaseSegmentId.empty() &&
+					prior.discontinuityCounter == product.discontinuity_counter &&
+					prior.datumVersion == product.datum_version;
+				evidence.sameProductFunctional =
+					!prior.productFunctional.empty() &&
+					prior.productFunctional != "UNAVAILABLE" &&
+					prior.productFunctional ==
+						product.support_segment_fingerprint;
+				if (productRepair)
+					evidence.samePhysicalSegment = evidence.sameProductFunctional &&
+						!prior.phaseSegmentId.empty();
+				evidence.sameBackendChart =
+					prior.backendGeneration >= 0 &&
+					prior.backendGeneration ==
+						product.backend_s_basis_generation;
+			}
+			ZhangGraphProductEventReceipt receipt;
+			plan.graphEventDocumented = zhangGraphProductEventReceipt(
+				integerLedgerState, product.satellite.sys,
+				product.observable, product.satellite, receipt) &&
+				receipt.time == product.time;
+			if (evidence.sameProductFunctional &&
+				!evidence.sameBackendChart && plan.graphEventDocumented)
+			{
+				evidence.exactSameTimeMapProven =
+					receipt.sameTimeMapProven &&
+					receipt.actualWriterRowMatches &&
+					actualWriterProjection;
+				plan.mapReason = receipt.failureReason;
+			}
+			const auto oldFunctional = publishedBefore.find(key);
+			const auto currentFunctional =
+				houProductPhysicalFunctionals.find(key);
+			if (!productRepair && evidence.priorPublishedIdentity &&
+				!evidence.sameProductFunctional &&
+				oldFunctional != publishedBefore.end() &&
+				currentFunctional != houProductPhysicalFunctionals.end() &&
+				plan.graphEventDocumented && actualWriterProjection)
+			{
+				const auto difference = zhangProductIntegerFunctionalDifference(
+					oldFunctional->second, currentFunctional->second);
+				std::string witnessReason;
+				evidence.conditionalProductMapProven = difference.valid &&
+					oldFunctional->second.referenceSatellite ==
+						currentFunctional->second.referenceSatellite &&
+					zhangGraphProductEventTransitionWitness(
+						integerLedgerState, product.satellite.sys,
+						product.observable, product.satellite,
+						currentFunctional->second.referenceSatellite,
+						difference, witnessReason) &&
+					receipt.fullJointMomentTransportProven &&
+					(receipt.conditionalProductMapProven ||
+						(receipt.sameTimeMapProven &&
+							receipt.bridgePhysicalEdges.empty()));
+				plan.mapReason = witnessReason;
+				if (evidence.conditionalProductMapProven &&
+					!currentPosteriorId.empty() && !currentChartId.empty())
+				{
+					auto bridge = zhangQueryCurrentEpochBridge(
+						integerLedgerRuntimeId, product.satellite.sys,
+						product.observable, epoch, currentPosteriorId,
+						currentChartId, difference);
+					if (!bridge.proven)
+					{
+						std::string searchReason;
+						zhangTryAdmitCurrentEventOverlap(
+							trace, floatState, product.satellite.sys,
+							product.observable, product.satellite,
+							currentFunctional->second.referenceSatellite,
+							epoch, currentPosteriorId, currentChartId,
+							difference, zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres),
+							searchReason);
+						bridge = zhangQueryCurrentEpochBridge(
+							integerLedgerRuntimeId, product.satellite.sys,
+							product.observable, epoch, currentPosteriorId,
+							currentChartId, difference);
+						plan.bridgeReason = bridge.proven
+							? bridge.reason : searchReason;
+					}
+					else plan.bridgeReason = bridge.reason;
+					if (bridge.proven)
+					{
+						try
+						{
+							const ZhangExactInteger proposed =
+								ZhangExactInteger(product.integer_shift_cycles)
+								- bridge.value;
+							plan.proposedGamma = proposed.convert_to<long long>();
+							evidence.currentEpochBridgeProven =
+								ZhangExactInteger(plan.proposedGamma) == proposed;
+							plan.bridgeProofIds = bridge.proofIds;
+							const auto closure = zhangDecisionRiskClosure(
+								bridge.proofs);
+							if (closure.valid)
+							for (const auto& [id, atom] : closure.atoms)
+							{
+								std::ostringstream statement;
+								statement << "id=" << std::quoted(id)
+									<< " source=" << std::quoted(
+										atom->observationProvenance)
+									<< " statement=" << std::quoted(
+										atom->originalStatement);
+								plan.bridgeProofStatements.push_back(
+									statement.str());
+							}
+						}
+						catch (...)
+						{
+							plan.bridgeReason = "BRIDGE_GAMMA_OUT_OF_RANGE";
+						}
+					}
+				}
+			}
+			if (productRepair)
+			{
+				evidence.requireFullJointHandoff = true;
+				const auto task = fullJointTasks.find(key);
+				if (task != fullJointTasks.end())
+				{
+					plan.mapReason = task->second.mapReason;
+					plan.bridgeReason = task->second.bridgeReason;
+					evidence.fullJointHandoffProven = task->second.mapProven &&
+						task->second.currentValueProven && actualWriterProjection;
+					// Geometry and integer authorization are different evidence.
+					// The full-joint publication gate still requires BOTH.
+					evidence.conditionalProductMapProven = task->second.mapProven && actualWriterProjection;
+					// Structural zero is a map identity, not a new AR proof.
+					evidence.structuralProductMapProven = evidence.fullJointHandoffProven &&
+						task->second.structuralZero;
+					evidence.currentEpochBridgeProven = evidence.fullJointHandoffProven &&
+						!task->second.structuralZero;
+					if (evidence.fullJointHandoffProven)
+					{
+						const ZhangExactInteger gamma = -task->second.currentValue;
+						try
+						{
+							plan.proposedGamma = gamma.convert_to<long long>();
+							if (ZhangExactInteger(plan.proposedGamma) != gamma)
+								evidence.fullJointHandoffProven =
+									evidence.currentEpochBridgeProven = false;
+						}
+						catch (...) { evidence.fullJointHandoffProven = evidence.currentEpochBridgeProven = false; }
+						plan.bridgeProofIds = task->second.proofIds;
+						plan.sharedBridgeProofStatements = task->second.sharedProofStatements;
+						if (!plan.sharedBridgeProofStatements) plan.bridgeProofStatements = task->second.proofStatements;
+					}
+				}
+			}
+			// A full native FLOAT chart map is deliberately weaker than a
+			// certified integer handoff to the old public segment. It permits
+			// testing the native numerical step after undoing only our explicit
+			// NEW-segment gamma reset; it grants no SAME_SEGMENT authority.
+			plan.nativeFullMomentMapProven = actualWriterProjection &&
+				plan.graphEventDocumented && receipt.oldProductProjectionCaptured &&
+				receipt.representableSameTimeMapProven && receipt.actualWriterProjectionBound &&
+				receipt.fullJointMomentTransportProven &&
+				(receipt.sameTimeMapProven || receipt.conditionalProductMapProven);
+			if (productRepair)
+			{
+				const auto task = fullJointTasks.find(key);
+				plan.nativeFullMomentMapProven = plan.nativeFullMomentMapProven &&
+					task != fullJointTasks.end() && task->second.mapProven &&
+					task->second.nativeToSegment.valid;
+			}
+			const auto nominal = zhangProductPublicationGate(evidence);
+			if (!productRepair && nominal.route == ZhangProductPublicationRoute::SAME_SEGMENT &&
+				!evidence.currentEpochBridgeProven)
+				plan.proposedGamma = product.integer_shift_cycles;
+			else if (nominal.route == ZhangProductPublicationRoute::NEW_SEGMENT)
+				plan.proposedGamma = 0;
+			plan.gammaReady =
+				nominal.route != ZhangProductPublicationRoute::SUSPENDED;
+			if (plan.gammaReady)
+			{
+				plan.gammaBeforePublicationReset = product.integer_shift_cycles;
+				const double phaseAdjustment = lambda *
+					(static_cast<double>(plan.proposedGamma) -
+						static_cast<double>(product.integer_shift_cycles));
+				plan.numericalGammaResetApplied =
+					nominal.route == ZhangProductPublicationRoute::NEW_SEGMENT &&
+					evidence.priorPublishedIdentity && plan.proposedGamma == 0 &&
+					previous->second.discontinuityCounter == product.discontinuity_counter &&
+					previous->second.datumVersion == product.datum_version &&
+					plan.gammaBeforePublicationReset != 0;
+				plan.appliedPhaseAdjustmentMetres = phaseAdjustment;
+				product.phase_m += phaseAdjustment;
+				product.correction_m = product.clock_m - product.phase_m;
+				product.integer_shift_cycles = plan.proposedGamma;
+			}
+			trace << "\nZHANG_CURRENT_PRODUCT_HANDOFF_PREFLIGHT time="
+				  << product.time.to_string(0)
+				  << " satellite=" << product.satellite.id()
+				  << " observable=" << enum_to_string(product.observable)
+				  << " native_projection=" << actualWriterProjection
+				  << " graph_event=" << plan.graphEventDocumented
+				  << " old_joint_moment_transport="
+				  << receipt.fullJointMomentTransportProven
+				  << " joint_reason=" << receipt.jointMomentReason
+				  << " same_functional=" << evidence.sameProductFunctional
+				  << " exact_map=" << evidence.exactSameTimeMapProven
+				  << " conditional_map=" << evidence.conditionalProductMapProven
+				  << " full_joint_handoff=" << evidence.fullJointHandoffProven
+				  << " full_joint_integer=" << (fullJointTasks.contains(key) &&
+					fullJointTasks.at(key).currentValueProven)
+				  << " structural_links=" << (fullJointTasks.contains(key)
+					? fullJointTasks.at(key).structuralLinkCount : 0)
+				  << " current_bridge=" << evidence.currentEpochBridgeProven
+				  << " gamma_after=" << plan.proposedGamma
+				  << " gamma_before=" << plan.gammaBeforePublicationReset
+				  << " native_full_moment_map=" << plan.nativeFullMomentMapProven
+				  << " numerical_gamma_reset=" << plan.numericalGammaResetApplied
+				  << " applied_phase_adjustment_m=" << plan.appliedPhaseAdjustmentMetres
+				  << " route=" << nominal.reason
+				  << " map_reason=" << plan.mapReason
+				  << " bridge_reason=" << plan.bridgeReason;
+		}
 	}
-	if(productTransactionCommitted) *productTransactionCommitted=r47Commit;
-	trace<<"\nZHANG_R47_WRITER_ATOMIC_COMMIT time="<<fixedState.time.to_string(0)
-		<<" committed="<<r47Commit<<" candidate_covariance_staged=1 rejected_branch_output_discarded=1";
 
     // Reject satellite-dependent correction jumps after removing the robust
     // per-signal common mode.  A common clock-datum change can be absorbed by
     // the user's receiver clock; a non-common jump cannot.
-    map<pair<string, E_ObsCode>, vector<int>> continuityGroups;
+    map<tuple<string, E_Sys, E_ObsCode>, vector<int>> continuityGroups;
     for (int index = 0; index < static_cast<int>(epochProducts.size()); index++)
     {
         continuityGroups[
-            {epochProducts[index].solution, epochProducts[index].observable}
+            {epochProducts[index].solution, epochProducts[index].satellite.sys,
+                epochProducts[index].observable}
         ].push_back(index);
     }
     const double maximumGap = std::max(120.0, 2.5 * acsConfig.epoch_interval);
     const double maximumResidualStep =
         acsConfig.zhangPppAr.maximum_product_residual_step_m;
+	map<ProductKey, ZhangPhaseContinuityState> stagedPublicationContinuity;
     for (const auto& [group, indices] : continuityGroups)
     {
         map<int, double> deltas;
+        map<int, ZhangProductNumericalReferenceInput> numericalInputs;
+        map<int, ZhangProductNumericalReference> numericalReferences;
         vector<double> commonModeCandidates;
         for (int index : indices)
         {
@@ -11886,6 +14503,54 @@ void writeZhangInternalProducts(
                 product.solution, product.satellite, product.observable
             };
             auto previous = productHistoryMap.find(key);
+            if (singleBasisHandoff && product.solution == "PRODUCT_FIXED")
+            {
+                const ProductKey productKey{
+                    product.satellite, product.observable};
+                const auto planned = publicationPlans.find(productKey);
+                ZhangProductNumericalReferenceInput input;
+                input.currentNumericValid = product.numeric_valid;
+                input.currentCorrection = product.correction_m;
+                input.currentSigma = product.correction_sigma_m;
+                input.maximumGapSeconds = maximumGap;
+                input.hasPrevious = previous != productHistoryMap.end();
+                input.nominalRoute = planned == publicationPlans.end()
+                    ? ZhangProductPublicationRoute::SUSPENDED
+                    : zhangProductPublicationGate(planned->second.evidence).route;
+                if (planned != publicationPlans.end())
+                {
+                    input.publicationGammaResetApplied = planned->second.numericalGammaResetApplied;
+                    input.nativeFullMomentMapProven = planned->second.nativeFullMomentMapProven;
+                    input.gammaBeforePublicationReset = planned->second.gammaBeforePublicationReset;
+                    input.gammaAfterPublicationReset = planned->second.proposedGamma;
+                    input.publicationWavelengthMetres = wavelength(product.satellite.sys, product.observable);
+                    input.appliedPhaseAdjustmentMetres = planned->second.appliedPhaseAdjustmentMetres;
+                }
+                if (input.hasPrevious)
+                {
+                    input.samePublishedIdentity =
+                        previous->second.discontinuityCounter ==
+                            product.discontinuity_counter &&
+                        previous->second.datumVersion == product.datum_version;
+                    input.previousCorrection = previous->second.correction;
+                    input.previousSigma = previous->second.correctionSigma;
+                    input.gapSeconds =
+                        (product.time - previous->second.time).to_double();
+                }
+                const auto reference = zhangProductNumericalReference(input);
+                numericalInputs.emplace(index, input);
+                numericalReferences.emplace(index, reference);
+                if (reference.hasDelta)
+                {
+                    deltas[index] = reference.delta;
+                    // New-segment values must not bias the robust common mode,
+                    // but an available same-datum comparison still has to pass.
+                    if (input.nominalRoute ==
+                        ZhangProductPublicationRoute::SAME_SEGMENT)
+                        commonModeCandidates.push_back(reference.delta);
+                }
+                continue;
+            }
             if (previous == productHistoryMap.end() ||
                 !product.numeric_valid ||
                 previous->second.discontinuityCounter !=
@@ -11920,6 +14585,10 @@ void writeZhangInternalProducts(
         for (int index : indices)
         {
             auto& product = epochProducts[index];
+			ProductHistoryKey key{
+				product.solution, product.satellite, product.observable
+			};
+			const auto previous = productHistoryMap.find(key);
 			if (!floatState.lastPppTransactionCommitted ||
 				!floatState.lastPppQcConverged)
 			{
@@ -11935,18 +14604,163 @@ void writeZhangInternalProducts(
 			}
             auto delta = deltas.find(index);
             double residualStep = 0;
-            if (delta != deltas.end())
+			bool numericalStepValid = true;
+			const bool requireNumericalEvidence = singleBasisHandoff &&
+				product.solution == "PRODUCT_FIXED";
+			ZhangProductNumericalAssessment numericalAssessment;
+			double residualLimit = maximumResidualStep;
+			if (product.solution == "PRODUCT_FIXED" &&
+				previous != productHistoryMap.end())
+			{
+				// This is an outlier guard, not an integer bridge proof.  The
+				// one-metre floor is deliberately far above the normal product
+				// uncertainty; ten times the sum of endpoint sigmas allows for
+				// their otherwise unknown temporal correlation.
+				const double uncertaintyGuard = std::max(1.0,
+					10.0 * (std::abs(product.correction_sigma_m) +
+						std::abs(previous->second.correctionSigma)));
+				residualLimit = maximumResidualStep > 0
+					? std::min(maximumResidualStep, uncertaintyGuard)
+					: uncertaintyGuard;
+			}
+            if (requireNumericalEvidence)
+            {
+                numericalAssessment = zhangAssessProductNumericalContinuity(
+                    numericalReferences.at(index), commonMode, residualLimit);
+                numericalStepValid = numericalAssessment.valid;
+                residualStep = numericalAssessment.residualStep;
+                if (!numericalStepValid && !numericalAssessment.gapOnlyUnassessed)
+                {
+                    product.continuity_valid = false;
+                    product.invalid_reason = numericalAssessment.reason;
+                }
+            }
+            else if (delta != deltas.end())
             {
                 residualStep = std::abs(delta->second - commonMode);
                 if (!std::isfinite(residualStep) ||
-                    (maximumResidualStep > 0 &&
-                     residualStep > maximumResidualStep))
+					(residualLimit > 0 && residualStep > residualLimit))
                 {
                     product.continuity_valid = false;
+					numericalStepValid = false;
                     product.invalid_reason =
                         "COMMON_MODE_REMOVED_STEP_EXCEEDED";
                 }
             }
+			if (product.solution == "PRODUCT_FIXED" &&
+				r47CandidateAuthorized)
+			{
+				const ProductKey productKey{
+					product.satellite, product.observable};
+				const auto planned = publicationPlans.find(productKey);
+				ZhangProductPublicationEvidence evidence =
+					planned == publicationPlans.end()
+						? ZhangProductPublicationEvidence{}
+						: planned->second.evidence;
+				evidence.numericalStepValid = numericalStepValid;
+				if (singleBasisHandoff)
+				{
+					evidence.nativeProductValid =
+						evidence.nativeProductValid &&
+						std::isfinite(product.phase_m) &&
+						std::isfinite(product.correction_m) &&
+						planned != publicationPlans.end();
+				}
+				else
+				{
+					// The legacy mode retains its original product eligibility;
+					// the new temporal gate is opt-in with the single basis.
+					evidence.nativeProductValid = product.numeric_valid &&
+						product.branch_valid;
+					evidence.currentSpatialCertificateValid =
+						product.integer_valid && product.dual_frequency_ar_valid;
+					evidence.priorPublishedIdentity =
+						previous != productHistoryMap.end();
+					evidence.samePhysicalSegment = true;
+					evidence.sameProductFunctional = true;
+					evidence.sameBackendChart = true;
+				}
+				const auto decision = requireNumericalEvidence
+					? zhangProductPublicationWithNumericalAssessment(
+						evidence, numericalAssessment)
+					: zhangProductPublicationGate(evidence);
+				product.same_segment_continuous =
+					decision.route == ZhangProductPublicationRoute::SAME_SEGMENT;
+				product.requires_user_ambiguity_reset =
+					decision.requireUserReset;
+				if (singleBasisHandoff &&
+					decision.route != ZhangProductPublicationRoute::SUSPENDED &&
+					planned != publicationPlans.end())
+				{
+					auto continuity = continuityMap[productKey];
+					continuity.integerShiftCycles =
+						planned->second.proposedGamma;
+					continuity.fractionalShiftCycles = 0;
+					if (decision.route ==
+						ZhangProductPublicationRoute::NEW_SEGMENT &&
+						previous != productHistoryMap.end() &&
+						previous->second.discontinuityCounter ==
+							product.discontinuity_counter &&
+						previous->second.datumVersion == product.datum_version)
+						continuity.beginPublicationSegment(product.time,
+							requireNumericalEvidence &&
+								numericalAssessment.gapOnlyUnassessed
+								? "numerical_reference_gap_unassessed_new_segment"
+								: "current_epoch_handoff_unproved_new_segment");
+					else if (evidence.currentEpochBridgeProven)
+						continuity.resetReason =
+							"current_epoch_integer_handoff_proven";
+					stagedPublicationContinuity[productKey] = continuity;
+					product.discontinuity_counter = continuity.counter;
+					product.datum_version = continuity.datumVersion;
+					product.product_iod = continuity.iod;
+					product.valid_from = continuity.validFrom;
+					product.reset_reason = continuity.resetReason;
+					if (decision.route ==
+						ZhangProductPublicationRoute::SAME_SEGMENT &&
+						previous != productHistoryMap.end())
+						product.public_phase_segment_id =
+							previous->second.phaseSegmentId;
+					else
+						product.public_phase_segment_id =
+							"R51PUB-" + product.satellite.id() + "-" +
+							enum_to_string(product.observable) + "-" +
+							product.time.to_string(0) + "-C" +
+							std::to_string(continuity.counter);
+					product.integer_datum_id =
+						"HOU-" + enum_to_string(product.satellite.sys) +
+						"-" + enum_to_string(product.observable) + "-V" +
+						std::to_string(continuity.datumVersion);
+				}
+				product.continuity_valid =
+					decision.route != ZhangProductPublicationRoute::SUSPENDED;
+				if (decision.route == ZhangProductPublicationRoute::SUSPENDED)
+					product.invalid_reason = decision.reason;
+				trace << "\nZHANG_PRODUCT_PUBLICATION_GATE time="
+					  << product.time.to_string(0)
+					  << " satellite=" << product.satellite.id()
+					  << " observable=" << enum_to_string(product.observable)
+					  << " route=" << (product.same_segment_continuous
+						? "SAME_SEGMENT" :
+						(decision.route == ZhangProductPublicationRoute::NEW_SEGMENT
+							? "NEW_SEGMENT" : "SUSPENDED"))
+					  << " reset=" << product.requires_user_ambiguity_reset
+					  << " same_physical=" << evidence.samePhysicalSegment
+					  << " same_functional=" << evidence.sameProductFunctional
+					  << " same_chart=" << evidence.sameBackendChart
+					  << " exact_map=" << evidence.exactSameTimeMapProven
+					  << " conditional_map="
+					  << evidence.conditionalProductMapProven
+					  << " current_bridge="
+					  << evidence.currentEpochBridgeProven
+					  << " numerical_assessment="
+					  << (requireNumericalEvidence
+						? numericalAssessment.state : "LEGACY")
+					  << " numerical_assessment_reason="
+					  << (requireNumericalEvidence
+						? numericalAssessment.reason : "LEGACY")
+					  << " reason=" << decision.reason;
+			}
             product.ppp_usable =
                 product.numeric_valid && product.branch_valid &&
                 product.continuity_valid;
@@ -11999,20 +14813,6 @@ void writeZhangInternalProducts(
 				product.product_state = "FLOAT_ONLY";
 				product.invalid_reason = "ROBUST_QC_NOT_CONVERGED";
 			}
-
-            ProductHistoryKey key{
-                product.solution, product.satellite, product.observable
-            };
-            if (product.ppp_usable)
-            {
-                productHistoryMap[key] = {
-                    product.time,
-                    product.correction_m,
-                    product.discontinuity_counter,
-                    product.datum_version
-                };
-            }
-            appendProduct(product);
             if (acsConfig.zhangPppAr.output_diagnostics)
             {
                 trace << "\nZHANG_PRODUCT_NUMERIC_GATE time="
@@ -12020,8 +14820,44 @@ void writeZhangInternalProducts(
                       << " solution=" << product.solution
                       << " satellite=" << product.satellite.id()
                       << " observable=" << enum_to_string(product.observable)
+                      << " has_delta=" << (delta != deltas.end())
+                      << " numerical_assessment="
+                      << (requireNumericalEvidence
+                          ? numericalAssessment.state : "LEGACY")
+                      << " numerical_assessment_reason="
+                      << (requireNumericalEvidence
+                          ? numericalAssessment.reason : "LEGACY")
+                      << " history_available="
+                      << (previous != productHistoryMap.end())
+                      << " previous_epoch_gpst_seconds="
+                      << (previous != productHistoryMap.end()
+                          ? static_cast<double>(previous->second.time.bigTime)
+                          : std::numeric_limits<double>::quiet_NaN())
+                      << " history_gap_s="
+                      << (previous != productHistoryMap.end()
+                          ? (product.time - previous->second.time).to_double()
+                          : std::numeric_limits<double>::quiet_NaN())
+                      << " history_max_gap_s=" << maximumGap
+                      << " history_identity_match="
+                      << (requireNumericalEvidence
+                          ? numericalInputs.at(index).samePublishedIdentity
+                          : previous != productHistoryMap.end() &&
+                              previous->second.discontinuityCounter ==
+                                  product.discontinuity_counter &&
+                              previous->second.datumVersion == product.datum_version)
+                      << " comparison_delta_m="
+                      << (delta != deltas.end() ? delta->second
+                          : std::numeric_limits<double>::quiet_NaN())
+                      << " numerical_gamma_reset="
+                      << (requireNumericalEvidence && numericalInputs.at(index).publicationGammaResetApplied)
+                      << " native_full_moment_map="
+                      << (requireNumericalEvidence && numericalInputs.at(index).nativeFullMomentMapProven)
+                      << " comparison_phase_adjustment_m="
+                      << (requireNumericalEvidence && numericalInputs.at(index).publicationGammaResetApplied
+                          ? numericalInputs.at(index).appliedPhaseAdjustmentMetres : 0.0)
                       << " common_mode_step_m=" << commonMode
                       << " residual_step_m=" << residualStep
+					  << " residual_limit_m=" << residualLimit
                       << " numeric_valid=" << product.numeric_valid
                       << " branch_valid=" << product.branch_valid
                       << " continuity_valid=" << product.continuity_valid
@@ -12029,12 +14865,584 @@ void writeZhangInternalProducts(
                       << " pppar_usable=" << product.pppar_usable
 					  << " dual_frequency_ar_valid="
 					  << product.dual_frequency_ar_valid
+					  << " same_segment_continuous="
+					  << product.same_segment_continuous
+					  << " requires_user_reset="
+					  << product.requires_user_ambiguity_reset
 					  << " product_state=" << product.product_state
                       << " reason=" << product.invalid_reason;
             }
         }
     }
+	if (singleBasisHandoff && r47CandidateAuthorized)
+	{
+		for (const auto& [system, observables] :
+			acsConfig.zhangPppAr.baseline_observables)
+		{
+			if (observables.size() != 2) continue;
+			map<SatSys, std::array<int, 2>> bySatellite;
+			for (int i = 0; i < static_cast<int>(epochProducts.size()); ++i)
+			{
+				const auto& row = epochProducts[i];
+				if (row.solution != "PRODUCT_FIXED" ||
+					row.satellite.sys != system) continue;
+				const int signal = row.observable == observables[0] ? 0 :
+					row.observable == observables[1] ? 1 : -1;
+				if (signal < 0) continue;
+				bySatellite.try_emplace(row.satellite,
+					std::array<int, 2>{-1, -1}).first->second[signal] = i;
+			}
+			for (const auto& [satellite, pair] : bySatellite)
+			{
+				if (pair[0] < 0 || pair[1] < 0)
+				{
+					for (int index : pair)
+					{
+						if (index < 0) continue;
+						auto& row = epochProducts[index];
+						row.dual_frequency_ar_valid = false;
+						row.pppar_usable = false;
+						row.ar_valid = false;
+						row.product_state = "AR_SUSPENDED";
+						row.invalid_reason =
+							"DUAL_FREQUENCY_PRODUCT_PARTNER_MISSING";
+					}
+					continue;
+				}
+				auto route = [&](int index)
+				{
+					const auto& row = epochProducts[index];
+					return ZhangProductPublicationDecision{
+						!row.pppar_usable
+							? ZhangProductPublicationRoute::SUSPENDED
+							: row.same_segment_continuous
+								? ZhangProductPublicationRoute::SAME_SEGMENT
+								: ZhangProductPublicationRoute::NEW_SEGMENT,
+						row.requires_user_ambiguity_reset,
+						"WRITER_PAIR_AGGREGATION"};
+				};
+				const auto pairDecision =
+					zhangAggregateDualFrequencyPublication(
+						route(pair[0]), route(pair[1]));
+				for (int index : pair)
+				{
+					auto& row = epochProducts[index];
+					if (!pairDecision.dualFrequencyArUsable)
+					{
+						row.dual_frequency_ar_valid = false;
+						row.pppar_usable = false;
+						row.ar_valid = false;
+						row.product_state = "AR_SUSPENDED";
+						row.invalid_reason = pairDecision.reason;
+					}
+				}
+				if (!productRepair && pairDecision.dualFrequencyArUsable &&
+					pairDecision.resetBothUserAmbiguities &&
+					(epochProducts[pair[0]].requires_user_ambiguity_reset ||
+					 epochProducts[pair[1]].requires_user_ambiguity_reset))
+				{
+					for (int index : pair)
+					{
+						auto& row = epochProducts[index];
+						if (row.requires_user_ambiguity_reset) continue;
+						const ProductKey key{satellite, row.observable};
+						auto state = stagedPublicationContinuity.contains(key)
+							? stagedPublicationContinuity.at(key)
+							: continuityMap[key];
+						state.beginPublicationSegment(row.time,
+							"dual_frequency_partner_handoff_reset");
+						stagedPublicationContinuity[key] = state;
+						// The phase product itself remains continuous; only the
+						// two-signal user ambiguity history must be restarted.
+						row.requires_user_ambiguity_reset = true;
+						row.discontinuity_counter = state.counter;
+						row.datum_version = state.datumVersion;
+						row.product_iod = state.iod;
+						row.valid_from = state.validFrom;
+						row.reset_reason = state.resetReason;
+						row.discontinuity = true;
+						row.integer_datum_id =
+							"HOU-" + enum_to_string(system) + "-" +
+							enum_to_string(row.observable) + "-V" +
+							std::to_string(state.datumVersion);
+					}
+				}
+				trace << "\nZHANG_DUAL_FREQUENCY_PUBLICATION time="
+					  << fixedState.time.to_string(0)
+					  << " satellite=" << satellite.id()
+					  << " ar_usable=" << pairDecision.dualFrequencyArUsable
+					  << " reset_both=" << pairDecision.resetBothUserAmbiguities
+					  << " reason=" << pairDecision.reason;
+			}
+		}
+	}
 	writerMemoryBoundary("WRITER_AFTER_CONTINUITY");
+	// The sidecar belongs to ALL usable PPP rows, not just the subset that
+	// passed dual-frequency AR. Previously a PPP-only G10/L1 row could be
+	// advertised usable while its CLOCK/PHASE columns were filtered away.
+	if (singleBasisHandoff && r47CandidateAuthorized)
+	{
+		std::set<ProductCovarianceKey> covarianceDiagonals;
+		std::istringstream covarianceInput(r47DeferredProductCovariance);
+		std::string line;
+		while (std::getline(covarianceInput, line))
+		{
+			const auto fields = splitCsv(line);
+			if (fields.size() != 9 || fields[1] != "PRODUCT_FIXED") continue;
+			try
+			{
+				const ProductCovarianceKey row{
+					SatSys(fields[2].c_str()), fields[3],
+					string_to_enum<E_ObsCode>(fields[4])};
+				const ProductCovarianceKey column{
+					SatSys(fields[5].c_str()), fields[6],
+					string_to_enum<E_ObsCode>(fields[7])};
+				const double value = std::stod(fields[8]);
+				if (!(row < column) && !(column < row) &&
+					std::isfinite(value) && value >= 0)
+					covarianceDiagonals.insert(row);
+			}
+			catch (...) { /* final complete-triangle check rejects malformed input */ }
+		}
+		for (auto& row : epochProducts)
+		{
+			if (!zhangPublishedProductRequiresJointCovariance(row.solution, row.ppp_usable)) continue;
+			if (zhangPublishedProductHasNoiseParameters(
+				covarianceDiagonals.contains({row.satellite, "CLOCK", E_ObsCode::NONE}),
+				covarianceDiagonals.contains({row.satellite, "PHASE", row.observable})))
+				continue;
+			row.ppp_usable = row.pppar_usable = row.ar_valid = false;
+			row.dual_frequency_ar_valid = false;
+			row.numeric_valid = false;
+			row.product_state = "AR_SUSPENDED";
+			row.invalid_reason = "PUBLISHED_JOINT_COVARIANCE_PARAMETER_MISSING";
+			trace << "\nZHANG_PRODUCT_QP_AVAILABILITY_REJECT time="
+				<< row.time.to_string(0) << " satellite=" << row.satellite.id()
+				<< " observable=" << enum_to_string(row.observable);
+		}
+		// Availability was checked after the initial signal-pair gate. If
+		// one signal has now lost Qp, its partner remains a legal PPP control
+		// but cannot retain a dual-frequency AR authorization on its own.
+		std::set<ProductKey> arNoiseEligible;
+		for (const auto& row : epochProducts)
+			if (row.solution == "PRODUCT_FIXED" && row.ppp_usable &&
+				row.pppar_usable && row.ar_valid && row.dual_frequency_ar_valid)
+				arNoiseEligible.insert({row.satellite, row.observable});
+		for (auto& row : epochProducts)
+		{
+			if (row.solution != "PRODUCT_FIXED" || !row.pppar_usable) continue;
+			const auto required = acsConfig.zhangPppAr.baseline_observables.find(row.satellite.sys);
+			const bool completePair = required != acsConfig.zhangPppAr.baseline_observables.end() &&
+				required->second.size() == 2 &&
+				arNoiseEligible.contains({row.satellite, required->second[0]}) &&
+				arNoiseEligible.contains({row.satellite, required->second[1]});
+			if (completePair) continue;
+			row.pppar_usable = row.ar_valid = row.dual_frequency_ar_valid = false;
+			row.product_state = "AR_SUSPENDED";
+			if (row.invalid_reason.empty() || row.invalid_reason == "NONE")
+				row.invalid_reason = "DUAL_FREQUENCY_QP_PARTNER_UNAVAILABLE";
+		}
+	}
+	const bool finalFixedProductAvailable = std::any_of(
+		epochProducts.begin(), epochProducts.end(), [](const auto& product)
+		{
+			return product.solution == "PRODUCT_FIXED" &&
+				product.pppar_usable && product.ar_valid &&
+				product.dual_frequency_ar_valid;
+		});
+	bool finalCovarianceComplete = true;
+	if (singleBasisHandoff && r47CandidateAuthorized &&
+		finalFixedProductAvailable)
+	{
+		std::set<ProductCovarianceKey> publishedParameters;
+		for (const auto& product : epochProducts)
+		{
+			if (!zhangPublishedProductRequiresJointCovariance(product.solution, product.ppp_usable)) continue;
+			publishedParameters.insert({
+				product.satellite, "CLOCK", E_ObsCode::NONE});
+			publishedParameters.insert({
+				product.satellite, "PHASE", product.observable});
+		}
+		std::set<std::pair<ProductCovarianceKey,
+			ProductCovarianceKey>> seenPairs;
+		std::istringstream input(r47DeferredProductCovariance);
+		std::ostringstream filtered;
+		std::string line;
+		int omittedRows = 0;
+		while (std::getline(input, line) && finalCovarianceComplete)
+		{
+			const auto fields = splitCsv(line);
+			if (fields.size() != 9 || fields[1] != "PRODUCT_FIXED")
+			{
+				finalCovarianceComplete = false;
+				break;
+			}
+			try
+			{
+				const auto row = ProductCovarianceKey{
+					SatSys(fields[2].c_str()), fields[3],
+					string_to_enum<E_ObsCode>(fields[4])};
+				const auto column = ProductCovarianceKey{
+					SatSys(fields[5].c_str()), fields[6],
+					string_to_enum<E_ObsCode>(fields[7])};
+				const double value = std::stod(fields[8]);
+				const long int rowEpoch = static_cast<long int>(
+					std::llround(std::stold(fields[0])));
+				if (!std::isfinite(value) ||
+					rowEpoch != static_cast<long int>(std::llround(
+						fixedState.time.bigTime)))
+				{
+					finalCovarianceComplete = false;
+					break;
+				}
+				if (!publishedParameters.contains(row) ||
+					!publishedParameters.contains(column))
+				{
+					omittedRows++;
+					continue;
+				}
+				const auto pair = column < row
+					? std::make_pair(column, row)
+					: std::make_pair(row, column);
+				if (!seenPairs.insert(pair).second)
+				{
+					finalCovarianceComplete = false;
+					break;
+				}
+				filtered << line << '\n';
+			}
+			catch (...)
+			{
+				finalCovarianceComplete = false;
+			}
+		}
+		const std::size_t parameterCount = publishedParameters.size();
+		finalCovarianceComplete = finalCovarianceComplete &&
+			seenPairs.size() == parameterCount * (parameterCount + 1) / 2;
+		if (finalCovarianceComplete)
+			r47DeferredProductCovariance = filtered.str();
+		trace << "\nZHANG_PRODUCT_COVARIANCE_PUBLICATION_PREFLIGHT time="
+			  << fixedState.time.to_string(0)
+			  << " valid=" << finalCovarianceComplete
+			  << " parameters=" << parameterCount
+			  << " retained_pairs=" << seenPairs.size()
+			  << " omitted_rows=" << omittedRows;
+	}
+	bool r47Commit = r47CandidateAuthorized && finalFixedProductAvailable &&
+		finalCovarianceComplete && !r47DeferredProductCovariance.empty();
+	if (r47Commit)
+	{
+		r47Commit = ensureProductCovarianceFileHeader();
+		if (r47Commit)
+		{
+			std::ofstream covariance(
+				acsConfig.zhangPppAr.product_covariance_filename,
+				std::ios::app);
+			covariance << r47DeferredProductCovariance;
+			covariance.flush();
+			r47Commit = static_cast<bool>(covariance);
+		}
+	}
+	if (!r47Commit)
+		std::erase_if(epochProducts, [](const auto& product)
+			{return product.solution == "PRODUCT_FIXED";});
+	const std::string continuityBundleIdentity = floatState.time.to_string(0) + "@" +
+		zhangR51NumericRoot(floatState.x, floatState.P);
+	for (auto& product : epochProducts)
+	{
+		auto& contract = product.published_continuity;
+		contract.bundleId = continuityBundleIdentity;
+		const auto previous = productHistoryMap.find({
+			product.solution, product.satellite, product.observable});
+		if (previous != productHistoryMap.end())
+		{
+			contract.previousEpochGpstSeconds =
+				static_cast<double>(previous->second.time.bigTime);
+			contract.previousCounter = previous->second.discontinuityCounter;
+			contract.previousDatumVersion = previous->second.datumVersion;
+			contract.previousPublicSegment = previous->second.phaseSegmentId.empty()
+				? "UNAVAILABLE" : previous->second.phaseSegmentId;
+		}
+		contract.jointCovarianceComplete = product.solution == "PRODUCT_FIXED" &&
+			r47Commit && finalCovarianceComplete && product.ppp_usable;
+		if (singleBasisHandoff && contract.jointCovarianceComplete)
+		{
+			const auto plan = publicationPlans.find({product.satellite, product.observable});
+			if (plan != publicationPlans.end())
+			{
+				const auto& evidence = plan->second.evidence;
+				const bool completeMap = evidence.fullJointHandoffProven ||
+					(evidence.sameProductFunctional && evidence.sameBackendChart);
+				const std::string proof = "R51CONT-V1-" + contract.bundleId + "-" +
+					product.satellite.id() + "-" + enum_to_string(product.observable);
+				zhangAuthorizePublishedIdentity(contract,
+					static_cast<double>(product.time.bigTime), product.public_phase_segment_id,
+					product.same_segment_continuous && !product.requires_user_ambiguity_reset &&
+						plan->second.gammaReady && evidence.nativeProductValid,
+					completeMap,
+					product.pppar_usable && product.ar_valid && product.dual_frequency_ar_valid,
+					proof);
+			}
+		}
+		// A versioned full-Qp consumer must never be offered a usable row with
+		// no published joint covariance. This does not manufacture missing Qp.
+		if (!contract.jointCovarianceComplete)
+		{
+			product.ppp_usable = product.pppar_usable = product.ar_valid = false;
+			product.dual_frequency_ar_valid = false;
+		}
+	}
+	for (const auto& product : epochProducts)
+	{
+		if (product.ppp_usable &&
+			(product.solution != "PRODUCT_FIXED" ||
+				(r47Commit && product.pppar_usable &&
+					product.dual_frequency_ar_valid)))
+		{
+			ProductHistoryKey key{
+				product.solution, product.satellite, product.observable
+			};
+			productHistoryMap[key] = {
+				product.time, product.correction_m,
+				product.discontinuity_counter, product.datum_version,
+					(singleBasisHandoff
+						? product.public_phase_segment_id
+						: product.phase_product_segment_id),
+				product.support_segment_fingerprint,
+				product.backend_s_basis_generation,
+				product.correction_sigma_m
+			};
+		}
+		appendProduct(product);
+	}
+	if (r47Commit && singleBasisHandoff)
+	{
+		std::ostringstream handoffEvidence;
+		// This opt-in wire format has an adapted committed-bundle consumer.
+		// It interns exact legacy statement bytes once per epoch, never a
+		// shortened/hash-only proof. Default remains inline and compatible.
+		const bool internHandoffProofs = zhangInternHandoffProofsEnabled(true);
+		ZhangDecisionProofDictionary handoffProofDictionary;
+		std::map<ProductKey, std::vector<std::string>> handoffDetailReferences;
+		if (internHandoffProofs)
+		{
+			for (const auto& product : epochProducts)
+			{
+				if (product.solution != "PRODUCT_FIXED" || !product.pppar_usable ||
+					!product.ar_valid || !product.dual_frequency_ar_valid) continue;
+				const ProductKey key{product.satellite, product.observable};
+				const auto plan = publicationPlans.find(key);
+				if (plan == publicationPlans.end()) continue;
+				auto [referenceEntry, inserted] = handoffDetailReferences.try_emplace(key);
+				if (!inserted) continue;
+				auto& references = referenceEntry->second;
+				for (const auto& statement : plan->second.bridgeProofStatementsView())
+				{
+					std::string id, reason;
+					if (!zhangHandoffProofStatementId(statement, id) ||
+						!handoffProofDictionary.intern(id, statement, reason))
+						throw std::runtime_error("R51_HANDOFF_PROOF_INTERN_FAILED:" + reason);
+					references.push_back(std::move(id));
+				}
+				const std::multiset<std::string> ids(plan->second.bridgeProofIds.begin(),
+					plan->second.bridgeProofIds.end());
+				const std::multiset<std::string> detailIds(references.begin(), references.end());
+				if (ids != detailIds)
+					throw std::runtime_error("R51_HANDOFF_PROOF_REFERENCE_ID_MISMATCH");
+			}
+			handoffEvidence << "handoff_proof_format=INTERNED_V1\n";
+		}
+		handoffEvidence
+			<< "handoff_policy=CURRENT_EPOCH_SINGLE_BASIS\n"
+			<< "handoff_statistical_calibration="
+			<< (zhangRatioOnly()
+				? "UNCALIBRATED_RATIO_ONLY" : "MODEL_BOUND")
+			<< "\n";
+		// Bind every real-map claim, including a PPP-only row, to this
+		// certificate. The following AR proof loop intentionally remains
+		// stricter and must not be widened into an integer authorization.
+		for (const auto& product : epochProducts)
+		{
+			if (product.solution != "PRODUCT_FIXED" || !product.ppp_usable) continue;
+			const auto& contract = product.published_continuity;
+			handoffEvidence << "public_continuity_contract=1 satellite=" << product.satellite.id()
+				<< " observable=" << enum_to_string(product.observable)
+				<< " proof_id=" << std::quoted(contract.proofId)
+				<< " kind=" << contract.kind
+				<< " previous_epoch=" << contract.previousEpochGpstSeconds
+				<< " previous_counter=" << contract.previousCounter
+				<< " previous_datum_version=" << contract.previousDatumVersion
+				<< " previous_public_segment=" << std::quoted(contract.previousPublicSegment)
+				<< " current_epoch=" << static_cast<double>(product.time.bigTime)
+				<< " current_counter=" << product.discontinuity_counter
+				<< " current_datum_version=" << product.datum_version
+				<< " current_public_segment=" << std::quoted(product.public_phase_segment_id)
+				<< " float_transport_valid=" << contract.floatTransportValid
+				<< " correction_shift_m=" << contract.floatCorrectionShiftMetres
+				<< " integer_transport_valid=" << contract.integerTransportValid
+				<< " joint_covariance_complete=" << contract.jointCovarianceComplete
+				<< " bundle_id=" << std::quoted(contract.bundleId);
+			const auto plan = publicationPlans.find({product.satellite, product.observable});
+			if (plan != publicationPlans.end())
+			{
+				const auto& evidence = plan->second.evidence;
+				handoffEvidence << " native_writer_row_valid=" << evidence.nativeProductValid
+					<< " full_joint_handoff=" << evidence.fullJointHandoffProven
+					<< " same_functional=" << evidence.sameProductFunctional
+					<< " same_backend_chart=" << evidence.sameBackendChart
+					<< " actual_functional=" << std::quoted(product.support_segment_fingerprint)
+					<< " actual_backend=" << product.backend_s_basis_generation
+					<< " map_reason=" << std::quoted(plan->second.mapReason);
+				if (!product.pppar_usable && contract.floatTransportValid)
+					for (const auto& statement : plan->second.bridgeProofStatementsView())
+						handoffEvidence << " real_map_source_detail=" << std::quoted(statement);
+			}
+			handoffEvidence << '\n';
+		}
+		// The per-signal gate is provisional until the two-frequency pair and
+		// covariance checks finish.  A rejected signal must not advance public
+		// gamma/segment history merely because another satellite was committed.
+		std::set<ProductKey> finalPublishedKeys;
+		for (const auto& product : epochProducts)
+		{
+			if (product.solution == "PRODUCT_FIXED" &&
+				product.pppar_usable && product.ar_valid &&
+				product.dual_frequency_ar_valid)
+				finalPublishedKeys.insert(
+					{product.satellite, product.observable});
+		}
+		for (auto& [key, state] : stagedPublicationContinuity)
+		{
+			if (finalPublishedKeys.contains(key))
+				continuityMap[key] = std::move(state);
+		}
+		for (const auto& product : epochProducts)
+		{
+			if (product.solution != "PRODUCT_FIXED" ||
+				!product.pppar_usable || !product.ar_valid ||
+				!product.dual_frequency_ar_valid) continue;
+			const ProductKey key{product.satellite, product.observable};
+			const auto functional = houProductPhysicalFunctionals.find(key);
+			if (functional != houProductPhysicalFunctionals.end() &&
+				functional->second.valid &&
+				zhangProductPhysicalFunctionalFingerprint(
+					functional->second) ==
+					product.support_segment_fingerprint)
+				publishedProductFunctionals[key] = functional->second;
+			if (productRepair && functional != houProductPhysicalFunctionals.end() &&
+				functional->second.valid && zhangProductPhysicalFunctionalFingerprint(
+					functional->second) == product.support_segment_fingerprint)
+			{
+				const auto task = fullJointTasks.find(key);
+				if (product.same_segment_continuous && task != fullJointTasks.end() &&
+					task->second.mapProven && task->second.currentValueProven)
+					publishedFullJointDifferences[key] = task->second.nativeToSegment;
+				else
+				{
+					publishedSegmentFunctionals[key] = functional->second;
+					ZhangProductIntegerTransition identity;
+					identity.observable = product.observable;
+					identity.valid = true;
+					identity.failureReason = "NONE";
+					publishedFullJointDifferences[key] = std::move(identity);
+				}
+				// Commit a NEW public anchor even when this published row starts a
+				// new segment. Never reconnect a later candidate to an older segment.
+				productStructuralTransportChains[key] = zhangAnchorFullJointStructuralChain(
+					product.support_segment_fingerprint, product.backend_s_basis_generation,
+					product.public_phase_segment_id, publishedFullJointDifferences.at(key));
+			}
+			const auto plan = publicationPlans.find(key);
+			handoffEvidence << "handoff_satellite="
+				<< product.satellite.id()
+				<< " observable=" << enum_to_string(product.observable)
+				<< " public_segment=" << std::quoted(
+					product.public_phase_segment_id)
+				<< " same_segment=" << product.same_segment_continuous
+				<< " user_reset="
+				<< product.requires_user_ambiguity_reset
+				<< " functional=" << std::quoted(
+					product.support_segment_fingerprint)
+				<< " gamma=" << product.integer_shift_cycles
+				<< " continuity_contract_version=" << product.published_continuity.version
+				<< " continuity_proof_id=" << std::quoted(product.published_continuity.proofId)
+				<< " continuity_transport_kind=" << product.published_continuity.kind
+				<< " previous_epoch_gpst_seconds=" << product.published_continuity.previousEpochGpstSeconds
+				<< " previous_counter=" << product.published_continuity.previousCounter
+				<< " previous_datum_version=" << product.published_continuity.previousDatumVersion
+				<< " previous_public_segment=" << std::quoted(product.published_continuity.previousPublicSegment)
+				<< " float_chart_transport_valid=" << product.published_continuity.floatTransportValid
+				<< " float_correction_shift_m=" << product.published_continuity.floatCorrectionShiftMetres
+				<< " integer_transport_valid=" << product.published_continuity.integerTransportValid
+				<< " joint_covariance_complete=" << product.published_continuity.jointCovarianceComplete
+				<< " continuity_bundle_id=" << std::quoted(product.published_continuity.bundleId);
+			if (plan != publicationPlans.end())
+			{
+				handoffEvidence << " map=" << std::quoted(
+					plan->second.mapReason)
+					<< " bridge=" << std::quoted(
+						plan->second.bridgeReason)
+					<< " proof_count="
+					<< plan->second.bridgeProofIds.size();
+				for (const auto& proof : plan->second.bridgeProofIds)
+					handoffEvidence << " proof=" << std::quoted(proof);
+				if (internHandoffProofs)
+				{
+					for (const auto& id : handoffDetailReferences.at(key))
+						handoffEvidence << " proof_detail_ref=" << std::quoted(id);
+				}
+				else
+				{
+					for (const auto& statement : plan->second.bridgeProofStatementsView())
+						handoffEvidence << " proof_detail=" << std::quoted(statement);
+				}
+			}
+			handoffEvidence << "\n";
+			trace << "\nZHANG_PRODUCT_STAGE stage=PUBLISHED"
+				  << " time=" << product.time.to_string(0)
+				  << " satellite=" << product.satellite.id()
+				  << " observable=" << enum_to_string(product.observable)
+				  << " clock_m=" << product.clock_m
+				  << " phase_m=" << product.phase_m
+				  << " correction_m=" << product.correction_m
+				  << " clock_sigma_m=" << product.clock_sigma_m
+				  << " phase_sigma_m=" << product.phase_sigma_m
+				  << " clock_phase_covariance_m2="
+				  << product.clock_phase_covariance_m2
+				  << " correction_sigma_m=" << product.correction_sigma_m
+				  << " segment=" << product.phase_product_segment_id
+				  << " public_segment="
+				  << product.public_phase_segment_id
+				  << " same_segment=" << product.same_segment_continuous
+				  << " user_reset="
+				  << product.requires_user_ambiguity_reset;
+		}
+		if (internHandoffProofs)
+		{
+			handoffEvidence << "handoff_proof_dictionary_begin\n";
+			handoffProofDictionary.write(handoffEvidence);
+			handoffEvidence << "handoff_proof_dictionary_end\n";
+		}
+		if (handoffCertificateText)
+			*handoffCertificateText = handoffEvidence.str();
+	}
+	if (r47Commit && !singleBasisHandoff &&
+		!r47DeferredFrontend.empty())
+	{
+		// Legacy R51 HYBRID_STABLE state was staged while building the
+		// candidate covariance.  Commit it only after final rows have passed
+		// the writer gate and reached the private bundle successfully.
+		hybridRealGaugeTransports = std::move(r47DeferredFrontend);
+	}
+	if (productTransactionCommitted) *productTransactionCommitted = r47Commit;
+	trace << "\nZHANG_R47_WRITER_ATOMIC_COMMIT time="
+		  << fixedState.time.to_string(0)
+		  << " committed=" << r47Commit
+		  << " final_fixed_rows=" << finalFixedProductAvailable
+		  << " candidate_covariance_staged="
+		  << !r47DeferredProductCovariance.empty()
+		  << " final_gate_precedes_sidecar=1"
+		  << " rejected_branch_output_discarded=1";
 	std::map<std::pair<std::string,std::string>,std::set<E_ObsCode>> r47Published;
 	std::map<std::string,int> r47ComponentRanks;
 	for(const auto& product:epochProducts)
@@ -12046,7 +15454,13 @@ void writeZhangInternalProducts(
 		}
 	int r47Satellites=0,r47PublishedRank=0;
 	for(const auto& [identity,signals]:r47Published)
-		r47Satellites += signals.contains(E_ObsCode::L1C) && signals.contains(E_ObsCode::L2W);
+	{
+		const SatSys satellite(identity.second.c_str());
+		const auto codes = acsConfig.zhangPppAr.baseline_observables.find(satellite.sys);
+		r47Satellites += codes != acsConfig.zhangPppAr.baseline_observables.end() &&
+			codes->second.size() == 2 && signals.contains(codes->second[0]) &&
+			signals.contains(codes->second[1]);
+	}
 	for(const auto& [component,rank]:r47ComponentRanks) r47PublishedRank+=rank;
 	trace<<"\nZHANG_R47_PUBLISHED_GRAPH time="<<fixedState.time.to_string(0)
 		<<" strict_dual_satellites="<<r47Satellites<<" published_dual_graph_rank="<<r47PublishedRank
@@ -12061,7 +15475,7 @@ bool queryZhangInternalProduct(
     ZhangInternalProduct& product
 )
 {
-    if (!acsConfig.zhangPppAr.user_adapter || !loadProducts())
+    if (!acsConfig.zhangPppAr.user_adapter || !loadProducts(time))
     {
         return false;
     }
@@ -12489,6 +15903,48 @@ void updateZhangPppArUserReferences(
                 {
                     selected = runtime.reference;
                 }
+				// If the incumbent reference changes its public datum, first
+				// attempt an exact local reference exchange to a still-continuous
+				// satellite. Resetting the entire user phase block is the fallback
+				// only when no valid replacement or transform exists.
+				if (runtime.reference == selected &&
+					runtime.productCounter >= 0 &&
+					(runtime.productCounter !=
+						products.at(selected).discontinuity_counter ||
+					 runtime.datumVersion !=
+						products.at(selected).datum_version))
+				{
+					SatSys replacement;
+					double bestElevation =
+						-std::numeric_limits<double>::infinity();
+					for (const auto& [satellite, elevation] : candidates)
+					{
+						if (satellite == selected) continue;
+						const auto oldDatum =
+							runtime.satelliteDatum.find(satellite);
+						const auto& candidateProduct = products.at(satellite);
+						if (oldDatum == runtime.satelliteDatum.end() ||
+							oldDatum->second != std::make_pair(
+								candidateProduct.discontinuity_counter,
+								candidateProduct.datum_version)) continue;
+						if (elevation > bestElevation)
+						{
+							bestElevation = elevation;
+							replacement = satellite;
+						}
+					}
+					if (replacement.prn > 0)
+					{
+						trace << "\nZHANG_USER_REFERENCE_PRE_RESET_EXCHANGE time="
+							  << kfState.time.to_string(0)
+							  << " receiver=" << receiverId
+							  << " system=" << enum_to_string(sys)
+							  << " observable=" << enum_to_string(code)
+							  << " old=" << selected.id()
+							  << " new=" << replacement.id();
+						selected = replacement;
+					}
+				}
 
                 const ZhangInternalProduct& selectedProduct =
                     products.at(selected);
@@ -12501,14 +15957,16 @@ void updateZhangPppArUserReferences(
                          selectedProduct.datum_version);
                 if (productDatumChanged)
                 {
-                    resetUserPhaseBlock(
+					if (!resetUserPhaseBlock(
                         trace,
                         kfState,
                         receiverId,
                         sys,
                         code,
                         "product discontinuity counter changed"
-                    );
+                    ))
+						throw std::runtime_error(
+							"ZHANG_USER_PHASE_BLOCK_RESET_FAILED");
                     runtime.reference = {};
                 }
 
@@ -12526,14 +15984,16 @@ void updateZhangPppArUserReferences(
                             selected
                         ))
                     {
-                        resetUserPhaseBlock(
+						if (!resetUserPhaseBlock(
                             trace,
                             kfState,
                             receiverId,
                             sys,
                             code,
                             "ambiguity reference exchange unavailable"
-                        );
+                        ))
+							throw std::runtime_error(
+								"ZHANG_USER_REFERENCE_RESET_FAILED");
                     }
                 }
 
@@ -12551,14 +16011,16 @@ void updateZhangPppArUserReferences(
                     if (satelliteDatumChanged &&
                         satellite != selected)
                     {
-                        resetUserAmbiguity(
+						if (!resetUserAmbiguity(
                             trace,
                             kfState,
                             receiverId,
                             satellite,
                             code,
                             "satellite product datum changed"
-                        );
+                        ))
+							throw std::runtime_error(
+								"ZHANG_USER_SATELLITE_RESET_FAILED");
                     }
                     runtime.satelliteDatum[satellite] = datum;
                 }

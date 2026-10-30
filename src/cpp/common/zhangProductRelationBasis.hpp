@@ -573,7 +573,7 @@ struct ProductRelationBasisBuilder
         // integer coefficient row of U; equality below is cpp_int exact zero,
         // never a floating tolerance check.
         result.networkLatticeContained = true;
-        const auto networkMemberships = zhangIntegerRowLatticeContainsBatch(
+        const auto networkMemberships = zhangPrivateUnitLatticeMembershipBatch(
             result.networkIntegerBasis, result.exactRowBasis);
         for (const auto& membership : networkMemberships)
         {

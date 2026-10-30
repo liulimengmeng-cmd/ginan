@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <iosfwd>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -17,20 +18,38 @@
 #include "common/zhangPersistentProductDatum.hpp"
 #include "common/zhangIntegerAudit.hpp"
 #include "common/zhangUserIntegerFunctional.hpp"
+#include "common/zhangPublishedContinuity.hpp"
 
 struct KFState;
 struct KFKey;
 struct KFMeasEntryList;
 struct ZhangIfWideLaneEstimate;
 struct ZhangProductIntegerConstraintSet;
+struct ZhangMultiGnssProductDelivery;
 struct ZhangProductRelationBasis;
 struct ReceiverMap;
 enum class ZhangCapturedMeasurementFamily;
 using Trace = std::ostream;
 
-inline constexpr std::uint32_t ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION = 3;
+inline constexpr std::uint32_t ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION = 6;
 inline constexpr const char* ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME =
 	"zhang_ppp_ar_runtime";
+inline constexpr std::uint32_t ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SCHEMA_VERSION = 1;
+inline constexpr const char* ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SECTION_NAME =
+	"GEC_AR_RUNTIME_V1";
+
+/** Additional current-epoch G/E/C integer evidence. Mandatory only for the
+ * explicitly authorised multi-GNSS AR checkpoint mode. The old FLOAT/GPS
+ * envelopes and their empty-private-state policy are not changed. These
+ * entry points run at the same epoch barrier as PPP_AR/AMBRES, and support
+ * bundle-wide preflight before committing any private registry. */
+bool exportZhangGecArRuntimeSection(
+	const KFState& owner, const std::string& runtimeId,
+	std::string& payload, std::string& failureReason);
+bool importZhangGecArRuntimeSection(
+	KFState& owner, const std::string& runtimeId, const std::string& payload,
+	bool preflightOnly, int stateDimension, std::string& failureReason);
+bool zhangGecArRuntimeRegistriesEmpty();
 
 struct ZhangPppArCheckpointResult
 {
@@ -46,6 +65,17 @@ struct ZhangPppArCheckpointResult
 	std::size_t userReferenceStates = 0;
 	std::size_t userDualReferenceStates = 0;
 };
+
+/** Select the actual per-epoch AR owner. Zhang transactional AR creates its
+ * own disposable conditioned branches; its service and checkpoint owner must
+ * therefore remain the unmodified authoritative FLOAT object, not the legacy
+ * augmented output copy. Unsupported pivot/mincon/RTS contexts fail closed.
+ * Non-Zhang/non-transactional callers retain the legacy hold/copy selection. */
+KFState& selectZhangPerEpochArState(
+	KFState& authoritativeState,
+	KFState& augmentedOutputState,
+	bool hold,
+	bool inRts);
 
 /** Pointer-free snapshot-reference inventory decoded from one checkpoint
  * section.  actualReferenceCounts are recomputed from the serialized
@@ -172,6 +202,10 @@ struct ZhangInternalProduct
     std::string product_state = "FLOAT_ONLY";
     std::string support_segment_fingerprint = "UNAVAILABLE";
     std::string integer_datum_id;
+    bool        same_segment_continuous = false;
+    bool        requires_user_ambiguity_reset = false;
+    std::string public_phase_segment_id = "UNRESOLVED";
+    ZhangPublishedContinuityContract published_continuity;
 };
 
 /** Only a product-lattice-conditioned branch may authorize user PPP-AR.
@@ -181,6 +215,18 @@ struct ZhangInternalProduct
 inline bool zhangFormalPppArProductSolution(const std::string& solution)
 {
 	return solution == "PRODUCT_FIXED";
+}
+
+/** The R51 writer's legacy FIXED row is a numerical network diagnostic when
+ * no product-conditioned branch exists.  Exact held-lattice membership cannot
+ * authorize that row for user AR, so avoid rebuilding the same large lattice
+ * once per satellite/signal.  Preserve the legacy query outside this case. */
+inline bool zhangNeedsNamedProductIntegerMembership(
+	bool r51Enabled,
+	bool productFixedMode,
+	const std::string& solution)
+{
+	return solution == "FIXED" && !(r51Enabled && !productFixedMode);
 }
 
 /** Enforce the consumer-side boundary for historical CSV files.  Returns true
@@ -296,9 +342,9 @@ bool registerZhangCandidateProductSnapshotsBeforeCoordinateReset(
     const std::vector<E_ObsCode>&       observables,
     const ZhangGraphBasis&              currentBasis,
 	const ZhangGraphBasis&              previousProductBasis,
-	const std::map<ZhangGraphEdge, int>& previousProductArcVersions,
+	const std::map<ZhangGraphEdge, std::map<int, int>>& previousProductArcVersions,
     const ZhangGraphBasis&              proposedProductBasis,
-    const std::map<ZhangGraphEdge, int>& proposedArcVersions,
+    const std::map<ZhangGraphEdge, std::map<int, int>>& proposedArcVersions,
     GTime                               time);
 
 /** Joint raw-factor marginal of new-minus-old temporal product snapshots. */
@@ -662,6 +708,17 @@ void writeZhangFloatOnlyProductsNoLifecycle(
     const std::string& contextReason = "NO_PRODUCT_LIFECYCLE"
 );
 
+/** Immutable, epoch-local preparation owns a disposable conditioned branch.
+ * Exact current bridges and the complete posterior are prepared before the
+ * writer; the writer may only project and atomically publish this result. */
+struct ZhangPreparedProductPublication;
+std::shared_ptr<const ZhangPreparedProductPublication> prepareZhangCurrentProductPublication(
+    Trace& trace, const KFState& integerLedgerState, const KFState& floatState,
+    const KFState* productFixedState,
+    const ZhangProductIntegerConstraintSet* productCertification,
+    const std::string& currentPosteriorId, const std::string& currentChartId,
+    const ZhangMultiGnssProductDelivery* multiSystemDelivery = nullptr);
+
 /** Write the complete stateful product family.  Callers that do not have a
  * committed, QC-converged PPP transaction are defensively routed to the
  * stateless FLOAT-only writer above. */
@@ -678,7 +735,12 @@ void writeZhangInternalProducts(
     bool           fixedBranchValid,
     bool           networkIntegerReady,
     const ZhangProductIntegerConstraintSet* productCertification = nullptr,
-    bool* productTransactionCommitted = nullptr
+    bool* productTransactionCommitted = nullptr,
+    const std::string& currentPosteriorId = {},
+    const std::string& currentChartId = {},
+    std::string* handoffCertificateText = nullptr,
+    std::shared_ptr<const ZhangPreparedProductPublication> preparedPublication = nullptr,
+    const ZhangMultiGnssProductDelivery* multiSystemDelivery = nullptr
 );
 
 struct ZhangNamedProductIntegerSupport
@@ -782,3 +844,17 @@ void traceZhangPppArUserDiagnostics(
 );
 
 std::function<void()> zhangR51CaptureProductRuntime();
+
+/** FLOAT lifecycle dependency metadata only; carries no integer decisions. */
+void zhangRegisterPublishedProductHandoffDependencies(KFState& state);
+
+/** Call after the FLOAT epoch commits and BEFORE capturing candidate AR
+ * runtime. Geometry progress survives a rejected/unpublished AR candidate. */
+void zhangAdvanceCurrentProductStructuralChains(
+    Trace& trace, const KFState& ledger, const KFState& floatState);
+
+/** Diagnostic structural targets only; false means an incomplete chart
+ * chain, never an empty successful target set. No integer authorization. */
+bool zhangCurrentPublishedStructuralBridgeTargets(
+    const KFState& state, E_Sys system,
+    std::vector<ZhangProductIntegerTransition>& targets, std::string& reason);

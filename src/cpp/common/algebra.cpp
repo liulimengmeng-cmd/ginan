@@ -3,6 +3,7 @@
 #include <chrono>
 #include <boost/math/distributions/chi_squared.hpp>
 #include <boost/math/distributions/normal.hpp>
+#include <fstream>
 #include <sstream>
 #include <utility>
 #include <vector>
@@ -10,6 +11,7 @@
 #include "common/acsConfig.hpp"
 #include "common/algebraTrace.hpp"
 #include "common/blasThreading.hpp"
+#include "common/zhangFloatThreading.hpp"
 #include "common/common.hpp"
 #include "common/constants.hpp"
 #include "common/eigenIncluder.hpp"
@@ -20,6 +22,11 @@
 
 using std::ostringstream;
 using std::pair;
+
+// LAPACK LP64, as used by lapackWrapper.hpp. Reuses POTRF's factor; neither
+// another factorization nor an innovation inverse is constructed here.
+extern "C" void dpocon_(const char*,const int*,const double*,const int*,
+    const double*,double*,double*,int*,int*);
 
 /** Kalman Filter.
  *
@@ -1078,6 +1085,113 @@ bool KFState::applyStateTransform(
     return true;
 }
 
+namespace
+{
+// Sequential direct-child intervals, not nested timers. Boundary RSS is an
+// observation, never the peak of an interval. Disabled unless the existing
+// FLOAT profiler is explicitly enabled; it does not evaluate any QC/NIS test.
+class StateTransitionMemoryProfile
+{
+    using Clock = std::chrono::steady_clock;
+    Trace& trace;
+    const bool enabled;
+    const string epoch;
+    const Eigen::Index oldStates;
+    const Eigen::Index newStates;
+    const Clock::time_point start = Clock::now();
+    Clock::time_point phaseStart = start;
+    const char* phase = "SNAPSHOT";
+    Eigen::Index nonzeros = 0;
+    bool denseNoise = false;
+
+    static string epochLabel(GTime value) { return value.to_string(0); }
+
+    void emit(const char* boundary, const char* name, Clock::time_point now,
+              double milliseconds) noexcept
+    {
+        if (!enabled) return;
+        try
+        {
+            long long rss = -1, highWater = -1, swap = -1;
+#ifdef __linux__
+            std::ifstream status("/proc/self/status");
+            string line;
+            while (std::getline(status, line))
+            {
+                std::istringstream values(line);
+                string field;
+                long long kib;
+                if (!(values >> field >> kib)) continue;
+                if (field == "VmRSS:") rss = kib;
+                else if (field == "VmHWM:") highWater = kib;
+                else if (field == "VmSwap:") swap = kib;
+            }
+#endif
+            std::ostringstream record;
+            record << "ZHANG_FLOAT_STATE_TRANSITION_PHASE phase=" << name
+                << " boundary=" << boundary << " epoch=" << std::quoted(epoch)
+                << " parent=FLOAT_STATE_TRANSITION direct_child=" << (string(name) != "TOTAL")
+                << " monotonic_ns=" << std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    now.time_since_epoch()).count()
+                << " elapsed_ms=" << milliseconds
+                << " old_states=" << oldStates << " new_states=" << newStates
+                << " F_nonzeros=" << nonzeros
+                << " source_P_bytes=" << std::uint64_t(oldStates) * oldStates * sizeof(double)
+                << " destination_P_bytes=" << std::uint64_t(newStates) * newStates * sizeof(double)
+                << " rollback_P_bytes=0 dense_Q_materialized=" << denseNoise
+                << " dense_Q_bytes=" << (denseNoise ? std::uint64_t(newStates) * newStates * sizeof(double) : 0)
+                << " boundary_rss_kib=" << rss << " cumulative_hwm_kib=" << highWater
+                << " boundary_swap_kib=" << swap << " boundary_RSS_is_not_phase_peak=1";
+            const string output = record.str();
+            trace << "\n" << output;
+            trace.flush();
+            std::clog << output + "\n";
+            std::clog.flush();
+        }
+        catch (...) { /* Instrumentation must not change filter acceptance. */ }
+    }
+public:
+    StateTransitionMemoryProfile(Trace& output, const KFState& state, GTime newTime)
+        : trace(output), enabled([] {
+            const char* value = std::getenv("ZHANG_FLOAT_PROFILE");
+            return value && std::string_view(value) == "1";
+          }()), epoch(enabled ? epochLabel(newTime == GTime::noTime() ? state.time : newTime) : string{}),
+          oldStates(state.P.rows()), newStates(state.stateTransitionMap.size())
+    {
+        emit("BEGIN", "TOTAL", start, 0);
+        emit("BEGIN", phase, start, 0);
+    }
+    void next(const char* name, Eigen::Index fNonzeros = 0, bool materializedNoise = false)
+    {
+        if (!enabled) return;
+        const auto now = Clock::now();
+        nonzeros = fNonzeros;
+        denseNoise = materializedNoise;
+        emit("END", phase, now, std::chrono::duration<double, std::milli>(now - phaseStart).count());
+        phase = name;
+        phaseStart = now;
+        emit("BEGIN", phase, now, 0);
+    }
+    ~StateTransitionMemoryProfile()
+    {
+        if (!enabled) return;
+        const auto now = Clock::now();
+        emit("END", phase, now, std::chrono::duration<double, std::milli>(now - phaseStart).count());
+        emit("END", "TOTAL", now, std::chrono::duration<double, std::milli>(now - start).count());
+    }
+};
+
+// The legacy dense Q contains only this diagonal, but every output entry was
+// still added to Q(i,j), including +0 off diagonal. Preserve that exact final
+// addition (and signed-zero semantics), without allocating another n*n array.
+void addTransitionNoise(MatrixXd& covariance, const VectorXd& diagonal)
+{
+    for (Eigen::Index column = 0; column < covariance.cols(); ++column)
+        for (Eigen::Index row = 0; row < covariance.rows(); ++row)
+            covariance(row, column) += row == column ? diagonal(row) : 0.0;
+}
+}
+
 /** Add process noise and dynamics to filter object according to time gap.
  * This will also sort states according to their kfKey as a result of the way the state transition
  * matrix is generated.
@@ -1089,8 +1203,26 @@ bool KFState::stateTransition(
     MatrixXd* processNoise_ptr  ///< Optional pointer to the actual process covariance used
 )
 {
-    KFState_ operationEntry = static_cast<const KFState_&>(*this);
+    StateTransitionMemoryProfile memoryProfile(trace, *this, newTime);
+    // Before the read-only factor tap accepts, only these fields are changed.
+    // x/P, keys, process models, options, callbacks and all other metadata stay
+    // in place, so a complete KFState_ snapshot needlessly duplicates all of P.
+    const GTime entryTime = time;
+    VectorXd entryDx = dx;
+    auto entryExponentialNoise = exponentialNoiseMap;
+    // A const source argument does not make a std::function target immutable:
+    // a mutable lambda can update its own value captures before rejecting.
+    // Preserve the legacy rollback of that callable without copying x or P.
+    auto entryTransitionFactorCallback = stateTransitionFactorCallback;
+    const auto restorePredictionEntry = [&]()
+    {
+        time = entryTime;
+        dx = std::move(entryDx);
+        exponentialNoiseMap = std::move(entryExponentialNoise);
+        stateTransitionFactorCallback = std::move(entryTransitionFactorCallback);
+    };
     lastFactorTransactionFailureReason.clear();
+    memoryProfile.next("BUILD_SPARSE_F");
 
     double tgap = 0;
     if (newTime != GTime::noTime() && time != GTime::noTime())
@@ -1107,7 +1239,7 @@ bool KFState::stateTransition(
     if (newStateCount == 0)
     {
         std::cout << "THIS IS WEIRD" << "\n";
-        static_cast<KFState_&>(*this) = operationEntry;
+        restorePredictionEntry();
         lastFactorTransactionFailureReason = "STATE_TRANSITION_HAS_NO_STATES";
         return false;
     }
@@ -1200,7 +1332,8 @@ bool KFState::stateTransition(
     }
 
     // scale and add process noise
-    MatrixXd Q0 = MatrixXd::Zero(newStateCount, newStateCount);
+    memoryProfile.next("BUILD_PROCESS_DIAGONAL", F.nonZeros());
+    VectorXd processDiagonal = VectorXd::Zero(newStateCount);
     tgap        = fabs(tgap);
 
     // add noise as 'process noise' as the method of initialising a state's variance
@@ -1214,12 +1347,12 @@ bool KFState::stateTransition(
         }
         int index = iter->second;
 
-        if ((index < 0) || (index >= Q0.rows()))
+        if ((index < 0) || (index >= processDiagonal.rows()))
         {
             continue;
         }
 
-        Q0(index, index) = value;
+        processDiagonal(index) = value;
     }
 
     // add time dependent exponential process noise)
@@ -1243,12 +1376,12 @@ bool KFState::stateTransition(
 
             int destIndex = destIter->second;
 
-            if ((destIndex < 0) || (destIndex >= Q0.rows()))
+            if ((destIndex < 0) || (destIndex >= processDiagonal.rows()))
             {
                 continue;
             }
 
-            Q0(destIndex, destIndex) += expNoise * tgap;
+            processDiagonal(destIndex) += expNoise * tgap;
         }
 
     // shrink time dependent exponential process noise
@@ -1293,7 +1426,7 @@ bool KFState::stateTransition(
 
                     int destIndex = destIter->second;
 
-                    if ((destIndex < 0) || (destIndex >= Q0.rows()))
+                    if ((destIndex < 0) || (destIndex >= processDiagonal.rows()))
                     {
                         continue;
                     }
@@ -1307,7 +1440,7 @@ bool KFState::stateTransition(
 
                     int sourceIndex = sourceIter->second;
 
-                    if ((sourceIndex < 0) || (sourceIndex >= Q0.rows()))
+                    if ((sourceIndex < 0) || (sourceIndex >= processDiagonal.rows()))
                     {
                         continue;
                     }
@@ -1333,7 +1466,7 @@ bool KFState::stateTransition(
 
                             if (tExp == 0)
                             {
-                                Q0(destIndex, destIndex) += sourceProcessNoise / 1 * tgap;
+                                processDiagonal(destIndex) += sourceProcessNoise / 1 * tgap;
                             }
                             // 				else if	(tExp == 1)	{	Q0(destIndex,	destIndex) +=
                             // sourceProcessNoise / 3
@@ -1353,12 +1486,12 @@ bool KFState::stateTransition(
 
                             if (tExp == 0)
                             {
-                                Q0(destIndex, destIndex) +=
+                                processDiagonal(destIndex) +=
                                     sourceProcessNoise / 2 * tau * (1 - exp(-2 * tgap / tau));
                             }
                             else if (tExp == 1)
                             {
-                                Q0(destIndex, destIndex) +=
+                                processDiagonal(destIndex) +=
                                     sourceProcessNoise / 2 * tau * tau *
                                     (+2 * tgap  // one tau from front tau3 distributed to prevent
                                                 // divide by zero
@@ -1391,6 +1524,7 @@ bool KFState::stateTransition(
 
     // 	std::cout << "x" << "\n" << x << "\n";
     // compute the updated states and permutation and covariance matrices
+    memoryProfile.next("MEAN_PREDICTION", F.nonZeros());
     VectorXd Fx = F * x;
     if (F.rows() == F.cols())
     {
@@ -1403,8 +1537,9 @@ bool KFState::stateTransition(
 
     if (simulate_filter_only)
     {
-        Q0.setZero();
+        processDiagonal.setZero();
     }
+    memoryProfile.next("PLAN_COVARIANCE_CHUNKS", F.nonZeros());
     bool blockCovarianceTransition = acsConfig.pppOpts.receiver_chunking;
 
     struct TransitionChunk
@@ -1493,6 +1628,7 @@ bool KFState::stateTransition(
         }
     }
 
+    memoryProfile.next("COVARIANCE_PREDICTION", F.nonZeros());
     MatrixXd destinationCovariance;
     if (blockCovarianceTransition)
     {
@@ -1511,7 +1647,8 @@ bool KFState::stateTransition(
 
             if (cols.empty())
             {
-                Pnew(rows, rows) = Q0(rows, rows);
+                for (int index : rows)
+                    Pnew(index, index) = processDiagonal(index);
                 continue;
             }
 
@@ -1524,17 +1661,30 @@ bool KFState::stateTransition(
                 }
             }
 
-            Pnew(rows, rows) =
-                (Fblock * P(cols, cols) * Fblock.transpose() + Q0(rows, rows)).eval();
+            MatrixXd predicted = (Fblock * P(cols, cols) * Fblock.transpose()).eval();
+            VectorXd diagonal(rows.size());
+            for (int i = 0; i < rows.size(); ++i)
+                diagonal(i) = processDiagonal(rows[i]);
+            addTransitionNoise(predicted, diagonal);
+            Pnew(rows, rows) = predicted;
         }
 
         destinationCovariance = std::move(Pnew);
     }
     else
     {
-        destinationCovariance = (F * P * F.transpose() + Q0).eval();
+        destinationCovariance = (F * P * F.transpose()).eval();
+        addTransitionNoise(destinationCovariance, processDiagonal);
     }
 
+    memoryProfile.next("MATERIALIZE_DENSE_Q", F.nonZeros());
+    MatrixXd Q0;
+    if (stateTransitionFactorCallback || processNoise_ptr)
+    {
+        Q0 = MatrixXd::Zero(newStateCount, newStateCount);
+        Q0.diagonal() = processDiagonal;
+    }
+    memoryProfile.next("FACTOR_CALLBACK", F.nonZeros(), Q0.rows() != 0);
     const std::uint64_t beforeCommitSequence = factorCommitSequence;
     const std::uint64_t afterCommitSequence  = beforeCommitSequence + 1;
     bool factorAccepted = true;
@@ -1571,7 +1721,7 @@ bool KFState::stateTransition(
     if (!factorAccepted)
     {
         const string failure = lastFactorTransactionFailureReason;
-        static_cast<KFState_&>(*this) = operationEntry;
+        restorePredictionEntry();
         lastFactorTransactionFailureReason = failure.empty()
             ? "STATE_TRANSITION_FACTOR_REJECTED"
             : failure;
@@ -1579,6 +1729,7 @@ bool KFState::stateTransition(
     }
 
     // External outputs become visible only after the factor consumer accepts.
+    memoryProfile.next("PUBLISH_AND_COMMIT", F.nonZeros(), Q0.rows() != 0);
     if (rts_basename.empty() == false)
     {
         TransitionMatrixObject transitionMatrixObject = F;
@@ -1932,7 +2083,7 @@ void outputResiduals(
 
 /** Compare variances of measurements and filtered states to detect unreasonable values
  */
-void KFState::postFitSigmaChecks(
+bool KFState::postFitSigmaChecks(
     RejectCallbackDetails& callbackDetails,
     VectorXd&              dx,          ///< The state innovations from filtering
     MatrixXd&              Qinv,        ///< Inverse of innovation covariance matrix
@@ -1941,17 +2092,47 @@ void KFState::postFitSigmaChecks(
     int                    begX,        ///< Index of first state element to process
     int                    numX,        ///< Number of state elements to process
     int                    begH,        ///< Index of first measurement to process
-    int                    numH         ///< Number of measurements to process
+    int                    numH,        ///< Number of measurements to process
+    bool                   publishRatios
 )
 {
     auto& trace  = callbackDetails.trace;
     auto& kfMeas = callbackDetails.kfMeas;
+
+    const auto invalid = [&](const char* reason)
+    {
+        trace << "\nPOSTFIT_QC_INVALID reason=" << reason;
+        statistics.sumOfSquares = std::numeric_limits<double>::infinity();
+        statistics.averageRatio = std::numeric_limits<double>::quiet_NaN();
+        return false;
+    };
+    if (!validKalmanFilterBlasBlock(
+            begX, numX, begH, numH, kfMeas.H.rows(), kfMeas.H.cols(),
+            P.rows(), P.cols(), kfMeas.R.rows(), kfMeas.R.cols(), kfMeas.V.rows()) ||
+        begX + numX > dx.rows() || begH + numH > kfMeas.VV.rows() ||
+        begH + numH > kfMeas.obsKeys.size() || begX + numX > kfIndexMap.size())
+    {
+        return invalid("INVALID_BLOCK");
+    }
 
     auto V  = kfMeas.V.segment(begH, numH);
     auto VV = kfMeas.VV.segment(begH, numH);
     auto R  = kfMeas.R.block(begH, begH, numH, numH);
     auto H  = kfMeas.H.block(begH, begX, numH, numX);
     auto P  = this->P.block(begX, begX, numX, numX);
+
+    if (!V.allFinite() || !VV.allFinite() || !R.allFinite() || !H.allFinite() ||
+        !P.allFinite() || !dx.segment(begX, numX).allFinite() ||
+        (P.diagonal().array() < 0).any())
+    {
+        return invalid("NONFINITE_OR_NEGATIVE_PRIOR");
+    }
+    if (!std::isfinite(postfitOpts.meas_sigma_threshold) ||
+        !std::isfinite(postfitOpts.state_sigma_threshold) ||
+        postfitOpts.meas_sigma_threshold <= 0 || postfitOpts.state_sigma_threshold <= 0)
+    {
+        return invalid("INVALID_THRESHOLD");
+    }
 
     ArrayXd measRatios  = ArrayXd::Zero(numH);
     ArrayXd stateRatios = ArrayXd::Zero(numX);
@@ -1965,35 +2146,62 @@ void KFState::postFitSigmaChecks(
         auto measVariances  = R.diagonal().array();
         auto stateVariances = P.diagonal().array();
 
+        if ((measVariances <= 0).any())
+            return invalid("NONPOSITIVE_MEASUREMENT_VARIANCE");
         measRatios  = measVariations / measVariances.sqrt();
-        stateRatios = stateVariations / stateVariances.sqrt();
+        for (int j = 0; j < numX; j++)
+        {
+            // Fixed states (including ONE) have no stochastic state test.
+            if (stateVariances(j) > 0)
+                stateRatios(j) = stateVariations(j) / std::sqrt(stateVariances(j));
+        }
     }
     else if (postfitOpts.omega_test)
     {
         // use 'array' for component-wise calculations
-        auto measNumerator  = (Qinv * V).array();
-        auto stateNumerator = (QinvH.transpose() * V).array();
+        if (Qinv.rows() != numH || Qinv.cols() != numH ||
+            QinvH.rows() != numH || QinvH.cols() != numX ||
+            !Qinv.allFinite() || !QinvH.allFinite())
+            return invalid("INVALID_OMEGA_MATRIX");
+        const ArrayXd measNumerator  = (Qinv * V).array();
+        const ArrayXd stateNumerator = (QinvH.transpose() * V).array();
 
-        auto measDenominator  = Qinv.diagonal().array();
-        auto stateDenominator = (QinvH.transpose() * H).diagonal().array();
+        const ArrayXd measDenominator  = Qinv.diagonal().array();
+        const ArrayXd stateDenominator = (QinvH.transpose() * H).diagonal().array();
 
+        if (!measDenominator.allFinite() || (measDenominator <= 0).any() ||
+            !stateDenominator.allFinite() || !measNumerator.allFinite() ||
+            !stateNumerator.allFinite())
+            return invalid("INVALID_OMEGA_DENOMINATOR");
         measRatios  = measNumerator / measDenominator.sqrt();
-        stateRatios = stateNumerator / stateDenominator.sqrt();
+        for (int j = 0; j < numX; j++)
+        {
+            if (P(j, j) == 0)
+                continue;
+            if (stateDenominator(j) > 0)
+                stateRatios(j) = stateNumerator(j) / std::sqrt(stateDenominator(j));
+            else if (stateDenominator(j) != 0 || stateNumerator(j) != 0 ||
+                     (H.col(j).array() != 0).any())
+                return invalid("DEGENERATE_OBSERVED_STATE_OMEGA");
+            // A stochastic state with a zero H column is unobserved in this
+            // chunk, so it contributes no state test. Do not hide other NaNs.
+        }
     }
 
-    // Eugene: do abs() here
-    measRatios = measRatios.isFinite().select(
-        measRatios,
-        0
-    );  // set ratio to 0 if corresponding variance is 0, e.g. ONE state, clk rate states
-    stateRatios = stateRatios.isFinite().select(stateRatios, 0);
-    stateRatios = (P.diagonal().array() > 0).select(stateRatios, 0);
-
-    kfMeas.postfitRatios.segment(begH, numH) = measRatios;
-    this->postfitRatios.segment(begX, numX)  = stateRatios;
+    if (!measRatios.allFinite() || !stateRatios.allFinite())
+        return invalid("NONFINITE_RATIO");
+    statistics.measurementRatios = measRatios.matrix();
+    statistics.stateRatios = stateRatios.matrix();
+    if (publishRatios)
+    {
+        kfMeas.postfitRatios.segment(begH, numH) = measRatios;
+        this->postfitRatios.segment(begX, numX)  = stateRatios;
+    }
 
     statistics.sumOfSquares = measRatios.square().sum();
     statistics.averageRatio = measRatios.mean();
+    if (!std::isfinite(statistics.sumOfSquares) || !std::isfinite(statistics.averageRatio))
+        return invalid("NONFINITE_SUMMARY");
 
     Eigen::ArrayXd::Index stateIndex;
     Eigen::ArrayXd::Index measIndex;
@@ -2051,6 +2259,7 @@ void KFState::postFitSigmaChecks(
 
         callbackDetails.measIndex = measChunkIndex;
     }
+    return true;
 }
 
 /** Compute Chi-square increment based on the change of fitting solution
@@ -2163,6 +2372,7 @@ bool KFState::kFilter(
     bool      resetOnFailure
 )
 {
+    ZhangFloatThreading::KernelTimer kernelTimer(trace, numX, numH);
     auto& R      = kfMeas.R;
     auto& V      = kfMeas.V;
     auto& H      = kfMeas.H;
@@ -2191,7 +2401,19 @@ bool KFState::kFilter(
         return false;
     }
 
+    if (!x.segment(begX, numX).allFinite() ||
+        !P.block(begX, begX, numX, numX).allFinite() ||
+        !H.block(begH, begX, numH, numX).allFinite() ||
+        !R.block(begH, begH, numH, numH).allFinite() ||
+        !V.segment(begH, numH).allFinite() ||
+        !H_star.allFinite() || !kfMeas.uncorrelatedNoise.allFinite())
+    {
+        trace << "\nNONFINITE KALMAN INPUT action=REJECT";
+        return false;
+    }
+
     auto noise = kfMeas.uncorrelatedNoise.asDiagonal();  // todo? check chunking indices
+    kernelTimer.mark("INPUT_VALIDATION");
 
     // Get pointers to block data (no copying!)
     const double* H_ptr = H.data() + begH + begX * H.rows();  // H block starting point
@@ -2202,10 +2424,6 @@ bool KFState::kFilter(
     int ldH = H.rows();                                       // Leading dimension of full H matrix
     int ldP = P.rows();                                       // Leading dimension of full P matrix
     int ldR = R.rows();                                       // Leading dimension of full R matrix
-
-    MatrixXd I         = MatrixXd::Identity(numH, numH);
-    auto     subH_star = H_star.middleRows(begH, numH);
-    MatrixXd HRH_star  = subH_star * noise * subH_star.transpose();
 
     // Compute HP = H * P using BLAS directly on blocks (no copy!)
     MatrixXd HP(numH, numX);
@@ -2226,13 +2444,12 @@ bool KFState::kFilter(
         numH
     );
 
+    kernelTimer.mark("HP");
     // Compute Q = HP * H' + R using BLAS directly
     MatrixXd Q(numH, numH);
     // First: Q = R (copy R block)
-    for (int j = 0; j < numH; j++)
-    {
-        LapackWrapper::dcopy(numH, R_ptr + j * ldR, 1, Q.data() + j * numH, 1);
-    }
+    ZhangFloatThreading::copyBlock(R_ptr, ldR, Q.data(), numH, numH, numH);
+    kernelTimer.mark("INNOVATION_NOISE_COPY");
     // Then: Q = HP * H' + Q
     LapackWrapper::dgemm(
         LapackWrapper::CblasColMajor,
@@ -2251,6 +2468,7 @@ bool KFState::kFilter(
         numH
     );
 
+    kernelTimer.mark("INNOVATION_COVARIANCE");
     MatrixXd K;
     MatrixXd HRHQ_star;
 
@@ -2260,10 +2478,17 @@ bool KFState::kFilter(
 
     int              info;
     std::vector<int> ipiv(numH);
-    MatrixXd         Q_work      = Q;  // Working copy for factorization
+    MatrixXd         Q_work;
+    ZhangFloatThreading::copyDense(Q, Q_work);
+    kernelTimer.mark("FACTORIZATION_WORK_COPY");
     char             uplo        = 'U';
     int              solver_used = 0;  // 1=Cholesky, 2=LDLT, 3=LU
 
+    {
+    // Keep all logical CPUs for the surrounding GEMM/station work, but avoid
+    // SMT oversubscription in the repeatedly synchronised factorisation panels.
+    const int factorThreads = ZhangFloatThreading::factorThreads();
+    BlasThreading::ScopedOpenBlasThreadLimit factorThreadLimit(factorThreads);
     // Try 1: Cholesky factorization (dpotrf) - fastest, for symmetric positive definite
     info = LapackWrapper::dpotrf(LapackWrapper::COL_MAJOR, uplo, numH, Q_work.data(), numH);
 
@@ -2277,7 +2502,7 @@ bool KFState::kFilter(
                                    << ", trying dsytrf (symmetric indefinite)";
 
         // Cholesky failed, restore Q and try symmetric indefinite
-        Q_work = Q;
+        ZhangFloatThreading::copyDense(Q, Q_work);
 
         // Try 2: Symmetric indefinite factorization (dsytrf)
         info = LapackWrapper::dsytrf(
@@ -2300,7 +2525,7 @@ bool KFState::kFilter(
                 << ", trying dgetrf (general LU)";
 
             // Both symmetric solvers failed, try general LU
-            Q_work = Q;
+            ZhangFloatThreading::copyDense(Q, Q_work);
 
             // Try 3: General LU factorization (dgetrf)
             info = LapackWrapper::dgetrf(
@@ -2347,13 +2572,71 @@ bool KFState::kFilter(
         }
     }
 
+    }
+    kernelTimer.mark("Q_FACTORIZATION");
     // Now Q_work contains the factorization, solve multiple systems using the same factorization
 
     // System 1: Compute Kalman gain: Solve Q * K' = HP for K'
-    MatrixXd KT = HP;  // Will be overwritten with solution
-
-    if (solver_used == 1)
+    bool symmetricUpdate = solver_used == 1 && !joseph_stabilisation &&
+        ZhangFloatThreading::symmetricUpdateEnabled() &&
+        P.block(begX,begX,numX,numX).isApprox(
+            P.block(begX,begX,numX,numX).transpose(),1e-13) &&
+        R.block(begH,begH,numH,numH).isApprox(
+            R.block(begH,begH,numH,numH).transpose(),1e-13);
+    double innovationRcond=std::numeric_limits<double>::quiet_NaN();
+    double noiseFraction=std::numeric_limits<double>::quiet_NaN();
+    const char* updateReason=symmetricUpdate ? "WELL_SCALED" : "LEGACY_POLICY_OR_SOLVER";
+    if(symmetricUpdate)
     {
+        const double norm=Q.cwiseAbs().colwise().sum().maxCoeff();
+        const auto noiseBlock=R.block(begH,begH,numH,numH);
+        // A positive Gershgorin lower bound is conservative for correlated R.
+        // Tiny measurement noise relative to S can leave P-KHP dominated by
+        // cancellation even when S itself is well conditioned. Do not silently
+        // replace the legacy floating-point covariance in that regime.
+        const VectorXd lower=(2.*noiseBlock.diagonal()-
+            noiseBlock.cwiseAbs().rowwise().sum()).eval();
+        noiseFraction=norm>0 ? lower.minCoeff()/norm : 0;
+        if(!std::isfinite(noiseFraction) || noiseFraction<1e-6)
+        { symmetricUpdate=false;updateReason="LEGACY_CANCELLATION_RISK"; }
+        else
+        {
+            std::vector<double> work(3*numH);std::vector<int> iwork(numH);int conditionInfo=0;
+            dpocon_(&uplo,&numH,Q_work.data(),&numH,&norm,&innovationRcond,
+                work.data(),iwork.data(),&conditionInfo);
+            if(conditionInfo!=0 || !std::isfinite(innovationRcond) || innovationRcond<1e-6)
+            { symmetricUpdate=false;updateReason="LEGACY_ILL_CONDITIONED_INNOVATION"; }
+        }
+    }
+    if(ZhangFloatThreading::inFloat)
+        trace<<"\nZHANG_FLOAT_COVARIANCE_MODE symmetric="<<symmetricUpdate
+             <<" reason="<<updateReason<<" innovation_rcond="<<innovationRcond
+             <<" noise_fraction="<<noiseFraction<<" statistical_veto=0";
+    kernelTimer.mark("UPDATE_ELIGIBILITY");
+    // The original innovation covariance is used only for fallback recovery
+    // and the conditioning checks above.  Subsequent solves consume Q_work,
+    // so do not retain a second measurement-square matrix through the gain
+    // and posterior updates.
+    Q.resize(0, 0);
+    MatrixXd KT;
+
+    if (symmetricUpdate)
+    {
+        // Q=U' U. Keep Y=U'^-1 HP for P-Y'Y, without another large buffer.
+        // These are the same two TRSM calls as POTRS; only the intermediate
+        // is retained. K itself need not be transposed/materialised.
+        KT = std::move(HP);
+        LapackWrapper::dtrsm('L','U','T','N',numH,numX,1.0,
+            Q_work.data(),numH,KT.data(),numH);
+        ZhangFloatThreading::copyDense(KT,HP);
+        LapackWrapper::dtrsm('L','U','N','N',numH,numX,1.0,
+            Q_work.data(),numH,KT.data(),numH);
+        info = 0;
+    }
+    else if (solver_used == 1)
+    {
+        ZhangFloatThreading::copyDense(HP, KT);
+        kernelTimer.mark("GAIN_RHS_COPY");
         // Cholesky solve
         info = LapackWrapper::dpotrs(
             LapackWrapper::COL_MAJOR,
@@ -2368,6 +2651,8 @@ bool KFState::kFilter(
     }
     else if (solver_used == 2)
     {
+        ZhangFloatThreading::copyDense(HP, KT);
+        kernelTimer.mark("GAIN_RHS_COPY");
         // Symmetric indefinite solve
         info = LapackWrapper::dsytrs(
             LapackWrapper::COL_MAJOR,
@@ -2383,6 +2668,8 @@ bool KFState::kFilter(
     }
     else  // solver_used == 3
     {
+        ZhangFloatThreading::copyDense(HP, KT);
+        kernelTimer.mark("GAIN_RHS_COPY");
         // General LU solve
         info = LapackWrapper::dgetrs(
             LapackWrapper::COL_MAJOR,
@@ -2410,14 +2697,26 @@ bool KFState::kFilter(
         return false;
     }
 
-    // Transpose to get K = (K')'
-    K = KT.transpose();
+    kernelTimer.mark("GAIN_SOLVE");
+    // Transpose to get K = (K')', assigning each output exactly once.
+    if (!symmetricUpdate)
+    {
+        K.resize(numX, numH);
+        ZhangFloatThreading::transposeBlock(KT.data(), numH, K.data(), numX, numH, numX);
+        // The standard/Joseph paths use K from here onwards; only the
+        // symmetric update needs KT for its transposed state update.
+        KT.resize(0, 0);
+    }
+    kernelTimer.mark("GAIN_TRANSPOSE");
 
     // System 3: Compute HRHQ_star for advanced postfits (do this FIRST - no copy needed)
     // Reuse the same factorization from Q_work directly
     if (advanced_postfits)
     {
-        HRHQ_star = HRH_star;
+        // Only this mode consumes H_star R H_star'. Do not allocate a dense
+        // measurement-square temporary on the ordinary FLOAT path.
+        auto subH_star = H_star.middleRows(begH, numH);
+        HRHQ_star = subH_star * noise * subH_star.transpose();
 
         if (solver_used == 1)
         {
@@ -2475,6 +2774,7 @@ bool KFState::kFilter(
         }
     }
 
+    kernelTimer.mark("ADVANCED_POSTFITS");
     // System 2: Compute Qinv if needed for omega test (do this LAST)
     // Use direct matrix inversion (dpotri/dsytri/dgetri) working directly on Q_work
     // Since System 3 is already done, Q_work is no longer needed
@@ -2485,19 +2785,12 @@ bool KFState::kFilter(
         {
             // Cholesky: Compute inverse directly from L*L' factorization
             info = LapackWrapper::dpotri(LapackWrapper::COL_MAJOR, uplo, numH, Q_work.data(), numH);
+            kernelTimer.mark("OMEGA_INVERSE");
 
             if (info == 0)
             {
                 // dpotri only fills upper triangle (uplo='U'), copy to lower using pointer access
-                double* Q_ptr = Q_work.data();
-                for (int j = 0; j < numH; j++)
-                {
-                    for (int i = j + 1; i < numH; i++)
-                    {
-                        Q_ptr[j * numH + i] =
-                            Q_ptr[i * numH + j];  // Column-major: copy upper to lower
-                    }
-                }
+                ZhangFloatThreading::mirrorUpper(Q_work.data(), numH, numH);
             }
         }
         else if (solver_used == 2)
@@ -2511,19 +2804,12 @@ bool KFState::kFilter(
                 numH,
                 ipiv.data()
             );
+            kernelTimer.mark("OMEGA_INVERSE");
 
             if (info == 0)
             {
                 // dsytri only fills upper triangle (uplo='U'), copy to lower using pointer access
-                double* Q_ptr = Q_work.data();
-                for (int j = 0; j < numH; j++)
-                {
-                    for (int i = j + 1; i < numH; i++)
-                    {
-                        Q_ptr[j * numH + i] =
-                            Q_ptr[i * numH + j];  // Column-major: copy upper to lower
-                    }
-                }
+                ZhangFloatThreading::mirrorUpper(Q_work.data(), numH, numH);
             }
         }
         else  // solver_used == 3
@@ -2536,9 +2822,11 @@ bool KFState::kFilter(
                 numH,
                 ipiv.data()
             );
+            kernelTimer.mark("OMEGA_INVERSE");
             // dgetri fills the full matrix, no symmetrization needed
         }
 
+        kernelTimer.mark("OMEGA_TRIANGLE_MIRROR");
         if (info == 0)
         {
             // Quick validation - sample diagonal elements for NaN/Inf (faster than checking all n²)
@@ -2560,6 +2848,7 @@ bool KFState::kFilter(
             {
                 // Assign inverted Q_work to Qinv (move semantics, no copy!)
                 Qinv = std::move(Q_work);
+                kernelTimer.mark("OMEGA_INVERSE_VALIDATION");
 
                 // Compute QinvH = Qinv * H
                 QinvH.resize(numH, numX);
@@ -2656,23 +2945,31 @@ bool KFState::kFilter(
         {
             BOOST_LOG_TRIVIAL(error) << "Matrix inversion failed with info = " << info
                                      << ", solver_used=" << solver_used;
+            // Identity/stale Qinv is not a valid substitute for an omega test.
+            return false;
         }
     }
 
+    kernelTimer.mark("OMEGA_MATRICES");
+    // All factorisation consumers have finished.  In omega mode the storage
+    // has already been moved into Qinv; otherwise release it before creating
+    // the state-square posterior workspaces.
+    Q_work.resize(0, 0);
     if (advanced_postfits)
     {
         kfMeas.VV.segment(begH, numH) = HRHQ_star * VectorXd::Map(V_ptr, numH);
+        HRHQ_star.resize(0, 0);
     }
 
     // Use BLAS-optimized state update: dx = K * v
     LapackWrapper::dgemv(
         LapackWrapper::CblasColMajor,
-        LapackWrapper::CblasNoTrans,
-        numX,
-        numH,
+        symmetricUpdate ? LapackWrapper::CblasTrans : LapackWrapper::CblasNoTrans,
+        symmetricUpdate ? numH : numX,
+        symmetricUpdate ? numX : numH,
         1.0,
-        K.data(),
-        numX,
+        symmetricUpdate ? KT.data() : K.data(),
+        symmetricUpdate ? numH : numX,
         V_ptr,
         1,
         0.0,
@@ -2694,6 +2991,8 @@ bool KFState::kFilter(
 
     // Use BLAS-optimized covariance update
     MatrixXd subPp(numX, numX);
+    if(symmetricUpdate) KT.resize(0,0); // gain no longer used; keep only Y
+    kernelTimer.mark("STATE_UPDATE");
     if (joseph_stabilisation)
     {
         // Joseph form: Pp = (I-K*H)*P*(I-K*H)' + K*R*K'
@@ -2793,19 +3092,25 @@ bool KFState::kFilter(
             numX
         );
     }
+    else if (symmetricUpdate)
+    {
+        ZhangFloatThreading::copyBlock(P_ptr, ldP, subPp.data(), numX, numX, numX);
+        kernelTimer.mark("POSTERIOR_PRIOR_COPY");
+        LapackWrapper::dsyrk(LapackWrapper::COL_MAJOR,'U','T',numX,numH,
+            -1.0,HP.data(),numH,1.0,subPp.data(),numX);
+        // No averaging against an uncomputed lower triangle.
+        kernelTimer.mark("POSTERIOR_MULTIPLY");
+        ZhangFloatThreading::mirrorUpper(subPp.data(), numX, numX);
+    }
     else
     {
         // Standard form: Pp = P - K*HP
 
         // Copy P block into subPp
-        double* P_block = const_cast<double*>(P_ptr);
-        for (int j = 0; j < numX; j++)
-        {
-            LapackWrapper::dcopy(numX, P_block + j * ldP, 1, subPp.data() + j * numX, 1);
-        }
+        ZhangFloatThreading::copyBlock(P_ptr, ldP, subPp.data(), numX, numX, numX);
+        kernelTimer.mark("POSTERIOR_PRIOR_COPY");
 
-        // Compute KHP = K * HP
-        MatrixXd KHP(numX, numX);
+        // Fuse P - K*HP into the destination. No second state-square buffer.
         LapackWrapper::dgemm(
             LapackWrapper::CblasColMajor,
             LapackWrapper::CblasNoTrans,
@@ -2813,59 +3118,49 @@ bool KFState::kFilter(
             numX,
             numX,
             numH,
-            1.0,
+            -1.0,
             K.data(),
             numX,
             HP.data(),
             numH,
-            0.0,
-            KHP.data(),
+            1.0,
+            subPp.data(),
             numX
         );
-
-        // subPp = subPp - KHP
-        LapackWrapper::daxpy(numX * numX, -1.0, KHP.data(), 1, subPp.data(), 1);
+        kernelTimer.mark("POSTERIOR_MULTIPLY");
     }
 
-    // Symmetrize for numerical stability
-    for (int i = 0; i < numX; i++)
+    // All previous marks are disjoint kFilter intervals. Start the writeback
+    // interval here so the Joseph matrix products above are not charged to
+    // symmetrisation, and do not add this child again to the whole KF update.
+    kernelTimer.mark("POSTERIOR_BEFORE_WRITEBACK");
+    // In FLOAT retain the exact legacy elementwise addition/division, but do
+    // not allocate a second state-square sum merely to copy it into Pp. The
+    // BLAS posterior and source subPp are unchanged and never alias Pp here.
+    if(symmetricUpdate) Pp.block(begX,begX,numX,numX)=subPp;
+    else if (ZhangFloatThreading::inFloat)
     {
-        for (int j = i + 1; j < numX; j++)
-        {
-            double avg  = (subPp(i, j) + subPp(j, i)) / 2.0;
-            subPp(i, j) = avg;
-            subPp(j, i) = avg;
-        }
+        auto posterior = Pp.block(begX, begX, numX, numX);
+        ZhangFloatThreading::symmetricAverageCopy(subPp.data(), numX,
+            posterior.data(), posterior.outerStride(), numX);
     }
+    else Pp.block(begX, begX, numX, numX) = (subPp + subPp.transpose()).eval() / 2;
+    kernelTimer.mark("POSTERIOR_SYMMETRY_WRITEBACK");
 
-    Pp.block(begX, begX, numX, numX) = (subPp + subPp.transpose()).eval() / 2;
-
-    bool error = xp.segment(begX, numX).array().isNaN().any();
+    kernelTimer.mark("POSTERIOR_COVARIANCE");
+    bool error = !xp.segment(begX, numX).allFinite() ||
+        !dx.segment(begX, numX).allFinite() || !Pp.block(begX, begX, numX, numX).allFinite();
+    kernelTimer.mark("FINAL_VALIDATION");
     if (error)
     {
-        std::cout << "\n"
-                  << "xp:" << "\n"
-                  << xp.segment(begX, numX);
-        std::cout << "\n"
-                  << "x :" << "\n"
-                  << x.segment(begX, numX);
-        std::cout << "\n"
-                  << "P block:" << "\n"
-                  << P.block(begX, begX, numX, numX);
-        std::cout << "\n"
-                  << "R block:" << "\n"
-                  << R.block(begH, begH, numH, numH);
-        std::cout << "\n"
-                  << "K :" << "\n"
-                  << K;
-        std::cout << "\n"
-                  << "V segment:" << "\n"
-                  << V.segment(begH, numH);
-        std::cout << "\n";
-        std::cout << "NAN found. Exiting...";
-        std::cout << "\n";
-
-        exit(0);
+        trace << "\nNONFINITE KALMAN POSTERIOR action=REJECT";
+        if (resetOnFailure)
+        {
+            xp = x;
+            Pp = P;
+            dx = VectorXd::Zero(xp.rows());
+        }
+        return false;
     }
 
     return true;
@@ -3139,17 +3434,16 @@ KFMeas::KFMeas(
     metaDataMaps.resize(numMeas);
     componentsMaps.resize(numMeas);
 
-    bool error = false;
+    int error = 0;
+    {
+    ZhangFloatThreading::ScopedOuterWork outerWork;
 #ifdef ENABLE_PARALLELISATION
-    Eigen::setNbThreads(1);
-#pragma omp parallel for
+#pragma omp parallel for reduction(|:error)
 #endif
     for (int meas = 0; meas < kfEntryList.size(); meas++)
     {
-        auto it = kfEntryList.begin();
-        std::advance(it, meas);
-
-        auto& entry = *it;
+        // KFMeasEntryList is a vector, not a linked list.
+        auto& entry = kfEntryList[meas];
 
         R(meas, meas) = entry.noise;
 
@@ -3173,7 +3467,8 @@ KFMeas::KFMeas(
                              "stateTransition() is "
                              "called first: "
                           << kfKey << "\n";
-                error = true;
+                error = 1;
+                continue; // Never index H or x with an undefined (-1) column.
             }
             H(meas, index) = coeff;
 
@@ -3203,7 +3498,8 @@ KFMeas::KFMeas(
             {
                 std::cout << "Code error: Trying to create measurement for undefined key :" << kfKey
                           << "\n";
-                error = true;
+                error = 1;
+                continue;
             }
             H_star(meas, index) = coeff;
         }
@@ -3212,7 +3508,7 @@ KFMeas::KFMeas(
         metaDataMaps[meas]   = std::move(entry.metaDataMap);
         componentsMaps[meas] = std::move(entry.componentsMap);
     }
-    Eigen::setNbThreads(0);
+    }
 
     if (error)
     {
@@ -3287,6 +3583,30 @@ bool KFState::doMeasRejectCallbacks(RejectCallbackDetails rejectDetails)
     return true;
 }
 
+KFMeas KFMeas::snapshotForFilter() const
+{
+    KFMeas result;
+    result.time=time;
+    // Keep every owned measurement field, including diagnostics and metadata.
+    // These remain independent mutable objects: no aliases into the live QC
+    // model, and no changes to rejection/transaction rollback semantics.
+    ZhangFloatThreading::copyDense(Y,result.Y);
+    ZhangFloatThreading::copyDense(V,result.V);
+    ZhangFloatThreading::copyDense(VV,result.VV);
+    ZhangFloatThreading::copyDense(W,result.W);
+    ZhangFloatThreading::copyDense(R,result.R);
+    ZhangFloatThreading::copyDense(H,result.H);
+    ZhangFloatThreading::copyDense(H_star,result.H_star);
+    ZhangFloatThreading::copyDense(uncorrelatedNoise,result.uncorrelatedNoise);
+    ZhangFloatThreading::copyDense(prefitRatios,result.prefitRatios);
+    ZhangFloatThreading::copyDense(postfitRatios,result.postfitRatios);
+    result.noiseIndexMap=noiseIndexMap;
+    result.obsKeys=obsKeys;
+    result.metaDataMaps=metaDataMaps;
+    result.componentsMaps=componentsMaps;
+    return result;
+}
+
 /** Kalman filter operation
  */
 KFFilterResult KFState::filterKalman(
@@ -3331,7 +3651,11 @@ KFFilterResult KFState::filterKalman(
     // share the same storage instead of duplicating a 4k-5k state covariance.
     const auto snapshotStarted=std::chrono::steady_clock::now();
     KFState_ operationEntry = static_cast<const KFState_&>(*this);
-    KFMeas  measurementEntry = kfMeas;
+    logFloatFilterPhase("STATE_SNAPSHOT",snapshotStarted);
+    const auto measurementSnapshotStarted=std::chrono::steady_clock::now();
+    KFMeas measurementEntry = authoritativePppTransaction && ZhangFloatThreading::inFloat
+        ? kfMeas.snapshotForFilter() : kfMeas;
+    logFloatFilterPhase("MEASUREMENT_SNAPSHOT",measurementSnapshotStarted);
     logFloatFilterPhase("TRANSACTION_SNAPSHOT",snapshotStarted);
 
     KFMeasurementTransaction transaction;
@@ -3366,6 +3690,8 @@ KFFilterResult KFState::filterKalman(
 
     auto restoreTransactionEntry = [&](KFFilterResult result, const string& reason)
     {
+        if (result == KFFilterResult::QC_NOT_CONVERGED)
+            transaction.qcConverged = false;
         // Every caller returns immediately after rollback, so transfer the
         // saved packet back instead of deep-copying the multi-gigabyte dense
         // covariance and measurement matrices a second time.  The previous
@@ -3392,6 +3718,9 @@ KFFilterResult KFState::filterKalman(
               << " transaction_id=" << transaction.transactionId
               << " model_generation=" << transaction.modelGeneration
               << " solve_generation=" << transaction.solveGeneration
+              << " qc_converged=" << transaction.qcConverged
+              << " max_iterations_reached=" << transaction.maxIterationsReached
+              << " terminal_reconciliation_performed=" << transaction.terminalReconciliationPerformed
               << " reason=" << reason;
         return result;
     };
@@ -3547,7 +3876,16 @@ KFFilterResult KFState::filterKalman(
 
     const auto posteriorCopyStarted=std::chrono::steady_clock::now();
     VectorXd xp = x;
-    MatrixXd Pp = P;
+    // A single full-state solve overwrites every covariance entry before any
+    // posterior consumer runs. Partial/chunked solves must retain all untouched
+    // cross-covariances, and keep the complete prior copy.
+    const bool fullPosteriorOverwrite = filterChunkMap.size()==1 &&
+        filterChunkMap.begin()->second.begX==0 &&
+        filterChunkMap.begin()->second.numX==x.rows() &&
+        filterChunkMap.begin()->second.numH>0;
+    MatrixXd Pp;
+    if(fullPosteriorOverwrite) Pp.resize(P.rows(),P.cols());
+    else ZhangFloatThreading::copyDense(P,Pp);
     dx          = VectorXd::Zero(x.rows());
 
     postfitRatios = VectorXd::Zero(x.rows());
@@ -3579,6 +3917,22 @@ KFFilterResult KFState::filterKalman(
         activeChunks.push_back(&fc);
     }
 
+    struct BoundedKernelTrace : std::streambuf
+    {
+        std::string records;
+        std::streamsize xsputn(const char* text,std::streamsize count) override
+        {
+            const auto room=65536-records.size();
+            records.append(text,std::min<std::size_t>(room,count));
+            return count;
+        }
+        int_type overflow(int_type ch) override
+        {
+            if(!traits_type::eq_int_type(ch,traits_type::eof()) && records.size()<65536)
+                records.push_back(traits_type::to_char_type(ch));
+            return traits_type::not_eof(ch);
+        }
+    };
     struct ChunkFilterResult
     {
         bool        computed       = false;
@@ -3586,11 +3940,14 @@ KFFilterResult KFState::filterKalman(
         std::size_t modelGeneration = 0;
         MatrixXd    Qinv;
         MatrixXd    QinvH;
+        std::string kernelTrace;
     };
 
     vector<ChunkFilterResult> chunkResults(activeChunks.size());
     vector<std::size_t> chunkSolveGenerations(
         activeChunks.size(), std::numeric_limits<std::size_t>::max());
+    vector<bool> finalChunkQcPassed(activeChunks.size(), false);
+    vector<KFStatistics> finalChunkStatistics(activeChunks.size());
 
     if (activeChunks.empty() || postfitOpts.max_iterations <= 0)
     {
@@ -3611,11 +3968,13 @@ KFFilterResult KFState::filterKalman(
         {
             auto& fc     = *activeChunks[c];
             auto& result = chunkResults[c];
+            ZhangFloatThreading::ScopedKernelContext kernelContext(authoritativePppTransaction);
+            BoundedKernelTrace kernelBuffer;
+            std::ostream kernelTrace(&kernelBuffer);
 
-            result.Qinv  = MatrixXd::Identity(fc.numH, fc.numH);
-            result.QinvH = MatrixXd::Ones(fc.numH, fc.numX);
+            // kFilter materialises these only when omega QC needs them.
             result.pass  = kFilter(
-                nullStream,
+                kernelTrace,
                 kfMeas,
                 xp,
                 Pp,
@@ -3629,9 +3988,11 @@ KFFilterResult KFState::filterKalman(
                 false
             );
             result.computed = true;
+            result.kernelTrace=std::move(kernelBuffer.records);
             result.modelGeneration = transaction.modelGeneration;
         }
     }
+    for(const auto& result:chunkResults)trace<<result.kernelTrace;
     logFloatFilterPhase("PARALLEL_FIRST_CHUNK_SOLVE",firstSolveStarted);
 
     const auto postfitStarted=std::chrono::steady_clock::now();
@@ -3645,8 +4006,7 @@ KFFilterResult KFState::filterKalman(
                 << " ------- FILTERING CHUNK " << fc.id << "         --------\n";
         }
 
-        MatrixXd Qinv  = MatrixXd::Identity(fc.numH, fc.numH);
-        MatrixXd QinvH = MatrixXd::Ones(fc.numH, fc.numX);
+        MatrixXd Qinv, QinvH;
 
         statisticsMap["Observations"] += fc.numH;
 
@@ -3722,7 +4082,7 @@ KFFilterResult KFState::filterKalman(
                 RejectCallbackDetails rejectCallbackDetails(stringBuffer, *this, kfMeas);
                 rejectCallbackDetails.stage = E_FilterStage::POSTFIT;
 
-                postFitSigmaChecks(
+                if (!postFitSigmaChecks(
                     rejectCallbackDetails,
                     dx,
                     Qinv,
@@ -3732,7 +4092,12 @@ KFFilterResult KFState::filterKalman(
                     fc.numX,
                     fc.begH,
                     fc.numH
-                );
+                ))
+                {
+                    trace << stringBuffer.str();
+                    return restoreTransactionEntry(
+                        KFFilterResult::QC_NOT_CONVERGED, "INVALID_POSTFIT_QC:" + fc.id);
+                }
 
                 if (rejectCallbackDetails.kfKey.type != int_to_enum<KF>(0))
                 {
@@ -3763,6 +4128,7 @@ KFFilterResult KFState::filterKalman(
 
                 if (stopIterating)
                 {
+                    finalChunkQcPassed[c] = true;
                     stringBuffer << "\n"
                                  << "Postfit check passed" << "\n";
                 }
@@ -3788,6 +4154,10 @@ KFFilterResult KFState::filterKalman(
                 if (fc.trace_ptr)
                     *fc.trace_ptr << stringBuffer.str();
             }
+            else
+            {
+                finalChunkQcPassed[c] = true;
+            }
 
             if (stopIterating)
             {
@@ -3809,8 +4179,7 @@ KFFilterResult KFState::filterKalman(
             );
         }
 
-        testStatistics.sumOfSquaresPost += statistics.sumOfSquares;
-        testStatistics.averageRatioPost += statistics.averageRatio / filterChunkMap.size();
+        finalChunkStatistics[c] = statistics;
     }
     logFloatFilterPhase("POSTFIT_QC_AND_RESOLVE",postfitStarted);
 
@@ -3845,8 +4214,7 @@ KFFilterResult KFState::filterKalman(
         for (std::size_t c = 0; c < activeChunks.size(); c++)
         {
             auto& fc = *activeChunks[c];
-            MatrixXd Qinv = MatrixXd::Identity(fc.numH, fc.numH);
-            MatrixXd QinvH = MatrixXd::Ones(fc.numH, fc.numX);
+            MatrixXd Qinv, QinvH;
             const bool pass = kFilter(
                 trace,
                 kfMeas,
@@ -3866,6 +4234,36 @@ KFFilterResult KFState::filterKalman(
                     KFFilterResult::NUMERICAL_FAILURE,
                     "TERMINAL_RECONCILIATION_FAILED:" + fc.id);
             }
+            // The terminal solve uses the final prior/noise model. Evaluate it
+            // without invoking reject callbacks or publishing ratio arrays;
+            // a successful linear solve is not a successful robust QC test.
+            if (!advanced_postfits)
+                kfMeas.VV.segment(fc.begH, fc.numH) =
+                    kfMeas.V.segment(fc.begH, fc.numH) -
+                    kfMeas.H.block(fc.begH, fc.begX, fc.numH, fc.numX) *
+                        dx.segment(fc.begX, fc.numX);
+            if (postfitOpts.sigma_check || postfitOpts.omega_test)
+            {
+                RejectCallbackDetails finalQc(trace, *this, kfMeas);
+                finalQc.stage = E_FilterStage::POSTFIT;
+                const bool valid = postFitSigmaChecks(
+                    finalQc, dx, Qinv, QinvH, finalChunkStatistics[c],
+                    fc.begX, fc.numX, fc.begH, fc.numH, false);
+                finalChunkQcPassed[c] = valid &&
+                    finalQc.kfKey.type == int_to_enum<KF>(0) && finalQc.measIndex < 0;
+                trace << "\nZHANG_KF_FINAL_POSTFIT_QC"
+                      << " time=" << transaction.time.to_string(0)
+                      << " chunk=" << fc.id
+                      << " model_generation=" << transaction.modelGeneration
+                      << " statistics_valid=" << valid
+                      << " converged=" << finalChunkQcPassed[c]
+                      << " reject_callbacks_enabled=0";
+                if (!valid)
+                    return restoreTransactionEntry(
+                        KFFilterResult::QC_NOT_CONVERGED, "INVALID_TERMINAL_POSTFIT_QC:" + fc.id);
+            }
+            else
+                finalChunkQcPassed[c] = true;
             chunkSolveGenerations[c] = transaction.modelGeneration;
         }
         kfMeas.VV = kfMeas.V - kfMeas.H * dx;
@@ -3885,6 +4283,36 @@ KFFilterResult KFState::filterKalman(
         transaction.solveGeneration = transaction.modelGeneration;
     }
     logFloatFilterPhase("TERMINAL_RECONCILIATION",reconcileStarted);
+
+    transaction.qcConverged = std::all_of(
+        finalChunkQcPassed.begin(), finalChunkQcPassed.end(), [](bool pass) { return pass; });
+    for (const auto& statistics : finalChunkStatistics)
+    {
+        testStatistics.sumOfSquaresPost += statistics.sumOfSquares;
+        testStatistics.averageRatioPost += statistics.averageRatio / activeChunks.size();
+    }
+    if (!xp.allFinite() || !Pp.allFinite() || !dx.allFinite())
+        return restoreTransactionEntry(
+            KFFilterResult::NUMERICAL_FAILURE, "NONFINITE_FINAL_POSTERIOR");
+    if (!std::isfinite(testStatistics.sumOfSquaresPost) ||
+        !std::isfinite(testStatistics.averageRatioPost))
+        return restoreTransactionEntry(
+            KFFilterResult::QC_NOT_CONVERGED, "NONFINITE_FINAL_POSTFIT_SUMMARY");
+    if (authoritativePppTransaction && !transaction.qcConverged)
+        return restoreTransactionEntry(
+            KFFilterResult::QC_NOT_CONVERGED, "FINAL_POSTFIT_QC_NOT_CONVERGED");
+
+    // Publish only the already-validated final-model diagnostics. In /PPP
+    // these remain provisional until factor acceptance and are restored on
+    // rollback together with the other measurement/filter metadata.
+    if (postfitOpts.sigma_check || postfitOpts.omega_test)
+        for (std::size_t c = 0; c < activeChunks.size(); c++)
+        {
+            const auto& fc = *activeChunks[c];
+            kfMeas.postfitRatios.segment(fc.begH, fc.numH) =
+                finalChunkStatistics[c].measurementRatios;
+            postfitRatios.segment(fc.begX, fc.numX) = finalChunkStatistics[c].stateRatios;
+        }
 
     if (postfitOpts.sigma_check || postfitOpts.omega_test)
         trace << "\n"

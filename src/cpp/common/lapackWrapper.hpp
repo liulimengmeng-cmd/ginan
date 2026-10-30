@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+#include <cmath>
+#include <limits>
 
 namespace LapackWrapper
 {
@@ -50,6 +52,8 @@ extern "C"
         int*          info
     );
     void dpotrf_(const char* uplo, const int* n, double* a, const int* lda, int* info);
+    void dsyevd_(const char* jobz,const char* uplo,const int* n,double* a,const int* lda,
+        double* w,double* work,const int* lwork,int* iwork,const int* liwork,int* info);
     void dpotrs_(
         const char*   uplo,
         const int*    n,
@@ -114,6 +118,9 @@ using BlasReturn = void;
 
 extern "C"
 {
+    BlasReturn dtrsm_(const char* side,const char* uplo,const char* transa,
+        const char* diag,const int* m,const int* n,const double* alpha,
+        const double* a,const int* lda,double* b,const int* ldb);
     BlasReturn dgemm_(
         const char*   transa,
         const char*   transb,
@@ -180,6 +187,24 @@ extern "C"
 }
 
 // Cholesky factorization (positive definite)
+// Symmetric divide-and-conquer eigensolver, using the same LP64 LAPACK ABI as
+// the existing filter. Query workspace; never guess integer/work-array sizes.
+inline int dsyevd(int n,double* a,double* eigenvalues)
+{
+    if(n<1 || !a || !eigenvalues)return -1;
+    const char job='V',uplo='U';
+    int info=0,lwork=-1,liwork=-1,integerQuery=0;
+    double workQuery=0;
+    dsyevd_(&job,&uplo,&n,a,&n,eigenvalues,&workQuery,&lwork,&integerQuery,&liwork,&info);
+    if(info || !std::isfinite(workQuery) || workQuery<1 ||
+        workQuery>std::numeric_limits<int>::max() || integerQuery<1)return info?info:-100;
+    lwork=static_cast<int>(std::ceil(workQuery));liwork=integerQuery;
+    std::vector<double> work(lwork);
+    std::vector<int> iwork(liwork);
+    dsyevd_(&job,&uplo,&n,a,&n,eigenvalues,work.data(),&lwork,iwork.data(),&liwork,&info);
+    return info;
+}
+
 inline int dpotrf(Layout layout, char uplo, int n, double* a, int lda)
 {
     if (layout != Layout::ColMajor)
@@ -534,6 +559,12 @@ inline void dsymm(
         c,
         &ldc
     );
+}
+
+inline void dtrsm(char side,char uplo,char transa,char diag,int m,int n,
+    double alpha,const double* a,int lda,double* b,int ldb)
+{
+    dtrsm_(&side,&uplo,&transa,&diag,&m,&n,&alpha,a,&lda,b,&ldb);
 }
 
 // Symmetric rank-k update: C = alpha*A*A^T + beta*C or C = alpha*A^T*A + beta*C

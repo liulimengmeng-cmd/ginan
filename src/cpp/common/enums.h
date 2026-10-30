@@ -329,7 +329,12 @@ enum class KF : short int
     IMU_OFFSET,
     END_INERTIAL_STATES,
 
-    RANGE
+    RANGE,
+
+    // Event-local old physical ambiguity/phase functional retained through
+    // one current-epoch handoff.  Append after RANGE so checkpoint enum values
+    // of every pre-existing KF state remain unchanged.
+    PRODUCT_HANDOFF
 };
 
 enum class E_StateComponent : short int

@@ -434,17 +434,30 @@ GTime utc2gpst(UtcTime utcTime)
 
 string GTime::to_string(int n) const
 {
-    if (cacheTime == bigTime && cacheN == n)
-    {
-        return cacheString;
-    }
-
-    GTime t = *this;
-
+    // A const GTime is shared by station workers (notably tsync). Its legacy
+    // mutable object cache must not be read, written or copied here: callers
+    // concurrently request different precisions for logs and clock evidence.
+    const long double snapshot = bigTime;
     if (n < 0)
         n = 0;
     else if (n > 12)
         n = 12;
+
+    struct FormatCache
+    {
+        bool valid = false;
+        long double time = 0;
+        int precision = 0;
+        string text;
+    };
+    static thread_local FormatCache cache;
+    if (cache.valid && cache.time == snapshot && cache.precision == n)
+    {
+        return cache.text;
+    }
+
+    GTime t;
+    t.bigTime = snapshot;
 
     double exper = pow(10, n);
 
@@ -473,11 +486,12 @@ string GTime::to_string(int n) const
         ep.sec
     );
 
-    cacheString = buff;
-    cacheTime   = bigTime;
-    cacheN      = n;
+    cache.text = buff;
+    cache.time = snapshot;
+    cache.precision = n;
+    cache.valid = true;
 
-    return cacheString;
+    return cache.text;
 }
 
 string GTime::to_ISOstring(int n) const

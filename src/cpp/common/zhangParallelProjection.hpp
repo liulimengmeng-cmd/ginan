@@ -17,7 +17,7 @@ inline int zhangR51ParallelThreads()
 {
 #ifdef _OPENMP
     const int maximum=std::max(1,omp_get_max_threads());
-    int threads=std::min(maximum,8);
+    int threads=maximum;
     if(const char* value=std::getenv("ZHANG_R51_AR_THREADS")) {
         char* end=nullptr;
         const long requested=std::strtol(value,&end,10);

@@ -26,7 +26,7 @@ public:
         bool compatible() const { return compatible_; }
     };
     explicit ZhangR51QuotientCompatibility(int rank,bool sourceValid)
-        : rank_(rank), valid_(sourceValid && rank>0) {}
+        : rank_(rank), valid_(sourceValid && rank>0), columnRows_(std::max(0,rank)) {}
     ZhangR51QuotientCompatibility(const ZhangR51QuotientCompatibility&)=delete;
     ZhangR51QuotientCompatibility& operator=(const ZhangR51QuotientCompatibility&)=delete;
 
@@ -43,9 +43,35 @@ public:
         trial.values_=integers;
         for(std::size_t i=0;i<reduced.size();++i)
             for(std::size_t j=0;j<subset.size();++j)trial.rows_[i][subset[j]]=reduced[i][j];
-        auto rows=acceptedRows_;rows.insert(rows.end(),trial.rows_.begin(),trial.rows_.end());
-        auto values=acceptedValues_;values.insert(values.end(),integers.begin(),integers.end());
-        trial.compatible_=zhangR47AffineIntegerFeasible(rows,values,rank_);
+        // Accepted components are already feasible. Only the connected closure
+        // touched by a new row can change feasibility. Disjoint new blocks must
+        // not repeatedly diagonalise every previously fixed quotient variable.
+        std::set<int> columns;
+        std::vector<int> pending;
+        for(const auto& row:trial.rows_)for(int c:subset)
+            if(row[c]!=0 && columns.insert(c).second)pending.push_back(c);
+        std::set<std::size_t> touched;
+        for(std::size_t next=0;next<pending.size();++next)
+            for(const auto row:columnRows_[pending[next]])if(touched.insert(row).second)
+                for(const int c:acceptedSupport_[row])
+                    if(columns.insert(c).second)pending.push_back(c);
+        ZhangExactMatrix rows;
+        ZhangExactVector values;
+        auto append=[&](const ZhangExactVector& source,const ZhangExactInteger& value) {
+            ZhangExactVector compact;
+            compact.reserve(columns.size());
+            for(const int c:columns)compact.push_back(source[c]);
+            rows.push_back(std::move(compact));values.push_back(value);
+        };
+        for(const auto row:touched)append(acceptedRows_[row],acceptedValues_[row]);
+        for(std::size_t row=0;row<trial.rows_.size();++row)append(trial.rows_[row],integers[row]);
+        ++componentChecks;
+        if(touched.empty())++disjointChecks;
+        checkedRows+=rows.size();checkedColumns+=columns.size();
+        maximumCheckedColumns=std::max(maximumCheckedColumns,columns.size());
+        if(columns.empty())
+            trial.compatible_=std::all_of(values.begin(),values.end(),[](const auto& v){return v==0;});
+        else trial.compatible_=zhangR47AffineIntegerFeasible(rows,values,columns.size());
         return trial;
     }
     // Commit only after the caller's numerical conditioning and proof gates.
@@ -56,14 +82,25 @@ public:
         if(!valid_ || !trial.compatible_ || trial.owner_!=this || trial.generation_!=generation_)return false;
         acceptedRows_.insert(acceptedRows_.end(),trial.rows_.begin(),trial.rows_.end());
         acceptedValues_.insert(acceptedValues_.end(),trial.values_.begin(),trial.values_.end());
+        for(const auto& row:trial.rows_) {
+            const auto rowId=acceptedSupport_.size();
+            std::vector<int> support;
+            for(int c=0;c<rank_;++c)if(row[c]!=0) {
+                support.push_back(c);columnRows_[c].push_back(rowId);
+            }
+            acceptedSupport_.push_back(std::move(support));
+        }
         ++generation_;return true;
     }
     std::size_t acceptedRows() const { return acceptedRows_.size(); }
     std::size_t queries=0;
+    std::size_t componentChecks=0,disjointChecks=0,checkedRows=0,checkedColumns=0,maximumCheckedColumns=0;
 private:
     const int rank_;
     const bool valid_;
     std::size_t generation_=0;
     ZhangExactMatrix acceptedRows_;
     ZhangExactVector acceptedValues_;
+    std::vector<std::vector<std::size_t>> columnRows_;
+    std::vector<std::vector<int>> acceptedSupport_;
 };

@@ -1,0 +1,33 @@
+{
+  "schema": "GINAN_SOURCE_SNAPSHOT_VALIDATION_SUMMARY_V1",
+  "passed": true,
+  "candidate_sha256": "6705b2e42f3840d91d8489c539984ac53c0f9d8607ebdfcdfa3775a0eda009d3",
+  "recompiled_translation_units": [
+    "src/cpp/pea/ppp_ambres.cpp",
+    "src/cpp/pea/zhangPppAr.cpp"
+  ],
+  "full_link_objects": 158,
+  "passed_test_scopes": [
+    "product_numerical_continuity",
+    "user_published_continuity_contract",
+    "r51_structural_publication_gap",
+    "r51_full_joint_handoff",
+    "r51_handoff_float_lifecycle",
+    "r51_handoff_event_budget",
+    "r51_handoff_search_budget",
+    "product_publication_boundary",
+    "independent_real_four_star_numerical",
+    "independent_publication_boundary_faults"
+  ],
+  "numerical_assertions": 262,
+  "independent_real_csv_signals": 8,
+  "independent_real_csv_assertions": 116,
+  "publication_boundary_fault_cases": 5,
+  "publication_boundary_fault_assertions": 21,
+  "first_test_compile_failure_preserved_locally": true,
+  "no_real_epoch_replay_performed": true,
+  "scientific_accuracy_accepted": false,
+  "old_segment_continuity_guaranteed": false,
+  "solver_restarted": false,
+  "server_modified": false
+}

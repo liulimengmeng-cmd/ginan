@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <iosfwd>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -12,12 +13,15 @@
 #include "common/enums.h"
 #include "common/satSys.hpp"
 #include "common/zhangFullRank.hpp"
+#include "common/zhangGraphCoordinateTransport.hpp"
+#include "common/zhangIntegerAudit.hpp"
 
 struct KFState;
+struct ZhangProductIntegerTransition;
 struct ReceiverMap;
 using Trace = std::ostream;
 
-inline constexpr std::uint32_t ZHANG_GRAPH_CHECKPOINT_SCHEMA_VERSION = 3;
+inline constexpr std::uint32_t ZHANG_GRAPH_CHECKPOINT_SCHEMA_VERSION = 4;
 inline constexpr const char* ZHANG_GRAPH_CHECKPOINT_SECTION_NAME =
     "zhang_graph_runtime";
 
@@ -25,11 +29,19 @@ inline constexpr const char* ZHANG_GRAPH_CHECKPOINT_SECTION_NAME =
 struct ZhangGraphIntegerContext
 {
     ZhangGraphBasis                  basis;
+    // Read-only target-functional selector.  This tree does not define a
+    // second KF state parameterisation and may differ from basis.treeEdges.
     ZhangGraphBasis                  productBasis;
+    // Legacy edge topology generations. Never use these as a physical
+    // ambiguity-arc identity in the signal-versioned mode.
     std::map<ZhangGraphEdge, int>    arcVersions;
-    // Read-only diagnostic identity. Existing checkpoint integer rows retain
-    // their edge-version schema until an explicit migration is implemented.
+    // Authoritative physical ambiguity identities: (receiver, satellite,
+    // observable, signalArcVersions[edge][observable]).
     std::map<ZhangGraphEdge, std::map<int, int>> signalArcVersions;
+    // Currently admitted, QC-passing observations for each signal. This can
+    // differ from the common dual-frequency graph after a single-band slip.
+    std::map<int, std::set<ZhangGraphEdge>> signalObservationEdges;
+    bool                             signalObservationFinalized = false;
     int                              eventId = 0;
     int                              productDatumVersion = 0;
     int                              representationVersion = 0;
@@ -44,6 +56,7 @@ struct ZhangGraphIntegerContext
 struct ZhangPhysicalArcDiagnostic
 {
     ZhangGraphEdge edge;
+    E_ObsCode      observable = E_ObsCode::NONE;
     int            arcVersion = 0;
     int            ageEpochs = 0;
     int            observationEpochs = 0;
@@ -57,6 +70,140 @@ struct ZhangProductFunctionalEventDiagnostic
     int                                      commonObservationEpochs = 0;
     std::string                              eventCause = "UNCLASSIFIED";
 };
+
+/** Ephemeral receipt for one physical graph event in the current FLOAT epoch.
+ * It is indexed by runtime, epoch, constellation, signal and satellite.  The
+ * old row/moments are captured before state retirement.  The actual writer
+ * projection is not known until the product target chart is committed; a
+ * state-coordinate pullback alone must not set sameTimeMapProven.
+ * Offsets and moments use metres.  No receipt from a previous epoch is valid. */
+struct ZhangGraphProductEventReceipt
+{
+    GTime time;
+    E_Sys system = E_Sys::NONE;
+    E_ObsCode observable = E_ObsCode::NONE;
+    SatSys satellite;
+    std::string eventKind = "UNCLASSIFIED";
+    std::string failureReason = "NOT_EVALUATED";
+    bool physicalArcChanged = false;
+    bool representableSameTimeMapProven = false;
+    bool oldProductProjectionCaptured = false;
+    bool actualWriterProjectionBound = false;
+    bool actualWriterRowMatches = false;
+    bool sameTimeMapProven = false;
+    bool conditionalProductMapProven = false;
+    std::string conditionalMapReason = "NOT_EVALUATED";
+    bool fullJointMomentTransportProven = false;
+    std::string jointMomentReason = "NOT_EVALUATED";
+    int oldChartGeneration = -1;
+    int newChartGeneration = -1;
+    // Actual graph event counter before and after this transaction. These
+    // are not inferred from one another: product-only chart changes may keep
+    // the same backend event generation.
+    int oldBackendGeneration = -1;
+    int newBackendGeneration = -1;
+    std::string fullJointTransportId;
+    ZhangCoordinateRow oldPhaseRow;
+    ZhangCoordinateRow newPhaseRow;
+    ZhangCoordinateRow actualWriterPhaseRow;
+    ZhangCoordinateRow bridgeStateRowCycles;
+    // The old product target is a versioned physical integer functional,
+    // independent of the old S-tree path used by the KF transform.
+    SatSys productReferenceSatellite;
+    std::vector<ZhangGraphEdge> oldProductFunctionalEdges;
+    std::vector<int> oldProductFunctionalArcVersions;
+    ZhangExactVector oldProductFunctionalCoefficients;
+    ZhangExactInteger oldProductFunctionalAffineOffsetCycles = 0;
+    double oldOffsetMetres = 0;
+    double newOffsetMetres = 0;
+    double oldPhaseMeanMetres = 0;
+    double oldPhaseVarianceMetres2 = 0;
+    double oldClockMeanMetres = 0;
+    double oldClockVarianceMetres2 = 0;
+    double oldClockPhaseCovarianceMetres2 = 0;
+    // Cross covariance to every pre-event satellite phase row (both signals).
+    std::map<std::pair<SatSys, E_ObsCode>, double>
+        oldPhaseCrossCovarianceMetres2;
+    std::map<SatSys, double> oldPhaseClockCrossCovarianceMetres2;
+    std::map<SatSys, double> oldClockClockCrossCovarianceMetres2;
+    std::vector<ZhangGraphEdge> physicalPathEdges;
+    ZhangExactVector physicalPathCoefficients;
+    std::vector<int> oldPhysicalArcVersions;
+    std::vector<int> newPhysicalArcVersions;
+    std::vector<ZhangGraphEdge> bridgePhysicalEdges;
+    std::vector<int> bridgePhysicalArcVersions;
+    std::vector<int> bridgePhysicalCoefficients;
+    // A retired old edge can remain as a bounded correlated FLOAT auxiliary.
+    // These keys are not current observed physical arcs or integer facts.
+    std::map<ZhangGraphEdge, KFKey> retainedOldArcAuxiliaryKeys;
+};
+
+bool zhangGraphProductEventReceipt(
+    const KFState& state,
+    E_Sys system,
+    E_ObsCode observable,
+    const SatSys& satellite,
+    ZhangGraphProductEventReceipt& receipt);
+
+/** One versioned physical phase-edge row in the current FLOAT posterior.
+ * Current edges use the committed tree/chord chart; an old retired version is
+ * readable only from a registered, unexpired correlated PRODUCT_HANDOFF
+ * auxiliary. This numeric lookup confers no current-observation authority. */
+bool zhangGraphPhysicalArcFloatRow(
+    const KFState& state,
+    E_Sys system,
+    E_ObsCode observable,
+    const ZhangGraphEdge& edge,
+    int arcVersion,
+    ZhangCoordinateRow& rowMetres,
+    std::string& failureReason);
+
+/** Match one proposed integer bridge to the graph event's exact signed
+ * versioned-arc product-path difference. This checks structure only; it does
+ * not fix or certify the integer value. */
+bool zhangGraphProductEventTransitionWitness(
+    const KFState& state,
+    E_Sys system,
+    E_ObsCode observable,
+    const SatSys& satellite,
+    const SatSys& referenceSatellite,
+    const ZhangProductIntegerTransition& transition,
+    std::string& failureReason);
+
+/** Atomically marginalise expired/unreferenced old-arc auxiliaries across
+ * every system, independently of current observation availability. Live rows
+ * remain correlated FLOAT coordinates; no integer certificate is created. */
+bool retireZhangGraphProductEventAuxiliaries(
+    Trace& trace,
+    KFState& state,
+    const std::string& stage = "UNSPECIFIED");
+
+/** Compatibility entry: the system argument no longer narrows lifecycle
+ * maintenance. A global registry must be retired and validated globally. */
+bool retireZhangGraphProductEventAuxiliaries(
+    Trace& trace,
+    KFState& state,
+    E_Sys system);
+
+/** Validate the bounded FLOAT identity registry against actual KF states.
+ * Used at AR exit and checkpoint boundaries instead of requiring zero rows. */
+bool zhangGraphProductHandoffStateValid(
+    const KFState& state, std::string& failureReason);
+
+/** Refresh complete active public-product support before destructive graph
+ * transforms. These APIs retain physical identities only, never integer RHS. */
+void zhangClearGraphProductHandoffDependencies(KFState& state);
+bool zhangRegisterGraphProductHandoffDependencies(
+    KFState& state, E_Sys system, E_ObsCode observable,
+    const std::vector<ZhangGraphEdge>& edges,
+    const std::vector<int>& arcVersions);
+
+/** Read-only scalar product and covariance diagnostics at a named FLOAT
+ * processing stage; never modifies graph, KF, or integer evidence. */
+void traceZhangCurrentGraphProductProjection(
+    Trace& trace,
+    const KFState& state,
+    const char* stage);
 
 /** Select usable Zhang references and apply an exact state/covariance S-transform when they change.
  *
@@ -115,6 +262,37 @@ bool zhangGraphIntegerContext(
     ZhangGraphIntegerContext& context
 );
 
+/** Read one exact signal-arc version. Missing identity never falls back to
+ * the edge topology generation or to version zero. */
+std::optional<int> zhangGraphSignalArcVersion(
+    const ZhangGraphIntegerContext& context,
+    const ZhangGraphEdge& edge,
+    E_ObsCode observable);
+
+/** Known signal-specific physical versions over the FLOAT/product basis union.
+ * This is an identity catalogue, NOT current observation/AR admission. Missing
+ * versions remain unknown; final QC signal support is checked separately. */
+bool zhangGraphSignalArcVersions(
+    const KFState& state,
+    E_Sys system,
+    E_ObsCode observable,
+    std::map<ZhangGraphEdge, int>& versions,
+    std::string& failureReason);
+
+/** Commit the signal rows actually retained by the final /PPP KF factor.
+ * A robustly deweighted row must carry the `zhangPppDeweighted` metadata
+ * marker; a merely present pre-QC observation is not current AR evidence. */
+bool zhangFinalizeGraphSignalObservationAdmission(
+    const KFState& state,
+    E_Sys system,
+    const KFMeas& finalMeasurement,
+    std::string& failureReason);
+
+/** Old graph checkpoints cannot recover pre-migration signal identities.
+ * The FLOAT state is retained, but prior integer/product continuity must be
+ * discarded by the other checkpoint owners before publication. */
+bool zhangGraphRequiresFreshProductIdentity(const KFState& state);
+
 /** Diagnose the physical support that was removed/introduced by a product
  * functional change.  Inputs contain only non-zero support arcs. */
 bool zhangProductFunctionalEventDiagnostic(
@@ -127,14 +305,47 @@ bool zhangProductFunctionalEventDiagnostic(
     ZhangProductFunctionalEventDiagnostic& diagnostic
 );
 
-/** Copy read-only graph coordinates to a disposable fixed branch. */
-void cloneZhangGraphRuntime(
+bool zhangProductFunctionalEventDiagnostic(
+    const KFState&                       kfState,
+    E_Sys                                system,
+    E_ObsCode                            observable,
+    const std::vector<ZhangGraphEdge>&   oldEdges,
+    const std::vector<int>&              oldArcVersions,
+    const std::vector<ZhangGraphEdge>&   newEdges,
+    const std::vector<int>&              newArcVersions,
+    ZhangProductFunctionalEventDiagnostic& diagnostic
+);
+
+/** Copy graph coordinates to a distinct, explicitly identified branch.
+ * A rejected clone leaves both source and destination graph runtimes intact. */
+[[nodiscard]] bool cloneZhangGraphRuntime(
     const KFState& source,
-    const KFState& destination
+    const KFState& destination,
+    std::string* failureReason = nullptr
 );
 
 /** Remove graph coordinates belonging to a disposable state copy. */
 void eraseZhangGraphRuntime(const KFState& state);
+
+/** Exact, small snapshot of FLOAT S coordinates and physical arc lifecycle.
+ * Product target trees, integer certificates and product authorization are
+ * deliberately excluded: updating them cannot change the FLOAT chart. */
+struct ZhangFloatGraphAuthorityToken
+{
+    bool valid = false;
+    std::string runtimeIdentity;
+    std::string physicalState;
+};
+
+bool captureZhangFloatGraphAuthorityToken(
+    const KFState& state,
+    ZhangFloatGraphAuthorityToken& token,
+    std::string& failureReason);
+
+bool zhangFloatGraphAuthorityUnchanged(
+    const KFState& state,
+    const ZhangFloatGraphAuthorityToken& token,
+    std::string& failureReason);
 
 /** Export every Zhang graph/outage runtime owned by one filter into a
  * versioned, pointer-free checkpoint section.

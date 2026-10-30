@@ -17,6 +17,36 @@
 
 bool   AR_VERBO      = false;
 double FIXED_AMB_VAR = 1e-8;
+
+namespace
+{
+struct LambdaPhaseClock
+{
+    double& seconds;
+    const std::chrono::steady_clock::time_point start =
+        std::chrono::steady_clock::now();
+    ~LambdaPhaseClock()
+    {
+        seconds += std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - start).count();
+    }
+};
+
+bool lambdaDeadlineReached(GinAR_mtx& matrix, const GinAR_opt* options)
+{
+    if (!options || options->search_deadline ==
+            std::chrono::steady_clock::time_point::max() ||
+        std::chrono::steady_clock::now() < options->search_deadline)
+        return false;
+    matrix.searchDiagnostic.wallTimedOut = true;
+    matrix.searchDiagnostic.ilsComplete = false;
+    matrix.searchDiagnostic.topTwoComplete = false;
+    matrix.searchDiagnostic.reason = "WALL_TIMEOUT";
+    matrix.Ztrs.resize(0, matrix.aflt.size());
+    matrix.zfix.resize(0);
+    return true;
+}
+}
 /** Probability of error (assuming normal distribution) */
 double round_perr(
     double dx,  ///< Distance between value and mean
@@ -167,10 +197,14 @@ int interat_round(
 }
 
 bool LTDL_factorization(
-    GinAR_mtx& mtrx  ///< Reference to structure containing float values and covariance
+    GinAR_mtx& mtrx,  ///< Reference to structure containing float values and covariance
+    const GinAR_opt* options = nullptr
 )
 {
+    LambdaPhaseClock factorClock{mtrx.searchDiagnostic.factorSeconds};
     int      n = mtrx.aflt.size();
+    if(n<=0 || mtrx.Paflt.rows()!=n || mtrx.Paflt.cols()!=n ||
+       !mtrx.aflt.allFinite() || !mtrx.Paflt.allFinite()) return false;
     MatrixXd P = mtrx.Paflt;
 
     MatrixXd L = MatrixXd::Zero(n, n);
@@ -178,6 +212,7 @@ bool LTDL_factorization(
 
     for (int i = n - 1; i >= 0; i--)
     {
+        if (lambdaDeadlineReached(mtrx, options)) return false;
         if (P(i, i) <= 0)
             return false;
 
@@ -185,7 +220,11 @@ bool LTDL_factorization(
         double a                = sqrt(P(i, i));
         L.block(i, 0, 1, i + 1) = P.block(i, 0, 1, i + 1) / a;
         for (int j = 0; j < i; j++)
+        {
+            if ((j & 63) == 0 && lambdaDeadlineReached(mtrx, options))
+                return false;
             P.block(j, 0, 1, j + 1) -= L(i, j) * L.block(i, 0, 1, j + 1);
+        }
         L.block(i, 0, 1, i + 1) /= L(i, i);
     }
 
@@ -197,15 +236,18 @@ bool LTDL_factorization(
 /** Lambda decorrelation (trough Z transform) */
 int Ztrans_reduction(
     Trace&     trace,  ///< Debug trace
-    GinAR_mtx& mtrx    ///< Reference to structure containing float values and covariance
+    GinAR_mtx& mtrx,   ///< Reference to structure containing float values and covariance
+    const GinAR_opt* options
 )
 {
     int n = mtrx.aflt.size();
     if (n < 1)
         return -1;
 
-    if (LTDL_factorization(mtrx) == false)
+    if (lambdaDeadlineReached(mtrx, options)) return -2;
+    if (LTDL_factorization(mtrx, options) == false)
     {
+        if (mtrx.searchDiagnostic.wallTimedOut) return -2;
         tracepdeex(
             1,
             trace,
@@ -215,6 +257,7 @@ int Ztrans_reduction(
     }
 
     VectorXd x = mtrx.aflt;
+    LambdaPhaseClock reductionClock{mtrx.searchDiagnostic.reductionSeconds};
     VectorXd D = mtrx.Dtrs;
     MatrixXd L = mtrx.Ltrs;
     MatrixXd Z = MatrixXd::Identity(n, n);
@@ -240,9 +283,12 @@ int Ztrans_reduction(
     int j = n - 2;
     while (j >= 0)
     {
+        if (lambdaDeadlineReached(mtrx, options)) return -2;
         if (j <= k)
             for (int i = j + 1; i < n; i++)
             {
+                if ((i & 63) == 0 && lambdaDeadlineReached(mtrx, options))
+                    return -2;
                 double mu = ROUND(L(i, j));
                 if (mu != 0)
                 {
@@ -282,6 +328,7 @@ int Ztrans_reduction(
     }
 
     mtrx.Ztrs = Z.transpose();
+    if (lambdaDeadlineReached(mtrx, options)) return -2;
     mtrx.zflt = mtrx.Ztrs * x;
     mtrx.Ltrs = L;
     mtrx.Dtrs = D;
@@ -410,14 +457,17 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
     GinAR_mtx& mtrx,
     int               zsiz,
     const GinAR_opt&  opt,
-    int nodeLimit = 2000000
+    std::uint64_t nodeLimit = 0
 )
 {
-    const bool completeTopTwo=zhangR51Enabled() && (zhangR51SingleBlock ||
+    const bool completeTopTwo=(zhangR51Enabled() || zhangRatioOnly()) && (zhangR51SingleBlock ||
         opt.mode==E_ARmode::LAMBDA || opt.mode==E_ARmode::LAMBDA_ALT);
     auto& searchAudit=mtrx.searchDiagnostic;
     ++searchAudit.ilsCalls;searchAudit.ilsComplete=false;
-    int nodes=0;
+    searchAudit.topTwoComplete=false;
+    LambdaPhaseClock enumerationClock{searchAudit.enumerationSeconds};
+    std::uint64_t nodes=0;
+    if (nodeLimit == 0) nodeLimit = opt.lambda_node_limit;
     int nmax = mtrx.Dtrs.size();
     int kmax = nmax - 1;
     int kmin = kmax - zsiz + 1;
@@ -439,7 +489,15 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
 
     while (search)
     {
-        if(completeTopTwo && ++nodes>nodeLimit) break;
+        ++nodes;
+        ++searchAudit.visitedNodes;
+        if ((nodes & 63) == 1 && lambdaDeadlineReached(mtrx, &opt)) break;
+        if (nodeLimit > 0 && nodes > nodeLimit)
+        {
+            searchAudit.nodeLimited = true;
+            searchAudit.reason = "NODE_LIMIT";
+            break;
+        }
         double newdist = dist(k) + zdif(k) * zdif(k) / mtrx.Dtrs(k);
 
         if (newdist < maxdist)
@@ -526,7 +584,10 @@ static map<double, VectorXd> lambdaSearchReducedSuffix(
                 :std::numeric_limits<double>::infinity();
         }
     }
-    if(completeTopTwo && !searchAudit.ilsComplete) zfixList.clear();
+    searchAudit.topTwoComplete = searchAudit.ilsComplete && zfixList.size() >= 2;
+    if ((completeTopTwo && !searchAudit.topTwoComplete) ||
+        searchAudit.wallTimedOut || searchAudit.nodeLimited)
+        zfixList.clear();
     return zfixList;
 }
 
@@ -539,6 +600,7 @@ int lambda_search(
 {
     auto& diagnostic=mtrx.searchDiagnostic;
     diagnostic={}; diagnostic.requestedRank=mtrx.aflt.size();
+    LambdaPhaseClock totalClock{diagnostic.totalSeconds};
     diagnostic.stochasticRank=mtrx.aflt.size();
     diagnostic.minimumFixCount=std::max(1,opt.min_lambda_fix_count);
     diagnostic.effectiveSuccess=opt.sucthr; diagnostic.localAlpha=opt.lambda_candidate_nis_alpha;
@@ -594,10 +656,10 @@ int lambda_search(
     mtrx.lambda_ablation_max_log_var_mismatch = 0;
     mtrx.lambda_ablation_status.clear();
 
-    int info = Ztrans_reduction(trace, mtrx);
+    int info = Ztrans_reduction(trace, mtrx, &opt);
     if (info < 0)
     {
-        diagnostic.reason="DECORRELATION_FAILED";
+        if (!diagnostic.wallTimedOut) diagnostic.reason="INVALID_COVARIANCE";
         tracepdeex(2, trace, "\n Matrix decorrelation failed ... ");
         return 0;
     }
@@ -882,6 +944,7 @@ int lambda_search(
     map<double, VectorXd> zfixList;
     while (zsiz >= minimumFixCount)
     {
+        if (lambdaDeadlineReached(mtrx, &opt)) break;
         zfixList = lambdaSearchReducedSuffix(mtrx, zsiz, opt);
         if (zfixList.empty())
         {
@@ -1043,8 +1106,9 @@ int lambda_search(
 
     if (zsiz < minimumFixCount || zfixList.empty())
     {
+        if (!diagnostic.wallTimedOut && !diagnostic.nodeLimited)
         diagnostic.reason=zfixList.empty() ?
-            (diagnostic.ilsCalls>0 && !diagnostic.ilsComplete ? "ILS_SEARCH_INCOMPLETE" : "CANDIDATE_ENUMERATION_FAILED") :
+            (diagnostic.ilsCalls>0 && !diagnostic.topTwoComplete ? "INCOMPLETE_TOP_TWO" : "CANDIDATE_ENUMERATION_FAILED") :
             "LOCAL_NIS_REJECTED";
         mtrx.Ztrs.resize(0, nmax);
         mtrx.zfix.resize(0);
@@ -1066,10 +1130,12 @@ int lambda_search(
         const auto second=std::next(best);
         const bool distinct=second!=zfixList.end() &&
             (best->second-second->second).cwiseAbs().maxCoeff()>0.5;
-        const auto gate=zhangEvaluateRatioGate(diagnostic.ilsComplete,distinct,best->first,
+        const auto gate=zhangEvaluateRatioGate(diagnostic.topTwoComplete,distinct,best->first,
             second!=zfixList.end() ? second->first : std::numeric_limits<double>::quiet_NaN(),opt.ratthr);
         diagnostic.ratioExecuted=gate.executed;diagnostic.ratio=gate.ratio;diagnostic.reason=gate.reason;
         trace << "\nZHANG_RATIO_GATE complete=" << diagnostic.ilsComplete
+              << " top_two_complete=" << diagnostic.topTwoComplete
+              << " visited_nodes=" << diagnostic.visitedNodes
               << " two_distinct=" << distinct << " executed=" << gate.executed
               << " first=" << best->first << " ratio=" << gate.ratio
               << " threshold=" << opt.ratthr << " accepted=" << gate.accepted

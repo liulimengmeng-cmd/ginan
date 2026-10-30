@@ -8,6 +8,8 @@
 
 #include "common/receiver.hpp"
 #include "common/zhangCheckpoint.hpp"
+#include "common/zhangGec134Migration.hpp"
+#include "common/zhangGec134ArContinuation.hpp"
 #include "pea/zhangInputCheckpoint.hpp"
 #include "pea/zhangReceiverCheckpoint.hpp"
 #include "pea/zhangReference.hpp"
@@ -130,7 +132,9 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 	const std::string& checkpointDirectory,
 	const ZhangE29CheckpointProvenance& provenance,
 	const std::string& expectedRuntimeId,
-	ZhangCheckpointBundle& bundle);
+	ZhangCheckpointBundle& bundle,
+	const ZhangGec134MigrationAuthority* migration = nullptr,
+	const ZhangGec134ArContinuationAuthority* continuation = nullptr);
 
 /** Validate every section and reconstruct a candidate KF core without
  * changing live state.  The PPP-AR snapshot inventory and both modules'
@@ -145,7 +149,9 @@ ZhangE29CheckpointResult preflightZhangE29CheckpointBundle(
 	const std::multimap<std::string, StreamParserPtr>& configuredStreams,
 	const std::map<std::string, bool>& configuredStreamDoneMap,
 	double expectedEpochIntervalSeconds,
-	ZhangE29CheckpointRestorePlan& plan);
+	ZhangE29CheckpointRestorePlan& plan,
+	const ZhangGec134MigrationAuthority* migration = nullptr,
+	const ZhangGec134ArContinuationAuthority* continuation = nullptr);
 
 /** Re-run the complete preflight, then commit in dependency order:
  * satellite identities, receivers, stream cursors/queues, KF core, graph,
@@ -159,4 +165,24 @@ ZhangE29CheckpointResult commitZhangE29CheckpointBundle(
 	std::multimap<std::string, StreamParserPtr>& streams,
 	std::map<std::string, bool>& streamDoneMap,
 	const ZhangE29CheckpointRestorePlan& plan,
-	ZhangPeaControllerCheckpointState& restoredController);
+	ZhangPeaControllerCheckpointState& restoredController,
+	const ZhangGec134MigrationAuthority* migration = nullptr,
+	const ZhangGec134ArContinuationAuthority* continuation = nullptr);
+
+/** Capture the independently inspectable post-restore state before processing
+ * any new epoch, prove exact source scientific payload/core preservation,
+ * and publish it under an isolated audit directory. Identity/provenance are
+ * explicitly new; the immutable source bundle is neither edited nor copied
+ * over. A failed audit is fatal to a migration. */
+ZhangE29CheckpointResult auditAndWriteZhangGec134RestoredState(
+	const std::string& targetDirectory,
+	const ZhangCheckpointBundle& sourceBundle,
+	const KFState& authoritativeState,
+	const ReceiverMap& receivers,
+	const Navigation& navigation,
+	const std::multimap<std::string, StreamParserPtr>& streams,
+	const std::map<std::string, bool>& streamDoneMap,
+	const ZhangPeaControllerCheckpointState& controller,
+	const ZhangE29CheckpointProvenance& targetProvenance,
+	const ZhangGec134MigrationAuthority* migration = nullptr,
+	const ZhangGec134ArContinuationAuthority* continuation = nullptr);

@@ -1,4 +1,5 @@
 #pragma once
+#include "common/zhangArThreading.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -57,7 +58,7 @@ inline ZhangIntegerCandidateNis assessZhangIntegerCandidateNis(
 			}
 		}
 	}
-	Eigen::SelfAdjointEigenSolver<MatrixXd> eigenSolver(covariance);
+	auto eigenSolver = ZhangArThreading::eigenSelfAdjoint(covariance);
 	if (eigenSolver.info() != Eigen::Success
 	 || !eigenSolver.eigenvalues().allFinite())
 	{

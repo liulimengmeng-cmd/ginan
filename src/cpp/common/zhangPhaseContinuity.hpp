@@ -115,6 +115,19 @@ struct ZhangPhaseContinuityState
         return ZhangPhaseContinuityChange::REINITIALISED;
     }
 
+	/** Start a new public ambiguity datum after an unproved product handoff.
+	 * The current product's exact affine alignment is already included in its
+	 * value, so unlike physical-arc reinitialisation this must not zero the
+	 * phase shift or alter the current-epoch integer decision. */
+	void beginPublicationSegment(GTime time, const std::string& reason)
+	{
+		counter++;
+		datumVersion++;
+		iod++;
+		validFrom = time;
+		resetReason = reason;
+	}
+
     void advanceEpoch(GTime time)
     {
         if (lastEpoch == time)

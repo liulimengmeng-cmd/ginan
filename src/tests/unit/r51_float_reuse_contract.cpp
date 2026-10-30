@@ -36,6 +36,14 @@ int main()
         hash = original;
     }
     const auto originalEnvironment = environment;
+    environment["ZHANG_R51_RATIO_THRESHOLD"] = "2";
+    environment["ZHANG_R51_EFFECTIVE_RATIO_THRESHOLD"] = "2";
+    require(allowed(), "explicit ratio=2 target rejected from unfixed FLOAT source");
+    environment["ZHANG_R51_EFFECTIVE_RATIO_THRESHOLD"] = "3";
+    require(!allowed(), "mismatched effective ratio accepted from FLOAT source");
+    environment["ZHANG_R51_RATIO_THRESHOLD"] = "nan";
+    require(!allowed(), "invalid ratio setting accepted from FLOAT source");
+    environment = originalEnvironment;
     for (const auto& [name, value] : originalEnvironment)
     {
         environment[name] = "WRONG";
@@ -71,5 +79,5 @@ int main()
     environment["OPENBLAS_NUM_THREADS"] = "4";
     require(!allowed(), "4/4 with 8/1 marker accepted");
 
-    std::cout << "PASS pinned checkpoint, 4/4 baseline and explicit 8/1 experiment\n";
+    std::cout << "PASS pinned FLOAT checkpoint, explicit ratio=2 target, 4/4 baseline and explicit 8/1 experiment\n";
 }

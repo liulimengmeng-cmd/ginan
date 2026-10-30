@@ -109,6 +109,43 @@ BOOST_AUTO_TEST_CASE(r47_a_numeric_integer_coefficients_must_be_exactly_represen
     BOOST_CHECK_EQUAL(numeric(0), -7);
 }
 
+BOOST_AUTO_TEST_CASE(r47_unused_unknown_column_does_not_poison_exact_product_pullback)
+{
+    const auto graph=r47Graph(false);
+    auto target=r47Target(graph);
+    const std::vector<ZhangGraphEdge> chords{{"B",SatSys("G02")},{"B",SatSys("G03")}};
+    std::map<ZhangGraphEdge,int> versions;
+    for(const auto& edge:graph.edges)versions[edge]=7;
+    versions.erase(chords[0]);
+    BOOST_CHECK(!zhangPullbackProductPhysicalRelations(target,graph,versions,chords,
+        {{chords[0],0},{chords[1],1}},2).valid);
+    const auto repaired=zhangPullbackProductPhysicalRelations(target,graph,versions,chords,
+        {{chords[0],0},{chords[1],1}},2,true);
+    BOOST_REQUIRE(repaired.valid);
+    BOOST_REQUIRE(repaired.available[0]);
+    // Independent graph algebra: the intended G03-G01 cycle is the second
+    // FLOAT chord, never the unrelated unknown first chord. Keep both columns.
+    BOOST_CHECK(repaired.posteriorRows[0]==ZhangExactVector({0,1}));
+    BOOST_CHECK(target.namedRelations[0].currentCycleCoefficients==ZhangExactVector({0,1}));
+    Eigen::VectorXd row;
+    BOOST_REQUIRE(zhangExactPosteriorRowToDouble(repaired.posteriorRows[0],row));
+    Eigen::Vector2d mean(100,5);
+    Eigen::Matrix2d covariance;covariance<<4,1,1,9;
+    BOOST_CHECK_SMALL(row.dot(mean)-5,1e-12);
+    BOOST_CHECK_SMALL((row.transpose()*covariance*row)(0,0)-9,1e-12);
+    auto unknownTarget=target;
+    unknownTarget.namedRelations[0].physicalArcCoefficients.clear();
+    for(const auto& [edge,value]:zhangFundamentalCycle(graph,chords[0]))
+        unknownTarget.namedRelations[0].physicalArcCoefficients[edge]=value;
+    const auto missing=zhangPullbackProductPhysicalRelations(unknownTarget,graph,versions,chords,
+        {{chords[0],0},{chords[1],1}},2,true);
+    BOOST_CHECK(!missing.valid); // Mandatory unknown target is not a structural zero.
+    BOOST_CHECK_EQUAL(missing.failureReason,"INTENDED_PHYSICAL_ARC_UNVERSIONED");
+    auto invalidChords=chords;invalidChords[0]={"A",SatSys("G01")};
+    BOOST_CHECK(!zhangPullbackProductPhysicalRelations(target,graph,versions,invalidChords,
+        {{invalidChords[0],0},{chords[1],1}},2,true).valid);
+}
+
 #include <filesystem>
 #include <fstream>
 #include <boost/property_tree/json_parser.hpp>

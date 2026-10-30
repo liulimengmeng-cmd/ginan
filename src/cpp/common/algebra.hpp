@@ -322,6 +322,9 @@ struct KFMeas
 
     int getNoiseIndex(const KFKey& key) const;
 
+    /** Complete deep snapshot, with bit-preserving parallel dense copies. */
+    KFMeas snapshotForFilter() const;
+
     template <class ARCHIVE>
     void serialize(ARCHIVE& ar, const unsigned int& version)
     {
@@ -393,6 +396,10 @@ struct KFStatistics
 {
     double averageRatio = 0;
     double sumOfSquares = 0;
+    // Final diagnostics can be published after every chunk is certified,
+    // without a second evaluation or retaining dense Qinv workspaces.
+    VectorXd measurementRatios;
+    VectorXd stateRatios;
 };
 
 struct KFState;
@@ -537,7 +544,8 @@ enum class KFFilterResult
     COMMITTED,
     NO_MEASUREMENTS,
     NUMERICAL_FAILURE,
-    FACTOR_TRANSACTION_REJECTED
+    FACTOR_TRANSACTION_REJECTED,
+    QC_NOT_CONVERGED
 };
 
 enum class KFStagedFactorKind
@@ -1024,7 +1032,10 @@ struct KFState : KFState_
         int                    numH
     );
 
-    void postFitSigmaChecks(
+    // False means the statistics cannot be evaluated safely. With
+    // publishRatios=false this only reports a result through callbackDetails
+    // and statistics; it never changes filter/measurement diagnostic arrays.
+    bool postFitSigmaChecks(
         RejectCallbackDetails& callbackDetails,
         VectorXd&              dx,
         MatrixXd&              Qinv,
@@ -1033,7 +1044,8 @@ struct KFState : KFState_
         int                    begX,
         int                    numX,
         int                    begH,
-        int                    numH
+        int                    numH,
+        bool                   publishRatios = true
     );
 
     double stateChiSquare(

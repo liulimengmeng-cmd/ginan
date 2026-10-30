@@ -1,0 +1,43 @@
+{
+  "scope": "QC research prototypes only; these names do not identify historical server-product V5",
+  "production_algorithm": "Qualified past-only GF assistance, frozen event-window GF/phase covariance and fixed two-post Doppler cue; auxiliary evidence can quarantine but cannot directly certify integer retirement.",
+  "source_development_state": "COMPILED_ALL_VALIDATION_V3_GATES_PASSED",
+  "production_pea_sha256": "6604c47dc2138d7c2d01492a133a40c761798d73c69b57ce1317eb9fc1db1e12",
+  "readiness": "PASSED_FUNCTIONAL_PERFORMANCE_AND_PROVENANCE_GATES",
+  "validation_report": "C:/Users/rx/Documents/GINAN/artifacts/cycle_slip_current_epoch_20261018/validation_v3/validation_result.json",
+  "previous_failed_baseline": "validation_v2 is preserved independently; old with-D/storm/no-D maxima were 90/210/690 seconds. No AR was launched from that failed candidate.",
+  "ar_started": true,
+  "ar_run_root": "/home/rx/GINAN/local_timing/r51_20261001_osb_branch_repair_ar1h_cycle_slip_20261018_qgf_pinned_v1",
+  "ar_handoff_state": "POST_RESTORE_FIRST_EPOCH_INPUT_LOADING; no newly committed AR products claimed",
+  "ar_launch_audit": "C:/Users/rx/Documents/GINAN/artifacts/cycle_slip_current_epoch_20261018/ar_launch_audit.json",
+  "ar_config_policy": "Exact original pinned target config. C++ whitelist unchanged. No extra receiver TRACE; failed TRACE-enabled attempt preserved separately.",
+  "network_joint_nis": "SKIPPED_RATIO_ONLY",
+  "network_ratio": 2,
+  "validated_functional_tests": "45/45 CTest; 316 derived-observation baseline/grid cases; 20 production-reader raw MAL2 cases including seven with all GPS Doppler fields removed; old schema-2 decode; 11 long-tail regressions; unchanged source/binary/input hashes; see validation_v3",
+  "independent_results": [
+    {"case": "with_doppler", "injections": 2000, "causal_current_epoch_rate": 1.0, "max_delay_s": 0, "allowed_max_delay_s": 60},
+    {"case": "rapid_ionosphere_with_doppler", "injections": 1000, "causal_current_epoch_rate": 0.991, "max_delay_s": 30, "allowed_max_delay_s": 120},
+    {"case": "without_doppler", "injections": 2000, "causal_current_epoch_rate": 0.999, "max_delay_s": 60, "allowed_max_delay_s": 330}
+  ],
+  "no_slip_controls": {"seeds": 8000, "tested_link_epochs": 5376000, "new_quarantine_events": 26, "retirements": 0, "wrong_integer_certificates": 0},
+  "known_no_doppler_690s_regression": {"seed": 180886, "new_delay_seconds": 0},
+  "prototypes": {
+    "v3": {"status": "NOT_PROMOTED", "reason": "Joint Doppler windows and joint phase forecasts did not reduce selected long-tail regression delays. Not independently qualified."},
+    "v4": {"status": "REJECTED", "reason": "Faster scalar step test produced 364 false INTEGER_STEP retirements in 1000 smooth-phase no-slip control seeds."},
+    "v5": {"status": "REJECTED", "reason": "Past-only quadratic adequacy guard still produced 32 false INTEGER_STEP retirements in 1000 smooth-phase no-slip control seeds."}
+  },
+  "test_metric_correction": "After validation_v2, the test harness was corrected to count INTEGER_STEP at all no-slip links as a wrong integer certificate. Previous null retirement gates already rejected these unsafe prototypes. The production QC algorithm was not changed by this counter correction.",
+  "metric_correction_verification": {
+    "rebuilt_production_test_target": true,
+    "default_unit_test": "PASS",
+    "production_no_slip_control": {"seeds": 20, "offset": 190050, "retirements": 0, "wrong_integer_certificates": 0, "exit_code": 0},
+    "rejected_prototype_negative_control": {"seeds": 1, "offset": 190057, "retirements": 1, "wrong_integer_certificates": 1, "expected_exit_code": 1, "actual_exit_code": 1},
+    "note": "These small counter checks belong to the older validation_v2 transition. validation_v3 rebuilt and exercised the corrected all-link counter with the new production algorithm; do not treat these old checks as current performance evidence."
+  },
+  "scientific_limits": [
+    "Detection or quarantine is not successful integer identification or repair.",
+    "Original MAL2 G25 replay: 41 epochs, no quarantine or arc retirement; this is not full-network KF/product validation.",
+    "Controlled Gaussian performance and no-slip controls are not real-world network integrity guarantees.",
+    "Do not launch AR based only on functional test passes, selected seed improvements, or average latency."
+  ]
+}

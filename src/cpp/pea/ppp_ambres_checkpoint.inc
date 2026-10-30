@@ -5,6 +5,10 @@
  * making the AR implementation's physical-lattice/window types public.
  */
 
+#include "common/zhangMultiGnssFloatCheckpoint.hpp"
+#include "common/zhangGecArCheckpointLimits.hpp"
+#include <boost/json.hpp>
+
 namespace
 {
 constexpr std::size_t ZHANG_AMBRES_MAX_CONTAINER = 200000;
@@ -634,6 +638,86 @@ struct AmbresCheckpointEnvelope
     }
 };
 
+/** Multi-GNSS FLOAT checkpoints may carry configuration, never private AR
+ * runtime. In particular, an empty registered object is still a private
+ * runtime entry and must not be silently dropped to pass this gate. */
+bool multiGnssFloatAmbresCheckpointEmpty(
+    const AmbresCheckpointEnvelope& snapshot, string& failureReason)
+{
+    if (!zhangMultiGnssFloatCheckpointActive(acsConfig)) return true;
+    const auto reject = [&](const char* field)
+    {
+        failureReason = string("AMBRES_MULTI_GNSS_FLOAT_PRIVATE_STATE_NONEMPTY:") + field;
+        return false;
+    };
+    // Existing writers skip empty held-user WL and empty nested registries.
+    // Their registration itself is out of scope, on export and import alike.
+#define ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(field) \
+    if (!field.empty()) return reject("live_" #field)
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(r51PhysicalArchives);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangE27WideLaneRuntimes);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangPersistentHeldLattices);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangPersistentHeldEvidence);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangProductRelationAdmissionStateRegistry());
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangHeldUserWideLaneRegistry);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangActiveTemporalBesdTransitions);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangRelinkPriorMoments);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangRelinkShadowAccumulators);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangRelinkJointAccumulators);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangWhitenedWlAccumulators);
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangCurrentEpochEvidenceRegistry());
+    ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY(zhangMultiGnssCurrentEvidenceAuthorities());
+#undef ZHANG_FLOAT_AMBRES_REQUIRE_LIVE_EMPTY
+    if (::filterError) return reject("live_filterError");
+    if (zhangTransactionalConditioningFailed)
+        return reject("live_transactionalConditioningFailed");
+    if (!zhangTransactionalConditioningReason.empty())
+        return reject("live_transactionalConditioningReason");
+    if (snapshot.filterError) return reject("filterError");
+    if (snapshot.transactionalConditioningFailed)
+        return reject("transactionalConditioningFailed");
+    if (!snapshot.transactionalConditioningReason.empty())
+        return reject("transactionalConditioningReason");
+#define ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(field) \
+    if (!snapshot.field.empty()) return reject(#field)
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(r51Archives);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(e27Runtimes);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(heldLattices);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(heldEvidence);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(admissionStates);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(heldUserWideLanes);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(activeTransitions);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(relinkPriors);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(scalarAccumulators);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(jointAccumulators);
+    ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY(whitenedAccumulators);
+#undef ZHANG_FLOAT_AMBRES_REQUIRE_EMPTY
+    // Preserve arVerbose/fixedAmbiguityVariance as configuration. The full
+    // wire comparison fails closed if a future member adds private history.
+    AmbresCheckpointEnvelope allowed;
+    allowed.schemaVersion = snapshot.schemaVersion;
+    allowed.runtimeId = snapshot.runtimeId;
+    allowed.arVerbose = snapshot.arVerbose;
+    allowed.fixedAmbiguityVariance = snapshot.fixedAmbiguityVariance;
+    const auto wire = [](const AmbresCheckpointEnvelope& value)
+    {
+        std::ostringstream output(std::ios::binary | std::ios::out);
+        boost::archive::binary_oarchive archive(output, boost::archive::no_header);
+        archive << value;
+        return output.str();
+    };
+    try
+    {
+        if (wire(snapshot) != wire(allowed)) return reject("unrecognized_private_history");
+    }
+    catch (const std::exception&)
+    {
+        failureReason = "AMBRES_MULTI_GNSS_FLOAT_PRIVATE_STATE_AUDIT_FAILED";
+        return false;
+    }
+    return true;
+}
+
 std::mutex zhangAmbresCheckpointMutex;
 
 bool ambresValidString(const string& value, bool allowEmpty = true)
@@ -642,19 +726,40 @@ bool ambresValidString(const string& value, bool allowEmpty = true)
         (allowEmpty || !value.empty());
 }
 
+bool ambresValidSystem(E_Sys system)
+{
+    return system == E_Sys::GPS ||
+        (zhangMultiGnssArCheckpointActive(acsConfig) &&
+         (system == E_Sys::GAL || system == E_Sys::BDS));
+}
+
 bool ambresValidGpsSatellite(const SatSys& satellite, bool allowNone = false)
 {
     if (allowNone && satellite.prn == 0)
     {
-        return satellite.sys == E_Sys::NONE || satellite.sys == E_Sys::GPS;
+        return satellite.sys == E_Sys::NONE || ambresValidSystem(satellite.sys);
     }
-    return satellite.sys == E_Sys::GPS && satellite.prn > 0 &&
+    return ambresValidSystem(satellite.sys) && satellite.prn > 0 &&
         satellite.prn <= ZHANG_E27_MAX_SATELLITE;
 }
 
-bool ambresValidObservable(E_ObsCode observable)
+bool ambresValidObservable(E_ObsCode observable, E_Sys system = E_Sys::GPS)
 {
-    return observable == E_ObsCode::L1C || observable == E_ObsCode::L2W;
+    if (system == E_Sys::GPS)
+        return observable == E_ObsCode::L1C || observable == E_ObsCode::L2W;
+    if (!zhangMultiGnssArCheckpointActive(acsConfig)) return false;
+    if (system == E_Sys::GAL)
+        return observable == E_ObsCode::L1C || observable == E_ObsCode::L5Q;
+    if (system == E_Sys::BDS)
+        return observable == E_ObsCode::L1P || observable == E_ObsCode::L5P;
+    return false;
+}
+
+bool ambresSatelliteUsesSystem(const SatSys& satellite, E_Sys system, bool allowNone = false)
+{
+    return ambresValidGpsSatellite(satellite, allowNone) &&
+        ((allowNone && satellite.prn == 0 && satellite.sys == E_Sys::NONE) ||
+         satellite.sys == system);
 }
 
 bool ambresRestoreFiniteTime(
@@ -716,7 +821,7 @@ bool ambresRestoreArc(
     ZhangExactInteger& coefficient,
     string& reason)
 {
-    if (!ambresValidObservable(snapshot.code) ||
+    if (!ambresValidObservable(snapshot.code, snapshot.satellite.sys) ||
         !ambresValidString(snapshot.receiver, false) ||
         !ambresValidGpsSatellite(snapshot.satellite) || snapshot.version < 0 ||
         !ambresParseExact(snapshot.coefficient, coefficient, reason) ||
@@ -772,6 +877,48 @@ bool ambresRestoreHeldRow(
                 reason = "AMBRES_CHECKPOINT_HELD_ROW_DUPLICATE_ARC";
             }
             return false;
+        }
+    }
+    return true;
+}
+
+bool ambresHeldRowUsesSystem(const ZhangPersistentHeldRow& row, E_Sys system)
+{
+    return std::all_of(row.coefficients.begin(), row.coefficients.end(),
+        [&](const auto& item) { return item.first.edge.satellite.sys == system &&
+            ambresValidObservable(item.first.code, system); });
+}
+
+bool ambresGecArchiveScope(const AmbresCheckpointEnvelope& snapshot, string& reason)
+{
+    if (!zhangMultiGnssArCheckpointActive(acsConfig)) return true;
+    for (const auto& item : snapshot.r51Archives)
+    {
+        const auto codes = zhangCurrentNetworkBaselineCodes(item.system);
+        const auto rejectScope = [&](const char* detail)
+        {
+            reason = string("AMBRES_GEC_R51_ARCHIVE_SCOPE_INVALID:") + detail +
+                ":system=" + enum_to_string(item.system) + ":owner=" + item.owner +
+                ":rows=" + std::to_string(item.rows.size()) +
+                ":values=" + std::to_string(item.values.size());
+            return false;
+        };
+        if (!ambresValidSystem(item.system)) return rejectScope("UNSUPPORTED_SYSTEM");
+        if (!codes) return rejectScope("BASELINE_NOT_ACTIVE_OR_CONFIGURED");
+        if (item.rows.size() != item.values.size()) return rejectScope("ROW_VALUE_COUNT_MISMATCH");
+        if (item.rows.size() > ZHANG_AMBRES_MAX_CONTAINER) return rejectScope("ROW_COUNT_LIMIT");
+        for (const auto& source : item.rows)
+        {
+            map<string,ZhangExactInteger> row;
+            for (const auto& [id,text] : source)
+            {
+                ZhangExactInteger x;
+                if (!ambresParseExact(text,x,reason) || x == 0)
+                { reason = "AMBRES_GEC_R51_ARCHIVE_INTEGER_INVALID"; return false; }
+                row.emplace(id,std::move(x));
+            }
+            if (!zhangMultiGnssPhysicalRowsUseSystem({row},item.system,*codes))
+            { reason = "AMBRES_GEC_R51_ARCHIVE_SYSTEM_SIGNAL_INVALID"; return false; }
         }
     }
     return true;
@@ -839,7 +986,7 @@ AmbresAdmissionCandidateCheckpoint ambresCheckpointAdmissionCandidate(
 bool ambresRestoreAdmissionCandidate(
     const AmbresAdmissionCandidateCheckpoint& snapshot,
     ZhangProductRelationAdmissionCandidate& candidate,
-    string& reason)
+    string& reason, E_Sys system = E_Sys::GPS)
 {
     if ((snapshot.certificateKind != static_cast<int>(
             TemporalCertificateKind::SELF_GAUGE_SHIFT)
@@ -868,6 +1015,19 @@ bool ambresRestoreAdmissionCandidate(
     candidate.phaseSegmentCompatible = snapshot.phaseSegmentCompatible;
     candidate.scalarReliabilityPassed = snapshot.scalarReliabilityPassed;
     candidate.jointNisPassed = snapshot.jointNisPassed;
+    if (zhangMultiGnssArCheckpointActive(acsConfig))
+    {
+        const SatSys satellite(snapshot.satellite.c_str());
+        const auto codes = zhangCurrentNetworkBaselineCodes(system);
+        if (!ambresSatelliteUsesSystem(satellite, system) || !codes ||
+            (snapshot.observable != enum_to_string((*codes)[0]) &&
+             snapshot.observable != enum_to_string((*codes)[1])) ||
+            !zhangMultiGnssPhysicalRowsUseSystem({candidate.physicalCoefficients}, system, *codes))
+        {
+            reason = "AMBRES_CHECKPOINT_ADMISSION_SYSTEM_SIGNAL_INVALID";
+            return false;
+        }
+    }
     return true;
 }
 
@@ -911,7 +1071,8 @@ bool ambresRestoreFunctional(
     candidate.referenceSatellite = snapshot.referenceSatellite;
     if (snapshot.valid &&
         (!ambresValidGpsSatellite(candidate.satellite) ||
-         !ambresValidGpsSatellite(candidate.referenceSatellite)))
+         !ambresValidGpsSatellite(candidate.referenceSatellite) ||
+         candidate.satellite.sys != candidate.referenceSatellite.sys))
     {
         reason = "AMBRES_CHECKPOINT_FUNCTIONAL_SATELLITE_INVALID";
         return false;
@@ -922,6 +1083,7 @@ bool ambresRestoreFunctional(
         ZhangExactInteger coefficient;
         if (!ambresValidString(edge.receiver, false) ||
             !ambresValidGpsSatellite(edge.satellite) ||
+            (snapshot.valid && edge.satellite.sys != candidate.satellite.sys) ||
             // Version zero is the established representation for a physical
             // product-basis edge that has no registered arc version yet.
             // It must round-trip exactly; only negative versions are invalid.
@@ -984,12 +1146,14 @@ bool ambresRestoreTransition(
         return false;
     }
     ZhangProductIntegerTransition candidate;
+    E_Sys transitionSystem = E_Sys::NONE;
     for (std::size_t index = 0; index < snapshot.physicalEdges.size(); index++)
     {
         const auto& edge = snapshot.physicalEdges[index];
         ZhangExactInteger coefficient;
         if (!ambresValidString(edge.receiver, false) ||
             !ambresValidGpsSatellite(edge.satellite) ||
+            (transitionSystem != E_Sys::NONE && edge.satellite.sys != transitionSystem) ||
             snapshot.physicalArcVersions[index] < 0 ||
             !ambresParseExact(snapshot.coefficients[index], coefficient, reason) ||
             coefficient == 0)
@@ -1001,6 +1165,7 @@ bool ambresRestoreTransition(
             return false;
         }
         candidate.physicalEdges.push_back({edge.receiver, edge.satellite});
+        transitionSystem = edge.satellite.sys;
         candidate.coefficients.push_back(coefficient);
     }
     candidate.physicalArcVersions = snapshot.physicalArcVersions;
@@ -1052,9 +1217,9 @@ bool ambresRestorePending(
     string& reason)
 {
     ZhangPendingProductTransition candidate;
-    if (snapshot.system != E_Sys::GPS ||
-        !ambresValidGpsSatellite(snapshot.satellite) ||
-        !ambresValidObservable(snapshot.observable) ||
+    if (!ambresValidSystem(snapshot.system) ||
+        !ambresSatelliteUsesSystem(snapshot.satellite, snapshot.system) ||
+        !ambresValidObservable(snapshot.observable, snapshot.system) ||
         !ambresValidString(snapshot.eventId, false) ||
         snapshot.oldSnapshotReferenceCount < 0 ||
         snapshot.newSnapshotReferenceCount < 0 ||
@@ -1081,7 +1246,9 @@ bool ambresRestorePending(
     if (!candidate.oldFunctional.valid || !candidate.newFunctional.valid ||
         !candidate.transition.valid ||
         candidate.oldFunctional.satellite != candidate.satellite ||
-        candidate.newFunctional.satellite != candidate.satellite)
+        candidate.newFunctional.satellite != candidate.satellite ||
+        std::any_of(candidate.transition.physicalEdges.begin(),candidate.transition.physicalEdges.end(),
+            [&](const auto& edge) { return edge.satellite.sys != candidate.system; }))
     {
         reason = "AMBRES_CHECKPOINT_PENDING_FUNCTIONAL_REFERENCE_INVALID";
         return false;
@@ -1188,6 +1355,572 @@ bool ambresHasForeignRuntime(const string& rootRuntimeId)
 }
 
 } // namespace
+
+// This additional section does not alter either legacy archive. In particular,
+// the old multi-GNSS FLOAT empty-state classifier still sees the original wire.
+namespace
+{
+namespace gecjson = boost::json;
+
+void gecArRequire(bool value, const char* reason)
+{
+    if (!value) throw std::runtime_error(reason);
+}
+
+const gecjson::object& gecArObject(const gecjson::value& value,
+    std::initializer_list<const char*> fields)
+{
+    const auto& object = value.as_object();
+    gecArRequire(object.size() == fields.size(), "GEC_AR_OBJECT_FIELDS_INVALID");
+    for (const auto* field : fields)
+        gecArRequire(object.contains(field), "GEC_AR_OBJECT_FIELD_MISSING");
+    return object;
+}
+
+string gecArString(const gecjson::value& value, bool allowEmpty = true)
+{
+    const auto& text = value.as_string();
+    string result(text.data(), text.size());
+    gecArRequire(ambresValidString(result, allowEmpty), "GEC_AR_STRING_INVALID");
+    return result;
+}
+
+const gecjson::array& gecArArray(const gecjson::value& value)
+{
+    const auto& array = value.as_array();
+    gecArRequire(array.size() <= ZHANG_AMBRES_MAX_CONTAINER, "GEC_AR_CONTAINER_LIMIT");
+    return array;
+}
+
+E_Sys gecArSystem(const gecjson::value& value, bool allowNone = false)
+{
+    const auto text = gecArString(value, false);
+    if (allowNone && text == enum_to_string(E_Sys::NONE)) return E_Sys::NONE;
+    for (auto system : {E_Sys::GPS, E_Sys::GAL, E_Sys::BDS})
+        if (text == enum_to_string(system)) return system;
+    throw std::runtime_error("GEC_AR_SYSTEM_INVALID");
+}
+
+gecjson::value gecArPhysical(const ZhangCurrentEpochPhysicalRow& row)
+{
+    gecjson::object result;
+    for (const auto& [id, coefficient] : row) result[id] = ambresExactText(coefficient);
+    return result;
+}
+
+ZhangCurrentEpochPhysicalRow gecArPhysical(const gecjson::value& value, E_Sys system,
+    bool allowEmpty = false)
+{
+    const auto& object = value.as_object();
+    gecArRequire((allowEmpty || !object.empty()) && object.size() <= ZHANG_AMBRES_MAX_CONTAINER,
+        "GEC_AR_PHYSICAL_ROW_SIZE_INVALID");
+    ZhangCurrentEpochPhysicalRow row;
+    for (const auto& entry : object)
+    {
+        ZhangExactInteger coefficient; string reason;
+        const string id(entry.key().data(), entry.key().size());
+        gecArRequire(ambresValidString(id, false) &&
+            ambresParseExact(gecArString(entry.value(), false), coefficient, reason) && coefficient != 0,
+            "GEC_AR_PHYSICAL_TERM_INVALID");
+        row.emplace(id, std::move(coefficient));
+    }
+    const auto codes = zhangCurrentNetworkBaselineCodes(system);
+    gecArRequire(codes && zhangMultiGnssPhysicalRowsUseSystem({row}, system, *codes),
+        "GEC_AR_PHYSICAL_SYSTEM_SIGNAL_INVALID");
+    return row;
+}
+
+gecjson::value gecArNumeric(const ZhangCoordinateRow& row)
+{
+    gecjson::array result;
+    for (const auto& [key, coefficient] : row)
+    {
+        // The receiver address is replaced by its stable receiver ID. Identity
+        // metadata and the full finite long-double timestamp remain lossless.
+        const auto time = captureZhangCheckpointTime(key.estimatedTime);
+        string timeHex; static constexpr char digits[] = "0123456789abcdef";
+        for (auto byte : time.bigTimeBytes)
+        { timeHex += digits[byte >> 4]; timeHex += digits[byte & 15]; }
+        result.emplace_back(gecjson::object{{"type", static_cast<int>(key.type)},
+            {"satellite", key.Sat.id()}, {"receiver", key.str}, {"number", key.num},
+            {"comment", key.comment}, {"estimated_time", timeHex},
+            {"receiver_pointer", key.rec_ptr ? key.rec_ptr->id : string{}}, {"coefficient", coefficient}});
+    }
+    return result;
+}
+
+ZhangCoordinateRow gecArNumeric(const gecjson::value& value, E_Sys system,
+    const KFState& owner, int dimension)
+{
+    const auto& array = gecArArray(value);
+    gecArRequire(!array.empty() && array.size() <= static_cast<std::size_t>(dimension),
+        "GEC_AR_NUMERIC_ROW_SIZE_INVALID");
+    ZhangCoordinateRow result;
+    for (const auto& term : array)
+    {
+        const auto& item = gecArObject(term, {"type","satellite","receiver","number","comment",
+            "estimated_time","receiver_pointer","coefficient"});
+        KFKey key;
+        const auto type = item.at("type").as_int64();
+        gecArRequire(type == int(KF::AMBIGUITY) || type == int(KF::PHASE_BIAS) ||
+            type == int(KF::PRODUCT_HANDOFF), "GEC_AR_NUMERIC_KEY_TYPE_INVALID");
+        key.type = static_cast<KF>(type);
+        key.Sat = SatSys(gecArString(item.at("satellite"), false).c_str());
+        key.str = gecArString(item.at("receiver"));
+        const auto number = item.at("number").as_int64();
+        gecArRequire(number >= 0 && number <= std::numeric_limits<int>::max(),
+            "GEC_AR_NUMERIC_KEY_NUMBER_INVALID");
+        key.num = static_cast<int>(number);
+        gecArRequire(key.Sat.sys == system && (key.Sat.prn == 0 || ambresValidGpsSatellite(key.Sat)) &&
+            ambresValidObservable(static_cast<E_ObsCode>(key.num), system),
+            "GEC_AR_NUMERIC_SYSTEM_SIGNAL_INVALID");
+        key.comment = gecArString(item.at("comment"));
+        const auto timeHex = gecArString(item.at("estimated_time"), false);
+        ZhangCheckpointTime time;
+        gecArRequire(timeHex.size() == time.bigTimeBytes.size()*2, "GEC_AR_KEY_TIME_INVALID");
+        auto nibble = [](char c) -> unsigned {
+            if (c >= '0' && c <= '9') return c-'0';
+            if (c >= 'a' && c <= 'f') return c-'a'+10;
+            throw std::runtime_error("GEC_AR_KEY_TIME_INVALID");
+        };
+        for (std::size_t i=0; i<time.bigTimeBytes.size(); ++i)
+            time.bigTimeBytes[i] = static_cast<unsigned char>((nibble(timeHex[2*i])<<4)|nibble(timeHex[2*i+1]));
+        key.estimatedTime = restoreZhangCheckpointTime(time);
+        gecArRequire(std::isfinite(key.estimatedTime.bigTime), "GEC_AR_KEY_TIME_INVALID");
+        const auto found = owner.kfIndexMap.find(key);
+        gecArRequire(found != owner.kfIndexMap.end() && found->second >= 0 && found->second < dimension,
+            "GEC_AR_NUMERIC_KEY_NOT_IN_FLOAT_CORE");
+        const auto receiver = gecArString(item.at("receiver_pointer"));
+        if (!receiver.empty())
+        {
+            gecArRequire(found->first.rec_ptr && found->first.rec_ptr->id == receiver,
+                "GEC_AR_RECEIVER_POINTER_BINDING_INVALID");
+            key.rec_ptr = found->first.rec_ptr;
+        }
+        const auto& numberValue = item.at("coefficient");
+        const double coefficient = numberValue.is_double() ? numberValue.as_double() :
+            numberValue.is_int64() ? static_cast<double>(numberValue.as_int64()) :
+            numberValue.is_uint64() ? static_cast<double>(numberValue.as_uint64()) :
+            std::numeric_limits<double>::quiet_NaN();
+        gecArRequire(std::isfinite(coefficient) && coefficient != 0 && result.emplace(key, coefficient).second,
+            "GEC_AR_NUMERIC_TERM_INVALID");
+    }
+    return result;
+}
+
+gecjson::value gecArProofGroups(const vector<ZhangDecisionProofs>& groups,
+    map<string, ZhangDecisionProofPtr>& atoms)
+{
+    gecjson::array result;
+    for (const auto& roots : groups)
+    {
+        const auto closure = zhangDecisionRiskClosure(roots);
+        gecArRequire(closure.valid, "GEC_AR_PROOF_CLOSURE_INVALID");
+        gecjson::array group;
+        for (const auto& root : roots) group.emplace_back(root->id);
+        for (const auto& [id, atom] : closure.atoms)
+        {
+            const auto prior = atoms.find(id);
+            if (prior != atoms.end())
+            {
+                vector<string> oldParents, newParents;
+                for (const auto& parent : prior->second->parents) oldParents.push_back(parent->id);
+                for (const auto& parent : atom->parents) newParents.push_back(parent->id);
+                gecArRequire(prior->second->originalStatement == atom->originalStatement &&
+                    prior->second->observationProvenance == atom->observationProvenance &&
+                    prior->second->conditionalFailureBound == atom->conditionalFailureBound && oldParents == newParents &&
+                    prior->second.get() == atom.get(),
+                    "GEC_AR_PROOF_ID_CONFLICT");
+            }
+            atoms[id] = atom;
+        }
+        result.emplace_back(std::move(group));
+    }
+    return result;
+}
+
+gecjson::object gecArEvidence(const ZhangCurrentEpochEvidenceKey& key,
+    const ZhangCurrentEpochEvidence& value,
+    map<string,ZhangDecisionProofPtr>& bundleProofAtoms)
+{
+    gecjson::object result{{"owner",key.first},{"key_system",enum_to_string(key.second)},
+        {"runtime",value.runtimeId},{"system",enum_to_string(value.system)},
+        {"epoch",value.epochGpstSeconds},{"posterior",value.posteriorId},{"chart_id",value.chartId},
+        {"float_root",value.floatStateRoot},{"psd_validated",value.floatPosteriorPsdValidated},
+        {"psd_root",value.floatPosteriorPsdRootId},{"state_order",value.floatPosteriorPsdStateOrderId},
+        {"generation",value.constraintGeneration},{"valid",value.valid}};
+    gecjson::array chords, expansions, unknown, active, signals;
+    for (const auto& [column,id] : value.chart.chordIdentities)
+        chords.emplace_back(gecjson::object{{"column",column},{"identity",id}});
+    for (const auto& [column,row] : value.chart.expansions)
+        expansions.emplace_back(gecjson::object{{"column",column},{"row",gecArPhysical(row)}});
+    for (const auto& [column,reason] : value.chart.unexpandedColumns)
+        unknown.emplace_back(gecjson::object{{"column",column},{"reason",reason}});
+    for (const auto& id : value.chart.activePhysicalIdentities) active.emplace_back(id);
+    for (const auto& id : value.chart.cataloguedSignals) signals.emplace_back(id);
+    result["chart"] = gecjson::object{{"columns",value.chart.columns},{"chords",std::move(chords)},
+        {"expansions",std::move(expansions)},{"unknown",std::move(unknown)},
+        {"active",std::move(active)},{"signals",std::move(signals)},{"failure",value.chart.failureReason}};
+    gecjson::array rows, values, eventRows, eventValues, witnesses, numeric, bindings;
+    for (const auto& row : value.rows) rows.emplace_back(gecArPhysical(row));
+    for (const auto& x : value.values) values.emplace_back(ambresExactText(x));
+    for (const auto& row : value.eventOverlapRows) eventRows.emplace_back(gecArPhysical(row));
+    for (const auto& x : value.eventOverlapValues) eventValues.emplace_back(ambresExactText(x));
+    for (const auto& witness : value.eventOverlapWitnesses) witnesses.emplace_back(witness);
+    for (const auto& row : value.numericConstraints)
+        numeric.emplace_back(gecjson::object{{"row",gecArNumeric(row.rowCycles)},{"value",ambresExactText(row.value)}});
+    for (const auto& row : value.physicalNumericBindings)
+        bindings.emplace_back(gecjson::object{{"physical",gecArPhysical(row.physical)},
+            {"numeric",gecArNumeric(row.rowCycles)},{"value",ambresExactText(row.value)},
+            {"epoch",row.epochGpstSeconds},{"system",enum_to_string(row.system)},
+            {"runtime",row.runtimeId},{"posterior",row.posteriorId},{"root",row.rootId},
+            {"chart",row.chartId},{"order",row.stateOrderId}});
+    result["rows"] = std::move(rows); result["values"] = std::move(values);
+    result["event_rows"] = std::move(eventRows); result["event_values"] = std::move(eventValues);
+    result["witnesses"] = std::move(witnesses); result["numeric"] = std::move(numeric);
+    result["bindings"] = std::move(bindings);
+    map<string,ZhangDecisionProofPtr> proofAtoms;
+    result["proof_groups"] = gecArProofGroups(value.rowProofs, proofAtoms);
+    result["event_proof_groups"] = gecArProofGroups(value.eventOverlapProofs, proofAtoms);
+    gecjson::array proofs;
+    for (const auto& [id,atom] : proofAtoms)
+    {
+        // Proof identity is bundle-wide, not constellation-local. A genuine
+        // shared ancestor remains one immutable decision; distinct objects
+        // claiming its ID are still rejected under the existing risk contract.
+        const auto [prior,inserted] = bundleProofAtoms.emplace(id,atom);
+        gecArRequire(inserted || prior->second.get() == atom.get(),
+            "GEC_AR_CROSS_PARTITION_PROOF_ID_CONFLICT");
+        gecjson::array parents;
+        for (const auto& parent : atom->parents) parents.emplace_back(parent->id);
+        proofs.emplace_back(gecjson::object{{"id",id},{"statement",atom->originalStatement},
+            {"provenance",atom->observationProvenance},{"risk",atom->conditionalFailureBound},
+            {"parents",std::move(parents)}});
+    }
+    result["proof_atoms"] = std::move(proofs);
+    return result;
+}
+
+ZhangCurrentEpochEvidence gecArRestoreEvidence(const gecjson::value& item,
+    const string& runtime, const KFState& owner, int dimension,
+    const string& expectedRoot, const string& expectedOrder, ZhangCurrentEpochEvidenceKey& key,
+    map<string,std::shared_ptr<ZhangIntegerDecisionProof>>& bundleProofAtoms)
+{
+    const auto& row = gecArObject(item, {"owner","key_system","runtime","system","epoch","posterior",
+        "chart_id","float_root","psd_validated","psd_root","state_order","generation","valid",
+        "chart","rows","values","event_rows","event_values","witnesses","numeric","bindings",
+        "proof_groups","event_proof_groups","proof_atoms"});
+    key = {gecArString(row.at("owner"),false),gecArSystem(row.at("key_system"))};
+    gecArRequire(zhangAmbresRuntimeBelongsTo(key.first,runtime), "GEC_AR_FOREIGN_EVIDENCE_OWNER");
+    ZhangCurrentEpochEvidence value;
+    value.valid = row.at("valid").as_bool();
+    value.runtimeId = gecArString(row.at("runtime")); value.system = gecArSystem(row.at("system"), !value.valid);
+    value.epochGpstSeconds = row.at("epoch").as_int64();
+    value.posteriorId = gecArString(row.at("posterior")); value.chartId = gecArString(row.at("chart_id"));
+    value.floatStateRoot = gecArString(row.at("float_root"));
+    value.floatPosteriorPsdValidated = row.at("psd_validated").as_bool();
+    value.floatPosteriorPsdRootId = gecArString(row.at("psd_root"));
+    value.floatPosteriorPsdStateOrderId = gecArString(row.at("state_order"));
+    gecArRequire(row.at("generation").is_uint64() ||
+        (row.at("generation").is_int64() && row.at("generation").as_int64() >= 0), "GEC_AR_GENERATION_INVALID");
+    value.constraintGeneration = row.at("generation").is_uint64() ? row.at("generation").as_uint64() :
+        static_cast<std::uint64_t>(row.at("generation").as_int64());
+    gecArRequire(!value.valid || (value.runtimeId == key.first && value.system == key.second &&
+        value.epochGpstSeconds == static_cast<long int>(owner.time.bigTime)), "GEC_AR_EVIDENCE_SCOPE_INVALID");
+    if (value.valid)
+        gecArRequire(!value.posteriorId.empty() && !value.chartId.empty() &&
+            value.floatStateRoot == expectedRoot &&
+            value.floatPosteriorPsdStateOrderId == expectedOrder &&
+            (!value.floatPosteriorPsdValidated || value.floatPosteriorPsdRootId == value.floatStateRoot),
+            "GEC_AR_EVIDENCE_FLOAT_ROOT_INVALID");
+    const auto& chart = gecArObject(row.at("chart"), {"columns","chords","expansions","unknown","active","signals","failure"});
+    const auto columns = chart.at("columns").as_int64();
+    gecArRequire(columns >= 0 && columns <= dimension, "GEC_AR_CHART_DIMENSION_INVALID");
+    value.chart.columns = static_cast<int>(columns); value.chart.failureReason = gecArString(chart.at("failure"));
+    auto column = [&](const gecjson::object& object) {
+        const auto c = object.at("column").as_int64();
+        gecArRequire(c >= 0 && c < columns, "GEC_AR_CHART_COLUMN_INVALID"); return static_cast<int>(c);
+    };
+    for (const auto& term : gecArArray(chart.at("chords")))
+    {
+        const auto& object = gecArObject(term,{"column","identity"});
+        const auto id = gecArString(object.at("identity"),false);
+        gecArPhysical(gecjson::object{{id,"1"}},value.system);
+        gecArRequire(value.chart.chordIdentities.emplace(column(object),id).second,"GEC_AR_DUPLICATE_CHORD");
+    }
+    for (const auto& term : gecArArray(chart.at("expansions")))
+    {
+        const auto& object = gecArObject(term,{"column","row"});
+        gecArRequire(value.chart.expansions.emplace(column(object),gecArPhysical(object.at("row"),value.system)).second,
+            "GEC_AR_DUPLICATE_EXPANSION");
+    }
+    for (const auto& term : gecArArray(chart.at("unknown")))
+    {
+        const auto& object = gecArObject(term,{"column","reason"}); const auto c = column(object);
+        gecArRequire(!value.chart.expansions.contains(c) && !value.chart.chordIdentities.contains(c) &&
+            value.chart.unexpandedColumns.emplace(c,gecArString(object.at("reason"),false)).second,
+            "GEC_AR_UNKNOWN_COLUMN_CONFLICT");
+    }
+    for (const auto& term : gecArArray(chart.at("active")))
+    {
+        const auto id = gecArString(term,false); gecArPhysical(gecjson::object{{id,"1"}},value.system);
+        gecArRequire(value.chart.activePhysicalIdentities.insert(id).second,"GEC_AR_DUPLICATE_ACTIVE_ARC");
+    }
+    for (const auto& term : gecArArray(chart.at("signals")))
+    {
+        const auto signal = gecArString(term,false); const auto codes = zhangCurrentNetworkBaselineCodes(value.system);
+        gecArRequire(codes && (signal == enum_to_string((*codes)[0]) || signal == enum_to_string((*codes)[1])) &&
+            value.chart.cataloguedSignals.insert(signal).second,"GEC_AR_CHART_SIGNAL_INVALID");
+    }
+    gecArRequire(value.chart.chordIdentities.size() == value.chart.expansions.size(), "GEC_AR_CHART_INCOMPLETE");
+    for (const auto& [c,id] : value.chart.chordIdentities)
+        gecArRequire(value.chart.expansions.contains(c) && value.chart.expansions.at(c).contains(id) &&
+            value.chart.expansions.at(c).at(id) == 1, "GEC_AR_CHART_CHORD_COEFFICIENT_INVALID");
+    auto restoreRows = [&](const char* name, auto& destination) {
+        for (const auto& term : gecArArray(row.at(name))) destination.push_back(gecArPhysical(term,value.system));
+    };
+    auto restoreValues = [&](const char* name, auto& destination) {
+        for (const auto& term : gecArArray(row.at(name)))
+        { ZhangExactInteger x; string reason; gecArRequire(ambresParseExact(gecArString(term,false),x,reason),"GEC_AR_INTEGER_INVALID"); destination.push_back(std::move(x)); }
+    };
+    restoreRows("rows",value.rows); restoreRows("event_rows",value.eventOverlapRows);
+    restoreValues("values",value.values); restoreValues("event_values",value.eventOverlapValues);
+    for (const auto& physical : value.rows)
+    {
+        ZhangExactVector projected;
+        gecArRequire(value.chart.project(physical,projected),"GEC_AR_CURRENT_ROW_CHART_INVALID");
+    }
+    for (const auto& term : gecArArray(row.at("witnesses"))) value.eventOverlapWitnesses.push_back(gecArString(term,false));
+    map<string,std::shared_ptr<ZhangIntegerDecisionProof>> atoms;
+    map<string,vector<string>> parents; map<string,set<string>> children; map<string,std::size_t> degree;
+    for (const auto& term : gecArArray(row.at("proof_atoms")))
+    {
+        const auto& object = gecArObject(term,{"id","statement","provenance","risk","parents"});
+        auto atom = std::make_shared<ZhangIntegerDecisionProof>(); atom->id = gecArString(object.at("id"),false);
+        atom->originalStatement = gecArString(object.at("statement")); atom->observationProvenance = gecArString(object.at("provenance"));
+        atom->conditionalFailureBound = object.at("risk").as_double();
+        gecArRequire(std::isfinite(atom->conditionalFailureBound) && atom->conditionalFailureBound >= 0 &&
+            atom->conditionalFailureBound <= 1 && atoms.emplace(atom->id,atom).second,"GEC_AR_PROOF_ATOM_INVALID");
+        for (const auto& p : gecArArray(object.at("parents"))) parents[atom->id].push_back(gecArString(p,false));
+        degree[atom->id] = 0;
+    }
+    for (const auto& [id,ps] : parents) for (const auto& p : ps)
+    {
+        gecArRequire(atoms.contains(p),"GEC_AR_PROOF_PARENT_MISSING");
+        if (children[p].insert(id).second) ++degree[id];
+    }
+    vector<string> ready;
+    for (const auto& [id,d] : degree) if (d == 0) ready.push_back(id);
+    std::size_t visited = 0;
+    for (std::size_t i=0; i<ready.size(); ++i)
+    { ++visited; for (const auto& child : children[ready[i]]) if (--degree[child] == 0) ready.push_back(child); }
+    gecArRequire(visited == atoms.size(),"GEC_AR_PROOF_CYCLE");
+    // Parents precede their children in ready. Intern across the COMPLETE
+    // section before exposing any row roots, retaining shared-ancestor pointer
+    // identity required by zhangDecisionRiskClosure after a G/E/C joint union.
+    for (const auto& id : ready)
+    {
+        auto& atom = atoms.at(id);
+        for (const auto& p : parents[id]) atom->parents.push_back(atoms.at(p));
+        const auto [prior,inserted] = bundleProofAtoms.emplace(id,atom);
+        if (!inserted)
+        {
+            const auto& previous = prior->second;
+            gecArRequire(previous->originalStatement == atom->originalStatement &&
+                previous->observationProvenance == atom->observationProvenance &&
+                previous->conditionalFailureBound == atom->conditionalFailureBound &&
+                previous->parents == atom->parents,
+                "GEC_AR_CROSS_PARTITION_PROOF_CONTENT_CONFLICT");
+            atom = previous;
+        }
+    }
+    set<string> usedAtoms;
+    auto restoreGroups = [&](const char* name, auto& destination) {
+        for (const auto& term : gecArArray(row.at(name)))
+        {
+            ZhangDecisionProofs group;
+            for (const auto& idValue : gecArArray(term))
+            { const auto id = gecArString(idValue,false); gecArRequire(atoms.contains(id),"GEC_AR_PROOF_ROOT_MISSING"); group.push_back(atoms.at(id)); }
+            gecArRequire(!group.empty(),"GEC_AR_PHYSICAL_ROW_PROOF_MISSING");
+            const auto closure = zhangDecisionRiskClosure(group); gecArRequire(closure.valid,"GEC_AR_PROOF_CLOSURE_INVALID");
+            const auto currentSource = value.runtimeId + "|PPP_COMMITTED|E" + std::to_string(value.epochGpstSeconds);
+            for (const auto& [id,atom] : closure.atoms)
+            {
+                gecArRequire(atom->observationProvenance == currentSource ||
+                    atom->observationProvenance.rfind(currentSource+"|",0) == 0,"GEC_AR_PROOF_PROVENANCE_INVALID");
+                usedAtoms.insert(id);
+            }
+            destination.push_back(std::move(group));
+        }
+    };
+    restoreGroups("proof_groups",value.rowProofs); restoreGroups("event_proof_groups",value.eventOverlapProofs);
+    gecArRequire(usedAtoms.size() == atoms.size() && value.rows.size() == value.values.size() &&
+        value.rows.size() == value.rowProofs.size() && value.eventOverlapRows.size() == value.eventOverlapValues.size() &&
+        value.eventOverlapRows.size() == value.eventOverlapProofs.size() &&
+        value.eventOverlapRows.size() == value.eventOverlapWitnesses.size(), "GEC_AR_EVIDENCE_ROW_COUNTS_INVALID");
+    for (const auto& term : gecArArray(row.at("numeric")))
+    {
+        const auto& object = gecArObject(term,{"row","value"}); ZhangExactInteger x; string reason;
+        gecArRequire(ambresParseExact(gecArString(object.at("value"),false),x,reason),"GEC_AR_INTEGER_INVALID");
+        value.numericConstraints.push_back({gecArNumeric(object.at("row"),value.system,owner,dimension),std::move(x)});
+    }
+    for (const auto& term : gecArArray(row.at("bindings")))
+    {
+        const auto& object = gecArObject(term,{"physical","numeric","value","epoch","system","runtime","posterior","root","chart","order"});
+        ZhangCurrentEpochPhysicalNumericBinding binding; string reason;
+        binding.physical = gecArPhysical(object.at("physical"),value.system);
+        binding.rowCycles = gecArNumeric(object.at("numeric"),value.system,owner,dimension);
+        gecArRequire(ambresParseExact(gecArString(object.at("value"),false),binding.value,reason),"GEC_AR_INTEGER_INVALID");
+        binding.epochGpstSeconds = object.at("epoch").as_int64(); binding.system = gecArSystem(object.at("system"));
+        binding.runtimeId = gecArString(object.at("runtime")); binding.posteriorId = gecArString(object.at("posterior"));
+        binding.rootId = gecArString(object.at("root")); binding.chartId = gecArString(object.at("chart"));
+        binding.stateOrderId = gecArString(object.at("order")); value.physicalNumericBindings.push_back(std::move(binding));
+    }
+    if (!value.rows.empty() || !value.eventOverlapRows.empty() || !value.physicalNumericBindings.empty())
+    { string reason; gecArRequire(value.validatePhysicalNumericBindings(reason),"GEC_AR_PHYSICAL_NUMERIC_BINDING_INVALID"); }
+    // Compiled HNF/domain objects contain no independent evidence. Rebuild on
+    // first demand from the exact rows above; never serialize addresses/locks.
+    value.domainCache = std::make_shared<ZhangCurrentEpochDomainCache>();
+    return value;
+}
+
+using GecEvidenceMap = std::map<ZhangCurrentEpochEvidenceKey,ZhangCurrentEpochEvidence>;
+using GecAuthorityMap = std::map<string,ZhangMultiGnssCurrentEvidenceAuthority>;
+
+gecjson::object gecArSnapshot(const KFState& owner, const string& runtime)
+{
+    gecjson::array evidence, authorities;
+    map<string,ZhangDecisionProofPtr> bundleProofAtoms;
+    for (const auto& [key,value] : zhangCurrentEpochEvidenceRegistry())
+    {
+        gecArRequire(zhangAmbresRuntimeBelongsTo(key.first,runtime),"GEC_AR_FOREIGN_EVIDENCE_OWNER");
+        evidence.emplace_back(gecArEvidence(key,value,bundleProofAtoms));
+    }
+    for (const auto& [key,value] : zhangMultiGnssCurrentEvidenceAuthorities())
+    {
+        gecArRequire(zhangAmbresRuntimeBelongsTo(key,runtime),"GEC_AR_FOREIGN_AUTHORITY_OWNER");
+        gecjson::object systems;
+        for (const auto& [system,ids] : value.systemIdentities)
+            systems[enum_to_string(system)] = gecjson::array{ids.first,ids.second};
+        authorities.emplace_back(gecjson::object{{"owner",key},{"epoch",value.epochGpstSeconds},
+            {"float_root",value.floatRoot},{"state_order",value.floatStateOrderId},{"systems",std::move(systems)}});
+    }
+    return {{"schema",static_cast<int>(ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SCHEMA_VERSION)},{"runtime",runtime},
+        {"epoch",static_cast<long int>(owner.time.bigTime)},{"dimension",owner.x.size()},
+        {"float_root",zhangR51NumericRoot(owner.x,owner.P)},
+        {"state_order",zhangCurrentEvidenceStateOrderId(owner.kfIndexMap)},
+        {"evidence",std::move(evidence)},{"authorities",std::move(authorities)}};
+}
+
+void gecArRestoreSnapshot(const gecjson::value& document, const KFState& owner,
+    const string& runtime, int dimension, GecEvidenceMap& evidence, GecAuthorityMap& authorities)
+{
+    const auto& object = gecArObject(document,{"schema","runtime","epoch","dimension","float_root","state_order","evidence","authorities"});
+    const auto expectedRoot = zhangR51NumericRoot(owner.x,owner.P);
+    const auto expectedOrder = zhangCurrentEvidenceStateOrderId(owner.kfIndexMap);
+    gecArRequire(object.at("schema").as_int64() == ZHANG_GEC_AR_RUNTIME_CHECKPOINT_SCHEMA_VERSION &&
+        gecArString(object.at("runtime"),false) == runtime && dimension >= 0 && owner.x.size() == dimension &&
+        owner.P.rows() == dimension && owner.P.cols() == dimension && owner.x.allFinite() && owner.P.allFinite() &&
+        object.at("dimension").as_int64() == dimension && object.at("epoch").as_int64() == static_cast<long int>(owner.time.bigTime) &&
+        gecArString(object.at("float_root"),false) == expectedRoot &&
+        gecArString(object.at("state_order"),false) == expectedOrder,
+        "GEC_AR_SECTION_FLOAT_CORE_IDENTITY_INVALID");
+    map<string,std::shared_ptr<ZhangIntegerDecisionProof>> bundleProofAtoms;
+    for (const auto& item : gecArArray(object.at("evidence")))
+    {
+        ZhangCurrentEpochEvidenceKey key;
+        auto value = gecArRestoreEvidence(item,runtime,owner,dimension,expectedRoot,expectedOrder,key,bundleProofAtoms);
+        gecArRequire(evidence.emplace(std::move(key),std::move(value)).second,"GEC_AR_DUPLICATE_EVIDENCE");
+    }
+    for (const auto& item : gecArArray(object.at("authorities")))
+    {
+        const auto& row = gecArObject(item,{"owner","epoch","float_root","state_order","systems"});
+        const auto key = gecArString(row.at("owner"),false);
+        gecArRequire(zhangAmbresRuntimeBelongsTo(key,runtime),"GEC_AR_FOREIGN_AUTHORITY_OWNER");
+        ZhangMultiGnssCurrentEvidenceAuthority authority;
+        authority.epochGpstSeconds = row.at("epoch").as_int64();
+        authority.floatRoot = gecArString(row.at("float_root"),false);
+        authority.floatStateOrderId = gecArString(row.at("state_order"),false);
+        gecArRequire(authority.epochGpstSeconds == static_cast<long int>(owner.time.bigTime) &&
+            authority.floatRoot == gecArString(object.at("float_root")) &&
+            authority.floatStateOrderId == gecArString(object.at("state_order")),"GEC_AR_AUTHORITY_SCOPE_INVALID");
+        const auto& systems = row.at("systems").as_object();
+        gecArRequire(!systems.empty() && systems.size() <= 3,"GEC_AR_AUTHORITY_SYSTEM_COUNT_INVALID");
+        for (const auto& entry : systems)
+        {
+            const auto system = gecArSystem(gecjson::string(entry.key())); const auto& ids = gecArArray(entry.value());
+            gecArRequire(ids.size() == 2,"GEC_AR_AUTHORITY_IDENTITIES_INVALID");
+            const auto found = evidence.find({key,system});
+            gecArRequire(found != evidence.end() && found->second.valid &&
+                found->second.posteriorId == gecArString(ids[0],false) &&
+                found->second.chartId == gecArString(ids[1],false),"GEC_AR_AUTHORITY_EVIDENCE_MISSING");
+            authority.systemIdentities.emplace(system,std::make_pair(gecArString(ids[0]),gecArString(ids[1])));
+        }
+        gecArRequire(authorities.emplace(key,std::move(authority)).second,"GEC_AR_DUPLICATE_AUTHORITY");
+    }
+}
+} // namespace
+
+bool exportZhangGecArRuntimeSection(const KFState& owner, const string& runtimeId,
+    string& payload, string& failureReason)
+{
+    std::lock_guard<std::mutex> lock(zhangAmbresCheckpointMutex);
+    payload.clear(); failureReason.clear();
+    try
+    {
+        gecArRequire(zhangMultiGnssArCheckpointActive(acsConfig),"GEC_AR_SECTION_REQUIRES_EXPLICIT_AR_MODE");
+        gecArRequire(validZhangAmbresRuntimeId(runtimeId) && zhangAmbresRuntimeId(owner) == runtimeId,
+            "GEC_AR_SECTION_RUNTIME_ID_INVALID");
+        auto document = gecArSnapshot(owner,runtimeId);
+        GecEvidenceMap evidence; GecAuthorityMap authorities;
+        gecArRestoreSnapshot(document,owner,runtimeId,owner.x.size(),evidence,authorities);
+        payload = gecjson::serialize(document);
+        gecArRequire(zhangGecArRuntimePayloadSizeValid(payload.size()),"GEC_AR_SECTION_SIZE_INVALID");
+        return true;
+    }
+    catch (const std::exception& error)
+    { failureReason = string("GEC_AR_SECTION_EXPORT_FAILED:")+error.what(); payload.clear(); return false; }
+}
+
+bool importZhangGecArRuntimeSection(KFState& owner, const string& runtimeId,
+    const string& payload, bool preflightOnly, int stateDimension, string& failureReason)
+{
+    std::lock_guard<std::mutex> lock(zhangAmbresCheckpointMutex);
+    failureReason.clear();
+    try
+    {
+        gecArRequire(zhangMultiGnssArCheckpointActive(acsConfig),"GEC_AR_SECTION_REQUIRES_EXPLICIT_AR_MODE");
+        gecArRequire(validZhangAmbresRuntimeId(runtimeId) && zhangAmbresRuntimeId(owner) == runtimeId,
+            "GEC_AR_SECTION_RUNTIME_ID_INVALID");
+        gecArRequire(zhangGecArRuntimePayloadSizeValid(payload.size()),"GEC_AR_SECTION_SIZE_INVALID");
+        for (const auto& [key,value] : zhangCurrentEpochEvidenceRegistry())
+            gecArRequire(zhangAmbresRuntimeBelongsTo(key.first,runtimeId),"GEC_AR_FOREIGN_LIVE_EVIDENCE_OWNER");
+        for (const auto& [key,value] : zhangMultiGnssCurrentEvidenceAuthorities())
+            gecArRequire(zhangAmbresRuntimeBelongsTo(key,runtimeId),"GEC_AR_FOREIGN_LIVE_AUTHORITY_OWNER");
+        GecEvidenceMap evidence; GecAuthorityMap authorities;
+        // Boost.JSON's default fast conversion may round a serialized binary64
+        // coefficient to an adjacent value. Checkpoints require bit-exact
+        // restoration, not merely a numerically close physical relation.
+        gecjson::parse_options parseOptions;
+        parseOptions.numbers = gecjson::number_precision::precise;
+        gecArRestoreSnapshot(gecjson::parse(payload, {}, parseOptions),owner,runtimeId,stateDimension,evidence,authorities);
+        if (preflightOnly) return true;
+        // All parsing, scope/proof checks, and allocations finish before the
+        // noexcept swaps. Failure never partially edits either live registry.
+        zhangCurrentEpochEvidenceRegistry().swap(evidence);
+        zhangMultiGnssCurrentEvidenceAuthorities().swap(authorities);
+        return true;
+    }
+    catch (const std::exception& error)
+    { failureReason = string("GEC_AR_SECTION_IMPORT_FAILED:")+error.what(); return false; }
+}
+
+bool zhangGecArRuntimeRegistriesEmpty()
+{
+    std::lock_guard<std::mutex> lock(zhangAmbresCheckpointMutex);
+    return zhangCurrentEpochEvidenceRegistry().empty() &&
+        zhangMultiGnssCurrentEvidenceAuthorities().empty();
+}
 
 ZhangAmbresCheckpointResult exportZhangAmbresCheckpointSection(
     const KFState& owner,
@@ -1511,6 +2244,11 @@ ZhangAmbresCheckpointResult exportZhangAmbresCheckpointSection(
         }
     }
 
+    if (!multiGnssFloatAmbresCheckpointEmpty(snapshot, result.failureReason))
+    {
+        return result;
+    }
+    if (!ambresGecArchiveScope(snapshot, result.failureReason)) return result;
     AmbresRestoredRuntime preflight;
     ZhangAmbresCheckpointResult preflightResult;
     if (!ambresRestoreEnvelope(
@@ -1593,6 +2331,11 @@ ZhangAmbresCheckpointResult importZhangAmbresCheckpointSection(
         return result;
     }
 
+    if (!multiGnssFloatAmbresCheckpointEmpty(snapshot, result.failureReason))
+    {
+        return result;
+    }
+    if (!ambresGecArchiveScope(snapshot, result.failureReason)) return result;
     decltype(r51PhysicalArchives) restoredR51;
     try {
         for(const auto& item:snapshot.r51Archives) {
@@ -1878,11 +2621,11 @@ bool ambresRestoreE27Runtime(
     if (!ambresValidOwner(snapshot.ownerRuntimeId, rootRuntimeId, reason) ||
         !ambresValidString(snapshot.receiver, false) ||
         !ambresValidString(snapshot.solution, false) ||
-        snapshot.system != E_Sys::GPS ||
+        !ambresValidSystem(snapshot.system) ||
         snapshot.lastValid.size() > ZHANG_AMBRES_MAX_CONTAINER ||
         snapshot.productDatum.size() > ZHANG_AMBRES_MAX_CONTAINER ||
         snapshot.factors.size() > ZHANG_E27_MAX_FACTORS ||
-        !ambresValidGpsSatellite(snapshot.reference, true))
+        !ambresSatelliteUsesSystem(snapshot.reference, snapshot.system, true))
     {
         if (reason.empty())
         {
@@ -1895,7 +2638,7 @@ bool ambresRestoreE27Runtime(
     for (const auto& item : snapshot.lastValid)
     {
         GTime time;
-        if (!ambresValidGpsSatellite(item.satellite) ||
+        if (!ambresSatelliteUsesSystem(item.satellite, snapshot.system) ||
             !ambresRestoreFiniteTime(item.time, time) ||
             !runtime.lastValid.emplace(item.satellite, time).second)
         {
@@ -1905,7 +2648,7 @@ bool ambresRestoreE27Runtime(
     }
     for (const auto& [satellite, version] : snapshot.arcVersions)
     {
-        if (!ambresValidGpsSatellite(satellite) || version <= 0)
+        if (!ambresSatelliteUsesSystem(satellite, snapshot.system) || version <= 0)
         {
             reason = "AMBRES_CHECKPOINT_E27_ARC_VERSION_INVALID";
             return false;
@@ -1914,7 +2657,7 @@ bool ambresRestoreE27Runtime(
     }
     for (const auto& item : snapshot.productDatum)
     {
-        if (!ambresValidGpsSatellite(item.satellite) ||
+        if (!ambresSatelliteUsesSystem(item.satellite, snapshot.system) ||
             item.firstDiscontinuity < 0 || item.firstDatumVersion < 0 ||
             item.secondDiscontinuity < 0 || item.secondDatumVersion < 0 ||
             !runtime.productDatum.emplace(item.satellite, std::make_tuple(
@@ -2140,7 +2883,7 @@ bool ambresRestoreEnvelope(
     for (const auto& item : snapshot.heldLattices)
     {
         if (!ambresValidOwner(item.ownerRuntimeId, rootRuntimeId, reason) ||
-            item.system != E_Sys::GPS || item.lastEventId < 0 ||
+            !ambresValidSystem(item.system) || item.lastEventId < 0 ||
             !item.consistent || item.rows.size() > ZHANG_AMBRES_MAX_CONTAINER)
         {
             if (reason.empty())
@@ -2155,7 +2898,8 @@ bool ambresRestoreEnvelope(
         for (const auto& row : item.rows)
         {
             ZhangPersistentHeldRow restoredRow;
-            if (!ambresRestoreHeldRow(row, restoredRow, reason))
+            if (!ambresRestoreHeldRow(row, restoredRow, reason) ||
+                !ambresHeldRowUsesSystem(restoredRow, item.system))
             {
                 return false;
             }
@@ -2178,11 +2922,12 @@ bool ambresRestoreEnvelope(
     {
         ZhangPersistentHeldRow row;
         if (!ambresValidOwner(item.ownerRuntimeId, rootRuntimeId, reason) ||
-            item.system != E_Sys::GPS || item.confirmations <= 0 ||
+            !ambresValidSystem(item.system) || item.confirmations <= 0 ||
             item.confirmations >= std::max(
                 1, acsConfig.zhangPppAr.promotion_confirmation_epochs) ||
             item.lastEpoch <= 0 ||
-            !ambresRestoreHeldRow(item.row, row, reason))
+            !ambresRestoreHeldRow(item.row, row, reason) ||
+            !ambresHeldRowUsesSystem(row, item.system))
         {
             if (reason.empty())
             {
@@ -2205,7 +2950,7 @@ bool ambresRestoreEnvelope(
     for (const auto& item : snapshot.admissionStates)
     {
         if (!ambresValidOwner(item.ownerRuntimeId, rootRuntimeId, reason)
-            || item.system != E_Sys::GPS
+            || !ambresValidSystem(item.system)
             || !containerValid(item.certifiedRows.size())
             || !containerValid(item.certifiedValues.size())
             || !containerValid(item.certifiedSatellites.size())
@@ -2242,6 +2987,8 @@ bool ambresRestoreEnvelope(
         for (const auto& satellite : item.certifiedSatellites)
         {
             if (!ambresValidString(satellite, false)
+                || (zhangMultiGnssArCheckpointActive(acsConfig) &&
+                    !ambresSatelliteUsesSystem(SatSys(satellite.c_str()), item.system))
                 || !state.certifiedSatellites.insert(satellite).second)
             {
                 reason = "AMBRES_CHECKPOINT_ADMISSION_SATELLITE_INVALID";
@@ -2260,7 +3007,7 @@ bool ambresRestoreEnvelope(
         for (const auto& saved : item.pendingCandidates)
         {
             ZhangProductRelationAdmissionCandidate candidate;
-            if (!ambresRestoreAdmissionCandidate(saved, candidate, reason)
+            if (!ambresRestoreAdmissionCandidate(saved, candidate, reason, item.system)
                 || !state.pendingCandidates.emplace(
                     candidate.relationId, std::move(candidate)).second)
             {
@@ -2315,6 +3062,12 @@ bool ambresRestoreEnvelope(
             }
         }
         string stateReason;
+        if (zhangMultiGnssArCheckpointActive(acsConfig))
+        {
+            const auto codes = zhangCurrentNetworkBaselineCodes(item.system);
+            if (!codes || !zhangMultiGnssPhysicalRowsUseSystem(state.certifiedRows, item.system, *codes))
+            { reason = "AMBRES_CHECKPOINT_ADMISSION_PHYSICAL_SCOPE_INVALID"; return false; }
+        }
         if (!ProductRelationAdmission::validateState(state, &stateReason)
             || !restored.admissionStates.emplace(
                 make_pair(item.ownerRuntimeId, item.system),
@@ -2336,8 +3089,8 @@ bool ambresRestoreEnvelope(
     {
         if (!ambresValidOwner(item.ownerRuntimeId, rootRuntimeId, reason)
             || !ambresValidString(item.receiver, false)
-            || item.system != E_Sys::GPS
-            || !ambresValidGpsSatellite(item.reference)
+            || !ambresValidSystem(item.system)
+            || !ambresSatelliteUsesSystem(item.reference, item.system)
             || item.integers.empty()
             || !containerValid(item.integers.size()))
         {
@@ -2352,7 +3105,7 @@ bool ambresRestoreEnvelope(
         for (const auto& saved : item.integers)
         {
             ZhangExactInteger value;
-            if (!ambresValidGpsSatellite(saved.satellite)
+            if (!ambresSatelliteUsesSystem(saved.satellite, item.system)
                 || saved.satellite == held.reference
                 || !ambresParseExact(saved.value, value, reason)
                 || !held.integers.emplace(saved.satellite, value).second)
@@ -2463,12 +3216,12 @@ bool ambresRestoreEnvelope(
                 item.firstVariance * item.wideLaneVariance +
                     1e-10 * covarianceScale;
         if (!ambresValidOwner(item.ownerRuntimeId, rootRuntimeId, reason) ||
-            item.system != E_Sys::GPS ||
-            !ambresValidGpsSatellite(item.anchor) ||
-            !ambresValidGpsSatellite(item.satellite) ||
+            !ambresValidSystem(item.system) ||
+            !ambresSatelliteUsesSystem(item.anchor, item.system) ||
+            !ambresSatelliteUsesSystem(item.satellite, item.system) ||
             item.anchor == item.satellite ||
-            !ambresValidObservable(item.firstCode) ||
-            !ambresValidObservable(item.secondCode) ||
+            !ambresValidObservable(item.firstCode, item.system) ||
+            !ambresValidObservable(item.secondCode, item.system) ||
             item.firstCode == item.secondCode ||
             item.productDatumVersion < 0 || !valuesValid || !covarianceValid ||
             !ambresRestoreFiniteTime(item.time, time))

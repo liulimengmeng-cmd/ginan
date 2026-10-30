@@ -2,9 +2,12 @@
 
 #include "pea/ppp.hpp"
 #include "pea/zhangReference.hpp"
+#include "common/zhangProductPublicationGate.hpp"
 #include "pea/zhangPppAr.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -13,12 +16,19 @@
 #include <numeric>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include "architectureDocs.hpp"
 #include "common/acsConfig.hpp"
 #include "common/algebra.hpp"
 #include "common/common.hpp"
 #include "common/eigenIncluder.hpp"
+#include "common/zhangFloatThreading.hpp"
+#include "common/zhangFloatRankDiagnosticPolicy.hpp"
+#include "common/zhangSystemClockDatum.hpp"
+#include "common/zhangClockLifecycle.hpp"
+#include "common/zhangEffectiveClockDatum.hpp"
+#include "common/ephemeris.hpp"
 #include "common/metaData.hpp"
 #include "common/mongoRead.hpp"
 #include "common/mongoWrite.hpp"
@@ -47,38 +57,113 @@ class ZhangFloatPhaseTimer
     std::chrono::steady_clock::time_point start=std::chrono::steady_clock::now();
     double children=0;
     ZhangFloatPhaseTimer* parent;
+    const bool profile=[] {
+        const char* value=std::getenv("ZHANG_FLOAT_PROFILE");
+        return value && std::string_view(value)=="1";
+    }();
     inline static thread_local ZhangFloatPhaseTimer* current=nullptr;
 public:
     ZhangFloatPhaseTimer(Trace& t,std::string p,std::string e)
         :trace(t),phase(std::move(p)),epoch(std::move(e)),parent(current)
-    {current=this;}
+    {
+        current=this;
+        if(profile)
+        {
+            const auto beginNs=std::chrono::duration_cast<std::chrono::nanoseconds>(
+                start.time_since_epoch()).count();
+            trace<<"\nZHANG_FLOAT_PHASE_BEGIN phase="<<phase<<" epoch="<<std::quoted(epoch)
+                 <<" monotonic_ns="<<beginNs;
+            trace.flush();
+            std::clog<<"ZHANG_FLOAT_PHASE_BEGIN phase="<<phase<<" epoch="
+                     <<std::quoted(epoch)<<" monotonic_ns="<<beginNs<<std::endl;
+        }
+    }
     ~ZhangFloatPhaseTimer()
     {
-        const double ms=std::chrono::duration<double,std::milli>(
-            std::chrono::steady_clock::now()-start).count();
+        const auto end=std::chrono::steady_clock::now();
+        const auto endNs=std::chrono::duration_cast<std::chrono::nanoseconds>(
+            end.time_since_epoch()).count();
+        const double ms=std::chrono::duration<double,std::milli>(end-start).count();
         current=parent;if(parent)parent->children+=ms;
         trace<<"\nZHANG_FLOAT_PHASE_TIMER phase="<<phase<<" epoch="<<std::quoted(epoch)
              <<" inclusive_ms="<<ms<<" exclusive_ms="<<std::max(0.0,ms-children)
-             <<" root="<<(parent==nullptr);
+             <<" root="<<(parent==nullptr)<<" monotonic_ns="<<endNs;
+        if(profile)
+        {
+            trace.flush();
+            std::clog<<"ZHANG_FLOAT_PHASE_END phase="<<phase<<" epoch="<<std::quoted(epoch)
+                     <<" inclusive_ms="<<ms<<" exclusive_ms="<<std::max(0.0,ms-children)
+                     <<" root="<<(parent==nullptr)<<" monotonic_ns="<<endNs<<std::endl;
+        }
     }
 };
+
+static void traceZhangPureObservationRankStatus(
+    Trace& trace,
+    ZhangFloatRankDiagnostic::Mode mode,
+    const char* status,
+    std::int64_t rows = -1,
+    std::int64_t columns = -1,
+    bool evaluated = false
+)
+{
+    std::ostringstream message;
+    message << "ZHANG_PURE_OBS_RANK_STATUS mode="
+            << ZhangFloatRankDiagnostic::modeName(mode)
+            << " status=" << status << " epoch=" << std::quoted(tsync.to_string(0))
+            << " rank=" << (evaluated ? "EVALUATED" : "NOT_EVALUATED");
+    if (rows >= 0) message << " rows=" << rows;
+    if (columns >= 0) message << " full_columns=" << columns;
+    if (mode == ZhangFloatRankDiagnostic::Mode::Bounded)
+        message << " max_rows=" << ZhangFloatRankDiagnostic::boundedMaximumRows
+                << " max_full_columns=" << ZhangFloatRankDiagnostic::boundedMaximumColumns;
+    trace << "\n" << message.str();
+    BOOST_LOG_TRIVIAL(info) << message.str();
+}
 
 static void outputZhangPureObservationRank(
     Trace&           trace,
     KFState&         kfState,
-    KFMeasEntryList& pureObservationEntries
+    KFMeasEntryList& pureObservationEntries,
+    ZhangFloatRankDiagnostic::Mode diagnosticMode
 )
 {
-    if (!acsConfig.zhangFullRank.enable ||
-        !acsConfig.zhangFullRank.output_diagnostics ||
-        pureObservationEntries.empty())
+    if (!ZhangFloatRankDiagnostic::requested(diagnosticMode,
+            acsConfig.zhangFullRank.enable && acsConfig.zhangFullRank.output_diagnostics))
     {
         return;
     }
+    // The row limit is applied before copying observations below. Check it
+    // again here, and the full state dimension before allocating KFMeas's
+    // dense R/H/H_star, not only after constructing activeDesign.
+    if (!ZhangFloatRankDiagnostic::allowsRows(diagnosticMode, pureObservationEntries.size()))
+    {
+        traceZhangPureObservationRankStatus(trace, diagnosticMode, "ROW_LIMIT",
+            pureObservationEntries.size());
+        return;
+    }
+    if (pureObservationEntries.empty())
+    {
+        traceZhangPureObservationRankStatus(trace, diagnosticMode, "NO_OBSERVATIONS", 0);
+        return;
+    }
+    if (!ZhangFloatRankDiagnostic::allowsColumns(diagnosticMode, kfState.x.size()))
+    {
+        traceZhangPureObservationRankStatus(trace, diagnosticMode, "COLUMN_LIMIT",
+            pureObservationEntries.size(), kfState.x.size());
+        return;
+    }
 
-    KFMeas pureObservations(kfState, pureObservationEntries, tsync);
+    const std::string rankEpoch=tsync.to_string(0);
+    ZhangFloatPhaseTimer rankTimer(trace,"FLOAT_RANK_DIAGNOSTIC",rankEpoch);
+    KFMeas pureObservations=[&]() {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_RANK_MEASUREMENT_MATRIX",rankEpoch);
+        return KFMeas(kfState, pureObservationEntries, tsync);
+    }();
 
     std::vector<int> activeColumns;
+    {
+    ZhangFloatPhaseTimer timer(trace,"FLOAT_RANK_ACTIVE_COLUMNS",rankEpoch);
     for (int column = 0; column < pureObservations.H.cols(); column++)
     {
         if (pureObservations.H.col(column).squaredNorm() > 1e-24)
@@ -86,13 +171,18 @@ static void outputZhangPureObservationRank(
             activeColumns.push_back(column);
         }
     }
+    }
 
     if (activeColumns.empty())
     {
+        traceZhangPureObservationRankStatus(trace, diagnosticMode, "NO_ACTIVE_COLUMNS",
+            pureObservations.H.rows(), pureObservations.H.cols());
         return;
     }
 
     MatrixXd activeDesign(pureObservations.H.rows(), activeColumns.size());
+    {
+    ZhangFloatPhaseTimer timer(trace,"FLOAT_RANK_NORMALISE_DESIGN",rankEpoch);
     for (int column = 0; column < activeColumns.size(); column++)
     {
         activeDesign.col(column) = pureObservations.H.col(activeColumns[column]);
@@ -103,11 +193,32 @@ static void outputZhangPureObservationRank(
             activeDesign.col(column) /= norm;
         }
     }
+    }
 
-    Eigen::JacobiSVD<MatrixXd> decomposition(
-        activeDesign,
-        Eigen::ComputeThinU | Eigen::ComputeThinV
-    );
+    const char* profileSetting=std::getenv("ZHANG_FLOAT_PROFILE");
+    if(profileSetting && std::string_view(profileSetting)=="1")
+    {
+        const auto rows=static_cast<std::uint64_t>(activeDesign.rows());
+        const auto columns=static_cast<std::uint64_t>(activeDesign.cols());
+        const auto thin=std::min(rows,columns);
+        std::ostringstream dimensions;
+        dimensions<<"ZHANG_FLOAT_PROFILE_MATRIX phase=FLOAT_RANK_DIAGNOSTIC epoch="
+                  <<std::quoted(rankEpoch)<<" rows="<<rows<<" active_columns="<<columns
+                  <<" full_columns="<<pureObservations.H.cols()
+                  <<" active_design_bytes="<<rows*columns*sizeof(double)
+                  <<" thin_u_bytes="<<rows*thin*sizeof(double)
+                  <<" thin_v_bytes="<<columns*thin*sizeof(double)
+                  <<" scope=INDIVIDUAL_MATRIX_SIZES_NOT_PEAK_RSS";
+        trace<<"\n"<<dimensions.str();
+        trace.flush();
+        std::clog<<dimensions.str()<<std::endl;
+    }
+
+    auto decomposition=[&]() {
+        ZhangFloatPhaseTimer timer(trace,"FLOAT_RANK_JACOBI_SVD",rankEpoch);
+        return Eigen::JacobiSVD<MatrixXd>(
+            activeDesign, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    }();
     VectorXd singularValues = decomposition.singularValues();
 
     double sigmaMax = singularValues.size() ? singularValues(0) : 0;
@@ -201,6 +312,8 @@ static void outputZhangPureObservationRank(
             BOOST_LOG_TRIVIAL(info) << details.str();
         }
     }
+    traceZhangPureObservationRankStatus(trace, diagnosticMode, "COMPLETED",
+        pureObservations.H.rows(), pureObservations.H.cols(), true);
 }
 
 /** Primary estimation and filtering.
@@ -973,6 +1086,8 @@ void updateRecClocks(
     {
         auto trace = getTraceFile(rec);
 
+        zhangClockLifecycleRecord("REC_CLOCK_ADJUST_BEFORE", rec, &kfState);
+
         if (rec.isPseudoRec)
         {
             continue;
@@ -982,6 +1097,8 @@ void updateRecClocks(
         {
             trace << "\n"
                   << "Receiver clock of " << id << " won't be adjusted due to bad SPP";
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"applied_adjustment_m", 0.0}, {"skip_reason", "BAD_SPP"}});
             continue;
         }
 
@@ -991,12 +1108,83 @@ void updateRecClocks(
 
         if (clkInit.estimate == false)
         {
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"applied_adjustment_m", 0.0}, {"skip_reason", "CLOCK_NOT_ESTIMATED"}});
             continue;
         }
 
-        KFKey clkKey;
-        clkKey.type = KF::REC_CLOCK;
-        clkKey.str  = id;
+        if (zhangUsesEffectiveNetworkClocks(acsConfig))
+        {
+            // Each effective clock uses its own SPP coordinate and the
+            // offset saved from that same external chart/committed epoch.
+            // Never clone a selected-system scalar into the other clocks.
+            for (const auto system : zhangSystemReceiverClockSystems(acsConfig))
+            {
+                double sppClock = 0;
+                double offset = 0;
+                if (!zhangSppClockForSystem(rec, system, sppClock) ||
+                    !zhangSavedSppClockOffset(kfState, rec, system, offset))
+                {
+                    zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                        {{"system", enum_to_string(system)}, {"applied_adjustment_m", 0.0},
+                         {"skip_reason", "NO_MATCHING_COMMITTED_EXTERNAL_OFFSET"}});
+                    continue;
+                }
+                KFKey key = zhangReceiverClockKey(acsConfig, id, system, 0,
+                                                  KF::REC_CLOCK, &rec);
+                double predicted = 0;
+                if (kfState.getKFValue(key, predicted) != E_Source::KALMAN) continue;
+                KFKey rateKey = key;
+                rateKey.type = KF::REC_CLOCK_RATE;
+                double rate = 0;
+                const auto rateFound = kfState.getKFValue(rateKey, rate);
+                const double dt = (tsync - kfState.time).to_double();
+                predicted += rate * dt;
+                double adjustment = sppClock + offset - predicted;
+                const double unrounded = adjustment;
+                if (acsConfig.adjust_clocks_for_jumps_only)
+                {
+                    const double scalar = 2000 / CLIGHT;
+                    adjustment = std::round(adjustment * scalar) / scalar;
+                }
+                zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                    {{"system", enum_to_string(system)}, {"dt", dt},
+                     {"spp_system_clock_m", sppClock}, {"saved_system_offset_m", offset},
+                     {"external_chart", zhangSppPhysicalClockChart(rec.sol, system)},
+                     {"predicted_clock_m", predicted}, {"unrounded_adjustment_m", unrounded},
+                     {"applied_adjustment_m", adjustment}});
+                if (adjustment == 0) continue;
+                kfState.setKFTrans(key, KFState::oneKey, adjustment, clkInit);
+                const auto rateInit = initialStateFromConfig(recOpts.clk_rate);
+                if (rateInit.estimate && rateFound == E_Source::KALMAN && dt > 0)
+                    kfState.setKFTrans(rateKey, KFState::oneKey, adjustment / dt, rateInit);
+            }
+            continue;
+        }
+
+        // sppPppClkOffset is only defined for sol.clkRefSys. Applying this
+        // one scalar independently to G/E/C clocks would overwrite their
+        // distinct effective-clock offsets with the same SPP clock.
+        if (zhangUsesSystemReceiverClocks(acsConfig) &&
+            !zhangSystemReceiverClockSystems(acsConfig).contains(rec.sol.clkRefSys))
+        {
+            trace << "\nZHANG_SYSTEM_CLOCK_SPP_ADJUST receiver=" << id
+                  << " applied=0 reason=SPP_REFERENCE_SYSTEM_NOT_MODELLED";
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"applied_adjustment_m", 0.0}, {"skip_reason", "SPP_SYSTEM_NOT_MODELLED"}});
+            continue;
+        }
+        if (zhangUsesSystemReceiverClocks(acsConfig) &&
+            rec.sol.sppPppClkOffsetSys != rec.sol.clkRefSys)
+        {
+            trace << "\nZHANG_SYSTEM_CLOCK_SPP_ADJUST receiver=" << id
+                  << " applied=0 reason=SPP_OFFSET_REFERENCE_SYSTEM_CHANGED";
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"applied_adjustment_m", 0.0}, {"skip_reason", "OFFSET_SYSTEM_CHANGED"}});
+            continue;
+        }
+        KFKey clkKey = zhangReceiverClockKey(
+            acsConfig, id, rec.sol.clkRefSys, 0, KF::REC_CLOCK, &rec);
 
         double   recClk_m = 0;
         E_Source found    = kfState.getKFValue(
@@ -1016,6 +1204,7 @@ void updateRecClocks(
             recClk_m += clkRate * dt;     // Expected rec clock prediction
             double recClkAdj = rec.sol.sppClk + rec.sol.sppPppClkOffset -
                                recClk_m;  // Adjust rec clock prediction by SPP clock change
+            const double unroundedClockAdjustment = recClkAdj;
 
             // Do rounding if only adjust receiver clock jumps (i.e. integer times of
             // half-milliseconds)
@@ -1039,18 +1228,111 @@ void updateRecClocks(
                   << "\t- Pre-adjustment: " << recClk_m
                   << "\t- Post-adjustment: " << recClk_m + recClkAdj;
 
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"dt", dt}, {"predicted_clock_m", recClk_m},
+                 {"unrounded_adjustment_m", unroundedClockAdjustment},
+                 {"applied_adjustment_m", recClkAdj}});
+
             if (recClkAdj)
             {
                 kfState.setKFTrans(clkKey, KFState::oneKey, recClkAdj, clkInit);
 
                 InitialState rateInit = initialStateFromConfig(recOpts.clk_rate);
-                if (rateInit.estimate && found == E_Source::KALMAN)
+                if (rateInit.estimate && found == E_Source::KALMAN && dt > 0)
                 {
                     double clkRateAjd = recClkAdj / dt;
                     kfState.setKFTrans(rateKey, KFState::oneKey, clkRateAjd, rateInit);
                 }
             }
         }
+        else
+        {
+            zhangClockLifecycleRecord("REC_CLOCK_ADJUST_AFTER", rec, &kfState,
+                {{"applied_adjustment_m", 0.0},
+                 {"skip_reason", found != E_Source::KALMAN ? "NO_EXISTING_KF_CLOCK" : "OFFSET_NOT_READY"}});
+        }
+    }
+}
+
+void prepareZhangEffectiveClockSeeds(
+    Trace& trace, ReceiverMap& receivers, KFState& state, KFState& remoteState)
+{
+    if (!zhangUsesEffectiveNetworkClocks(acsConfig)) return;
+    for (const auto system : zhangSystemReceiverClockSystems(acsConfig))
+    {
+        const auto metadataKey = zhangClockLifecycleMetadataKey("SEED", system);
+        state.metaDataMap.erase(metadataKey);
+        double translation = 0;
+        std::string anchor;
+        bool hasClockState = false;
+        for (const auto& [key, index] : state.kfIndexMap)
+        {
+            if (key.type == KF::REC_CLOCK &&
+                zhangReceiverClockMatchesSystem(acsConfig, key, system))
+                hasClockState = true;
+            if (key.type != KF::SAT_CLOCK || key.Sat.sys != system || key.num != 0)
+                continue;
+            hasClockState = true;
+            auto& options = acsConfig.getSatOpts(key.Sat);
+            SatPos physical;
+            physical.Sat = key.Sat;
+            physical.satNav_ptr = &nav.satNavMap[key.Sat];
+            if (!satclk(trace, tsync, tsync, physical,
+                    zhangPhysicalClockSources(options.clockModel.sources), nav,
+                    &state, &remoteState) || !physical.ephClkValid)
+                continue;
+            double effective = 0;
+            const double dt = (tsync - state.time).to_double();
+            for (const auto& [component, componentIndex] : state.kfIndexMap)
+            {
+                if (component.type != KF::SAT_CLOCK || component.Sat != key.Sat) continue;
+                effective += state.x[componentIndex];
+                KFKey rateKey = component;
+                rateKey.type = KF::SAT_CLOCK_RATE;
+                double rate = 0;
+                state.getKFValue(rateKey, rate);
+                effective += rate * dt;
+            }
+            const double external = physical.satClk * CLIGHT;
+            if (!std::isfinite(effective) || !std::isfinite(external)) continue;
+            translation = effective - external;
+            anchor = "EXISTING_EFFECTIVE_" + key.Sat.id() + "|" +
+                enum_to_string(physical.clkSource);
+            break;
+        }
+        if (anchor.empty() && !hasClockState)
+        {
+            const auto options = acsConfig.zhangFullRank.sysOpts.find(system);
+            if (options != acsConfig.zhangFullRank.sysOpts.end())
+            {
+                for (const auto& [id, receiver] : receivers)
+                {
+                    if (!zhangFullRankIsReferenceReceiver(id, options->second.reference_receiver))
+                        continue;
+                    double referenceClock = 0;
+                    if (!zhangSppClockForSystem(receiver, system, referenceClock)) break;
+                    translation = -referenceClock;
+                    anchor = "COLD_REFERENCE_SPP_" + id + "|" +
+                        zhangSppPhysicalClockChart(receiver.sol, system);
+                    break;
+                }
+            }
+        }
+        if (anchor.empty())
+        {
+            trace << "\nZHANG_EFFECTIVE_CLOCK_SEED epoch=" << tsync.to_string(0)
+                  << " system=" << enum_to_string(system)
+                  << " valid=0 reason=NO_CURRENT_CLOCK_DATUM_ANCHOR";
+            continue;
+        }
+        state.metaDataMap[metadataKey] = boost::json::serialize(boost::json::object{
+            {"epoch", tsync.to_string(9)}, {"kf_epoch", state.time.to_string(9)},
+            {"translation_m", translation}, {"anchor", anchor}});
+        trace << "\nZHANG_EFFECTIVE_CLOCK_SEED epoch=" << tsync.to_string(0)
+              << " system=" << enum_to_string(system) << " valid=1 translation_m="
+              << std::setprecision(17) << translation << " anchor=" << anchor
+              << " purpose=NEW_STATE_NUMERICAL_SEED_ONLY prior=EFFECTIVE_COORDINATES"
+              << " existing_state_transform=NONE covariance_transform=IDENTITY";
     }
 }
 
@@ -1377,6 +1659,11 @@ KFState propagateUncertainty(Trace& trace, KFState& kfState)
                 }
 
                 if (pivotKey.str != reference_clock)
+                {
+                    continue;
+                }
+
+                if (!zhangClockDatumPivotApplies(acsConfig, id, pivotKey))
                 {
                     continue;
                 }
@@ -2026,6 +2313,23 @@ bool ppp(
 )
 {
     DOCS_REFERENCE(Main_Filter__);
+    // Snapshot once before changing any state or thread setting. An invalid
+    // opt-in is an error, not an accidental expensive diagnostic request.
+    const auto pureRankDiagnosticMode = ZhangFloatRankDiagnostic::modeFromEnvironment();
+    ZhangFloatThreading::ScopedFloatThreads floatThreads;
+    trace << "\nZHANG_FLOAT_THREADS policy=phase_scoped_all_cpu_v2 requested="
+          << floatThreads.threads() << " available=" << ZhangFloatThreading::availableThreads()
+          << " physical_cores=" << ZhangFloatThreading::physicalCores()
+          << " factor_blas=" << ZhangFloatThreading::factorThreads()
+#ifdef _OPENMP
+          << " omp=" << omp_get_max_threads()
+#endif
+#ifdef GINAN_USE_OPENBLAS
+          << " blas=" << BlasThreading::openblas_get_num_threads()
+#endif
+          << " eigen=" << Eigen::nbThreads()
+          << " memory_mode=" << (ZhangFloatThreading::parallelMemoryRequested() ? "parallel" : "serial")
+          << " ar_threads=RESTORED_ON_EXIT";
     const std::string floatEpoch=tsync.to_string(0);
     ZhangFloatPhaseTimer floatTimer(trace,"FLOAT_TOTAL",floatEpoch);
     {
@@ -2068,6 +2372,7 @@ bool ppp(
     }
 
     // prepare a map of lists of measurements for use below
+    prepareZhangEffectiveClockSeeds(trace, receiverMap, kfState, remoteState);
     map<string, KFMeasEntryList> receiverKFEntryListMap;
     std::vector<std::pair<Receiver*,KFMeasEntryList*>> measurementWork;
     {
@@ -2085,8 +2390,8 @@ bool ppp(
         BOOST_LOG_TRIVIAL(info) << " ------- CALCULATING PPP MEASUREMENTS --------" << "\n";
         std::vector<double> stationMs(measurementWork.size());
         // calculate the measurements for each receiver
+        ZhangFloatThreading::ScopedOuterWork outerWork;
 #ifdef ENABLE_PARALLELISATION
-        Eigen::setNbThreads(1);
 #pragma omp parallel for schedule(dynamic,1)
 #endif
         for (int i = 0; i < static_cast<int>(measurementWork.size()); i++)
@@ -2103,7 +2408,6 @@ bool ppp(
             stationMs[i]=std::chrono::duration<double,std::milli>(
                 std::chrono::steady_clock::now()-started).count();
         }
-        Eigen::setNbThreads(0);
         std::erase_if(stationMs,[](double ms){return ms<=0;});
         std::sort(stationMs.begin(),stationMs.end());
         const auto quantile=[&](double fraction) {
@@ -2131,16 +2435,32 @@ bool ppp(
     }
 
     KFMeasEntryList zhangPureObservationEntries;
-    if (acsConfig.zhangFullRank.enable && acsConfig.zhangFullRank.output_diagnostics)
+    bool pureRankObservationsCollected = false;
+    const bool parentRankDiagnostics =
+        acsConfig.zhangFullRank.enable && acsConfig.zhangFullRank.output_diagnostics;
+    if (!ZhangFloatRankDiagnostic::requested(pureRankDiagnosticMode, parentRankDiagnostics))
     {
-        ZhangFloatPhaseTimer timer(trace,"FLOAT_PURE_OBSERVATION_COPY",floatEpoch);
-        for (auto& entry : kfMeasEntryList)
+        traceZhangPureObservationRankStatus(trace, pureRankDiagnosticMode,
+            pureRankDiagnosticMode == ZhangFloatRankDiagnostic::Mode::Off
+                ? "DISABLED" : "PARENT_DIAGNOSTICS_DISABLED");
+    }
+    else
+    {
+        const auto isPureObservation = [](const KFMeasEntry& entry) {
+            return entry.obsKey.type == KF::CODE_MEAS || entry.obsKey.type == KF::PHAS_MEAS;
+        };
+        const auto rows = static_cast<std::size_t>(
+            std::count_if(kfMeasEntryList.begin(), kfMeasEntryList.end(), isPureObservation));
+        if (!ZhangFloatRankDiagnostic::allowsRows(pureRankDiagnosticMode, rows))
         {
-            if (entry.obsKey.type == KF::CODE_MEAS ||
-                entry.obsKey.type == KF::PHAS_MEAS)
-            {
-                zhangPureObservationEntries.push_back(entry);
-            }
+            traceZhangPureObservationRankStatus(trace, pureRankDiagnosticMode, "ROW_LIMIT", rows);
+        }
+        else
+        {
+            ZhangFloatPhaseTimer timer(trace,"FLOAT_PURE_OBSERVATION_COPY",floatEpoch);
+            for (auto& entry : kfMeasEntryList)
+                if (isPureObservation(entry)) zhangPureObservationEntries.push_back(entry);
+            pureRankObservationsCollected = true;
         }
     }
 
@@ -2179,7 +2499,9 @@ bool ppp(
 
     {
         ZhangFloatPhaseTimer timer(trace,"FLOAT_MEASUREMENT_ORDER",floatEpoch);
-        outputZhangPureObservationRank(trace, kfState, zhangPureObservationEntries);
+        if (pureRankObservationsCollected)
+            outputZhangPureObservationRank(
+                trace, kfState, zhangPureObservationEntries, pureRankDiagnosticMode);
         std::sort(
             kfMeasEntryList.begin(),
             kfMeasEntryList.end(),
@@ -2263,6 +2585,30 @@ bool ppp(
         ZhangFloatPhaseTimer timer(trace,"FLOAT_POSTFIT_QC",floatEpoch);
         postFilterChecks(tsync, receiverMap, kfState, kfMeas);
     }
+
+    if (zhangR51ProductRepairEnabled())
+    {
+        // Only the committed final /PPP phase rows can authorize current
+        // signal arcs. Robustly deweighted rows remain in KFMeas, so the
+        // graph intersects with explicit row-level QC metadata, not state
+        // presence or the pre-filter observation inventory.
+        for (const auto& [system, options] : acsConfig.zhangFullRank.sysOpts)
+        {
+            if (system == E_Sys::NONE || !options.use_spanning_tree ||
+                !acsConfig.process_sys[system]) continue;
+            std::string admissionReason;
+            const bool admitted = zhangFinalizeGraphSignalObservationAdmission(
+                kfState, system, kfMeas, admissionReason);
+            if (admissionReason == "SIGNAL_GRAPH_CONTEXT_UNAVAILABLE") continue;
+            trace << "\nZHANG_FINAL_SIGNAL_ADMISSION time=" << kfState.time.to_string(0)
+                  << " system=" << static_cast<int>(system)
+                  << " valid=" << admitted << " reason=" << admissionReason;
+        }
+    }
+
+    if (zhangR51SingleBasisHandoffEnabled())
+        traceZhangCurrentGraphProductProjection(
+            trace, kfState, "POST_OBSERVATION_FLOAT");
 
     if (!kfState.lastPppQcConverged)
     {

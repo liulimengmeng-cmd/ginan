@@ -19,6 +19,8 @@
 #include "common/receiver.hpp"
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
+#include "common/zhangClockLifecycle.hpp"
+#include "common/zhangEffectiveClockDatum.hpp"
 #include "orbprop/coordinates.hpp"
 #include "pea/ppp.hpp"
 #include "trop/tropModels.hpp"
@@ -1197,6 +1199,49 @@ bool raim(
     return false;
 }
 
+/** SPP must not consume effective network satellite clocks as physical time
+ * clocks. Only the ephemeris cache is restored: SPP validity/exclusion/QC
+ * results remain attached to the observations. In particular an already-valid
+ * preprocessor KALMAN cache does not bypass the independent clock query.
+ */
+class ZhangSppEphemerisCache
+{
+    std::vector<std::pair<GObs*, SatPos>> saved;
+public:
+    explicit ZhangSppEphemerisCache(ObsList& observations, bool enabled)
+    {
+        if (!enabled) return;
+        for (auto& observation : only<GObs>(observations))
+            saved.emplace_back(&observation, static_cast<const SatPos&>(observation));
+    }
+    ~ZhangSppEphemerisCache()
+    {
+        for (auto& [observation, prior] : saved)
+        {
+            // Do not restore sppValid or failure/exclusion flags changed by SPP.
+            observation->posTime = prior.posTime;
+            observation->posSource = prior.posSource;
+            observation->clkSource = prior.clkSource;
+            observation->rSatCom = prior.rSatCom;
+            observation->rSatApc = prior.rSatApc;
+            observation->satVel = prior.satVel;
+            observation->rSatEciDt = prior.rSatEciDt;
+            observation->vSatEciDt = prior.vSatEciDt;
+            observation->rSatEci0 = prior.rSatEci0;
+            observation->vSatEci0 = prior.vSatEci0;
+            observation->posVar = prior.posVar;
+            observation->satClk = prior.satClk;
+            observation->satClkVel = prior.satClkVel;
+            observation->satClkVar = prior.satClkVar;
+            observation->iodeClk = prior.iodeClk;
+            observation->iodePos = prior.iodePos;
+            observation->ephPosValid = prior.ephPosValid;
+            observation->ephClkValid = prior.ephClkValid;
+            observation->tof = prior.tof;
+        }
+    }
+};
+
 /** Compute receiver position, clock biases by single-point positioning with pseudorange
  * measurements
  */
@@ -1210,6 +1255,10 @@ void spp(
     auto&  obsList = rec.obsList;
     auto&  sol     = rec.sol;
     string id      = rec.id;
+    const bool independentClock = zhangUsesEffectiveNetworkClocks(acsConfig);
+    ZhangSppEphemerisCache physicalClockCache(obsList, independentClock);
+
+    zhangClockLifecycleRecord("SPP_ENTRY", rec, kfState_ptr);
 
     if (obsList.empty())
     {
@@ -1227,26 +1276,39 @@ void spp(
             continue;
         }
 
-        if (obs.ephPosValid == false || obs.ephClkValid == false ||
+        if (independentClock || obs.ephPosValid == false || obs.ephClkValid == false ||
             acsConfig.preprocOpts.preprocess_all_data ==
                 true)  // KALMAN or REMOTE is not available, or SSR is not updated when
                        // preprocessing all data
         {
             auto& satOpts = acsConfig.getSatOpts(obs.Sat);
+            if (independentClock)
+            {
+                obs.ephPosValid = false;
+                obs.ephClkValid = false;
+            }
 
-            satPosClk(
+            const bool physicalValid = satPosClk(
                 trace,
                 obs.time,
                 obs,
                 nav,
                 satOpts.posModel.sources,
-                satOpts.clockModel.sources,
+                independentClock ? zhangPhysicalClockSources(satOpts.clockModel.sources)
+                                 : satOpts.clockModel.sources,
                 kfState_ptr,
                 remote_ptr,
                 E_OffsetType::APC
             );
+            if (independentClock && !physicalValid)
+            {
+                obs.ephPosValid = false;
+                obs.ephClkValid = false;
+            }
         }
     }
+
+    zhangClockLifecycleRecord("SPP_INPUT", rec, kfState_ptr);
 
     tracepdeex(
         3,
@@ -1331,7 +1393,41 @@ void spp(
 
     if (sol.status == E_Solution::NONE)
     {
+        zhangClockLifecycleRecord("SPP_RESULT", rec, kfState_ptr,
+            {{"selected_clock_found", false}});
         return;
+    }
+
+    if (independentClock)
+    {
+        // Persist only clock-source classes actually used by valid SPP rows.
+        // A fallback PRECISE/BROADCAST change invalidates the saved offset;
+        // constellation agreement alone does not establish chart agreement.
+        for (const auto system : zhangSystemReceiverClockSystems(acsConfig))
+        {
+            const auto key = zhangClockLifecycleMetadataKey("SPP_CHART", system);
+            sol.sppState.metaDataMap.erase(key);
+            std::set<std::string> sources;
+            for (auto& observation : only<GObs>(obsList))
+                if (observation.Sat.sys == system && observation.sppValid &&
+                    observation.ephClkValid && !observation.exclude &&
+                    observation.clkSource != E_Source::KALMAN &&
+                    observation.clkSource != E_Source::REMOTE)
+                    sources.insert(enum_to_string(observation.clkSource));
+            if (sources.empty()) continue;
+            std::string chart = "PHYSICAL_EXTERNAL_V1";
+            // Provider identity is configuration-bound, not the changing
+            // visible-satellite list. Actual fallback source classes below
+            // additionally distinguish a PRECISE/BROADCAST transition.
+            for (const auto& file : acsConfig.clk_files) chart += "|CLK:" + file;
+            for (const auto& file : acsConfig.nav_files) chart += "|NAV:" + file;
+            for (const auto& file : acsConfig.sp3_files) chart += "|SP3:" + file;
+            for (const auto& file : acsConfig.bsx_files) chart += "|BSX:" + file;
+            for (const auto& file : acsConfig.dcb_files) chart += "|DCB:" + file;
+            for (const auto& source : sources) chart += "|" + source;
+            sol.sppState.metaDataMap[key] = boost::json::serialize(boost::json::object{
+                {"epoch", tsync.to_string(9)}, {"chart", chart}});
+        }
     }
 
     // Copy states to often-used vectors
@@ -1374,6 +1470,9 @@ void spp(
     }
 
     sol.sppTime = tsync - sol.sppClk / CLIGHT;
+
+    zhangClockLifecycleRecord("SPP_RESULT", rec, kfState_ptr,
+        {{"selected_clock_found", found}});
 
     sol.horzPL = -1;
     sol.vertPL = -1;

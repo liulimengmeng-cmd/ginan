@@ -16,6 +16,9 @@
 #include "common/tides.hpp"
 #include "common/trace.hpp"
 #include "common/zhangFullRank.hpp"
+#include "common/zhangSystemClockDatum.hpp"
+#include "common/zhangClockLifecycle.hpp"
+#include "common/zhangEffectiveClockDatum.hpp"
 #include "inertial/posProp.hpp"
 #include "iono/geomagField.hpp"
 #include "iono/ionoModel.hpp"
@@ -260,6 +263,10 @@ inline static void pppRecClocks(COMMON_PPP_ARGS)
     if (zhangOptions &&
         zhangFullRankIsReferenceReceiver(rec.id, zhangOptions->reference_receiver))
     {
+        if (measType == CODE)
+            zhangClockLifecycleRecord("COLD_REFERENCE_CLOCK_ZERO", rec, &kfState,
+                {{"satellite", Sat.id()}, {"system", enum_to_string(Sat.sys)},
+                 {"model_reference", zhangOptions->reference_receiver}, {"model_clock_m", 0.0}});
         measEntry.componentsMap[E_Component::REC_CLOCK] = {
             0,
             "+ Cdt_r [Zhang reference receiver S-basis]",
@@ -271,12 +278,56 @@ inline static void pppRecClocks(COMMON_PPP_ARGS)
     double recClk_m = rec.aprioriClk;
     double dtRecVar = rec.aprioriClkVar;
 
-    KFKey kfKey;
-    kfKey.type    = KF::REC_CLOCK;
-    kfKey.str     = rec.id;
-    kfKey.rec_ptr = &rec;
+    KFKey kfKey = zhangReceiverClockKey(acsConfig, rec.id, Sat.sys, 0,
+                                      KF::REC_CLOCK, &rec);
+
+    // aprioriClk/sol.sppClk are a single selected reference-system clock.
+    // A different effective clock may only be initialised from its own SPP
+    // coordinate; copying sppClk would silently assume a zero inter-system
+    // offset. Existing filtered values below always take precedence.
+    if (zhangUsesSystemReceiverClocks(acsConfig) && Sat.sys != rec.sol.clkRefSys)
+    {
+        const KFKey sppKey{KF::REC_SYS_BIAS, SatSys(Sat.sys, 0), rec.id};
+        double systemClock = 0;
+        double systemVariance = 0;
+        if (rec.sol.sppState.getKFValue(sppKey, systemClock, &systemVariance) !=
+            E_Source::NONE)
+        {
+            recClk_m = systemClock;
+            dtRecVar = systemVariance;
+        }
+        else
+        {
+            const auto initial = initialStateFromConfig(recOpts.clk);
+            recClk_m = initial.x;
+            dtRecVar = initial.P;
+        }
+    }
 
     E_Source found = kfState.getKFValue(kfKey, recClk_m, &dtRecVar);
+
+    if (found == E_Source::NONE && zhangUsesEffectiveNetworkClocks(acsConfig))
+    {
+        double translation = 0;
+        if (!zhangEffectiveClockSeed(kfState, Sat.sys, translation))
+        {
+            measEntry.valid = false;
+            return;
+        }
+        // No independent SPP coordinate for this system is not permission to
+        // copy another constellation's clock. The configured physical seed
+        // (usually zero) remains an approximate initial guess in that case.
+        double rawClock = initialStateFromConfig(recOpts.clk).x;
+        zhangSppClockForSystem(rec, Sat.sys, rawClock);
+        recClk_m = rawClock + translation;
+    }
+
+    if (found == E_Source::NONE)
+        zhangClockLifecycleRecord("COLD_RECEIVER_CLOCK_SEED", rec, &kfState,
+            {{"satellite", Sat.id()}, {"system", enum_to_string(Sat.sys)},
+             {"init_clock_m", zhangClockLifecycleNumber(recClk_m)},
+             {"apriori_variance_m2", zhangClockLifecycleNumber(dtRecVar)},
+             {"configured_init_variance_m2", initialStateFromConfig(recOpts.clk).P}});
 
     for (int i = 0; i < recOpts.clk.estimate.size(); i++)
     {
@@ -377,12 +428,9 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
             {
                 const double coefficient = factors[factor];
                 variance += coefficient * coefficient;
-                KFKey factorKey;
-                factorKey.type = KF::SAT_CLOCK;
-                factorKey.str = "ZHANG_PRODUCT_COV_" +
-                    acsConfig.zhangPppAr.product_solution;
-                factorKey.Sat = SatSys(Sat.sys, 0);
-                factorKey.num = factor;
+                const KFKey factorKey = zhangProductJointNoiseKey(
+                    static_cast<long long>(std::llround(internalProduct.time.bigTime)),
+                    internalProduct.solution, factor);
                 measEntry.addNoiseEntry(factorKey, coefficient, 1.0);
             }
             const double temporalSigma =
@@ -442,7 +490,11 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
     SatPos satPos0 = obs;
 
     // Use nominal epoch for satellite clock initialisation
-    satclk(trace, tsync, tsync, satPos0, satOpts.clockModel.sources, nav, &kfState, &remoteKF);
+    const bool effectiveClock = zhangUsesEffectiveNetworkClocks(acsConfig);
+    const bool nominalClockValid = satclk(trace, tsync, tsync, satPos0,
+        effectiveClock ? zhangPhysicalClockSources(satOpts.clockModel.sources)
+                       : satOpts.clockModel.sources,
+        nav, &kfState, &remoteKF);
 
     double satClk_m  = satPos0.satClk * CLIGHT;
     double satClkVar = 0;
@@ -452,6 +504,25 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
     kfKey.Sat  = Sat;
 
     E_Source found = kfState.getKFValue(kfKey, satClk_m, &satClkVar);
+
+    if (effectiveClock && found == E_Source::NONE)
+    {
+        double translation = 0;
+        if (!nominalClockValid || !zhangEffectiveClockSeed(kfState, Sat.sys, translation))
+        {
+            measEntry.valid = false;
+            return;
+        }
+        satClk_m += translation;
+    }
+
+    if (found == E_Source::NONE)
+        zhangClockLifecycleRecord("COLD_SATELLITE_CLOCK_SEED", rec, &kfState,
+            {{"satellite", Sat.id()}, {"system", enum_to_string(Sat.sys)},
+             {"init_clock_m", zhangClockLifecycleNumber(satClk_m)},
+             {"configured_init_variance_m2", initialStateFromConfig(satOpts.clk).P},
+             {"observed_clock_source", enum_to_string(obs.clkSource)},
+             {"nominal_clock_source", enum_to_string(satPos0.clkSource)}});
 
     for (int i = 0; i < satOpts.clk.estimate.size(); i++)
     {
@@ -493,12 +564,14 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
             else { init.tau=-1; init.mu=0; }
         }
         measEntry.addDsgnEntry(kfKey, -1, init);
-        measEntry.addDsgnEntry(
-            kfKey,
-            -obs.satVel.dot(satStat.e) / CLIGHT,
-            init
-        );  // Changes in satellite position or geometric distance calculation due to adjustment of
-        // satellite clock offset
+        if (!effectiveClock)
+            measEntry.addDsgnEntry(
+                kfKey,
+                -obs.satVel.dot(satStat.e) / CLIGHT,
+                init
+            );  // Traditional physical clock also changes transmission geometry.
+        // A Zhang effective clock is a receiver-gauge coordinate, NOT a
+        // physical ephemeris-time clock. Changing it must not move the orbit.
 
         InitialState rateInit = initialStateFromConfig(satOpts.clk_rate, i);
 
@@ -508,13 +581,35 @@ inline static void pppSatClocks(COMMON_PPP_ARGS)
             rateKey.type  = KF::SAT_CLOCK_RATE;
 
             kfState.setKFTransRate(kfKey, rateKey, 1, rateInit);
+            if (effectiveClock)
+                measEntry.addDsgnEntry(rateKey,
+                    -((obs.time - tsync).to_double() - obs.tof), rateInit);
         }
     }
 
     measEntry.addNoiseEntry(kfKey, 1, satClkVar);
 
+    double modelClock_m = obs.satClk * CLIGHT;
+    if (effectiveClock)
+    {
+        // satPosClk queried the physical clock at time-tof; use the effective
+        // state at that same clock epoch, without feeding its gauge into the
+        // transmission time / satellite position calculation.
+        double rate = 0;
+        for (int i = 0; i < satOpts.clk.estimate.size(); ++i)
+        {
+            if (!satOpts.clk.estimate[i]) continue;
+            KFKey rateKey = kfKey;
+            rateKey.type = KF::SAT_CLOCK_RATE;
+            rateKey.num = i;
+            double componentRate = initialStateFromConfig(satOpts.clk_rate, i).x;
+            kfState.getKFValue(rateKey, componentRate);
+            rate += componentRate;
+        }
+        modelClock_m = satClk_m + rate * ((obs.time - tsync).to_double() - obs.tof);
+    }
     measEntry.componentsMap[E_Component::SAT_CLOCK] = {
-        -obs.satClk * CLIGHT,
+        -modelClock_m,
         "- Cdt_s",
         satClkVar
     };  // Account for changes within time of fight due to clock rate in residual calculation
@@ -2018,18 +2113,28 @@ void receiverUducGnss(
 
         auto& satOpts = acsConfig.getSatOpts(obs.Sat);
 
-        satPosClk(
+        const bool effectiveClock = zhangUsesEffectiveNetworkClocks(acsConfig);
+
+        const bool physicalValid = satPosClk(
             trace,
             obs.time,
             obs,
             nav,
             satOpts.posModel.sources,
-            satOpts.clockModel.sources,
+            effectiveClock ? zhangPhysicalClockSources(satOpts.clockModel.sources)
+                           : satOpts.clockModel.sources,
             &kfState,
             &remoteKF,
             E_OffsetType::COM,
             E_Relativity::OFF
         );
+        if (effectiveClock && !physicalValid)
+        {
+            // Never reuse a previously valid effective/KALMAN cache when a
+            // physical ephemeris-time clock is unavailable.
+            obs.ephPosValid = false;
+            obs.ephClkValid = false;
+        }
 
         traceJson(
             1,
@@ -2104,6 +2209,10 @@ void receiverUducGnss(
                         tracepdeex(2, trace, "\n%s excludeSvh", obs.Sat.id().c_str());
 
                         obs.excludeSVH = true;
+                        // This is a model-domain requirement, not the optional
+                        // traditional health-screening gate. An effective KF
+                        // clock cannot supply missing physical geometry.
+                        if (zhangUsesEffectiveNetworkClocks(acsConfig)) continue;
                     }
 
                     if (obs.exclude)

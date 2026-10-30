@@ -1,19 +1,26 @@
 // #pragma GCC optimize ("O0")
 
 #include "common/acsQC.hpp"
+#include "common/zhangCycleSlipEvidence.hpp"
 #include <cmath>
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <chrono>
 #include "common/acsConfig.hpp"
 #include "common/algebra.hpp"
 #include "common/common.hpp"
 #include "common/constants.hpp"
 #include "common/enums.h"
+#include "common/ephemeris.hpp"
 #include "common/navigation.hpp"
 #include "common/observations.hpp"
+#include "common/receiver.hpp"
+#include "common/rinex.hpp"
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
 #include "rtklib/lambda.h"
+#include "orbprop/coordinates.hpp"
 
 #define THRES_MW_JUMP 10.0
 #define PDEGAP 60.0
@@ -412,6 +419,8 @@ void detslp_ll(
                 status.phaseQuarantined = !decision.useCurrentPhase;
                 if (decision.breakArc)
                 {
+                    if(zhangEvidenceSlipQcEnabled())
+                        status.phaseContinuityUnproven=decision.gap || (sig.LLI&2) || !(sig.LLI&1);
                     if (decision.gap) {status.slip.retrack=true;status.savedSlip.retrack=true;}
                     else {status.slip.LLI=true;status.savedSlip.LLI=true;}
                 }
@@ -1710,9 +1719,281 @@ void clearSlips(ObsList& obsList)
             satStat.slip     = false;  // todo? is this used?
             sigStat.slip.any = 0;
             sigStat.previousPhaseQuarantined=sigStat.phaseQuarantined;
+            if(!sigStat.tracking.pendingBreak)sigStat.phaseContinuityUnproven=false;
             sigStat.phaseQuarantined=false;
             sigStat.codeQuarantined=false;
         }
+    }
+}
+
+void detectZhangEvidenceSlips(Trace& trace, ObsList& obsList);
+
+// Optional OFFLINE migration of old schema-2 checkpoints. Only detector history
+// is copied; the authoritative receiver tracking, graph and KF are untouched.
+// The E29 input manifest has already authenticated this same local source file.
+// A separate empty Navigation is used by the RINEX header reader to avoid writes
+// to shared navigation during parallel receiver preprocessing.
+void warmZhangSlipEvidenceFromRaw(Trace& trace, ObsList& current)
+{
+    static thread_local bool warming=false;
+    const char* setting=std::getenv("ZHANG_R51_SLIP_RAW_WARMUP");
+    if(warming || !setting || std::string(setting)!="1")return;
+    Receiver* receiver=nullptr;double now=0;bool hasPrevious=false;
+    for(auto& obs:only<GObs>(current))
+    {
+        if(!obs.rec_ptr || !obs.satStat_ptr)continue;
+        if(!obs.satStat_ptr->slipEvidence.accepted.empty())return;
+        if(receiver && receiver!=obs.rec_ptr)return;
+        receiver=obs.rec_ptr;now=obs.time.bigTime;
+        hasPrevious |= obs.satStat_ptr->lc_pre.time.bigTime>0;
+    }
+    if(!receiver || !hasPrevious)return;
+    std::string source=receiver->source;
+    if(source.rfind("file://",0)==0)source.erase(0,7);
+    if(source.empty() || source.find("://")!=std::string::npos)return;
+    std::ifstream input(source);
+    if(!input)
+    {
+        for(auto& obs:only<GObs>(current))
+            if(obs.satStat_ptr)
+                for(const auto& [frequency,signal]:obs.sigs)
+                    obs.satStat_ptr->sigStatMap[ft2string(frequency)].phaseQuarantined=true;
+        trace<<"\nZHANG_SLIP_RAW_WARMUP rec="<<receiver->id<<" copied=0 reason=SOURCE_UNREADABLE";
+        return;
+    }
+    struct Guard {bool& active;Guard(bool& a):active(a){active=true;}~Guard(){active=false;}} guard(warming);
+    const auto started=std::chrono::steady_clock::now();
+    trace<<"\nZHANG_SLIP_RAW_WARMUP_BEGIN rec="<<receiver->id<<" resume_time="<<std::to_string(now)
+        <<" historical_records_follow=1 scope=DETECTOR_ONLY";
+    map<SatSys,SatStat> scratch;
+    Navigation headerOnly;RinexStation station;
+    char type=0;double version=0;E_Sys system=E_Sys::NONE;E_TimeSys timeSystem=E_TimeSys::GPST;
+    map<E_Sys,map<int,CodeType>> codes;
+    int epochs=0,restored=0;
+    while(input.good())
+    {
+        ObsList parsed;readRnx(input,type,parsed,headerOnly,station,version,system,timeSystem,codes);
+        if(parsed.empty())continue;
+        const double time=parsed.front()->time.bigTime;
+        if(time>=now)break;
+        if(time<now-1920)continue; // fill the bounded 64-sample retrospective window
+        ObsList prepared;
+        for(auto& obs:only<GObs>(parsed))
+        {
+            if(obs.Sat.sys!=E_Sys::GPS || !acsConfig.process_sys[obs.Sat.sys])continue;
+            const auto navigation=nav.satNavMap.find(obs.Sat);
+            if(navigation==nav.satNavMap.end())continue; // never insert a global map in this parallel loop
+            if(!navigation->second.lamMap.count(F1) || !navigation->second.lamMap.count(F2))continue;
+            obs.mount=receiver->id;obs.rec_ptr=receiver;
+            obs.satStat_ptr=&scratch[obs.Sat];obs.satNav_ptr=&navigation->second;
+            for(const auto code:acsConfig.code_priorities[obs.Sat.sys])
+            {
+                const auto frequency=code2Freq[obs.Sat.sys][code];
+                if(obs.sigs.count(frequency))continue;
+                for(const auto& signal:obs.sigsLists[frequency])
+                    if(signal.code==code && signal.L!=0){obs.sigs[frequency]=signal;break;}
+            }
+            if(!satPosClk(trace,obs.time,obs,nav,{E_Source::PRECISE},{E_Source::PRECISE},
+                nullptr,nullptr,E_OffsetType::COM))continue;
+            VectorEcef los;geodist(obs.rSatCom,receiver->aprioriPos,los);
+            satazel(ecef2pos(receiver->aprioriPos),los,*obs.satStat_ptr);
+            if(obs.satStat_ptr->el<acsConfig.getRecOpts(receiver->id).elevation_mask_deg*D2R)continue;
+            obsVariance(obs);
+            prepared.push_back(static_cast<std::shared_ptr<GObs>>(obs));
+        }
+        clearSlips(prepared);
+        for(auto& obs:only<GObs>(prepared))
+        {obs.satStat_ptr->lc_pre=obs.satStat_ptr->lc_new;obs.satStat_ptr->lc_new={};}
+        obs2lcs(trace,prepared);detslp_ll(trace,prepared);detectZhangEvidenceSlips(trace,prepared);
+        epochs++;
+    }
+    for(auto& obs:only<GObs>(current))
+    {
+        if(!obs.satStat_ptr)continue;
+        const auto found=scratch.find(obs.Sat);
+        if(found==scratch.end())
+        {
+            if(obs.satStat_ptr->lc_pre.time.bigTime>0)
+                for(const auto& [frequency,signal]:obs.sigs)
+                    obs.satStat_ptr->sigStatMap[ft2string(frequency)].phaseQuarantined=true;
+            continue;
+        }
+        const auto& warm=found->second;
+        const auto& previous=obs.satStat_ptr->lc_pre;
+        bool same=warm.lc_new.time==previous.time && !warm.slipEvidence.accepted.empty();
+        for(const auto& [frequency,value]:previous.L_m)
+            same &= warm.lc_new.L_m.count(frequency) && std::abs(warm.lc_new.L_m.at(frequency)-value)<1e-7;
+        for(const auto& [frequency,value]:previous.P)
+            same &= warm.lc_new.P.count(frequency) && std::abs(warm.lc_new.P.at(frequency)-value)<1e-7;
+        if(!same)
+        {
+            for(const auto& [frequency,signal]:obs.sigs)
+                obs.satStat_ptr->sigStatMap[ft2string(frequency)].phaseQuarantined=true;
+            trace<<"\nZHANG_SLIP_RAW_WARMUP rec="<<receiver->id<<" sat="<<obs.Sat.id()
+                <<" copied=0 reason=PREVIOUS_RAW_LC_MISMATCH";
+            continue;
+        }
+        obs.satStat_ptr->slipEvidence=warm.slipEvidence;restored++;
+    }
+    trace<<"\nZHANG_SLIP_RAW_WARMUP rec="<<receiver->id<<" epochs="<<epochs<<" copied="<<restored
+        <<" seconds="<<std::chrono::duration<double>(std::chrono::steady_clock::now()-started).count()
+        <<" kf_changed=0 graph_changed=0 authoritative_tracking_changed=0";
+    trace<<"\nZHANG_SLIP_RAW_WARMUP_END rec="<<receiver->id<<" historical_records_follow=0";
+}
+
+// Capture all receiver-link inputs before committing any detector state. L5 is
+// an auxiliary QC observation only: it does not enter the configured AR model.
+void detectZhangEvidenceSlips(Trace& trace, ObsList& obsList)
+{
+    warmZhangSlipEvidenceFromRaw(trace,obsList);
+    struct Input { GObs* obs; E_FType first, second, third; ZhangSlipSample sample; bool hard=false; };
+    std::vector<Input> inputs;
+    for (auto& obs:only<GObs>(obsList))
+    {
+        if(obs.exclude || !obs.satStat_ptr || !obs.satNav_ptr || !obs.rec_ptr) continue;
+        E_FType first,second,third;
+        if(obsFreqs(obs,first,second,third)<2)
+        {
+            for(const auto& [frequency,signal]:obs.sigs)
+                if(signal.L!=0)obs.satStat_ptr->sigStatMap[ft2string(frequency)].phaseQuarantined=true;
+            continue;
+        }
+        const auto& one=obs.sigs.at(first); const auto& two=obs.sigs.at(second);
+        if(one.LLI&2 || two.LLI&2) continue;
+        if(obs.satStat_ptr->sigStatMap[ft2string(first)].phaseQuarantined ||
+            obs.satStat_ptr->sigStatMap[ft2string(second)].phaseQuarantined)continue;
+        const Sig* auxiliary=nullptr;
+        E_FType auxiliaryFrequency=NONE;
+        for(const auto& [frequency,signals]:obs.sigsLists)
+        {
+            if(frequency==first || frequency==second || !obs.satNav_ptr->lamMap.count(frequency) ||
+                !std::isfinite(obs.satNav_ptr->lamMap.at(frequency)) || obs.satNav_ptr->lamMap.at(frequency)<=0)continue;
+            for(const auto& signal:signals)
+                if(signal.L!=0 && !signal.invalid && !(signal.LLI&3))
+                { auxiliary=&signal;auxiliaryFrequency=frequency;break; }
+            if(auxiliary) break;
+        }
+        const double l1=obs.satNav_ptr->lamMap[first], l2=obs.satNav_ptr->lamMap[second];
+        if(l1<=0 || l2<=0 || l1==l2 || one.phasVar<=0 || two.phasVar<=0)
+        {
+            obs.satStat_ptr->sigStatMap[ft2string(first)].phaseQuarantined=true;
+            obs.satStat_ptr->sigStatMap[ft2string(second)].phaseQuarantined=true;
+            continue;
+        }
+        const double l3=auxiliary ? obs.satNav_ptr->lamMap[auxiliaryFrequency] : 0;
+        const bool code=one.P!=0 && two.P!=0 && one.codeVar>0 && two.codeVar>0;
+        // The network configuration prefers KALMAN satellite clocks. Those
+        // already contain this link's estimation history and cannot provide an
+        // independent slip check. Use a COPY with external precise clocks and
+        // positions only, leaving the estimation observation itself unchanged.
+        GObs independent=obs;
+        if(independent.clkSource!=E_Source::PRECISE || independent.posSource!=E_Source::PRECISE)
+            satPosClk(trace,independent.time,independent,nav,{E_Source::PRECISE},{E_Source::PRECISE},
+                nullptr,nullptr,E_OffsetType::COM);
+        VectorEcef los;
+        const double range=geodist(independent.rSatCom,obs.rec_ptr->aprioriPos,los);
+        const bool geometry=independent.ephPosValid && independent.ephClkValid &&
+            independent.clkSource==E_Source::PRECISE && independent.posSource==E_Source::PRECISE && range>0;
+        const int signature=static_cast<int>(one.code)*1000+static_cast<int>(two.code);
+        auto sample=zhangMakeSlipSample(obs.time.bigTime,signature,{l1,l2,l3},
+            {one.L*l1,two.L*l2,auxiliary ? auxiliary->L*l3 : 0},
+            {one.phasVar,two.phasVar,auxiliary ? std::max(auxiliary->phasVar,one.phasVar) : 0},
+            {one.P,two.P},{one.codeVar,two.codeVar},auxiliary,code,
+            range-CLIGHT*independent.satClk,geometry);
+        sample.thirdSignature=auxiliary ? static_cast<int>(auxiliary->code) : 0;
+        sample.gfRateValid=one.D!=0 && two.D!=0 && std::isfinite(one.D) && std::isfinite(two.D);
+        if(sample.gfRateValid)sample.gfRate=-l1*one.D+l2*two.D;
+        // Schema-2 FLOAT checkpoints have the previous raw LC but no new QC
+        // history. Rebuild its independent geometry once; do not blindly accept
+        // the first new sample against an already-existing physical ambiguity.
+        auto& evidence=obs.satStat_ptr->slipEvidence;
+        const auto& previous=obs.satStat_ptr->lc_pre;
+        if(evidence.accepted.empty() && geometry && previous.time.bigTime>0 &&
+            obs.time>previous.time && (obs.time-previous.time).to_double()<=90 &&
+            previous.L_m.count(first) && previous.L_m.count(second) &&
+            previous.P.count(first) && previous.P.count(second) &&
+            previous.L_m.at(first)!=0 && previous.L_m.at(second)!=0 &&
+            previous.P.at(first)!=0 && previous.P.at(second)!=0)
+        {
+            GObs old=obs;old.time=previous.time;
+            for(auto& [frequency,signal]:old.sigs)
+            {
+                signal.P=previous.P.count(frequency) ? previous.P.at(frequency) : 0;
+                signal.L=previous.L_m.count(frequency) ? previous.L_m.at(frequency)/obs.satNav_ptr->lamMap[frequency] : 0;
+            }
+            SatStat oldStatus;old.satStat_ptr=&oldStatus;
+            if(satPosClk(trace,old.time,old,nav,{E_Source::PRECISE},{E_Source::PRECISE},
+                nullptr,nullptr,E_OffsetType::COM))
+            {
+                VectorEcef oldLos;
+                const double oldRange=geodist(old.rSatCom,obs.rec_ptr->aprioriPos,oldLos);
+                satazel(ecef2pos(obs.rec_ptr->aprioriPos),oldLos,oldStatus);
+                const double scale=std::pow(std::sin(obs.satStat_ptr->el)/
+                    std::max(.05,std::sin(oldStatus.el)),2);
+                auto seed=zhangMakeSlipSample(previous.time.bigTime,signature,{l1,l2,0},
+                    {previous.L_m.at(first),previous.L_m.at(second),0},
+                    {one.phasVar*scale,two.phasVar*scale,0},
+                    {previous.P.at(first),previous.P.at(second)},
+                    {one.codeVar*scale,two.codeVar*scale},false,true,oldRange-CLIGHT*old.satClk,true);
+                evidence.accepted.push_back(seed);evidence.screening.push_back(seed);
+                tracepdeex(2,trace,"\nZHANG_SLIP_CHECKPOINT_SEED rec=%s sat=%s time=%s auxiliary_reconstructed=0",
+                    obs.mount.c_str(),obs.Sat.id().c_str(),old.time.to_string().c_str());
+            }
+        }
+        const bool hard=obs.satStat_ptr->sigStatMap[ft2string(first)].slip.any ||
+            obs.satStat_ptr->sigStatMap[ft2string(second)].slip.any;
+        inputs.push_back({&obs,first,second,auxiliaryFrequency,sample,hard});
+    }
+    std::vector<std::vector<ZhangSlipClockPeer>> peers(inputs.size());
+    for(size_t i=0;i<inputs.size();i++)
+        for(size_t j=0;j<inputs.size();j++)
+        {
+            if(i==j || inputs[i].obs->rec_ptr!=inputs[j].obs->rec_ptr ||
+                inputs[j].hard || !inputs[j].sample.geometry ||
+                inputs[i].obs->Sat.sys!=inputs[j].obs->Sat.sys) continue;
+            const auto* reference=zhangSlipClockReference(inputs[i].obs->satStat_ptr->slipEvidence);
+            const auto& history=inputs[j].obs->satStat_ptr->slipEvidence.screening;
+            if(!reference)continue;
+            const auto previous=std::find_if(history.begin(),history.end(),[&](const auto& old)
+                {return old.time==reference->time && old.geometry && old.signature==inputs[j].sample.signature;});
+            if(previous==history.end())continue;
+            peers[i].push_back({previous->time,inputs[j].sample.rawIf-previous->rawIf,
+                inputs[j].sample.covariance[0]+previous->covariance[0],history,inputs[j].sample,true});
+        }
+    for(size_t i=0;i<inputs.size();i++)
+    {
+        auto& input=inputs[i]; auto& obs=*input.obs;
+        ZhangSlipTrendDiagnostic trend;
+        auto decision=zhangInspectSlipEvidence(obs.satStat_ptr->slipEvidence,input.sample,peers[i],input.hard,{},&trend);
+        const std::array<E_FType,3> frequencies{input.first,input.second,input.third};
+        for(int f=0;f<2;f++)
+        {
+            auto& status=obs.satStat_ptr->sigStatMap[ft2string(frequencies[f])];
+            status.phaseQuarantined|=!decision.usePhase;
+            status.codeQuarantined|=!decision.useCode;
+            if(decision.breakArc && decision.retire[f])
+            {
+                status.slip.SCDIA=true;status.savedSlip.SCDIA=true;
+                status.tracking.pendingBreak=true;
+                status.phaseContinuityUnproven=decision.action==ZhangSlipAction::UNRESOLVED_STEP;
+            }
+        }
+        tracepdeex(2,trace,
+            "\nZHANG_SLIP_EVIDENCE epoch=%s rec=%s sat=%s action=%s phase=%d code=%d break=%d "
+            "clock_model=MATCHED_PEER_WINDOW clock_partners=%d if=%.9f gf=%.9f mw=%.9f triple=%.9f "
+            "sigma_if=%.9f sigma_gf=%.9f sigma_mw=%.9f sigma_triple=%.9f "
+            "phase_score=%.9f change_score=%.9f change_time=%.0f best=%.9f ratio_lower_bound=%.9f n1=%d n2=%d n3=%d "
+            "doppler=%d doppler_assisted=%d doppler_error=%.9f doppler_sigma=%.9f doppler_score=%.9f doppler_integer_fit=%.9f "
+            "early_stage=%d trend_qualified=%d trend_assisted=%d trend_window=%d trend_consistency=%.9f trend_score=%.9f trend_phase_support=%.9f trend_fit=%.9f",
+            obs.time.to_string().c_str(),obs.mount.c_str(),obs.Sat.id().c_str(),
+            zhangSlipActionName(decision.action),decision.usePhase,decision.useCode,decision.breakArc,
+            decision.clockPartners,decision.innovation[0],decision.innovation[1],decision.innovation[2],
+            decision.innovation[3],decision.sigma[0],decision.sigma[1],decision.sigma[2],decision.sigma[3],
+            decision.phaseScore,decision.changePointScore,decision.changePointTime,decision.bestScore,decision.ratio,
+            decision.integer[0],decision.integer[1],decision.integer[2],decision.dopplerAvailable,
+            decision.dopplerAssisted,decision.dopplerInnovation,decision.dopplerSigma,
+            decision.dopplerScore,decision.dopplerIntegerFit,
+            trend.stage,trend.qualified,trend.assisted,trend.window,trend.consistency,trend.score,trend.support,trend.fit);
     }
 }
 
@@ -1726,6 +2007,15 @@ void detectslips(
     tracepdeex(2, trace, "\n   *-------- PDE cycle slip detection & repair --------*\n");
 
     detslp_ll(trace, obsList);
+    if (acsConfig.zhangFullRank.enable && !acsConfig.zhangPppAr.user_adapter && zhangEvidenceSlipQcEnabled())
+    {
+        detectZhangEvidenceSlips(trace,obsList);
+        for(auto& obs:only<GObs>(obsList))
+            if(obs.satStat_ptr)
+                for(const auto& [ft,sig]:obs.sigs)
+                    obs.satStat_ptr->slip|=obs.satStat_ptr->sigStatMap[ft2string(ft)].slip.any!=0;
+        return; // legacy GF persistence and SCDIA do not silently overrule new QC
+    }
     detslp_gf(trace, obsList);
     detslp_mw(trace, obsList);
 

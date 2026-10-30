@@ -7,6 +7,7 @@
 #include "common/enums.h"
 #include "common/linearCombo.hpp"
 #include "common/zhangPhaseArcDecision.hpp"
+#include "common/zhangCycleSlipEvidenceState.hpp"
 
 using std::map;
 
@@ -36,6 +37,7 @@ struct SigStat
     bool phaseQuarantined = false;
     bool codeQuarantined = false;
     bool previousPhaseQuarantined = false;
+    bool phaseContinuityUnproven = false;
 };
 
 struct IonoStat
@@ -68,6 +70,7 @@ struct QC
     double  gf      = 0;
     ZhangCombinationDetector acceptedGf;
     ZhangCombinationDetector acceptedMw;
+    ZhangSlipEvidenceState slipEvidence;
     flt_t   flt     = {};  ///< cycle slip repair filter
     lc_t    lc_pre  = {};  ///< lc information
     lc_t    lc_new  = {};  ///< lc information

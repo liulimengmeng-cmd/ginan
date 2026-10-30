@@ -1,12 +1,42 @@
 // #pragma GCC optimize ("O0")
 
 #include "common/linearCombo.hpp"
+#include <cmath>
+#include <initializer_list>
 #include "common/acsQC.hpp"
 #include "common/debug.hpp"
 #include "common/navigation.hpp"
 #include "common/observations.hpp"
 #include "common/satStat.hpp"
 #include "common/trace.hpp"
+
+namespace
+{
+double phaseMetresOrMissing(double cycles, double wavelength)
+{
+    if (!std::isfinite(cycles) || !std::isfinite(wavelength) || wavelength <= 0) return 0;
+    const double metres = cycles * wavelength;
+    return std::isfinite(metres) ? metres : 0;
+}
+
+double codeMetresOrMissing(double metres)
+{
+    return std::isfinite(metres) && metres > 0 ? metres : 0;
+}
+
+bool validLcNumbers(const S_LC& lc)
+{
+    if (lc.lam_A <= 0 || lc.lam_B <= 0 || lc.lam_A == lc.lam_B ||
+        lc.lam_WL == 0 || lc.lam_NL <= 0) return false;
+    for (const double value : {lc.GF_Phas_m, lc.GF_Code_m,
+            lc.WL_Phas_m, lc.WL_Phas_c, lc.WL_Code_m, lc.WL_Code_c,
+            lc.NL_Phas_m, lc.NL_Phas_c, lc.NL_Code_m, lc.NL_Code_c,
+            lc.IF_Phas_m, lc.IF_Code_m, lc.MW_m, lc.MW_c,
+            lc.lam_A, lc.lam_B, lc.lam_WL, lc.lam_NL})
+        if (!std::isfinite(value)) return false;
+    return true;
+}
+}
 
 /** Create combinations between specific observation values
  */
@@ -23,7 +53,17 @@ S_LC getLC(
 {
     S_LC lc = {};
 
-    if (P_A_m == 0 || P_B_m == 0 || L_A_m == 0 || L_B_m == 0)
+    if (c1_out) *c1_out = 0;
+    if (c2_out) *c2_out = 0;
+
+    // A duplicate configured band is not a second physical frequency. In
+    // particular, satFreqs() can leave its default third band equal to F5
+    // when only F1/F5 are configured. Never form an IF/WL denominator of 0.
+    for (const double value : {L_A_m, L_B_m, P_A_m, P_B_m, lamA, lamB})
+        if (!std::isfinite(value)) return lc;
+    if (lamA <= 0 || lamB <= 0 || lamA == lamB) return lc;
+
+    if (P_A_m <= 0 || P_B_m <= 0 || L_A_m == 0 || L_B_m == 0)
     {
         // 		tracepde(lv, fppde, "PDE, code observation insufficient\n");
         return lc;
@@ -42,11 +82,6 @@ S_LC getLC(
     double c2 = lamA * lamA / (lamB * lamB - lamA * lamA);
     // 	double c3 = lamB / (lamB - lamA); /* WL */
     // 	double c4 = lamA / (lamB - lamA);
-
-    if (c1_out)
-        *c1_out = c1;
-    if (c2_out)
-        *c2_out = c2;
 
     // 	lc.GF_Phas_m =      L_A_m -      L_B_m;
     // 	lc.IF_Phas_m = c1 * L_A_m - c2 * L_B_m;
@@ -86,6 +121,10 @@ S_LC getLC(
     lc.MW_m = lc.WL_Phas_m - lc.NL_Code_m;
     lc.MW_c = lc.MW_m / lc.lam_WL;
 
+    // Also reject overflow in otherwise finite but nonphysical inputs.
+    if (!std::isfinite(c1) || !std::isfinite(c2) || !validLcNumbers(lc)) return {};
+    if (c1_out) *c1_out = c1;
+    if (c2_out) *c2_out = c2;
     lc.valid = true;
     return lc;
 }
@@ -102,7 +141,9 @@ S_LC& getLC(
         std::swap(fA, fB);
 
     // try to get existing LC from the observation's satStat object
-    return lcBase.lcMap[{fA, fB}];
+    auto& lc = lcBase.lcMap[{fA, fB}];
+    if (fA == fB || !validLcNumbers(lc)) lc = {};
+    return lc;
 }
 
 /** Get/calculate linear combination values for an observation
@@ -117,6 +158,12 @@ S_LC& getLC(
     // try to get existing LC from the observation's satStat object
     S_LC& lc = getLC(lcBase, fA, fB);
 
+    if (fA == fB)
+    {
+        lc = {};
+        return lc;
+    }
+
     if (lc.valid)
     {
         return lc;
@@ -126,11 +173,16 @@ S_LC& getLC(
     lcBase.time = obs.time;
     for (E_FType f : {fA, fB})
     {
+        // These are derived LC caches, not the original observations. A
+        // nonfinite derived value denotes missing data, never a valid zero
+        // observation; scalar getLC still requires both nonzero phases/codes.
+        if (!std::isfinite(lcBase.L_m[f])) lcBase.L_m[f] = 0;
+        lcBase.P[f] = codeMetresOrMissing(lcBase.P[f]);
         if (lcBase.L_m[f] == 0)
         {
             // no L measurement, try to get from observation
-            lcBase.L_m[f] = obs.sigs[f].L * obs.satNav_ptr->lamMap[f];
-            lcBase.P[f]   = obs.sigs[f].P;
+            lcBase.L_m[f] = phaseMetresOrMissing(obs.sigs[f].L, obs.satNav_ptr->lamMap[f]);
+            lcBase.P[f]   = codeMetresOrMissing(obs.sigs[f].P);
         }
         if (lcBase.L_m[f] == 0)
         {
@@ -147,6 +199,7 @@ S_LC& getLC(
     double lamB = obs.satNav_ptr->lamMap[fB];
 
     lc = getLC(L_A, L_B, P_A, P_B, lamA, lamB, nullptr, nullptr);
+    if (!lc.valid) return lc;
 
     // special cases
     if (fB == F5 && (obs.Sat.sys == E_Sys::GAL || obs.Sat.sys == E_Sys::BDS))
@@ -162,7 +215,6 @@ S_LC& getLC(
         lcBase.mp[F5] = P_B - L_B - 2.0 * lamB * lamB / (lamB * lamB - lamA * lamA) * (L_A - L_B);
     }
 
-    lc.valid = true;
     return lc;
 }
 
@@ -179,8 +231,8 @@ void lcPrepareBase(
     for (auto& [ft, sig] : obs.sigs)
     {
         // populate variables for later use.
-        lcBase.L_m[ft] = sig.L * obs.satNav_ptr->lamMap[ft];
-        lcBase.P[ft]   = sig.P;
+        lcBase.L_m[ft] = phaseMetresOrMissing(sig.L, obs.satNav_ptr->lamMap[ft]);
+        lcBase.P[ft]   = codeMetresOrMissing(sig.P);
     }
 }
 
