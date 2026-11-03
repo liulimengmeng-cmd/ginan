@@ -1,0 +1,51 @@
+{
+  "schema": "CHECKPOINT_AUTHORITY_WORKFLOW_LAUNCH_SUMMARY_V1",
+  "derived_summary": true,
+  "captured_utc": "2026-11-03T18:19:46.675383+00:00",
+  "workflow_launched": true,
+  "controller": {
+    "pid": 114584,
+    "birth_ticks": 17798274,
+    "sid": 114584,
+    "uid": 1000,
+    "executable": "/usr/bin/python3.10"
+  },
+  "raw_launch": {
+    "bytes": 1377,
+    "sha256": "0b6144fb0f88257b7e23a1761f58d396c0c29c3506bbb9a2a50147a17f814ff3",
+    "artifact_relative_path": "workflow_01/LAUNCH.json"
+  },
+  "raw_workflow_plan": {
+    "bytes": 3357,
+    "sha256": "ea1412e9b08a9f04c4128c71c1b589e99979456da298aea52b07a3c4fab50c54",
+    "artifact_relative_path": "workflow_01/WORKFLOW_PLAN.json"
+  },
+  "replay_validation_launched": true,
+  "replay_validation_controller": {
+    "pid": 114592,
+    "birth_ticks": 17798563,
+    "sid": 114592,
+    "uid": 1000,
+    "executable": "/usr/bin/python3.10"
+  },
+  "raw_replay_validation_launch": {
+    "bytes": 2019,
+    "sha256": "44852e8da13e554501f55f572b015fa2c55b86f95946e88ef32045222c37e3f9",
+    "artifact_relative_path": "controller_replay_e300_01/validation_LAUNCH.json"
+  },
+  "replay_execution_plan": {
+    "bytes": 1752494,
+    "sha256": "be45b24bf731e1f84f4bb5810efdc756e26b614bd38ca28a12dfa06fb0f4d6d7",
+    "artifact_relative_path": "controller_replay_e300_01/EXECUTION_PLAN.json"
+  },
+  "formal_execution_plan": {
+    "bytes": 1767361,
+    "sha256": "4d50dbb88e3f051c5dc35b2ad0d3f06eba06f0a0ce24367473a32a23f539ac91",
+    "artifact_relative_path": "controller_formal_01/EXECUTION_PLAN.json"
+  },
+  "source_restore_result": null,
+  "replay_60_epoch_execution_started": false,
+  "formal_120_epoch_hour_started": false,
+  "real_runtime_passed": null,
+  "note": "Launch receipt proves dispatch only; actual source restores, replay and formal gates are pending."
+}

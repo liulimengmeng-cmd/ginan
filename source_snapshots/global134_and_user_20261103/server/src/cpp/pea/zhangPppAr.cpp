@@ -67,6 +67,7 @@
 #include "common/zhangR51CommittedBundle.hpp"
 #include "common/zhangRegionalJointProduct.hpp"
 #include "common/zhangProductPublicationGate.hpp"
+#include "common/zhangNativeProductTargetAdmission.hpp"
 #include "common/zhangProductNumericalContinuity.hpp"
 #include "common/zhangProductIntegerLedger.hpp"
 #include "common/zhangProductGaugeCertificateLedger.hpp"
@@ -14447,6 +14448,7 @@ void writeZhangInternalProducts(
 			}
 			std::vector<std::pair<SatSys, std::array<int, 2>>> nativePairs;
 			std::map<ProductKey, std::string> nativeTargetReasons;
+			bool nativeTargetsPending = false;
 			if (nativeVerified)
 			{
 				for (const auto& satellite : request.satellites)
@@ -14524,11 +14526,16 @@ void writeZhangInternalProducts(
 						<< " satellite=" << satellite.id() << " authorized=0"
 						<< " reason=ZERO_DATUM_NATIVE_DUAL_SIGNAL_TARGET_OR_PRECISION_UNAVAILABLE";
 				}
-				nativeVerified = nativePairs.size() >= 2 && !r47DeferredProductCovariance.empty() &&
-					(!zhangRegionalJointEnabled() || regionalFixed.valid);
-				if (!nativeVerified) nativeReason = "ZERO_DATUM_NATIVE_DUAL_SIGNAL_SUBSET_OR_JOINT_COVARIANCE_MISSING";
+				const auto targetAdmission = zhangNativeProductTargetAdmission(
+					nativeVerified, !r47DeferredProductCovariance.empty(),
+					!zhangRegionalJointEnabled() || regionalFixed.valid,
+					nativePairs.size());
+				nativeVerified = !targetAdmission.rejectSharedBranch;
+				nativeTargetsPending = targetAdmission.targetsPending;
+				if (!nativeVerified || nativeTargetsPending)
+					nativeReason = targetAdmission.reason;
 			}
-			if (nativeVerified)
+			if (nativeVerified && !nativeTargetsPending)
 			{
 				// The actual complete sparse J is projected through the SAME full
 				// conditioned P, retaining all clock/L1/L2/cross-satellite blocks.
@@ -14571,7 +14578,8 @@ void writeZhangInternalProducts(
 				if (!nativeVerified) nativeReason = "ZERO_DATUM_NATIVE_COMPLETE_J_P_JT_INVALID";
 			}
 			std::set<SatSys> eligibleNative;
-			if (nativeVerified) for (const auto& [satellite, pair] : nativePairs) eligibleNative.insert(satellite);
+			if (nativeVerified && !nativeTargetsPending)
+				for (const auto& [satellite, pair] : nativePairs) eligibleNative.insert(satellite);
 			for (auto& row : epochProducts)
 			{
 				if (row.solution != "PRODUCT_FIXED" || row.satellite.sys != certificateSystem) continue;
@@ -14602,17 +14610,28 @@ void writeZhangInternalProducts(
 					 targetReason->second == "SINGLE_S_BASIS_NATIVE_CURRENT_SIGNAL_AND_COMPLETE_S_PATH_VERIFIED");
 				row.invalid_reason = eligible ? "NONE" :
 					(targetReason != nativeTargetReasons.end() && !targetSupportPassed ? targetReason->second :
-						(!nativeVerified ? nativeReason : "ZERO_DATUM_NATIVE_DUAL_SIGNAL_PARTNER_UNAVAILABLE"));
+						(!nativeVerified || nativeTargetsPending ? nativeReason : "ZERO_DATUM_NATIVE_DUAL_SIGNAL_PARTNER_UNAVAILABLE"));
 			}
+			// This acknowledges the CURRENT integer-conditioning evidence on the
+			// common full posterior, not authorization of every requested product.
+			// A pending system has no eligibleNative rows and no AR product flags;
+			// its valid conditioning rows do not contaminate other systems.
 			r47EvidenceCommitted = nativeVerified;
 			allSystemEvidenceCommitted = allSystemEvidenceCommitted && r47EvidenceCommitted;
 			trace << "\nZHANG_ZERO_DATUM_NATIVE_PUBLICATION_AUTHORITY time=" << fixedState.time.to_string(0)
-				<< " system=" << enum_to_string(certificateSystem) << " authorized=" << nativeVerified
+				<< " system=" << enum_to_string(certificateSystem)
+				<< " authorized=" << (nativeVerified && !nativeTargetsPending)
+				<< " conditioning_evidence_authorized=" << nativeVerified
+				<< " target_subset_pending=" << nativeTargetsPending
+				<< " shared_joint_covariance_staged=" << !r47DeferredProductCovariance.empty()
+				<< " regional_joint_ready=" << (!zhangRegionalJointEnabled() || regionalFixed.valid)
 				<< " source=" << (singleSBasisNativeMode ? "SINGLE_S_BASIS_NATIVE_ACTUAL_POSTERIOR" : "NETWORK_CONDITIONED_NATIVE_ZERO_DATUM")
 				<< " requested_satellites=" << request.satellites.size()
 				<< " eligible_satellites=" << eligibleNative.size() << " conditioning_rank=" << request.conditioningRank
-				<< " product_pair_rank=0 ledger_rows_created=0 full_joint_projection=1"
-				<< " temporal_bridge_authorized=0 reason=" << (nativeVerified ? "CURRENT_NATIVE_POSTERIOR_VERIFIED" : nativeReason);
+				<< " product_pair_rank=0 ledger_rows_created=0 full_joint_projection="
+				<< (nativeVerified && !nativeTargetsPending)
+				<< " temporal_bridge_authorized=0 reason="
+				<< (nativeVerified && !nativeTargetsPending ? "CURRENT_NATIVE_POSTERIOR_VERIFIED" : nativeReason);
 			if (!nativeVerified)
 			{
 				productLedgerWriterAuthorized = false;
@@ -15530,7 +15549,8 @@ void writeZhangInternalProducts(
 			// including other systems through shared XYZ/ZTD cross-covariance.
 			// Clearing only one constellation's flags would still publish a
 			// contaminated mean/Q elsewhere. Reject this entire joint branch.
-			trace << "\nZHANG_MULTI_PRODUCT_JOINT_BRANCH status=REJECTED system="
+			trace << "\nZHANG_MULTI_PRODUCT_JOINT_BRANCH time=" << fixedState.time.to_string(0)
+				<< " status=REJECTED system="
 				<< enum_to_string(productLedgerWriterSystem)
 				<< " reason=" << productLedgerWriterFailureReason
 				<< " fallback=UNCONDITIONED_FLOAT full_cross_covariance=1";

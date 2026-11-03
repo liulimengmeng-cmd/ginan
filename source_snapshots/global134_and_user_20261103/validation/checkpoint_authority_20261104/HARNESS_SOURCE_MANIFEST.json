@@ -1,0 +1,49 @@
+{
+  "schema": "CHECKPOINT_AUTHORITY_HARNESS_ARCHIVAL_SOURCE_V2",
+  "path_base": "repository_root",
+  "source_files": [
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/prepare_authority_hour.py",
+      "bytes": 12875,
+      "sha256": "de31a7d0548cff80f47b4da2dcb01ad9a924ccf627080cd016a0a259c1ba3d3c"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/run_authority_hour.py",
+      "bytes": 39257,
+      "sha256": "e9e941c148c6bd9a771e4520b9609df097e40293fd209a30c236183d5aa9cd59"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/test_authority_hour.py",
+      "bytes": 17255,
+      "sha256": "c1aeab4f8d79df138f540784915eb828e4994550b7d5b546ee564162b62ac622"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/workflow_authority_hour.py",
+      "bytes": 22839,
+      "sha256": "ce3226a8b1796e429fe76347054385be80ac0ead0e26d77449a2af7931fb7cc6"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/test_authority_workflow.py",
+      "bytes": 10212,
+      "sha256": "801b3010241281a8f6f3efb8b309573f7692c09109840884ed3784285d15f79f"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/harness/build_authority_candidate.py",
+      "bytes": 44194,
+      "sha256": "206537afd3abd38a8df4f0eceb7a532971084888b6d966253065218a59d01f60"
+    }
+  ],
+  "exact_archival_copies": true,
+  "standalone_portable_distribution": false,
+  "requires_original_input_and_pinned_local_dependencies": true,
+  "excluded": [
+    "raw observations",
+    "orbit clock bias inputs",
+    "raw logs",
+    "resource samples",
+    "checkpoints",
+    "binaries",
+    "objects",
+    "credentials"
+  ]
+}

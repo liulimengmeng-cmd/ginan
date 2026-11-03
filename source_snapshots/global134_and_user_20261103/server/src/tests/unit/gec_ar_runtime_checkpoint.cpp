@@ -4,6 +4,7 @@
 #include "common/algebra.hpp"
 #include "common/zhangCheckpoint.hpp"
 #include "common/zhangCurrentEpochEvidence.hpp"
+#include "common/zhangCurrentEvidenceAuthoritySnapshot.hpp"
 #include "common/zhangMultiGnssInteger.hpp"
 #include "common/zhangR51Integrity.hpp"
 #include "common/zhangRatioOnly.hpp"
@@ -839,6 +840,155 @@ void scopedLargeMetadataContract(KFState& owner)
     seed(owner);
     check(exported(owner)==original,"large fixture did not restore original runtime evidence");
 }
+
+void currentEvidenceAuthorityLifecycleContract(KFState& owner)
+{
+    seed(owner);
+    const auto original=exported(owner);
+    const auto baseline=j::parse(original).as_object();
+    auto& liveEvidence=zhangCurrentEpochEvidenceRegistry();
+    auto& liveAuthorities=zhangMultiGnssCurrentEvidenceAuthorities();
+    const auto gps=std::make_pair(runtime,E_Sys::GPS);
+    std::string reason,wire;
+    const ZhangCurrentEvidenceAuthoritySnapshot before(liveEvidence,liveAuthorities);
+
+    // Reproduce the actual failure class without relying on the codec itself
+    // to construct the expected snapshot: a rejected candidate has replaced
+    // its authority but the evidence was rolled back to the old posterior.
+    liveEvidence.at(gps).posteriorId="REJECTED_NEW_POSTERIOR";
+    liveAuthorities.at(runtime).systemIdentities.at(E_Sys::GPS)=
+        {"REJECTED_NEW_POSTERIOR","REJECTED_NEW_CHART"};
+    before.restore(liveEvidence,liveAuthorities);
+    check(exported(owner)==original,"atomic evidence/authority rollback changed accepted source state");
+    for(bool preflight : {true,false})
+    {
+        check(importZhangGecArRuntimeSection(owner,runtime,original,preflight,6,reason),reason);
+        check(exported(owner)==original,"rolled-back evidence/authority lost exact native roundtrip");
+    }
+
+    // Valid current evidence may be retained for diagnostics after publication
+    // is rejected. Its existence does not recreate the positive allow-list.
+    liveAuthorities.clear();
+    const auto diagnostic=exported(owner);
+    const auto diagnosticDocument=j::parse(diagnostic).as_object();
+    check(diagnosticDocument.at("evidence").as_array().size()==3 &&
+        diagnosticDocument.at("authorities").as_array().empty(),
+        "unpublished diagnostic evidence was dropped or promoted");
+    check(importZhangGecArRuntimeSection(owner,runtime,diagnostic,false,6,reason),reason);
+    check(liveAuthorities.empty() && liveEvidence.size()==3 && exported(owner)==diagnostic,
+        "diagnostic-only roundtrip granted authority or changed evidence");
+
+    // One admitted system must not authorize the other two valid partitions.
+    seed(owner);
+    auto& subset=liveAuthorities.at(runtime).systemIdentities;
+    subset.erase(E_Sys::GAL); subset.erase(E_Sys::BDS);
+    const auto partial=exported(owner);
+    check(importZhangGecArRuntimeSection(owner,runtime,partial,false,6,reason),reason);
+    check(liveEvidence.size()==3 && liveAuthorities.size()==1 &&
+        liveAuthorities.at(runtime).systemIdentities.size()==1 &&
+        liveAuthorities.at(runtime).systemIdentities.contains(E_Sys::GPS) && exported(owner)==partial,
+        "partial authorization promoted diagnostic constellations");
+
+    // A genuinely pending/invalid partition has no integer equations and no
+    // positive authority. Preserve the diagnostic marker instead of inventing
+    // a zero equation, deleting an admitted partition, or accepting an old root.
+    seed(owner);
+    auto& pending=liveEvidence.at(gps);
+    pending=ZhangCurrentEpochEvidence{};
+    pending.runtimeId=runtime; pending.system=E_Sys::GPS;
+    pending.epochGpstSeconds=static_cast<long int>(owner.time.bigTime);
+    pending.posteriorId="PENDING_GPS"; pending.chartId="PENDING_GPS_CHART";
+    pending.floatStateRoot=zhangR51NumericRoot(owner.x,owner.P);
+    pending.floatPosteriorPsdStateOrderId=zhangCurrentEvidenceStateOrderId(owner.kfIndexMap);
+    pending.chart.columns=owner.x.size();
+    liveAuthorities.at(runtime).systemIdentities.erase(E_Sys::GPS);
+    const auto suspended=exported(owner);
+    check(importZhangGecArRuntimeSection(owner,runtime,suspended,false,6,reason),reason);
+    check(!liveEvidence.at(gps).valid && liveEvidence.at(gps).rows.empty() &&
+        liveEvidence.at(gps).numericConstraints.empty() &&
+        !liveAuthorities.at(runtime).systemIdentities.contains(E_Sys::GPS) &&
+        exported(owner)==suspended,"pending partition gained an integer equation or current authority");
+    const auto suspendedDocument=j::parse(suspended).as_object();
+
+    struct LiveFailure
+    {
+        const char* detail;
+        std::function<void()> corrupt;
+    };
+    const std::vector<LiveFailure> corruptions={
+        {"ABSENT",[&](){liveEvidence.erase(gps);}},
+        {"INVALID",[&](){liveEvidence.at(gps).valid=false;}},
+        {"POSTERIOR_MISMATCH",[&](){liveAuthorities.at(runtime).systemIdentities.at(E_Sys::GPS).first="WRONG_POSTERIOR";}},
+        {"CHART_MISMATCH",[&](){liveAuthorities.at(runtime).systemIdentities.at(E_Sys::GPS).second="WRONG_CHART";}}
+    };
+    for(const auto& corruption : corruptions)
+    {
+        seed(owner); corruption.corrupt();
+        const auto evidenceCount=liveEvidence.size();
+        const auto authorityIds=liveAuthorities.at(runtime).systemIdentities;
+        const auto found=liveEvidence.find(gps);
+        const bool evidencePresent=found!=liveEvidence.end();
+        const bool evidenceValid=evidencePresent && found->second.valid;
+        wire="MUST_BE_CLEARED"; std::uint32_t version=99;
+        check(!exportZhangGecArRuntimeSectionVersioned(owner,runtime,0,wire,version,reason),
+            std::string("live dangling authority exported: ")+corruption.detail);
+        check(wire.empty() && version==0 &&
+            reason.find(std::string("GEC_AR_AUTHORITY_EVIDENCE_MISSING:system=GPS:detail=")+corruption.detail)!=std::string::npos,
+            std::string("authority failure not precisely diagnosed: ")+corruption.detail+" "+reason);
+        const auto after=liveEvidence.find(gps);
+        check(liveEvidence.size()==evidenceCount &&
+            (after!=liveEvidence.end())==evidencePresent &&
+            (!evidencePresent || after->second.valid==evidenceValid) &&
+            liveAuthorities.at(runtime).systemIdentities==authorityIds,
+            "failed export silently repaired/dropped evidence or authority");
+    }
+
+    // Import diagnoses the same dangling-reference classes and must remain
+    // atomic in both preflight and commit modes. Invalid evidence is a legal
+    // empty pending object until a forged positive authority references it.
+    struct WireFailure
+    {
+        const char* detail;
+        std::function<void(j::object&)> corrupt;
+    };
+    const std::vector<WireFailure> wireCorruptions={
+        {"ABSENT",[](auto& d){auto& a=d.at("evidence").as_array();
+            for(auto it=a.begin();it!=a.end();++it)if(text(it->as_object().at("key_system"))=="GPS"){a.erase(it);break;}}},
+        {"INVALID",[&](auto& d){auto& a=d.at("evidence").as_array();
+            for(auto& e:a)if(text(e.as_object().at("key_system"))=="GPS")
+                for(const auto& p:suspendedDocument.at("evidence").as_array())
+                    if(text(p.as_object().at("key_system"))=="GPS"){e=p;break;}}},
+        {"POSTERIOR_MISMATCH",[](auto& d){d.at("authorities").as_array()[0].as_object().at("systems").as_object().at("GPS").as_array()[0]="WRONG_POSTERIOR";}},
+        {"CHART_MISMATCH",[](auto& d){d.at("authorities").as_array()[0].as_object().at("systems").as_object().at("GPS").as_array()[1]="WRONG_CHART";}}
+    };
+    seed(owner);
+    for(const auto& corruption:wireCorruptions)
+    {
+        auto bad=baseline; corruption.corrupt(bad);
+        for(bool preflight:{true,false})
+        {
+            check(!importZhangGecArRuntimeSection(owner,runtime,j::serialize(bad),preflight,6,reason),
+                std::string("dangling wire authority accepted: ")+corruption.detail);
+            check(reason.find(std::string("GEC_AR_AUTHORITY_EVIDENCE_MISSING:system=GPS:detail=")+corruption.detail)!=std::string::npos,
+                std::string("wire authority failure not precisely diagnosed: ")+corruption.detail+" "+reason);
+            check(exported(owner)==original,"failed authority import changed accepted current state");
+        }
+    }
+    auto old=baseline;
+    old.at("authorities").as_array()[0].as_object().at("epoch")=static_cast<long int>(owner.time.bigTime)-30;
+    check(!importZhangGecArRuntimeSection(owner,runtime,j::serialize(old),false,6,reason) &&
+        reason.find("GEC_AR_AUTHORITY_SCOPE_INVALID")!=std::string::npos && exported(owner)==original,
+        "old authority was made current by recovery");
+    seed(owner);
+    // Epoch-only FLOAT fallback may have no current candidate at all.
+    liveEvidence.clear(); liveAuthorities.clear();
+    const auto empty=exported(owner);
+    check(importZhangGecArRuntimeSection(owner,runtime,empty,false,6,reason) &&
+        liveEvidence.empty() && liveAuthorities.empty() && exported(owner)==empty,
+        "empty FLOAT-only current transaction did not roundtrip without fabricated authority");
+    seed(owner);
+    check(exported(owner)==original,"authority lifecycle fixture failed to restore baseline");
+}
 }
 
 int main()
@@ -912,6 +1062,7 @@ try
     for (const auto& bad : {original+"TRAILING",original.substr(0,original.size()-1),std::string{}})
         check(!importZhangGecArRuntimeSection(owner,runtime,bad,false,6,reason),"malformed wire accepted");
     sharedParentContract(owner);
+    currentEvidenceAuthorityLifecycleContract(owner);
     mode(false);
     std::string rejected;
     check(!exportZhangGecArRuntimeSection(owner,runtime,rejected,reason),"FLOAT exported GEC integer authority");
@@ -947,6 +1098,12 @@ try
         {"GEC_V1_empty_AUTO_and_nonempty_source_format_byte_exact",true},{"GEC_V2_binding_scope_fields_rebuilt_exactly",7},
         {"GEC_binding_scope_corruptions_rejected",7},{"GEC_version_cross_mismatch_rejected",true},
         {"GEC_expanded_scope_overflow_and_bomb_rejected",true},
+        {"GEC_current_evidence_authority_atomic_rollback_roundtrip",true},
+        {"GEC_diagnostic_and_pending_partitions_not_promoted",true},
+        {"GEC_partial_authorization_preserved",true},
+        {"GEC_authority_link_failures_precisely_rejected",4},
+        {"GEC_stale_authority_not_rebased",true},
+        {"GEC_FLOAT_ONLY_empty_current_transaction_roundtrip",true},
         {"GEC_stress_legacy_repeated_scope_lower_bound_bytes",scopedStressEquivalentBytes},
         {"GEC_stress_actual_V2_wire_bytes",scopedStressWireBytes},
         {"full_float_x_P_byte_exact",true},{"NIS_computations",0},{"synthetic_archive_contract_only",true}})<<'\n';

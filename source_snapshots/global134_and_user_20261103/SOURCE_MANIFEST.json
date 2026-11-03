@@ -1,8 +1,8 @@
 {
   "schema": "SERVER_USER_SOURCE_SNAPSHOT_V2",
-  "snapshot_date": "2026-11-03",
+  "snapshot_date": "2026-11-04",
   "source_files": {
-    "server": 950,
+    "server": 954,
     "user": 757,
     "server_test_support": 3,
     "validation_support": 1
@@ -1904,6 +1904,10 @@
       "sha256": "ba160d08b8b780c1fdf0fde26a9017da6e8af8846d31d598da399c5b559144b4",
       "bytes": 43643
     },
+    "server/src/cpp/common/zhangCurrentEvidenceAuthoritySnapshot.hpp": {
+      "sha256": "abb5ab1b01e91b271942ea85a1f3b0cd0ad1009a980ca419dd43dd71b682940d",
+      "bytes": 1489
+    },
     "server/src/cpp/common/zhangCurrentProductBridgePlan.hpp": {
       "sha256": "1f46cc79a002891ee88a5c6571f3a3a58d52f1e86c25249c04f7d8e1c68860e5",
       "bytes": 3982
@@ -2012,6 +2016,10 @@
       "sha256": "c794fcb6d92af5b7d3ce5f65b8563c4597e4dc7574063a8c263b01be94cced56",
       "bytes": 6548
     },
+    "server/src/cpp/common/zhangHistoricalEvidenceArchive.hpp": {
+      "sha256": "45cb136e8eb68b8bb35b4ec7214217879a5efe57a2e49b8eb05468ce14c8b072",
+      "bytes": 12594
+    },
     "server/src/cpp/common/zhangHybridService.hpp": {
       "sha256": "c8ec6351b59c3a99a4f3bda77b3a00a3426ff160b8df92ccb186e13c6d57a259",
       "bytes": 28628
@@ -2104,6 +2112,10 @@
       "sha256": "6c3e1c22b82c87938a5fae6871e511618500f2c14195b61ab7b9406ca46398b8",
       "bytes": 682
     },
+    "server/src/cpp/common/zhangNativeProductTargetAdmission.hpp": {
+      "sha256": "e5a4651ca55992c357906516b59dfdb0d21d4588885d45034c99f5f34d7fa9f0",
+      "bytes": 1311
+    },
     "server/src/cpp/common/zhangP0InvocationCache.hpp": {
       "sha256": "8dbc1f5b32aab1efc12eb1ecd5d1710006a3391c764b763a88827529770507e9",
       "bytes": 1822
@@ -2124,6 +2136,10 @@
       "sha256": "d76f412cfd564ad0e510b2f30ca4b6049f49b55715c95c029756e16865529096",
       "bytes": 4922
     },
+    "server/src/cpp/common/zhangPendingCurrentBridge.hpp": {
+      "sha256": "129d84a5c96f55ea0b8b869b402c120281ad011909f8fab9a64a9bcda7c0f1ae",
+      "bytes": 2117
+    },
     "server/src/cpp/common/zhangPersistentProductDatum.hpp": {
       "sha256": "e0378254c9dff3c8ce5e4b69aa2a829fc49b16363cc886d7b8e8ae36d32d7dd8",
       "bytes": 10814
@@ -2143,6 +2159,10 @@
     "server/src/cpp/common/zhangPhaseTimer.hpp": {
       "sha256": "6b544b03dc84e3f008c3119db3b5c96a56c7715ea0cecdad2046f9bc9b9d0b57",
       "bytes": 2117
+    },
+    "server/src/cpp/common/zhangPreparedWholeFloatSupport.hpp": {
+      "sha256": "21e9341499be7649fefaa4f347b1e68b0c72705012108e3dbe67226ad8cba7ee",
+      "bytes": 3631
     },
     "server/src/cpp/common/zhangPreselectedProductTarget.hpp": {
       "sha256": "3dbb7d374e671fdad1b1bbd2b7031a46bac06d4ec078d9eb7e599be3f0c4389a",
@@ -2445,8 +2465,8 @@
       "bytes": 7367
     },
     "server/src/cpp/common/zhangUs20E240Continuation.hpp": {
-      "sha256": "d58dfae6e04bb184d9d3ef3bbb3f9ad99d11c92c4884ab55c0734e204baf2084",
-      "bytes": 26035
+      "sha256": "52d4f34c37c03241dfe48052ded38f2ea75f3dd34c76c3307c075917688b42ba",
+      "bytes": 27926
     },
     "server/src/cpp/common/zhangUs20Global134Checkpoint.hpp": {
       "sha256": "b153c774957aaba0340cd06a2d1ff793e63a70c0e405460513c44c5b45dae7f4",
@@ -2777,12 +2797,12 @@
       "bytes": 6643
     },
     "server/src/cpp/pea/ppp_ambres.cpp": {
-      "sha256": "1cf131376afa0d06bfa9cc9d58b96b3fd5eb920f859075cdb21e2691717b3450",
-      "bytes": 1650177
+      "sha256": "634662dd76ad4627dea4c936aaaad7e1a72282ce5462c3b7de8186a040c7705c",
+      "bytes": 1650894
     },
     "server/src/cpp/pea/ppp_ambres_checkpoint.inc": {
-      "sha256": "7c1e845eecb1077ae86a1395512b54e5356e2f966406c8d1759e20adb949dd97",
-      "bytes": 150646
+      "sha256": "c74f535ef47d1a26d264ceb903a9c68ebd22fe68ba0f37b4d7811203ec7bb50d",
+      "bytes": 152192
     },
     "server/src/cpp/pea/ppp_callbacks.cpp": {
       "sha256": "a4e1a8e35e91479c58af196d2f392ab9f679faa1a073e43a14d1446e85c40904",
@@ -2841,8 +2861,8 @@
       "bytes": 5114
     },
     "server/src/cpp/pea/zhangPppAr.cpp": {
-      "sha256": "c77b84311ef444b60901018e45ec03f605d3e16846e1eac1864d7cc7ba7a2280",
-      "bytes": 765050
+      "sha256": "2e03d0d50f569fd27abca8e74d00233735a27473ba92cb7ab991af682b1f7a15",
+      "bytes": 766145
     },
     "server/src/cpp/pea/zhangPppAr.hpp": {
       "sha256": "67b61c82ebbbc760b52a8788b597c819bde74d029a7b66f1513e02ad44330881",
@@ -3232,6 +3252,14 @@
       "sha256": "d70b9dcd2155128ae96fc2e3dcc4c323b8d53186499306c55a36bd825e0f80d4",
       "bytes": 4338
     },
+    "server/src/tests/unit/current_event_evidence_delta.cpp": {
+      "sha256": "0084e2286aad8a3e5415683b5b045f98029cecdb5a47b506c8bc8d9406c1406e",
+      "bytes": 9710
+    },
+    "server/src/tests/unit/current_evidence_authority_snapshot.cpp": {
+      "sha256": "52dc5f87a753c3ead1c3d62a732ef477ad856b0cd93b00f6bc8da7a3ec43ba39",
+      "bytes": 4068
+    },
     "server/src/tests/unit/epoch_component_context.cpp": {
       "sha256": "c09e8c31d0cd4f5426ddfebebb03fc357fb414b4359675c7204a355736206f8a",
       "bytes": 5185
@@ -3305,16 +3333,24 @@
       "bytes": 4535
     },
     "server/src/tests/unit/gec_ar_runtime_checkpoint.cpp": {
-      "sha256": "65444f1bf3c69c8ffc31bcd8b3b1e829355ac76c24f315be3c6be7141ad4562b",
-      "bytes": 57139
+      "sha256": "bedd2fce3d16add453f74ccd28abba3037372dad2c2474f6d0ee1413276cbf11",
+      "bytes": 66369
     },
     "server/src/tests/unit/gps10_qc_recovery.cpp": {
       "sha256": "933a28aa5b6ba6db4deefacd7af79c21e79cad7f41c500dc80f5cb28eb63b618",
       "bytes": 3673
     },
+    "server/src/tests/unit/gps_prepared_support_contract.cpp": {
+      "sha256": "888fa8a9ab4c863f1c4a2edf3f74b14edb6ba0695e5d7dab2bc997ac4fdf34d0",
+      "bytes": 19938
+    },
     "server/src/tests/unit/gtime_parallel_format.cpp": {
       "sha256": "ea940c97d743012570cb9a1b33091357a780d645bbd71ca27d68d639d30c1380",
       "bytes": 6105
+    },
+    "server/src/tests/unit/historical_evidence_archive.cpp": {
+      "sha256": "5eb45cd0544070e9e636d069e36e6448d810b9fce414199e166da447cb4bb24c",
+      "bytes": 6847
     },
     "server/src/tests/unit/leaf_product_identity_production_contract.cpp": {
       "sha256": "4d6c7cd8b13f8459ff2166c31ede622833600c181f85e7caf98c6f1e2a071f6b",
@@ -3391,6 +3427,10 @@
     "server/src/tests/unit/multi_gnss_server_config_probe.cpp": {
       "sha256": "a2805ee568919f93e2338091c01a0320f19c761d4bd7cba6322657cc93b96707",
       "bytes": 871
+    },
+    "server/src/tests/unit/native_product_target_admission.cpp": {
+      "sha256": "517f2c924e41e8de9fbd079584a088b77a9582f6015a19747a1d8ee8991d3648",
+      "bytes": 1716
     },
     "server/src/tests/unit/native_zero_datum_posterior.cpp": {
       "sha256": "8722ff76da57d7a375a4ffb5f887a079f1fa1f3306b0282bb0fe67c957d33b9e",
@@ -3753,8 +3793,8 @@
       "bytes": 23776
     },
     "server/src/tests/unit/us20_e240_continuation_policy.cpp": {
-      "sha256": "8de823aa9686b0748e0d35d01aa9f7572e7d87e845634dde5877ade6a1c71c7a",
-      "bytes": 33944
+      "sha256": "0a2b3f4ca9af5fdef858f08fb2a1a39337bf9fc2658700e7df732c9f337b0419",
+      "bytes": 41611
     },
     "server/src/tests/unit/us20_e240_nine_section_audit.cpp": {
       "sha256": "01a706b6ec81ee16eeb3aa45d7dde47378cca49af8328dbbf599e7c1fcb01467",
@@ -3784,13 +3824,13 @@
       "sha256": "9e92754aceb06d30ed1783fe69fab797fc84360ff0716552f3290572465391ad",
       "bytes": 2587
     },
+    "server/test_support/PROVENANCE.json": {
+      "sha256": "31e269215a975bc2bf7c4103da21a122cd4d4b5afbd6703bf5af31eaf840d725",
+      "bytes": 2048
+    },
     "server/test_support/gec_private_ambres_wire_schema.hpp": {
       "sha256": "3ed710390869be25c9489ce4aafa18d9dc31d333d9c9b3ede8a188daac8144b9",
       "bytes": 15567
-    },
-    "server/test_support/PROVENANCE.json": {
-      "sha256": "babad59f89371349c8690c013102eabc2c3c8b3e7ce99ac2df83262ee2c36400",
-      "bytes": 1938
     },
     "server/test_support/generate_codec_test_schema.py": {
       "sha256": "7188a2d5fe0532440a6cc799490336bb9127c2f6d90bc1a4cecb8f73a2a2d22a",
@@ -7580,30 +7620,6 @@
       "sha256": "3ba71a0843d8da204fcb40374df83be9155984ca0e0d3f7e6e47da6a10b09948",
       "bytes": 919,
       "layer": "compiled_parent_baseline"
-    },
-    "server/src/cpp/common/zhangHistoricalEvidenceArchive.hpp": {
-      "sha256": "45cb136e8eb68b8bb35b4ec7214217879a5efe57a2e49b8eb05468ce14c8b072",
-      "bytes": 12594
-    },
-    "server/src/cpp/common/zhangPendingCurrentBridge.hpp": {
-      "sha256": "129d84a5c96f55ea0b8b869b402c120281ad011909f8fab9a64a9bcda7c0f1ae",
-      "bytes": 2117
-    },
-    "server/src/cpp/common/zhangPreparedWholeFloatSupport.hpp": {
-      "sha256": "21e9341499be7649fefaa4f347b1e68b0c72705012108e3dbe67226ad8cba7ee",
-      "bytes": 3631
-    },
-    "server/src/tests/unit/current_event_evidence_delta.cpp": {
-      "sha256": "0084e2286aad8a3e5415683b5b045f98029cecdb5a47b506c8bc8d9406c1406e",
-      "bytes": 9710
-    },
-    "server/src/tests/unit/gps_prepared_support_contract.cpp": {
-      "sha256": "888fa8a9ab4c863f1c4a2edf3f74b14edb6ba0695e5d7dab2bc997ac4fdf34d0",
-      "bytes": 19938
-    },
-    "server/src/tests/unit/historical_evidence_archive.cpp": {
-      "sha256": "5eb45cd0544070e9e636d069e36e6448d810b9fce414199e166da447cb4bb24c",
-      "bytes": 6847
     },
     "validation/build_and_test_v4.py": {
       "sha256": "99cd029716a26c6bc186a253f3d1dd3b937aa954b833d0444874f8601cdc7a00",

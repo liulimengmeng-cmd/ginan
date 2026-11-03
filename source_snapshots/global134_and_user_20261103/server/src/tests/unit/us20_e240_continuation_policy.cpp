@@ -192,6 +192,55 @@ Fields datumTargetFrom(const Fields& source,Fields& environment,bool probe)
         out["effective_capture_epoch_"+std::to_string(index)]=captures[index];
     return out;
 }
+std::string authorityRoot(bool replay)
+{
+    return replay?"/home/rx/GINAN/checkpoint_authority_fix_20261104_01/validation_e300/run":
+        "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/run";
+}
+std::vector<std::string> authorityCaptures(bool replay)
+{
+    return replay?std::vector<std::string>{"2024-07-17 02:29:30"}:
+        std::vector<std::string>{"2024-07-17 02:29:30","2024-07-17 02:59:30"};
+}
+std::string expectedAuthorityOverlay(bool replay)
+{
+    const auto root=authorityRoot(replay);
+    const std::string captures=replay?"        - '2024-07-17 02:29:30'\n":
+        "        - '2024-07-17 02:29:30'\n        - '2024-07-17 02:59:30'\n";
+    return "processing_options:\n  epoch_control:\n    end_epoch: '"+
+        std::string(replay?"2024-07-17 02:29:30":"2024-07-17 02:59:30")+"'\n    max_epochs: "+
+        (replay?"300":"360")+"\n  gnss_general:\n    zhang_pppar:\n      checkpoint_output_directory: '"+
+        root+"/checkpoints'\n      checkpoint_capture_epochs:\n"+captures+
+        "      product_filename: '"+root+"/outputs/zhang_internal_products.csv'\n"+
+        "      product_covariance_filename: '"+root+"/outputs/zhang_internal_product_covariance.csv'\n"+
+        "outputs:\n  outputs_root: '"+root+"/outputs'\n  metadata:\n    config_description: '"+
+        (replay?"Checkpoint authority repair e300 replay":"Checkpoint authority repair direct AR1h")+"'\n";
+}
+Fields authorityTargetFrom(const Fields& source,Fields& environment,bool replay)
+{
+    auto out=datumTargetFrom(source,environment,false);
+    const auto root=authorityRoot(replay);
+    out["working_directory"]=root;
+    out["us20_global134_producer_path"]="/home/rx/GINAN/checkpoint_authority_fix_20261104_01/candidate/pea";
+    out["effective_end_epoch"]=replay?"2024-07-17T02:29:30":"2024-07-17T02:59:30";
+    out["effective_max_epochs"]=replay?"300":"360";
+    for(const auto&[key,suffix]:Fields{{"effective_outputs_root","/outputs"},
+        {"effective_product_filename","/outputs/zhang_internal_products.csv"},
+        {"effective_product_covariance_filename","/outputs/zhang_internal_product_covariance.csv"},
+        {"effective_checkpoint_output_directory","/checkpoints"}})out[key]=root+suffix;
+    out["config_file_10_path"]=root+(replay?"/config/100_checkpoint_authority_e300_replay_overlay.yaml":
+        "/config/100_checkpoint_authority_ar1h_overlay.yaml");
+    out["config_file_10_bytes"]=expectedAuthorityOverlay(replay);
+    out["config_file_10_size"]=std::to_string(out["config_file_10_bytes"].size());
+    out["config_file_10_sha256"]=zhangCheckpointSha256(out["config_file_10_bytes"]);
+    out["command_argument_11"]=out["config_file_10_path"];
+    for(unsigned index=0;index<6;++index)out.erase("effective_capture_epoch_"+std::to_string(index));
+    const auto captures=authorityCaptures(replay);
+    out["effective_capture_epoch_count"]=std::to_string(captures.size());
+    for(std::size_t index=0;index<captures.size();++index)
+        out["effective_capture_epoch_"+std::to_string(index)]=captures[index];
+    return out;
+}
 }
 int main(int argc,char**argv)
 {
@@ -320,7 +369,7 @@ int main(int argc,char**argv)
         const std::string probeId="E29-20240717020000-e241-r32f626de9463";
         const std::string probeCheckpoint=probeRoot+"/checkpoints/"+probeId;
         Fields probeEnvironment;const auto probeTarget=targetFrom(source,probeEnvironment,true);
-        require(zhangUs20E240FiniteProfiles().size()==4 &&
+        require(zhangUs20E240FiniteProfiles().size()==6 &&
             std::string(ZHANG_US20_E240_VALIDATION_ROOT)==probeRoot,"unexpected finite profile catalog");
         require(expectedOverlay(true)==zhangUs20E240OverlayText(probeRoot),"independent e241 overlay differs");
         require(validateZhangUs20E240CanonicalDelta(sourceText,encode(probeTarget),probeEnvironment,reason),
@@ -457,6 +506,63 @@ int main(int argc,char**argv)
             require(!zhangUs20E240ProfileForRoot(datum+"/../run") &&
                 !zhangUs20E240RestorePathAllowed(datum+"/checkpoints/E29-20240717032930-e420-r32f626de9463",datum),
                 "new profile accepted lexical alias or unlisted duration");
+        }
+        // The new e300 replay is a distinct, bounded capability. Its archive
+        // cannot be substituted for formal-run or earlier failed-run authority.
+        for(const bool replay : {false,true})
+        {
+            const auto run=authorityRoot(replay);
+            const std::string binary="/home/rx/GINAN/checkpoint_authority_fix_20261104_01/candidate/pea";
+            Fields environment;const auto candidate=authorityTargetFrom(source,environment,replay);
+            const auto* profile=zhangUs20E240ProfileForRoot(run);
+            require(profile && profile->binary==binary && profile->arStart==1405216800 &&
+                profile->maxEpochs==(replay?300:360),"authority repair finite profile identity mismatch");
+            require(expectedAuthorityOverlay(replay)==zhangUs20E240OverlayText(run),
+                "independent authority repair overlay mismatch");
+            require(zhangUs20E240TargetCaptures(run)==authorityCaptures(replay) &&
+                zhangUs20E240TargetCheckpoints(run).size()==(replay?1u:2u),
+                "authority repair capture catalogue mismatch");
+            require(validateZhangUs20E240CanonicalDelta(sourceText,encode(candidate),environment,reason),
+                "authority repair canonical rejected:"+reason);
+            require(zhangUs20Global134ScienceEnvironment(environment)==
+                zhangUs20Global134ScienceEnvironment(probeEnvironment),"authority repair changed science settings");
+            auto observed=policy;observed.environment=environment;observed.binaryPath=binary;
+            observed.outputsRoot=run+"/outputs";observed.productFilename=run+"/outputs/zhang_internal_products.csv";
+            observed.covarianceFilename=run+"/outputs/zhang_internal_product_covariance.csv";
+            observed.checkpointOutputDirectory=run+"/checkpoints";
+            observed.endEpoch=replay?"2024-07-17 02:29:30":"2024-07-17 02:59:30";
+            observed.maxEpochs=replay?300:360;observed.arStartGpstSeconds=1405216800;
+            observed.captureEpochs=authorityCaptures(replay);
+            require(validateZhangUs20E240TargetPolicy(observed,reason),"authority repair observed policy rejected:"+reason);
+            for(const auto& mutate:std::vector<std::function<void(ZhangUs20Global134CheckpointPolicy&)>>{
+                [](auto&x){x.binaryPath=ZHANG_US20_E240_DATUM_AR1H_BINARY;},
+                [](auto&x){x.outputsRoot+="/../outputs";},[](auto&x){x.maxEpochs+=1;},
+                [](auto&x){x.endEpoch="2024-07-17 03:00:00";},
+                [](auto&x){x.captureEpochs[0]="2024-07-17 02:30:00";},
+                [](auto&x){x.ratio=3;},[](auto&x){x.jointNisEnabled=true;},
+                [](auto&x){x.independentEpochAr=false;},
+                [](auto&x){x.arStartGpstSeconds=1405218600;}})
+            {auto bad=observed;mutate(bad);require(!validateZhangUs20E240TargetPolicy(bad,reason),
+                "authority repair accepted a nonliteral profile or changed science");}
+            auto bad=candidate;bad["effective_capture_epoch_9"]="2024-07-17 02:29:30";
+            require(!validateZhangUs20E240CanonicalDelta(sourceText,encode(bad),environment,reason),
+                "authority repair accepted an unlisted capture field");
+            require(validateZhangUs20E240Continuation(ZHANG_US20_E240_SOURCE_BUNDLE_SHA,
+                ZHANG_US20_E240_SOURCE_MANIFEST_SHA,id,sourceText,inputs,encode(candidate),inputs,
+                binary,std::string(64,'a'),environment,token,reason),"authority repair source capability rejected:"+reason);
+            require(token.matchesTarget(ZHANG_US20_GLOBAL134_MODE,binary,std::string(64,'a'),
+                encode(candidate),ZHANG_US20_E240_SOURCE_INPUT_SHA),"authority repair token is not source/config bound");
+            for(const auto&[checkpoint,identity]:zhangUs20E240TargetCheckpoints(run))
+            {
+                int done=-1;std::string at,found;
+                require(zhangUs20E240OwnCheckpointIdentity(run+"/checkpoints/"+checkpoint,done,at,found,run) &&
+                    done==identity.first && at==identity.second && found==checkpoint,"authority repair own archive rejected");
+                require(!zhangUs20E240RestorePathAllowed(run+"/checkpoints/"+checkpoint,authorityRoot(!replay)),
+                    "authority repair crossed replay/formal roots");
+            }
+            require(!zhangUs20E240ProfileForRoot(run+"/../run") &&
+                !zhangUs20E240RestorePathAllowed(run+"/checkpoints/E29-20240717032930-e420-r32f626de9463",run),
+                "authority repair admitted an alias or unlisted duration");
         }
         std::cout<<"US20_E240_CONTINUATION_POLICY checks="<<checks<<" passed=1 native_restore_executed=0\n";
         return 0;

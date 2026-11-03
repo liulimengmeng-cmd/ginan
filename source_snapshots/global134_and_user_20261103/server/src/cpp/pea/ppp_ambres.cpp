@@ -78,6 +78,7 @@
 #include "common/zhangProductRelationBasis.hpp"
 #include "common/zhangProductIntegerLedger.hpp"
 #include "common/zhangCurrentEpochEvidence.hpp"
+#include "common/zhangCurrentEvidenceAuthoritySnapshot.hpp"
 #include "common/zhangCurrentBridgeWorkIdentity.hpp"
 #include "common/zhangHandoffSearchBudget.hpp"
 #include "common/zhangHandoffIncompleteTicket.hpp"
@@ -36381,8 +36382,19 @@ void fixAndHoldAmbiguities(
     }();
     const auto r51CurrentEvidenceBefore=[&]() {
         ZhangPhaseTimer timer(trace,"AR_CURRENT_EVIDENCE_SNAPSHOT",kfState.time.to_string(0));
-        return zhangCurrentEpochEvidenceRegistry();
+        return ZhangCurrentEvidenceAuthoritySnapshot(
+            zhangCurrentEpochEvidenceRegistry(),
+            zhangMultiGnssCurrentEvidenceAuthorities());
     }();
+    const auto restoreR51CurrentEvidence=[&](const char* stage) {
+        r51CurrentEvidenceBefore.restore(zhangCurrentEpochEvidenceRegistry(),
+            zhangMultiGnssCurrentEvidenceAuthorities());
+        trace << "\nZHANG_R51_CURRENT_EVIDENCE_AUTHORITY_ROLLBACK time="
+              << kfState.time.to_string(0) << " stage=" << stage
+              << " evidence_entries=" << zhangCurrentEpochEvidenceRegistry().size()
+              << " authority_entries=" << zhangMultiGnssCurrentEvidenceAuthorities().size()
+              << " pair_restored=1 integer_authority_added=0";
+    };
     bool r47ProductTransactionCommitted=false;
 	KFState productFixedState;
 	bool productFixedStateValid = false;
@@ -37181,7 +37193,7 @@ void fixAndHoldAmbiguities(
             r51PppRuntimeBefore();zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
             zhangProductGaugeCertificateLedgerRegistry()=r47GaugeLedgerBefore;
             zhangProductRelationAdmissionStateRegistry()=r51AdmissionBefore;
-            zhangCurrentEpochEvidenceRegistry()=r51CurrentEvidenceBefore;
+            restoreR51CurrentEvidence("ENHANCED_REJECTED");
             bool baselineValid=!zhangEpochOnlyArEnabled() &&
 				r51BaselineProductRelation.constraints.reliable &&
                 r51BaselineProductRelation.r47Candidate &&
@@ -37281,7 +37293,7 @@ void fixAndHoldAmbiguities(
                 r51PppRuntimeBefore();zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
                 zhangProductGaugeCertificateLedgerRegistry()=r47GaugeLedgerBefore;
                 zhangProductRelationAdmissionStateRegistry()=r51AdmissionBefore;
-                zhangCurrentEpochEvidenceRegistry()=r51CurrentEvidenceBefore;
+                restoreR51CurrentEvidence("FLOAT_ONLY_FALLBACK");
                 nfix=0;networkIntegerReady=false;productFixedStateValid=false;
                 ZhangR51OutputBundle bundle(kfState.time.to_string(0),"FLOAT_ONLY",root);
                 traceFloatAuthorityClosure();
@@ -37297,7 +37309,7 @@ void fixAndHoldAmbiguities(
     {
         zhangProductIntegerLedgerRegistry()=r47IntegerLedgerBefore;
         zhangProductGaugeCertificateLedgerRegistry()=r47GaugeLedgerBefore;
-        zhangCurrentEpochEvidenceRegistry()=r51CurrentEvidenceBefore;
+        restoreR51CurrentEvidence("FINAL_LEDGER_REJECTED");
         trace<<"\nZHANG_R47_LEDGER_TRANSACTION time="<<kfState.time.to_string(0)
             <<" action=ROLLBACK_TO_PRESEARCH_ROOT integer_ledger_restored=1 gauge_ledger_restored=1";
     }

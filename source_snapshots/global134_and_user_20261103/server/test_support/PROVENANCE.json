@@ -1,8 +1,8 @@
 {
   "schema": "GEC_PRIVATE_DTO_DECLARATIONS_ONLY_V1",
-  "source_path": "/mnt/c/Users/rx/Documents/GINAN/artifacts/ar_checkpoint_codec_fix_20261103_01/source/src/cpp/pea/ppp_ambres_checkpoint.inc",
-  "source_sha256": "7c1e845eecb1077ae86a1395512b54e5356e2f966406c8d1759e20adb949dd97",
-  "companion_path": "/mnt/c/Users/rx/Documents/GINAN/artifacts/ar_checkpoint_codec_fix_20261103_01/source/src/tests/run_gec_ar_runtime_checkpoint.py",
+  "source_path": "/mnt/c/Users/rx/Documents/GINAN/artifacts/checkpoint_authority_fix_20261104_01/worktree/source_snapshots/global134_and_user_20261103/server/src/cpp/pea/ppp_ambres_checkpoint.inc",
+  "source_sha256": "c74f535ef47d1a26d264ceb903a9c68ebd22fe68ba0f37b4d7811203ec7bb50d",
+  "companion_path": "/mnt/c/Users/rx/Documents/GINAN/artifacts/checkpoint_authority_fix_20261104_01/worktree/source_snapshots/global134_and_user_20261103/server/src/tests/run_gec_ar_runtime_checkpoint.py",
   "companion_sha256": "f3ce1fbb1c47b2ea0b7d49f1caba0fa4f7e23085c609ff144085031323255b6d",
   "extraction_function_sha256": "2798971eba7f67d4df233dbc901d6e695250e4fdb558ab874e5c1b693b0e7b84",
   "declaration_names": [

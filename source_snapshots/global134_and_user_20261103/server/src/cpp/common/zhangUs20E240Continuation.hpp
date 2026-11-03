@@ -49,6 +49,21 @@ inline constexpr const char* ZHANG_US20_E240_DATUM_VALIDATION_ROOT =
 inline constexpr const char* ZHANG_US20_E240_DATUM_VALIDATION_OVERLAY =
     "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/validation_e241/run/config/"
     "100_datum_unknown_e241_validation_overlay.yaml";
+// Fresh, separately reviewed authority-lifecycle repair run roots. The replay
+// has exactly sixty epochs and must prove its own e300 archive before the
+// one-hour experiment is authorised by the external controller.
+inline constexpr const char* ZHANG_US20_E240_AUTHORITY_BINARY =
+    "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/candidate/pea";
+inline constexpr const char* ZHANG_US20_E240_AUTHORITY_AR1H_ROOT =
+    "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/run";
+inline constexpr const char* ZHANG_US20_E240_AUTHORITY_AR1H_OVERLAY =
+    "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/run/config/"
+    "100_checkpoint_authority_ar1h_overlay.yaml";
+inline constexpr const char* ZHANG_US20_E240_AUTHORITY_REPLAY_ROOT =
+    "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/validation_e300/run";
+inline constexpr const char* ZHANG_US20_E240_AUTHORITY_REPLAY_OVERLAY =
+    "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/validation_e300/run/config/"
+    "100_checkpoint_authority_e300_replay_overlay.yaml";
 
 struct ZhangUs20E240FiniteProfile
 {
@@ -68,7 +83,11 @@ inline const std::vector<ZhangUs20E240FiniteProfile>& zhangUs20E240FiniteProfile
         {ZHANG_US20_E240_DATUM_AR1H_ROOT,"2024-07-17 02:59:30",ZHANG_US20_E240_DATUM_AR1H_OVERLAY,
             "Datum UNKNOWN repair direct AR1h",360,1405216800,ZHANG_US20_E240_DATUM_AR1H_BINARY},
         {ZHANG_US20_E240_DATUM_VALIDATION_ROOT,"2024-07-17 02:00:30",ZHANG_US20_E240_DATUM_VALIDATION_OVERLAY,
-            "Datum UNKNOWN repair e241-e242 validation",242,1405216800,ZHANG_US20_E240_DATUM_AR1H_BINARY}};
+            "Datum UNKNOWN repair e241-e242 validation",242,1405216800,ZHANG_US20_E240_DATUM_AR1H_BINARY},
+        {ZHANG_US20_E240_AUTHORITY_AR1H_ROOT,"2024-07-17 02:59:30",ZHANG_US20_E240_AUTHORITY_AR1H_OVERLAY,
+            "Checkpoint authority repair direct AR1h",360,1405216800,ZHANG_US20_E240_AUTHORITY_BINARY},
+        {ZHANG_US20_E240_AUTHORITY_REPLAY_ROOT,"2024-07-17 02:29:30",ZHANG_US20_E240_AUTHORITY_REPLAY_OVERLAY,
+            "Checkpoint authority repair e300 replay",300,1405216800,ZHANG_US20_E240_AUTHORITY_BINARY}};
     return profiles;
 }
 
@@ -98,8 +117,10 @@ inline std::vector<std::string> zhangUs20E240TargetCaptures(
 {
     if (root==ZHANG_US20_E240_VALIDATION_ROOT || root==ZHANG_US20_E240_DATUM_VALIDATION_ROOT)
         return {"2024-07-17 02:00:00","2024-07-17 02:00:30"};
-    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT)
+    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT || root==ZHANG_US20_E240_AUTHORITY_AR1H_ROOT)
         return {"2024-07-17 02:29:30","2024-07-17 02:59:30"};
+    if (root==ZHANG_US20_E240_AUTHORITY_REPLAY_ROOT)
+        return {"2024-07-17 02:29:30"};
     if (root!=ZHANG_US20_E240_TARGET_ROOT) return {};
     return {"2024-07-17 02:29:30", "2024-07-17 02:59:30",
         "2024-07-17 03:29:30", "2024-07-17 03:59:30",
@@ -129,7 +150,10 @@ inline const std::map<std::string,std::pair<int,std::string>>& zhangUs20E240Targ
     static const std::map<std::string,std::pair<int,std::string>> datumHour = {
         {"E29-20240717022930-e300-r32f626de9463",{300,"2024-07-17 02:29:30"}},
         {"E29-20240717025930-e360-r32f626de9463",{360,"2024-07-17 02:59:30"}}};
-    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT) return datumHour;
+    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT || root==ZHANG_US20_E240_AUTHORITY_AR1H_ROOT) return datumHour;
+    static const std::map<std::string,std::pair<int,std::string>> authorityReplay = {
+        {"E29-20240717022930-e300-r32f626de9463",{300,"2024-07-17 02:29:30"}}};
+    if (root==ZHANG_US20_E240_AUTHORITY_REPLAY_ROOT) return authorityReplay;
     if (root!=ZHANG_US20_E240_TARGET_ROOT) return empty;
     static const std::map<std::string,std::pair<int,std::string>> values = {
         {"E29-20240717022930-e300-r32f626de9463",{300,"2024-07-17 02:29:30"}},

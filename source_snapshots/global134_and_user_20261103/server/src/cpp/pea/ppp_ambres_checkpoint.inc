@@ -1822,10 +1822,39 @@ ZhangCurrentEpochEvidence gecArRestoreEvidence(const gecjson::value& item,
 using GecEvidenceMap = std::map<ZhangCurrentEpochEvidenceKey,ZhangCurrentEpochEvidence>;
 using GecAuthorityMap = std::map<string,ZhangMultiGnssCurrentEvidenceAuthority>;
 
+void gecArRequireAuthorityEvidenceLink(const GecEvidenceMap& evidence,
+    const string& owner, E_Sys system, const string& posterior, const string& chart)
+{
+    // The positive authority allow-list and its evidence are one transaction.
+    // Keep a dangling/mismatched authority fatal; do not silently omit it or
+    // promote diagnostic evidence into current delivery authority on restore.
+    // Retain the historical error prefix for callers, but identify the exact
+    // failed invariant without logging potentially very large identity text.
+    auto fail = [&](const char* detail) {
+        throw std::runtime_error(string("GEC_AR_AUTHORITY_EVIDENCE_MISSING:system=") +
+            enum_to_string(system) + ":detail=" + detail);
+    };
+    const auto found = evidence.find({owner,system});
+    if (found == evidence.end()) fail("ABSENT");
+    if (!found->second.valid) fail("INVALID");
+    if (found->second.posteriorId != posterior) fail("POSTERIOR_MISMATCH");
+    if (found->second.chartId != chart) fail("CHART_MISMATCH");
+}
+
 gecjson::object gecArSnapshot(const KFState& owner, const string& runtime, std::uint32_t schemaVersion)
 {
     gecjson::array evidence, authorities;
     map<string,ZhangDecisionProofPtr> bundleProofAtoms;
+    // Check the cheap cross-registry invariant before materialising the large
+    // proof/binding document. The full source/physical/Q audits below still run
+    // and the accepted wire format remains byte-for-byte unchanged.
+    for (const auto& [key,value] : zhangMultiGnssCurrentEvidenceAuthorities())
+    {
+        gecArRequire(zhangAmbresRuntimeBelongsTo(key,runtime),"GEC_AR_FOREIGN_AUTHORITY_OWNER");
+        for (const auto& [system,ids] : value.systemIdentities)
+            gecArRequireAuthorityEvidenceLink(zhangCurrentEpochEvidenceRegistry(),
+                key,system,ids.first,ids.second);
+    }
     for (const auto& [key,value] : zhangCurrentEpochEvidenceRegistry())
     {
         gecArRequire(zhangAmbresRuntimeBelongsTo(key.first,runtime),"GEC_AR_FOREIGN_EVIDENCE_OWNER");
@@ -1908,11 +1937,10 @@ void gecArRestoreSnapshot(const gecjson::value& document, const KFState& owner,
         {
             const auto system = gecArSystem(gecjson::string(entry.key())); const auto& ids = gecArArray(entry.value());
             gecArRequire(ids.size() == 2,"GEC_AR_AUTHORITY_IDENTITIES_INVALID");
-            const auto found = evidence.find({key,system});
-            gecArRequire(found != evidence.end() && found->second.valid &&
-                found->second.posteriorId == gecArString(ids[0],false) &&
-                found->second.chartId == gecArString(ids[1],false),"GEC_AR_AUTHORITY_EVIDENCE_MISSING");
-            authority.systemIdentities.emplace(system,std::make_pair(gecArString(ids[0]),gecArString(ids[1])));
+            const auto posterior = gecArString(ids[0],false);
+            const auto chart = gecArString(ids[1],false);
+            gecArRequireAuthorityEvidenceLink(evidence,key,system,posterior,chart);
+            authority.systemIdentities.emplace(system,std::make_pair(posterior,chart));
         }
         gecArRequire(authorities.emplace(key,std::move(authority)).second,"GEC_AR_DUPLICATE_AUTHORITY");
     }

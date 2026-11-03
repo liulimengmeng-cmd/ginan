@@ -1,0 +1,245 @@
+{
+  "schema": "CHECKPOINT_AUTHORITY_SOURCE_VALIDATION_V1",
+  "created_utc": "2026-11-03T18:19:46.707926+00:00",
+  "base_commit": "2311187a7f57eb71032b7cdcd0e0c7b7db010f8c",
+  "current_branch": "codex/checkpoint-authority-fix-20261104",
+  "source_manifest": {
+    "path": "source_snapshots/global134_and_user_20261103/SOURCE_MANIFEST.json",
+    "bytes": 312029,
+    "sha256": "4ee9e986ef6091f8a98c34b4d8fd01c8ca85ced9af4c6c3f748487705617748c"
+  },
+  "server_files": 954,
+  "unchanged_user_files": 757,
+  "manifest_entries": 1715,
+  "changed_existing": [
+    {
+      "path": "server/src/cpp/common/zhangUs20E240Continuation.hpp",
+      "old": {
+        "sha256": "d58dfae6e04bb184d9d3ef3bbb3f9ad99d11c92c4884ab55c0734e204baf2084",
+        "bytes": 26035
+      },
+      "new": {
+        "sha256": "52d4f34c37c03241dfe48052ded38f2ea75f3dd34c76c3307c075917688b42ba",
+        "bytes": 27926
+      }
+    },
+    {
+      "path": "server/src/cpp/pea/ppp_ambres.cpp",
+      "old": {
+        "sha256": "1cf131376afa0d06bfa9cc9d58b96b3fd5eb920f859075cdb21e2691717b3450",
+        "bytes": 1650177
+      },
+      "new": {
+        "sha256": "634662dd76ad4627dea4c936aaaad7e1a72282ce5462c3b7de8186a040c7705c",
+        "bytes": 1650894
+      }
+    },
+    {
+      "path": "server/src/cpp/pea/ppp_ambres_checkpoint.inc",
+      "old": {
+        "sha256": "7c1e845eecb1077ae86a1395512b54e5356e2f966406c8d1759e20adb949dd97",
+        "bytes": 150646
+      },
+      "new": {
+        "sha256": "c74f535ef47d1a26d264ceb903a9c68ebd22fe68ba0f37b4d7811203ec7bb50d",
+        "bytes": 152192
+      }
+    },
+    {
+      "path": "server/src/cpp/pea/zhangPppAr.cpp",
+      "old": {
+        "sha256": "c77b84311ef444b60901018e45ec03f605d3e16846e1eac1864d7cc7ba7a2280",
+        "bytes": 765050
+      },
+      "new": {
+        "sha256": "2e03d0d50f569fd27abca8e74d00233735a27473ba92cb7ab991af682b1f7a15",
+        "bytes": 766145
+      }
+    },
+    {
+      "path": "server/src/tests/unit/gec_ar_runtime_checkpoint.cpp",
+      "old": {
+        "sha256": "65444f1bf3c69c8ffc31bcd8b3b1e829355ac76c24f315be3c6be7141ad4562b",
+        "bytes": 57139
+      },
+      "new": {
+        "sha256": "bedd2fce3d16add453f74ccd28abba3037372dad2c2474f6d0ee1413276cbf11",
+        "bytes": 66369
+      }
+    },
+    {
+      "path": "server/src/tests/unit/us20_e240_continuation_policy.cpp",
+      "old": {
+        "sha256": "8de823aa9686b0748e0d35d01aa9f7572e7d87e845634dde5877ade6a1c71c7a",
+        "bytes": 33944
+      },
+      "new": {
+        "sha256": "0a2b3f4ca9af5fdef858f08fb2a1a39337bf9fc2658700e7df732c9f337b0419",
+        "bytes": 41611
+      }
+    },
+    {
+      "path": "server/test_support/PROVENANCE.json",
+      "old": {
+        "sha256": "babad59f89371349c8690c013102eabc2c3c8b3e7ce99ac2df83262ee2c36400",
+        "bytes": 1938
+      },
+      "new": {
+        "sha256": "31e269215a975bc2bf7c4103da21a122cd4d4b5afbd6703bf5af31eaf840d725",
+        "bytes": 2048
+      }
+    }
+  ],
+  "added_source_files": [
+    {
+      "path": "server/src/cpp/common/zhangCurrentEvidenceAuthoritySnapshot.hpp",
+      "sha256": "abb5ab1b01e91b271942ea85a1f3b0cd0ad1009a980ca419dd43dd71b682940d",
+      "bytes": 1489
+    },
+    {
+      "path": "server/src/cpp/common/zhangNativeProductTargetAdmission.hpp",
+      "sha256": "e5a4651ca55992c357906516b59dfdb0d21d4588885d45034c99f5f34d7fa9f0",
+      "bytes": 1311
+    },
+    {
+      "path": "server/src/tests/unit/current_evidence_authority_snapshot.cpp",
+      "sha256": "52dc5f87a753c3ead1c3d62a732ef477ad856b0cd93b00f6bc8da7a3ec43ba39",
+      "bytes": 4068
+    },
+    {
+      "path": "server/src/tests/unit/native_product_target_admission.cpp",
+      "sha256": "517f2c924e41e8de9fbd079584a088b77a9582f6015a19747a1d8ee8991d3648",
+      "bytes": 1716
+    }
+  ],
+  "producer": {
+    "path": "/home/rx/GINAN/checkpoint_authority_fix_20261104_01/candidate/pea",
+    "bytes": 37638200,
+    "sha256": "e7d075de050a7af05aac09c1d8951ee448e1175a4b34cae22e1dac63e19d9bda",
+    "identity_state": "DEPLOYED_AND_BUILD_NATIVE_QUALIFIED"
+  },
+  "build": {
+    "state": "ACTUAL_FULL_LINK_PASSED",
+    "passed": true,
+    "linked_TUs": 158,
+    "fresh_compiles": 5,
+    "verified_reused_objects": 153,
+    "evidence": {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/BUILD_NATIVE_ACCEPTANCE.json",
+      "bytes": 26424,
+      "sha256": "451561397d5a5edc82e90b92810f9f6b32d46da2bfed30ff25a3ff5b0b5a4d8c"
+    }
+  },
+  "native": {
+    "state": "ACTUAL_CURRENT_PRODUCER_PASSED",
+    "passed": true,
+    "selected_cases": 53,
+    "actual_executions_in_this_attempt": 52,
+    "build_only_cases": 1,
+    "accepted_earlier_current_candidate_executions": 0,
+    "accepted_earlier_build_only_records": 0,
+    "evidence": {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/BUILD_NATIVE_ACCEPTANCE.json",
+      "bytes": 26424,
+      "sha256": "451561397d5a5edc82e90b92810f9f6b32d46da2bfed30ff25a3ff5b0b5a4d8c"
+    }
+  },
+  "real": {
+    "state": "WORKFLOW_SOURCE_VALIDATION_LAUNCHED_REAL_GATES_PENDING",
+    "workflow_launched": true,
+    "replay_validation_started": true,
+    "replay_60_epoch_execution_started": false,
+    "launch_evidence": {
+      "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/WORKFLOW_LAUNCH_SUMMARY.json",
+      "bytes": 1813,
+      "sha256": "9f26d4e5c4960c7015f8d1fc387f9cc68b6df63fe298b68292a4e1754f063f60"
+    },
+    "original_e240_two_actual_restores_passed": null,
+    "e300_60_epoch_replay_and_actual_checkpoint_restore_passed": null,
+    "formal_120_epoch_hour_started": false,
+    "formal_hour_passed": null,
+    "scientific_accuracy_accepted": false
+  },
+  "required_sequence": [
+    "replay source two actual restores/all9/raw33",
+    "60 new AR-enabled epochs",
+    "e300 actual native export/fresh restore/all9/raw33/product audit",
+    "formal source two actual restores/all9/raw33",
+    "120 new AR-enabled epochs",
+    "both formal e300/e360 actual restores/all9/raw33/product audits"
+  ],
+  "lightweight_header_tests": {
+    "actual_tool_executions_passed": true,
+    "full_producer_acceptance": false,
+    "evidence": {
+      "bytes": 3413,
+      "sha256": "f1abccb88859bd1c2d9cd3058b3d16febe00de2dfc87812c6e77f0ab02ee72de",
+      "artifact_relative_path": "reports/STANDALONE_TEST_RECEIPT_02.json"
+    }
+  },
+  "harness_pure_review": {
+    "passed": true,
+    "full_runtime_acceptance": false,
+    "evidence": {
+      "bytes": 3907,
+      "sha256": "68a8350b194b122ea14e984677f244c0a9bec9c211623396344fc6ab513a59f6",
+      "artifact_relative_path": "reports/HARNESS_INDEPENDENT_REVIEW_01.json"
+    }
+  },
+  "historical_validation_preserved": [
+    {
+      "path": "source_snapshots/global134_and_user_20261103/VALIDATION_DATUM_UNKNOWN_20261103.json",
+      "bytes": 9360,
+      "sha256": "f71a839aa16211c961de6d8438e996cd7da8db93dfc2ca154a955e3748748f57"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/VALIDATION_AR1H_PROFILE_20261103.json",
+      "bytes": 41608,
+      "sha256": "b6f5a903f3fe680a6d9f2e51b7568addbceb04ca59022402794b710d9c921e0e"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_27BCCA_SOURCE_MANIFEST.json",
+      "bytes": 311305,
+      "sha256": "2fdfec405936991b25e07d7c097e4dedaff3f8f31ac3a929be1954ab085f36a0"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_27BCCA_PROVENANCE.json",
+      "bytes": 4541,
+      "sha256": "71e007f0675919d65baa7499109c647ddfc730f657626f27f7a6a1178f6608c0"
+    }
+  ],
+  "baseline_copies": {
+    "SOURCE_MANIFEST.json": {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_2311187_SOURCE_MANIFEST.json",
+      "bytes": 311305,
+      "sha256": "98b96c5553987703fb0909c679a36a11d1fe30c8daa578110f674ef5723e92fc"
+    },
+    "PROVENANCE.json": {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_2311187_PROVENANCE.json",
+      "bytes": 6873,
+      "sha256": "48a883df68aa774928dea3e3eb5e03787ef706ea5bad5d173bc054c6f043ca51"
+    }
+  },
+  "settings": {
+    "ratio": 2,
+    "joint_NIS": false,
+    "independent_epoch_AR": true,
+    "WSL_GiB": 20,
+    "retained_STEC_ZTD": true,
+    "regional_atmosphere_export": false,
+    "server_comput_accessed": false
+  },
+  "limits": [
+    "Unavailable GPS targets are not declared recovered.",
+    "Pending target separation retains current certified conditioning and full cross covariance.",
+    "Authorization/evidence validation is retained; no missing authority is fabricated.",
+    "Old 8900/00a validation is historical and cannot qualify the new producer.",
+    "Native and pure fixtures do not replace real replay or external accuracy validation."
+  ],
+  "acceptance_boundary": "BUILD_AND_CURRENT_PRODUCER_NATIVE_PASSED_REAL_RUNTIME_PENDING",
+  "archived_harness": {
+    "path": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/HARNESS_SOURCE_MANIFEST.json",
+    "bytes": 1979,
+    "sha256": "d7502151a9f8d6313c74a2c0eb6cfa81ce9e10f634145371a1d7d46378932a07"
+  }
+}

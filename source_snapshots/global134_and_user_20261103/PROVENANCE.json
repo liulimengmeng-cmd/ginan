@@ -1,49 +1,21 @@
 {
-  "schema": "SERVER_USER_SOURCE_PROVENANCE_V2",
-  "snapshot_date": "2026-11-03",
+  "schema": "SERVER_USER_SOURCE_PROVENANCE_V3",
+  "snapshot_date": "2026-11-04",
+  "effective_source_entry": "source_snapshots/global134_and_user_20261103/server/src",
   "server": {
-    "source": "Global134 G/E/C datum-UNKNOWN repair with exact local direct-AR1h and e241-e242 launch profiles",
-    "source_files": 950,
-    "binary_sha256": "8900c00a35db8d75cb90e90f02a584998764f06a0388ce8f5ab2ab5a78ffe4bc",
-    "full_build_passed": true,
-    "fresh_TUs": 5,
-    "reused_TUs": 153,
-    "linked_TUs": 158,
-    "native_task_records_passed": 51,
-    "native_runtime_executions": 50,
-    "native_build_only_tasks": 1,
-    "final_native_integrity_verification_completed": true,
-    "final_native_result_passed": true,
-    "actual_real_AR_checkpoint_roundtrip_verified": false,
-    "formal_run_started": false,
-    "PPP_AR_checkpoint_schema": 7,
-    "legacy_checkpoint_schemas_supported": [
-      3,
-      4,
-      5,
-      6
-    ],
-    "policy": {
-      "ratio": 2,
-      "joint_NIS": false,
-      "independent_epoch_AR": true,
-      "WSL_GiB": 20
-    },
-    "known_validation_limits": [
-      "Controlled production-linked native fixtures are not actual G03/G24/C27/E11 network-event replays.",
-      "Legacy predictor cold start with no accepted velocity history remains fail-closed; rejected samples never train it.",
-      "Metadata/sparse support cache and post-QC dense full-Q audit costs still need real-network timing/memory measurement.",
-      "Carriers support identity/Q0 source models; dynamic mixed coordinates are rejected, not approximated with zero Q.",
-      "History archive is a verified locator into the complete retained parent bundle, not a standalone certificate database."
-    ],
-    "native_adopted_executions": 0,
-    "native_adopted_build_only_records": 0,
-    "real_process_validation_state": "IN_PROGRESS",
-    "formal_AR_hour_completed": false,
-    "profile_change_only_after_commit": "27bcca5520e1e63574193c3219201f3754730e0f",
-    "numerical_algorithm_sources_unchanged": true,
-    "qualification_sha256": "2ce738b15cba9a9db3e15840d938a0cb0e6e2e1e4b9f5a73f345c3624a87dc27",
-    "validation_status_recorded_utc": "2026-11-03T09:03:50.380121+00:00"
+    "source_files": 954,
+    "built_producer_sha256": "e7d075de050a7af05aac09c1d8951ee448e1175a4b34cae22e1dac63e19d9bda",
+    "deployed_producer_qualified": true,
+    "build_passed": true,
+    "native_passed": true,
+    "real_replay_passed": null,
+    "formal_hour_passed": null,
+    "scientific_accuracy_accepted": false,
+    "actual_native_executions": 52,
+    "native_build_only_cases": 1,
+    "workflow_started": true,
+    "source_restore_validation_started": true,
+    "runtime_replay_started": false
   },
   "user": {
     "source": "US20 realtime final effective source, parent baseline plus 16-file overlay",
@@ -74,81 +46,48 @@
       "Third-party IERS iersc.hpp"
     ]
   },
-  "integrated_server_user_build_performed": false,
-  "scientific_accuracy_accepted": false,
-  "original_repositories_or_production_binaries_replaced": false,
-  "server_comput_accessed": false,
-  "raw_observations_products_outputs_checkpoints_binaries_or_credentials_uploaded": false,
-  "baseline_commit": "6177d1ac87d544a9354daafd47633249be9cff08",
-  "baseline_server": {
-    "source": "global134 G/E/C checkpoint codec candidate source_v2",
-    "source_files": 944,
-    "binary_sha256": "214e12ea60963abc5ae9b3d990722949273e5be8448702ced5cd64c6ba3c6338",
-    "source_manifest_sha256": "9d0e6c72255c5a3ec8d7e62d473ab7d3daf15939983c1ed4a9a43b23e7ed4e73",
-    "full_build_passed": true,
-    "fresh_TUs": 10,
-    "reused_TUs": 148,
-    "linked_TUs": 158,
-    "native_task_records_passed": 48,
-    "native_runtime_executions": 47,
-    "native_build_only_tasks": 1,
-    "final_native_integrity_verification_completed": false,
-    "final_native_result_passed": false,
-    "final_native_interruption": "USER_REQUESTED_STOP",
-    "actual_real_AR_checkpoint_roundtrip_verified": false,
-    "formal_run_started": false,
-    "policy": {
-      "ratio": 2,
-      "joint_NIS": false,
-      "independent_epoch_AR": true,
-      "WSL_GiB": 20
-    },
-    "latest_requested_schedule": "Restore 01:59:30; FLOAT through 02:29:30; AR 02:30:00 through 06:59:30. Not started.",
-    "known_open_issues": [
-      "G03/G31 cooperative bridge transaction timeout",
-      "C27-L5P old FLOAT target transport and signal-level direction retention"
-    ]
+  "source_manifest": {
+    "path": "source_snapshots/global134_and_user_20261103/SOURCE_MANIFEST.json",
+    "bytes": 312029,
+    "sha256": "4ee9e986ef6091f8a98c34b4d8fd01c8ca85ced9af4c6c3f748487705617748c"
   },
-  "source_snapshot_manifest_sha256": "98b96c5553987703fb0909c679a36a11d1fe30c8daa578110f674ef5723e92fc",
-  "validation_file": "VALIDATION_AR1H_PROFILE_20261103.json",
-  "prior_datum_unknown_repair_server": {
-    "source": "Global134 G/E/C independent datum-UNKNOWN repair candidate",
-    "source_files": 950,
-    "binary_sha256": "00a16f65eee965038b672b5ad773468b5798d86b1690cecf1771902b6474f657",
-    "full_build_passed": true,
-    "fresh_TUs": 18,
-    "reused_TUs": 140,
-    "linked_TUs": 158,
-    "native_task_records_passed": 51,
-    "native_runtime_executions": 50,
-    "native_build_only_tasks": 1,
-    "final_native_integrity_verification_completed": true,
-    "final_native_result_passed": true,
-    "actual_real_AR_checkpoint_roundtrip_verified": false,
-    "formal_run_started": false,
-    "PPP_AR_checkpoint_schema": 7,
-    "legacy_checkpoint_schemas_supported": [
-      3,
-      4,
-      5,
-      6
-    ],
-    "policy": {
-      "ratio": 2,
-      "joint_NIS": false,
-      "independent_epoch_AR": true,
-      "WSL_GiB": 20
-    },
-    "known_validation_limits": [
-      "Controlled production-linked native fixtures are not actual G03/G24/C27/E11 network-event replays.",
-      "Legacy predictor cold start with no accepted velocity history remains fail-closed; rejected samples never train it.",
-      "Metadata/sparse support cache and post-QC dense full-Q audit costs still need real-network timing/memory measurement.",
-      "Carriers support identity/Q0 source models; dynamic mixed coordinates are rejected, not approximated with zero Q.",
-      "History archive is a verified locator into the complete retained parent bundle, not a standalone certificate database."
-    ]
+  "source_validation": "source_snapshots/global134_and_user_20261103/VALIDATION_CHECKPOINT_AUTHORITY_20261104.json",
+  "archived_harness": "source_snapshots/global134_and_user_20261103/validation/checkpoint_authority_20261104/HARNESS_SOURCE_MANIFEST.json",
+  "baseline_commit": "2311187a7f57eb71032b7cdcd0e0c7b7db010f8c",
+  "baseline_8900_manifest": {
+    "path": "source_snapshots/global134_and_user_20261103/BASELINE_2311187_SOURCE_MANIFEST.json",
+    "bytes": 311305,
+    "sha256": "98b96c5553987703fb0909c679a36a11d1fe30c8daa578110f674ef5723e92fc"
   },
-  "prior_validation_file": "VALIDATION_DATUM_UNKNOWN_20261103.json",
-  "prior_datum_unknown_repair_source_commit": "27bcca5520e1e63574193c3219201f3754730e0f",
-  "prior_provenance_file": "BASELINE_27BCCA_PROVENANCE.json",
-  "prior_source_manifest_file": "BASELINE_27BCCA_SOURCE_MANIFEST.json"
+  "baseline_8900_provenance": {
+    "path": "source_snapshots/global134_and_user_20261103/BASELINE_2311187_PROVENANCE.json",
+    "bytes": 6873,
+    "sha256": "48a883df68aa774928dea3e3eb5e03787ef706ea5bad5d173bc054c6f043ca51"
+  },
+  "historical_validation": [
+    {
+      "path": "source_snapshots/global134_and_user_20261103/VALIDATION_DATUM_UNKNOWN_20261103.json",
+      "bytes": 9360,
+      "sha256": "f71a839aa16211c961de6d8438e996cd7da8db93dfc2ca154a955e3748748f57"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/VALIDATION_AR1H_PROFILE_20261103.json",
+      "bytes": 41608,
+      "sha256": "b6f5a903f3fe680a6d9f2e51b7568addbceb04ca59022402794b710d9c921e0e"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_27BCCA_SOURCE_MANIFEST.json",
+      "bytes": 311305,
+      "sha256": "2fdfec405936991b25e07d7c097e4dedaff3f8f31ac3a929be1954ab085f36a0"
+    },
+    {
+      "path": "source_snapshots/global134_and_user_20261103/BASELINE_27BCCA_PROVENANCE.json",
+      "bytes": 4541,
+      "sha256": "71e007f0675919d65baa7499109c647ddfc730f657626f27f7a6a1178f6608c0"
+    }
+  ],
+  "accepted_new_producer": false,
+  "publication_performed": false,
+  "build_native_accepted_new_producer": true,
+  "runtime_acceptance_pending": true
 }
