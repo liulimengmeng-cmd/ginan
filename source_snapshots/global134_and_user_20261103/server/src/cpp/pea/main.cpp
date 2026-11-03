@@ -1,0 +1,3993 @@
+// #pragma GCC optimize ("O0")
+
+#include <algorithm>
+#include <array>
+#include <boost/chrono/chrono_io.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/utility/setup/console.hpp>
+#include <boost/json.hpp>
+#include <boost/system/error_code.hpp>
+#include <chrono>
+#include <cmath>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <iterator>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <set>
+#include <signal.h>
+#include <sstream>
+#include <string>
+#include <thread>
+#include <tuple>
+#include <vector>
+#if defined(__linux__)
+#include <unistd.h>
+#endif
+#include "architectureDocs.hpp"
+#include "common/algebraTrace.hpp"
+#include "common/api.hpp"
+#include "common/debug.hpp"
+#include "common/fileLog.hpp"
+#include "common/gTime.hpp"
+#include "common/mongoRead.hpp"
+#include "common/mongoWrite.hpp"
+#include "common/navigation.hpp"
+#include "common/ntripBroadcast.hpp"
+#include "common/observations.hpp"
+#include "common/receiver.hpp"
+#include "common/rinexClkWrite.hpp"
+#include "common/rinexNavWrite.hpp"
+#include "common/rinexObsWrite.hpp"
+#include "common/rtsSmoothing.hpp"
+#include "common/sinex.hpp"
+#include "common/streamNtrip.hpp"
+#include "common/streamObs.hpp"
+#include "common/streamFile.hpp"
+#include "common/summary.hpp"
+#include "common/tcpSocket.hpp"
+#include "common/testUtils.hpp"
+#include "common/zhangCheckpoint.hpp"
+#include "common/zhangMultiGnssFloatCheckpoint.hpp"
+#include "common/zhangPublishedContinuity.hpp"
+#include "common/zhangR51FloatReuse.hpp"
+#include "common/zhangFloatThreading.hpp"
+#include "common/zhangFloatInputMemory.hpp"
+#include "common/zhangEpochStopRequest.hpp"
+#include "common/zhangRegionalJointProduct.hpp"
+#include "inertial/posProp.hpp"
+#include "iono/ionoModel.hpp"
+#if defined(ENABLE_PARALLELISATION) || defined(_OPENMP)
+#include "omp.h"
+#endif
+#include "orbprop/coordinates.hpp"
+#include "orbprop/orbitProp.hpp"
+#include "pea/inputsOutputs.hpp"
+#include "pea/minimumConstraints.hpp"
+#include "pea/peaCommitStrings.hpp"
+#include "pea/preprocessor.hpp"
+#include "pea/zhangCheckpointRuntime.hpp"
+#include "slr/slr.hpp"
+
+using namespace std::literals::chrono_literals;
+using std::make_shared;
+using std::make_unique;
+using std::string;
+using std::chrono::system_clock;
+using std::chrono::time_point;
+using std::this_thread::sleep_for;
+
+
+/** Retrieve data from streams and process together once per epoch.
+ *
+ * In order to be capable of real-time and post-processed execution, the pea treats all observation
+ * inputs as streams. These streams are created with a stream source type, and a parser, with the
+ * separation of these strategies allowing for far more reusable code, and immediate extension of
+ * inputs from simply files, to HTTP, TCP, Serial, Pipes etc.
+ *
+ * The fundamental tick of the pea is the `epoch_interval`, which drives all major processing steps.
+ * Once an initial epoch has been designated the pea requests data for the next epoch from each
+ * stream. The streams either respond with the data, or with a flag indicating the data may be
+ * available later, or will never be available.
+ *
+ * Various configuration parameters define the exact flow through the synchronisation code, however
+ * once all data is available, or no more is expected, or a timeout has occurred, the epoch is
+ * considered synchronised and processing is performed.
+ *
+ * Unlike observation streams, which provide data up until the requested epoch time, other streams
+ * such as navigation streams parse all data available to them, and output any values to global
+ * maps, which may be later accessed as required by other components.
+ *
+ * The synchronisation process parses all streams sequentially, without multithreading, so map
+ * collisions are not expected.
+ */
+Architecture Streams_And_Synchronisation__() {}
+
+#ifdef ENABLE_PARALLELISATION
+#endif
+
+bool                  doDocs = false;
+Navigation            nav    = {};
+int                   epoch  = 0;
+GTime                 tsync  = GTime::noTime();
+map<int, SatIdentity> satIdMap;
+map<string, string>   latestMissingObsStatusByReceiver;
+static ZhangEpochStopRequest epochStopRequest;
+
+namespace
+{
+void traceFloatInputMemoryBoundary(
+    const char* phase,
+    const char* boundary,
+    const ReceiverMap& receivers,
+    const KFState& state,
+    const std::string& receiver = {}) noexcept
+{
+    if (!zhangFloatInputMemoryEnabled()) return;
+    try
+    {
+        ZhangFloatInputInventory inventory;
+        inventory.measured = true;
+        inventory.receivers = receivers.size();
+        inventory.receiverObservations = 0;
+        inventory.queuedEpochs = 0;
+        inventory.queuedObservations = 0;
+        inventory.fileStreams = 0;
+        inventory.filePositionTotal = 0;
+        inventory.preciseOrbitEpochs = 0;
+        inventory.preciseClockEpochs = 0;
+        inventory.states = state.x.size();
+        inventory.covarianceRows = state.P.rows();
+        inventory.covarianceColumns = state.P.cols();
+        for (const auto& [id,rec] : receivers)
+            inventory.receiverObservations += rec.obsList.size();
+        inventory.streams = streamParserMultimap.size();
+        for (const auto& [id,stream] : streamParserMultimap)
+        {
+            const auto* file = dynamic_cast<const FileStream*>(&stream->stream);
+            if (file)
+            {
+                inventory.fileStreams++;
+                if (file->filePos >= 0)
+                {
+                    const auto position = static_cast<long long>(file->filePos);
+                    inventory.filePositionTotal += position;
+                    if (inventory.filePositionMinimum < 0 || position < inventory.filePositionMinimum)
+                        inventory.filePositionMinimum = position;
+                    inventory.filePositionMaximum = std::max(inventory.filePositionMaximum,position);
+                    if (id == receiver) inventory.selectedFilePosition = position;
+                }
+            }
+            const auto* observations = dynamic_cast<const ObsLister*>(&stream->parser);
+            if (!observations) continue;
+            inventory.queuedEpochs += observations->obsListList.size();
+            for (const auto& epoch : observations->obsListList)
+                inventory.queuedObservations += epoch.size();
+        }
+        for (const auto& [id,epochs] : nav.pephMap)
+            inventory.preciseOrbitEpochs += epochs.size();
+        for (const auto& [id,epochs] : nav.pclkMap)
+            inventory.preciseClockEpochs += epochs.size();
+        inventory.configReceiverOptions = acsConfig.recOptsMap.size();
+        inventory.configSatelliteOptions = acsConfig.satOptsMap.size();
+        inventory.configCustomAliases = acsConfig.customAliasesMap.size();
+        inventory.configFoundOptions = acsConfig.foundOptions.size();
+        inventory.configDocumentationEntries = ACSConfig::docs.size();
+        inventory.configuredYamlFiles = acsConfig.yamls.size();
+        inventory.configYamlDefaults = acsConfig.yamlDefaults.size();
+        inventory.configAvailableOptions = acsConfig.availableOptions.size();
+        zhangFloatInputMemoryBoundary(phase,boundary,tsync.to_string(0),receiver,inventory);
+    }
+    catch (...)
+    {
+        // Never make optional observation of ownership a filter gate.
+    }
+}
+
+struct E29InputFileRecord
+{
+    string       role;
+    string       owner;
+    std::size_t  ordinal = 0;
+    string       canonicalPath;
+    std::uintmax_t size = 0;
+    string       sha256;
+
+    bool operator<(const E29InputFileRecord& other) const
+    {
+        return std::tie(role, owner, ordinal, canonicalPath, size, sha256) <
+               std::tie(
+                   other.role,
+                   other.owner,
+                   other.ordinal,
+                   other.canonicalPath,
+                   other.size,
+                   other.sha256
+               );
+    }
+};
+
+void appendE29LengthPrefixedField(
+    std::ostringstream& output,
+    const string&       name,
+    const string&       value
+)
+{
+    output << name << "=" << value.size() << "\n";
+    output.write(value.data(), static_cast<std::streamsize>(value.size()));
+    output << "\n";
+}
+
+bool readE29RegularFile(
+    const std::filesystem::path& inputPath,
+    std::filesystem::path&       canonicalPath,
+    string*                      bytes,
+    std::uintmax_t&              size,
+    string&                      sha256,
+    string&                      failureReason
+)
+{
+    std::error_code error;
+    canonicalPath = std::filesystem::canonical(inputPath, error);
+    if (error || !std::filesystem::is_regular_file(canonicalPath, error) || error)
+    {
+        failureReason = "E29_PROVENANCE_NOT_A_REGULAR_FILE:" + inputPath.string();
+        return false;
+    }
+
+    size = std::filesystem::file_size(canonicalPath, error);
+    if (error)
+    {
+        failureReason = "E29_PROVENANCE_FILE_SIZE_FAILED:" + canonicalPath.string();
+        return false;
+    }
+
+    const auto modifiedBefore = std::filesystem::last_write_time(canonicalPath, error);
+    if (error)
+    {
+        failureReason = "E29_PROVENANCE_FILE_MTIME_FAILED:" + canonicalPath.string();
+        return false;
+    }
+
+    if (bytes != nullptr)
+    {
+        std::ifstream input(canonicalPath, std::ios::binary);
+        if (!input)
+        {
+            failureReason = "E29_PROVENANCE_FILE_OPEN_FAILED:" + canonicalPath.string();
+            return false;
+        }
+        bytes->assign(
+            std::istreambuf_iterator<char>(input),
+            std::istreambuf_iterator<char>()
+        );
+		// istreambuf_iterator reaches the stream buffer's EOF without being
+		// required to set basic_ios::eofbit.  badbit and the independently
+		// stat-ed byte count are the deterministic read-integrity checks here.
+		if (input.bad() || bytes->size() != size)
+        {
+            failureReason = "E29_PROVENANCE_FILE_READ_FAILED:" + canonicalPath.string();
+            return false;
+        }
+        sha256 = zhangCheckpointSha256(*bytes);
+    }
+    else
+    {
+        string hashFailure;
+        sha256 = zhangCheckpointFileSha256(canonicalPath.string(), &hashFailure);
+        if (sha256.empty())
+        {
+            failureReason = "E29_PROVENANCE_FILE_HASH_FAILED:" +
+                            canonicalPath.string() + ":" + hashFailure;
+            return false;
+        }
+    }
+    if (sha256.empty())
+    {
+        failureReason = "E29_PROVENANCE_CONTENT_HASH_FAILED:" + canonicalPath.string();
+        return false;
+    }
+    const auto sizeAfter = std::filesystem::file_size(canonicalPath, error);
+    if (error)
+    {
+        failureReason = "E29_PROVENANCE_FILE_RESTAT_FAILED:" + canonicalPath.string();
+        return false;
+    }
+    const auto modifiedAfter = std::filesystem::last_write_time(canonicalPath, error);
+    if (error || sizeAfter != size || modifiedAfter != modifiedBefore)
+    {
+        failureReason = "E29_PROVENANCE_FILE_CHANGED_DURING_HASH:" +
+                        canonicalPath.string();
+        return false;
+    }
+    return true;
+}
+
+bool resolveE29ExecutablePath(
+    const char* argv0,
+    string&     executablePath,
+    string&     failureReason
+)
+{
+    std::error_code error;
+    std::filesystem::path resolved;
+#if defined(__linux__)
+    resolved = std::filesystem::canonical("/proc/self/exe", error);
+#endif
+    if (error || resolved.empty())
+    {
+        error.clear();
+        if (argv0 == nullptr || string(argv0).empty())
+        {
+            failureReason = "E29_PROVENANCE_EXECUTABLE_ARGV0_MISSING";
+            return false;
+        }
+        resolved = std::filesystem::canonical(
+            std::filesystem::absolute(argv0, error), error);
+    }
+    if (error || !std::filesystem::is_regular_file(resolved, error) || error)
+    {
+        failureReason = "E29_PROVENANCE_EXECUTABLE_RESOLUTION_FAILED";
+        return false;
+    }
+    executablePath = resolved.string();
+    return true;
+}
+
+std::map<string, string> us20Global134CheckpointEnvironment()
+{
+    std::map<string, string> environment;
+#if defined(__linux__)
+    // Do not maintain a partial list: otherwise a new QC/retention/budget or
+    // threading setting could change between warmup and restore while keeping
+    // the same canonical identity. The literal profile is Linux-only; other
+    // platforms return no capability rather than invent an environment.
+    for (auto** entry = ::environ; entry && *entry; ++entry)
+    {
+        const string raw(*entry);
+        const auto equal = raw.find('=');
+        if (equal == string::npos) continue;
+        const auto key = raw.substr(0, equal);
+        if (zhangUs20Global134ScienceEnvironmentKey(key))
+            environment.emplace(key, raw.substr(equal + 1));
+    }
+#endif
+    return environment;
+}
+
+bool buildUs20Global134CheckpointPolicy(
+    const string& binaryPath, const string& actualRestoreDirectory,
+    const ReceiverMap& receivers, ZhangUs20Global134CheckpointPolicy& policy,
+    string& failureReason)
+{
+    policy = {};
+    policy.environment = us20Global134CheckpointEnvironment();
+    if (!zhangUs20Global134CheckpointRequested(policy.environment))
+    { failureReason = "US20_GLOBAL134_EXPLICIT_CHECKPOINT_FLAG_REQUIRED"; return false; }
+    auto calendar = [](const boost::posix_time::ptime& time)
+    {
+        auto value = boost::posix_time::to_iso_extended_string(time);
+        if (value.size() > 10) value[10] = ' ';
+        return value;
+    };
+    if (acsConfig.start_epoch.is_special() || acsConfig.end_epoch.is_special() ||
+        acsConfig.epoch_interval != 30 || !acsConfig.zhangPppAr.deterministic_checkpoint ||
+        !acsConfig.zhangPppAr.checkpoint_restore_path.empty() || acsConfig.process_ionosphere)
+    { failureReason = "US20_GLOBAL134_FROZEN_COLD_CONFIGURATION_REQUIRED"; return false; }
+    policy.outputsRoot = acsConfig.outputs_root;
+    policy.binaryPath = binaryPath;
+    policy.startEpoch = calendar(acsConfig.start_epoch);
+    policy.endEpoch = calendar(acsConfig.end_epoch);
+    policy.productFilename = acsConfig.zhangPppAr.product_filename;
+    policy.covarianceFilename = acsConfig.zhangPppAr.product_covariance_filename;
+    policy.checkpointOutputDirectory = acsConfig.zhangPppAr.checkpoint_output_directory;
+    policy.checkpointRestorePath = actualRestoreDirectory;
+    policy.checkpointRuntimeId = acsConfig.zhangPppAr.checkpoint_runtime_id;
+    policy.productBasisMode = acsConfig.zhangFullRank.product_basis_mode;
+    policy.captureEpochs = acsConfig.zhangPppAr.checkpoint_capture_epochs;
+    policy.receiverCount = static_cast<int>(receivers.size());
+    policy.epochIntervalSeconds = 30;
+    policy.maxEpochs = acsConfig.max_epochs;
+    try
+    {
+        const auto arStart = zhangR51ParseArStart(std::getenv("ZHANG_R51_AR_START_GPST_SECONDS"));
+        const auto* finite=zhangUs20E240ContinuationRequested(policy.environment)
+            ? zhangUs20E240ProfileForOutputs(policy.outputsRoot) : nullptr;
+        if (zhangUs20E240ContinuationRequested(policy.environment) && !finite)
+        { failureReason = "US20_E240_FINITE_AR_START_PROFILE_REQUIRED"; return false; }
+        const auto expectedStart=finite?finite->arStart:ZHANG_US20_GLOBAL134_AR_START;
+        if (arStart != static_cast<long double>(expectedStart))
+        { failureReason = "US20_GLOBAL134_EXACT_AR_START_REQUIRED"; return false; }
+        policy.arStartGpstSeconds = expectedStart;
+        policy.regionalJointEnabled = zhangRegionalJointEnabled();
+        policy.regionalTropEnabled = zhangRegionalTropEnabled();
+    }
+    catch (const std::exception& error)
+    { failureReason = string("US20_GLOBAL134_ENVIRONMENT_INVALID:") + error.what(); return false; }
+    policy.ratio = zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres);
+    policy.jointNisEnabled = !zhangRatioOnly();
+    policy.independentEpochAr = zhangCheckpointFlagEqualsOne("ZHANG_R51_EPOCH_ONLY_AR");
+    policy.fixedCoordinates = true;
+    policy.physicalIonosphereEnabled = true;
+    policy.physicalTroposphereEnabled = true;
+    policy.stecEstimated = true;
+    policy.ztdEstimated = true;
+    auto allFixed = [](const KalmanModel& model)
+    {
+        return !model.estimate.empty() &&
+            std::none_of(model.estimate.begin(), model.estimate.end(), [](bool value){ return value; });
+    };
+    auto estimated = [](const KalmanModel& model)
+    { return !model.estimate.empty() && model.estimate.front(); };
+    for (const auto& [system, enabled] : acsConfig.process_sys)
+        if (enabled) policy.systems.insert(enum_to_string(system));
+    // These are actual receiver objects constructed from enabled observation
+    // streams by reloadInputFiles(), not the count intended by a launch plan.
+    for (const auto& [id, receiver] : receivers)
+    {
+        if (id.empty() || receiver.id != id || receiver.isPseudoRec)
+        { failureReason = "US20_GLOBAL134_OBSERVATION_RECEIVER_IDENTITY_REJECTED"; return false; }
+        for (const auto system : {E_Sys::GPS, E_Sys::GAL, E_Sys::BDS})
+        {
+            const auto priorities = acsConfig.code_priorities.find(system);
+            if (priorities == acsConfig.code_priorities.end() || priorities->second.size() != 2)
+            { failureReason = "US20_GLOBAL134_EXACT_SIGNAL_OPTIONS_REQUIRED"; return false; }
+            for (const auto signal : priorities->second)
+            {
+                const auto& options = acsConfig.getRecOpts(id,
+                    {enum_to_string(system), enum_to_string(signal)});
+                policy.fixedCoordinates = policy.fixedCoordinates && !options.exclude &&
+                    allFixed(options.pos) && allFixed(options.pos_rate) && allFixed(options.orbit) &&
+                    allFixed(options.strain_rate);
+                policy.physicalIonosphereEnabled = policy.physicalIonosphereEnabled && options.ionospheric_component;
+                policy.physicalTroposphereEnabled = policy.physicalTroposphereEnabled && options.tropModel.enable;
+                policy.stecEstimated = policy.stecEstimated && estimated(options.ion_stec);
+                policy.ztdEstimated = policy.ztdEstimated && estimated(options.trop);
+            }
+        }
+    }
+    return zhangUs20E240ContinuationRequested(policy.environment)
+        ? validateZhangUs20E240TargetPolicy(policy, failureReason)
+        : validateZhangUs20Global134CheckpointPolicy(policy, failureReason);
+}
+
+bool buildE29CanonicalConfigText(
+    int                 argc,
+    char**              argv,
+    string&             configText,
+    string&             failureReason,
+    bool                includeEnvironment = true
+)
+{
+    if (acsConfig.includedFilenames.empty())
+    {
+        failureReason = "E29_PROVENANCE_CONFIG_FILE_INVENTORY_EMPTY";
+        return false;
+    }
+
+    std::ostringstream output;
+    output << "E29_CANONICAL_CONFIG_V1\n";
+    // Leave every byte of the legacy GPS provenance unchanged. The new
+    // capability is an explicit, bounded FLOAT-only experiment identity.
+    if (zhangMultiGnssFloatCheckpointActive(acsConfig))
+        appendE29LengthPrefixedField(output,
+            "environment_ZHANG_MULTI_GNSS_FLOAT_CHECKPOINT", "1");
+    if (zhangMultiGnssArCheckpointActive(acsConfig))
+    {
+        if (zhangCheckpointFlagEqualsOne(ZHANG_US20_GLOBAL134_CHECKPOINT_FLAG))
+        {
+            appendE29LengthPrefixedField(output,
+                "environment_ZHANG_US20_GLOBAL134_CHECKPOINT", "1");
+            appendE29LengthPrefixedField(output, "us20_global134_checkpoint_policy",
+                zhangCheckpointFlagEqualsOne(ZHANG_US20_E240_CONTINUATION_FLAG)
+                    ? ZHANG_US20_E240_CONTINUATION_POLICY : "US20_GLOBAL134_COLD_FLOAT2H_AR5H_V2");
+            appendE29LengthPrefixedField(output, "us20_global134_lifecycle_controls",
+                "STAGE_WARMUP_OR_AR_AND_OWN_RESTORE_AND_RESTORE_ONLY_EXCLUDED_FROM_MODEL_IDENTITY");
+            string producerPath;
+            if (!resolveE29ExecutablePath(argc > 0 ? argv[0] : nullptr, producerPath, failureReason))
+                return false;
+            appendE29LengthPrefixedField(output, "us20_global134_producer_path", producerPath);
+            appendE29LengthPrefixedField(output, "us20_global134_product_basis_mode",
+                acsConfig.zhangFullRank.product_basis_mode);
+            const auto scienceEnvironment = zhangUs20Global134ScienceEnvironment(
+                us20Global134CheckpointEnvironment());
+            appendE29LengthPrefixedField(output, "us20_global134_science_environment_count",
+                std::to_string(scienceEnvironment.size()));
+            std::size_t environmentOrdinal = 0;
+            for (const auto& [key, value] : scienceEnvironment)
+            {
+                const auto prefix = "us20_global134_science_environment_" +
+                    std::to_string(environmentOrdinal++) + "_";
+                appendE29LengthPrefixedField(output, prefix + "key", key);
+                appendE29LengthPrefixedField(output, prefix + "value", value);
+            }
+            for (const auto* name : {"ZHANG_REGIONAL_JOINT_EXPORT", "ZHANG_REGIONAL_TROPOSPHERE"})
+            {
+                const auto* value = std::getenv(name);
+                appendE29LengthPrefixedField(output, string("environment_") + name,
+                    value ? value : "UNSET");
+            }
+        }
+        else
+            appendE29LengthPrefixedField(output,
+                "environment_ZHANG_MULTI_GNSS_AR_CHECKPOINT", "1");
+        for (const char* name : {"ZHANG_GEC134_FLOAT_TO_AR_MIGRATION",
+                "ZHANG_FLOAT_MATRIX_THREADS", "ZHANG_FLOAT_MEMORY_MODE",
+                "ZHANG_FLOAT_PURE_OBS_RANK_DIAGNOSTIC", "ZHANG_FLOAT_PROFILE"})
+        {
+            const auto* value = std::getenv(name);
+            appendE29LengthPrefixedField(output, std::string("environment_") + name,
+                                        value ? value : "UNSET");
+        }
+        // Do not add even an UNSET record to the old server canonical form.
+        // This explicit local experiment records its true CPU/thread profile
+        // and version without rewriting the source or target canonical text.
+        if (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_LOCAL_ONE_EPOCH_FLAG))
+        {
+            appendE29LengthPrefixedField(output,
+                std::string("environment_") + ZHANG_GEC134_LOCAL_ONE_EPOCH_FLAG, "1");
+            appendE29LengthPrefixedField(output, "gec134_local_migration_policy",
+                ZHANG_GEC134_LOCAL_ONE_EPOCH_POLICY);
+        }
+        if (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_AR_CONTINUATION_FLAG))
+        {
+            appendE29LengthPrefixedField(output,
+                std::string("environment_") + ZHANG_GEC134_AR_CONTINUATION_FLAG, "1");
+            appendE29LengthPrefixedField(output, "gec134_ar_continuation_policy",
+                ZHANG_GEC134_AR_CONTINUATION_POLICY);
+        }
+    }
+    // Experimental acceptance policy is part of checkpoint identity. A restore
+    // must not silently switch ratio-only, current-epoch evidence isolation,
+    // single-basis handoff, AR scheduling, or numerical threads.
+    if (includeEnvironment)
+    for (const char* name : {"ZHANG_R51_ENABLE", "ZHANG_R51_RATIO_ONLY",
+                            "ZHANG_R51_RATIO_THRESHOLD",
+                            "ZHANG_R51_EPOCH_ONLY_AR",
+                            "ZHANG_R51_SINGLE_BASIS_HANDOFF",
+                            "ZHANG_R51_PRODUCT_REPAIR",
+                            "ZHANG_R51_INTERN_HANDOFF_PROOFS",
+                            "ZHANG_R51_HANDOFF_SEARCH_BUDGET_MS",
+                            "ZHANG_R51_AR_START_GPST_SECONDS", "ZHANG_R49_FUSION_WEIGHT",
+                            "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"})
+    {
+        const char* value = std::getenv(name);
+        appendE29LengthPrefixedField(output, std::string("environment_") + name,
+                                    value ? value : "UNSET");
+    }
+    if (includeEnvironment)
+    {
+        const char* threads = std::getenv("ZHANG_R51_FLOAT_THREADS");
+        appendE29LengthPrefixedField(output, "float_thread_policy", "phase_scoped_all_cpu_v2");
+        appendE29LengthPrefixedField(output, "environment_ZHANG_R51_FLOAT_THREADS",
+                                    threads ? threads : "all");
+#ifdef _OPENMP
+        appendE29LengthPrefixedField(output, "float_available_cpus",
+            std::to_string(std::min(omp_get_num_procs(), omp_get_thread_limit())));
+#else
+        appendE29LengthPrefixedField(output, "float_available_cpus", "1");
+#endif
+        appendE29LengthPrefixedField(output, "float_physical_cores",
+            std::to_string(ZhangFloatThreading::physicalCores()));
+        const char* arThreads=std::getenv("ZHANG_R51_AR_THREADS");
+        appendE29LengthPrefixedField(output,"ar_thread_policy","hotspot_all_cpu_v2");
+        appendE29LengthPrefixedField(output,"environment_ZHANG_R51_AR_THREADS",arThreads?arThreads:"all");
+    }
+    if (includeEnvironment)
+    {
+        const double effectiveRatio = zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres);
+        if (!zhangR51RatioPolicyValid(acsConfig.ambrOpts.ratioThres))
+        {
+            failureReason = "R51_RATIO_POLICY_INVALID";
+            return false;
+        }
+        std::ostringstream ratioText;
+        ratioText << std::setprecision(std::numeric_limits<double>::max_digits10) << effectiveRatio;
+        appendE29LengthPrefixedField(output, "effective_R51_ratio_threshold", ratioText.str());
+    }
+
+
+    std::error_code cwdError;
+    const auto canonicalCwd = std::filesystem::weakly_canonical(
+        std::filesystem::current_path(), cwdError);
+    if (cwdError)
+    {
+        failureReason = "E29_PROVENANCE_CWD_RESOLUTION_FAILED";
+        return false;
+    }
+    appendE29LengthPrefixedField(output, "working_directory", canonicalCwd.string());
+
+    // argv[0] is represented by the separately hashed canonical executable.
+    // Every remaining argument is retained byte-for-byte, including all CLI
+    // overrides, so a restart cannot silently change an effective option.
+    output << "command_argument_count=" << std::max(0, argc - 1) << "\n";
+    for (int index = 1; index < argc; index++)
+    {
+        if (argv[index] == nullptr)
+        {
+            failureReason = "E29_PROVENANCE_NULL_COMMAND_ARGUMENT";
+            return false;
+        }
+        appendE29LengthPrefixedField(
+            output, "command_argument_" + std::to_string(index), argv[index]);
+    }
+
+    output << "config_file_count=" << acsConfig.includedFilenames.size() << "\n";
+    for (std::size_t index = 0; index < acsConfig.includedFilenames.size(); index++)
+    {
+        std::filesystem::path canonicalPath;
+        string bytes;
+        string sha256;
+        std::uintmax_t size = 0;
+        if (!readE29RegularFile(
+                acsConfig.includedFilenames[index], canonicalPath, &bytes,
+                size, sha256, failureReason))
+        {
+            return false;
+        }
+        const string prefix = "config_file_" + std::to_string(index) + "_";
+        appendE29LengthPrefixedField(output, prefix + "path", canonicalPath.string());
+        output << prefix << "size=" << size << "\n";
+        appendE29LengthPrefixedField(output, prefix + "sha256", sha256);
+        appendE29LengthPrefixedField(output, prefix + "bytes", bytes);
+    }
+
+    // Record the effective values that define E29 numerical timing, identity,
+    // and the two append-only product sinks after YAML tags and CLI overrides.
+    output << std::setprecision(17);
+    appendE29LengthPrefixedField(
+        output, "effective_epoch_interval",
+        std::to_string(acsConfig.epoch_interval));
+    appendE29LengthPrefixedField(
+        output, "effective_start_epoch",
+        acsConfig.start_epoch.is_not_a_date_time()
+            ? "NOT_A_DATE_TIME"
+            : boost::posix_time::to_iso_extended_string(acsConfig.start_epoch));
+    appendE29LengthPrefixedField(
+        output, "effective_end_epoch",
+        acsConfig.end_epoch.is_not_a_date_time()
+            ? "NOT_A_DATE_TIME"
+            : boost::posix_time::to_iso_extended_string(acsConfig.end_epoch));
+    appendE29LengthPrefixedField(
+        output, "effective_max_epochs", std::to_string(acsConfig.max_epochs));
+    appendE29LengthPrefixedField(
+        output, "effective_inputs_root", acsConfig.inputs_root);
+    appendE29LengthPrefixedField(
+        output, "effective_outputs_root", acsConfig.outputs_root);
+    appendE29LengthPrefixedField(
+        output, "effective_product_filename",
+        acsConfig.zhangPppAr.product_filename);
+    appendE29LengthPrefixedField(
+        output, "effective_product_covariance_filename",
+        acsConfig.zhangPppAr.product_covariance_filename);
+    appendE29LengthPrefixedField(
+        output, "effective_checkpoint_output_directory",
+        acsConfig.zhangPppAr.checkpoint_output_directory);
+    appendE29LengthPrefixedField(
+        output, "effective_checkpoint_runtime_id",
+        acsConfig.zhangPppAr.checkpoint_runtime_id);
+    output << "effective_capture_epoch_count="
+           << acsConfig.zhangPppAr.checkpoint_capture_epochs.size() << "\n";
+    for (std::size_t index = 0;
+         index < acsConfig.zhangPppAr.checkpoint_capture_epochs.size(); index++)
+    {
+        appendE29LengthPrefixedField(
+            output, "effective_capture_epoch_" + std::to_string(index),
+            acsConfig.zhangPppAr.checkpoint_capture_epochs[index]);
+    }
+    appendE29LengthPrefixedField(
+        output, "effective_checkpoint_restore_path",
+        acsConfig.zhangPppAr.checkpoint_restore_path);
+
+    configText = output.str();
+    return !configText.empty();
+}
+
+bool loadGec134CheckpointManifest(
+    const std::filesystem::path& directory,
+    boost::json::object& object, string& failureReason)
+{
+    std::ifstream input(directory / ZHANG_E29_CHECKPOINT_MANIFEST_FILENAME, std::ios::binary);
+    if (!input) { failureReason = "GEC134_SOURCE_MANIFEST_OPEN_FAILED"; return false; }
+    const string bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    boost::system::error_code error;
+    auto parsed = boost::json::parse(bytes, error);
+    if (input.bad() || bytes.size() > 16 * 1024 * 1024 || error || !parsed.is_object())
+    { failureReason = "GEC134_SOURCE_MANIFEST_PARSE_FAILED"; return false; }
+    object = std::move(parsed.as_object());
+    return true;
+}
+
+bool collectGec134MigrationEnvironment(
+    std::map<string, string>& environment, string& failureReason)
+{
+    environment.clear();
+    for (const auto* name : {"ZHANG_GEC134_FLOAT_TO_AR_MIGRATION",
+            "ZHANG_MULTI_GNSS_AR_CHECKPOINT", "ZHANG_MULTI_GNSS_FLOAT_CHECKPOINT",
+            "ZHANG_R51_REUSE_FLOAT_20240717", "ZHANG_R51_REUSE_RATIO_20240717",
+            "ZHANG_R51_ENABLE", "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_RATIO_THRESHOLD",
+            "ZHANG_R51_EPOCH_ONLY_AR", "ZHANG_R51_AR_START_GPST_SECONDS",
+            "ZHANG_R51_FLOAT_THREADS", "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS", "ZHANG_FLOAT_MATRIX_THREADS", "ZHANG_FLOAT_MEMORY_MODE",
+            "ZHANG_FLOAT_PURE_OBS_RANK_DIAGNOSTIC", "ZHANG_FLOAT_PROFILE",
+            "ZHANG_P0_RESOURCE_PROBE", "ZHANG_R49_FUSION_WEIGHT",
+            "ZHANG_R51_SINGLE_BASIS_HANDOFF", "ZHANG_R51_PRODUCT_REPAIR",
+            "ZHANG_R51_INTERN_HANDOFF_PROOFS"})
+    {
+        const auto* value = std::getenv(name);
+        environment.emplace(name, value ? value : "UNSET");
+    }
+#if defined(__linux__)
+    for (auto** entry = ::environ; entry && *entry; ++entry)
+    {
+        const string raw(*entry);
+        const auto equal = raw.find('=');
+        if (equal == string::npos) continue;
+        const auto key = raw.substr(0, equal);
+        if (key.rfind("ZHANG_", 0) == 0 || key.rfind("OMP_", 0) == 0 ||
+            key.rfind("OPENBLAS_", 0) == 0 || key.rfind("MKL_", 0) == 0 ||
+            key.rfind("GOMP_", 0) == 0 || key.rfind("GOTO_", 0) == 0 ||
+            key.rfind("VECLIB_", 0) == 0)
+            environment[key] = raw.substr(equal + 1);
+    }
+#else
+    failureReason = "GEC134_MIGRATION_REQUIRES_SOURCE_LINUX_ABI";
+    return false;
+#endif
+    return zhangGec134ArContinuationRequested(environment)
+        ? validateZhangGec134ArContinuationEnvironment(environment, failureReason)
+        : validateZhangGec134Environment(environment, failureReason);
+}
+
+bool authoriseUs20E240TransportContinuation(
+    const std::filesystem::path& directory, const boost::json::object& manifest,
+    const ZhangE29CheckpointProvenance& target,
+    ZhangE29CheckpointProvenance& source, ZhangUs20E240ContinuationAuthority& authority,
+    string& failureReason)
+{
+    auto readString = [&](const char* name, string& value)
+    {
+        const auto* entry = manifest.if_contains(name);
+        if (!entry || !entry->is_string()) return false;
+        const auto& text = entry->as_string();
+        value.assign(text.data(), text.size()); return true;
+    };
+    ZhangUs20E240SourceIdentity identity;
+    if (directory.string() != ZHANG_US20_E240_SOURCE_PATH ||
+        !readString("experiment_mode", identity.experimentMode) ||
+        !readString("binary_sha256", identity.binarySha256) ||
+        !readString("config_sha256", identity.configSha256) ||
+        !readString("input_manifest_sha256", identity.inputSha256) ||
+        !readString("checkpoint_id", identity.checkpointId) ||
+        !readString("runtime_id", identity.runtimeId) ||
+        !readString("epoch", identity.epoch) ||
+        !readString("config_text", source.configText) ||
+        !readString("input_manifest_text", source.inputManifestText))
+    { failureReason = "US20_E240_SOURCE_MANIFEST_FIELDS_REJECTED"; return false; }
+    std::map<string, string> sourceFields;
+    if (!ZhangGec134MigrationDetail::canonicalFields(source.configText, sourceFields, failureReason) ||
+        !sourceFields.count("us20_global134_producer_path")) return false;
+    identity.binaryPath = sourceFields.at("us20_global134_producer_path");
+    // The sidecar pins the archive before a capability is minted. These finite
+    // controller/schema claims are independently checked against the decoded
+    // native bundle and native preflight before any live state is committed.
+    identity.completedEpoch = 240; identity.nextEpoch = 241;
+    const auto* dimension = manifest.if_contains("state_dimension");
+    const auto* sections = manifest.if_contains("sections");
+    if (!dimension || !dimension->is_int64() || dimension->as_int64() != 7274 ||
+        !sections || !sections->is_array() || sections->as_array().size() != 9)
+    { failureReason = "US20_E240_SOURCE_MANIFEST_STRUCTURE_REJECTED"; return false; }
+    identity.stateDimension = 7274; identity.graphSchema = 5; identity.sectionCount = 9;
+    source.experimentMode = identity.experimentMode;
+    source.binaryPath = identity.binaryPath;
+    if (zhangCheckpointFileSha256(source.binaryPath) != ZHANG_US20_E240_SOURCE_BINARY_SHA)
+    { failureReason = "US20_E240_SOURCE_EXECUTABLE_REJECTED"; return false; }
+    return validateZhangUs20E240Continuation(
+        zhangCheckpointFileSha256((directory / ZHANG_E29_CHECKPOINT_BUNDLE_FILENAME).string()),
+        zhangCheckpointFileSha256((directory / ZHANG_E29_CHECKPOINT_MANIFEST_FILENAME).string()),
+        identity, source.configText, source.inputManifestText, target.configText,
+        target.inputManifestText, target.binaryPath, zhangCheckpointFileSha256(target.binaryPath),
+        us20Global134CheckpointEnvironment(), authority, failureReason);
+}
+
+bool validateUs20E240DecodedRestore(
+    const string& directory, const ZhangCheckpointBundle& bundle,
+    const ZhangPeaControllerCheckpointState& controller,
+    const ZhangE29CheckpointProvenance& target,
+    const ZhangUs20E240ContinuationAuthority* authority, string& failureReason)
+{
+    auto fail = [&](const string& reason) { failureReason = reason; return false; };
+    const auto graph = bundle.sections.find(ZHANG_GRAPH_CHECKPOINT_SECTION_NAME);
+    if (!zhangUs20E240RestorePathAllowed(directory) ||
+        bundle.manifest.runtimeId != ZHANG_US20_GLOBAL134_RUNTIME_ID ||
+        bundle.manifest.experimentMode != ZHANG_US20_GLOBAL134_MODE ||
+        bundle.sections.size() != 9 || graph == bundle.sections.end() ||
+        graph->second.schemaVersion != 5 || !graph->second.payload.starts_with("GINAN_ZHANG_GRAPH_V5\n") ||
+        controller.nextEpoch != controller.completedEpoch + 1 || controller.epochIntervalSeconds != 30)
+        return fail("US20_E240_DECODED_STRUCTURE_REJECTED");
+    string id, epoch;
+    int completed = 0;
+    const auto* finiteProfile=zhangUs20E240ProfileForOutputs(acsConfig.outputs_root);
+    if (!finiteProfile) return fail("US20_E240_FINITE_DECODED_PROFILE_REQUIRED");
+    if (directory == ZHANG_US20_E240_SOURCE_PATH)
+    {
+        completed = 240; epoch = "2024-07-17 01:59:30";
+        id = ZHANG_US20_GLOBAL134_WARMUP_CAPTURE;
+        if (!authority || !authority->matchesSource(bundle.manifest.experimentMode,
+                bundle.manifest.binarySha256, bundle.manifest.configSha256,
+                bundle.manifest.inputManifestSha256) || bundle.kfCore.x.size() != 7274)
+            return fail("US20_E240_DECODED_SOURCE_AUTHORITY_REJECTED");
+    }
+    else
+    {
+        if (authority || bundle.manifest.configText != target.configText ||
+            bundle.manifest.inputManifestText != target.inputManifestText ||
+            bundle.manifest.binarySha256 != zhangCheckpointFileSha256(target.binaryPath))
+            return fail("US20_E240_OWN_ARCHIVE_EXACT_PROVENANCE_REQUIRED");
+        if (directory == zhangUs20E240ValidationSnapshotPath(finiteProfile->root))
+        {
+            completed = 240; epoch = "2024-07-17 01:59:30";
+            id = string(ZHANG_US20_GLOBAL134_WARMUP_CAPTURE) + "-after-restore";
+            if (bundle.kfCore.x.size() != 7274)
+                return fail("US20_E240_VALIDATION_DIMENSION_REJECTED");
+        }
+        else if (!zhangUs20E240OwnCheckpointIdentity(directory,completed,epoch,id,finiteProfile->root))
+            return fail("US20_E240_OWN_ARCHIVE_PATH_REJECTED");
+    }
+    if (bundle.manifest.checkpointId != id || bundle.manifest.epoch != epoch ||
+        controller.completedEpoch != completed ||
+        restoreZhangCheckpointTime(controller.completedTsync).to_string(0) != epoch)
+        return fail("US20_E240_DECODED_CONTROLLER_REJECTED");
+    failureReason.clear(); return true;
+}
+
+bool authoriseGec134FloatToArMigration(
+    const std::filesystem::path& directory, const boost::json::object& manifest,
+    const ZhangE29CheckpointProvenance& target,
+    ZhangE29CheckpointProvenance& source, ZhangGec134MigrationAuthority& authority,
+    string& failureReason)
+{
+    auto readString = [&](const char* name, string& value)
+    {
+        const auto* entry = manifest.if_contains(name);
+        if (!entry || !entry->is_string()) return false;
+        const auto& text = entry->as_string();
+        value.assign(text.data(), text.size()); return true;
+    };
+    string mode, binarySha, configSha, inputSha;
+    if (!readString("experiment_mode", mode) || mode != ZHANG_GEC134_SOURCE_MODE ||
+        !readString("binary_sha256", binarySha) ||
+        !readString("config_sha256", configSha) ||
+        !readString("input_manifest_sha256", inputSha) ||
+        !readString("config_text", source.configText) ||
+        !readString("input_manifest_text", source.inputManifestText) ||
+        target.inputManifestText != source.inputManifestText ||
+        configSha != zhangCheckpointSha256(source.configText) ||
+        inputSha != zhangCheckpointSha256(source.inputManifestText))
+    { failureReason = "GEC134_SOURCE_MANIFEST_IDENTITY_REJECTED"; return false; }
+    source.experimentMode = mode;
+    source.binaryPath = ZHANG_GEC134_SOURCE_BINARY_PATH;
+    std::map<string, string> environment;
+    if (!collectGec134MigrationEnvironment(environment, failureReason)) return false;
+    if (binarySha != zhangCheckpointFileSha256(source.binaryPath) ||
+        target.experimentMode != ZHANG_GEC134_AR_MODE ||
+        directory.string() != ZHANG_GEC134_SOURCE_CHECKPOINT_PATH)
+    { failureReason = "GEC134_SOURCE_EXECUTABLE_OR_PATH_REJECTED"; return false; }
+    return validateZhangGec134Migration(
+        zhangCheckpointFileSha256((directory / ZHANG_E29_CHECKPOINT_BUNDLE_FILENAME).string()),
+        binarySha, configSha, inputSha, source.configText, target.configText,
+        zhangCheckpointSha256(target.inputManifestText), environment, authority, failureReason);
+}
+
+bool authoriseGec134ArContinuation(
+    const std::filesystem::path& directory, const boost::json::object& manifest,
+    const ZhangE29CheckpointProvenance& target,
+    ZhangE29CheckpointProvenance& source, ZhangGec134ArContinuationAuthority& authority,
+    string& failureReason)
+{
+    auto readString = [&](const char* name, string& value)
+    {
+        const auto* entry = manifest.if_contains(name);
+        if (!entry || !entry->is_string()) return false;
+        const auto& text = entry->as_string();
+        value.assign(text.data(), text.size()); return true;
+    };
+    string mode, binarySha, configSha, inputSha, checkpointId, runtimeId, completedEpoch;
+    if (!readString("experiment_mode", mode) || mode != ZHANG_GEC134_AR_MODE ||
+        !readString("binary_sha256", binarySha) ||
+        !readString("config_sha256", configSha) ||
+        !readString("input_manifest_sha256", inputSha) ||
+        !readString("checkpoint_id", checkpointId) || checkpointId != ZHANG_GEC134_AR_E122_ID ||
+        !readString("runtime_id", runtimeId) || runtimeId != ZHANG_GEC134_SOURCE_RUNTIME_ID ||
+        !readString("epoch", completedEpoch) || completedEpoch != "2024-07-17 01:00:30" ||
+        !readString("config_text", source.configText) ||
+        !readString("input_manifest_text", source.inputManifestText) ||
+        target.inputManifestText != source.inputManifestText ||
+        configSha != zhangCheckpointSha256(source.configText) ||
+        inputSha != zhangCheckpointSha256(source.inputManifestText) ||
+        directory.string() != ZHANG_GEC134_AR_E122_PATH)
+    { failureReason = "GEC134_AR_CONTINUATION_SOURCE_MANIFEST_REJECTED"; return false; }
+    source.experimentMode = ZHANG_GEC134_AR_MODE;
+    source.binaryPath = ZHANG_GEC134_AR_E122_BINARY_PATH;
+    std::map<string, string> environment;
+    if (!collectGec134MigrationEnvironment(environment, failureReason)) return false;
+    if (binarySha != zhangCheckpointFileSha256(source.binaryPath) ||
+        target.experimentMode != ZHANG_GEC134_AR_MODE)
+    { failureReason = "GEC134_AR_CONTINUATION_SOURCE_EXECUTABLE_REJECTED"; return false; }
+    return validateZhangGec134ArContinuation(
+        zhangCheckpointFileSha256((directory / ZHANG_E29_CHECKPOINT_BUNDLE_FILENAME).string()),
+        binarySha, configSha, inputSha, source.configText, target.configText,
+        zhangCheckpointSha256(target.inputManifestText), target.binaryPath,
+        zhangCheckpointFileSha256(target.binaryPath), environment, authority, failureReason);
+}
+
+bool loadR51AuditedFloatSourceProvenance(
+    const std::filesystem::path& restoreDirectory,
+    ZhangE29CheckpointProvenance& provenance,
+    string& failureReason)
+{
+    const auto manifestPath =
+        restoreDirectory / ZHANG_E29_CHECKPOINT_MANIFEST_FILENAME;
+    std::ifstream input(manifestPath, std::ios::binary);
+    if (!input)
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_OPEN_FAILED";
+        return false;
+    }
+    const string bytes(
+        (std::istreambuf_iterator<char>(input)),
+        std::istreambuf_iterator<char>());
+    boost::system::error_code error;
+    const boost::json::value parsed = boost::json::parse(bytes, error);
+    if (error || !parsed.is_object())
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_PARSE_FAILED";
+        return false;
+    }
+    const auto& object = parsed.as_object();
+    auto readString = [&](const char* name, string& value)
+    {
+        const auto* entry = object.if_contains(name);
+        if (entry == nullptr || !entry->is_string()) return false;
+        const auto& text = entry->as_string();
+        value.assign(text.data(), text.size());
+        return true;
+    };
+    string binarySha;
+    string configSha;
+    string inputSha;
+    string configText;
+    string inputManifestText;
+    if (!readString("binary_sha256", binarySha)
+     || !readString("config_sha256", configSha)
+     || !readString("input_manifest_sha256", inputSha)
+     || !readString("config_text", configText)
+     || !readString("input_manifest_text", inputManifestText))
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_FIELDS_MISSING";
+        return false;
+    }
+    if (binarySha != "b7b0d35686204154b44448eb097fb6990ca07453cecf9c1fc20f2e80f192cc38"
+     || configSha != "eccca673c2acf8a77824e03573974fb468938055f40a85ddc3d8e7651bb21265"
+     || inputSha != "4f6351a7db3a2af79ae728ffc1d8d6e9b19986cafe49d6c47c6a703cfeac4874"
+     || zhangCheckpointSha256(configText) != configSha
+     || zhangCheckpointSha256(inputManifestText) != inputSha)
+    {
+        failureReason = "R51_FLOAT_REUSE_SOURCE_MANIFEST_IDENTITY_REJECTED";
+        return false;
+    }
+    provenance.configText = std::move(configText);
+    provenance.inputManifestText = std::move(inputManifestText);
+    return true;
+}
+
+bool normaliseE29LocalInputPath(
+    const string& source,
+    std::filesystem::path& path,
+    string& failureReason
+)
+{
+    if (source.empty())
+    {
+        failureReason = "E29_INPUT_MANIFEST_EMPTY_SOURCE";
+        return false;
+    }
+    const auto protocol = source.find("://");
+    if (protocol == string::npos)
+    {
+        path = source;
+        return true;
+    }
+    if (source.substr(0, protocol) != "file")
+    {
+        failureReason = "E29_INPUT_MANIFEST_NONLOCAL_SOURCE_UNSUPPORTED:" + source;
+        return false;
+    }
+    path = source.substr(protocol + 3);
+    if (path.empty())
+    {
+        failureReason = "E29_INPUT_MANIFEST_FILE_URI_EMPTY";
+        return false;
+    }
+    return true;
+}
+
+bool buildE29InputManifestText(string& manifestText, string& failureReason)
+{
+    std::vector<E29InputFileRecord> records;
+    auto addFile = [&](
+        const string& role,
+        const string& owner,
+        std::size_t ordinal,
+        const string& source) -> bool
+    {
+        std::filesystem::path inputPath;
+        if (!normaliseE29LocalInputPath(source, inputPath, failureReason))
+        {
+            return false;
+        }
+        std::filesystem::path canonicalPath;
+        string bytes;
+        string sha256;
+        std::uintmax_t size = 0;
+        if (!readE29RegularFile(
+                inputPath, canonicalPath, nullptr, size, sha256, failureReason))
+        {
+            return false;
+        }
+        records.push_back({role, owner, ordinal, canonicalPath.string(), size, sha256});
+        return true;
+    };
+    auto addVector = [&](const string& role, const auto& values) -> bool
+    {
+        for (std::size_t index = 0; index < values.size(); index++)
+        {
+            if (!addFile(role, "", index, values[index]))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+    auto addMap = [&](const string& role, const auto& values) -> bool
+    {
+        for (const auto& [owner, paths] : values)
+        for (std::size_t index = 0; index < paths.size(); index++)
+        {
+            if (!addFile(role, owner, index, paths[index]))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+#define ADD_E29_INPUT_VECTOR(field) \
+    if (!addVector(#field, acsConfig.field)) return false
+    ADD_E29_INPUT_VECTOR(atx_files);
+    ADD_E29_INPUT_VECTOR(snx_files);
+    ADD_E29_INPUT_VECTOR(nav_files);
+    ADD_E29_INPUT_VECTOR(ems_files);
+    ADD_E29_INPUT_VECTOR(sp3_files);
+    ADD_E29_INPUT_VECTOR(clk_files);
+    ADD_E29_INPUT_VECTOR(obx_files);
+    ADD_E29_INPUT_VECTOR(sid_files);
+    ADD_E29_INPUT_VECTOR(com_files);
+    ADD_E29_INPUT_VECTOR(crd_files);
+    ADD_E29_INPUT_VECTOR(vmf_files);
+    ADD_E29_INPUT_VECTOR(erp_files);
+    ADD_E29_INPUT_VECTOR(dcb_files);
+    ADD_E29_INPUT_VECTOR(bsx_files);
+    ADD_E29_INPUT_VECTOR(ion_files);
+    ADD_E29_INPUT_VECTOR(igrf_files);
+    ADD_E29_INPUT_VECTOR(egm_files);
+    ADD_E29_INPUT_VECTOR(cmc_files);
+    ADD_E29_INPUT_VECTOR(hfeop_files);
+    ADD_E29_INPUT_VECTOR(gpt2grid_files);
+    ADD_E29_INPUT_VECTOR(orography_files);
+    ADD_E29_INPUT_VECTOR(pseudo_filter_files);
+    ADD_E29_INPUT_VECTOR(atm_reg_definitions);
+    ADD_E29_INPUT_VECTOR(space_weather_files);
+    ADD_E29_INPUT_VECTOR(planetary_ephemeris_files);
+    ADD_E29_INPUT_VECTOR(ocean_tide_potential_files);
+    ADD_E29_INPUT_VECTOR(atmos_tide_potential_files);
+    ADD_E29_INPUT_VECTOR(ocean_tide_loading_blq_files);
+    ADD_E29_INPUT_VECTOR(atmos_tide_loading_blq_files);
+    ADD_E29_INPUT_VECTOR(ocean_pole_tide_loading_files);
+    ADD_E29_INPUT_VECTOR(atmos_ocean_dealiasing_files);
+    ADD_E29_INPUT_VECTOR(ocean_pole_tide_potential_files);
+#undef ADD_E29_INPUT_VECTOR
+
+#define ADD_E29_INPUT_MAP(field) \
+    if (!addMap(#field, acsConfig.field)) return false
+    ADD_E29_INPUT_MAP(rnx_inputs);
+    ADD_E29_INPUT_MAP(ubx_inputs);
+    ADD_E29_INPUT_MAP(sbf_inputs);
+    ADD_E29_INPUT_MAP(custom_inputs);
+    ADD_E29_INPUT_MAP(obs_rtcm_inputs);
+    ADD_E29_INPUT_MAP(pseudo_sp3_inputs);
+    ADD_E29_INPUT_MAP(pseudo_snx_inputs);
+#undef ADD_E29_INPUT_MAP
+
+    if (!addVector("sisnet_inputs", acsConfig.sisnet_inputs)
+        || !addVector("nav_rtcm_inputs", acsConfig.nav_rtcm_inputs)
+        || !addVector("qzs_rtcm_inputs", acsConfig.qzs_rtcm_inputs)
+        || !addMap("slr_observation_streams", slrObsFiles))
+    {
+        return false;
+    }
+
+    // This inventory is derived from live objects as well as ACSConfig so an
+    // indirectly generated or otherwise unlisted stream cannot escape hashing.
+    std::map<string, std::size_t> runtimeOrdinals;
+    for (const auto& [owner, streamParser] : streamParserMultimap)
+    {
+        if (!streamParser)
+        {
+            failureReason = "E29_INPUT_MANIFEST_NULL_RUNTIME_STREAM";
+            return false;
+        }
+        const string ordinalKey = owner + "\n" + streamParser->stream.sourceString;
+        const std::size_t ordinal = runtimeOrdinals[ordinalKey]++;
+        if (!addFile(
+                "runtime_stream", owner, ordinal,
+                streamParser->stream.sourceString))
+        {
+            return false;
+        }
+    }
+
+    std::sort(records.begin(), records.end());
+    std::ostringstream output;
+    output << "E29_LOCAL_INPUT_MANIFEST_V1\n";
+    output << "record_count=" << records.size() << "\n";
+    for (std::size_t index = 0; index < records.size(); index++)
+    {
+        const auto& record = records[index];
+        const string prefix = "record_" + std::to_string(index) + "_";
+        appendE29LengthPrefixedField(output, prefix + "role", record.role);
+        appendE29LengthPrefixedField(output, prefix + "owner", record.owner);
+        output << prefix << "ordinal=" << record.ordinal << "\n";
+        appendE29LengthPrefixedField(
+            output, prefix + "canonical_path", record.canonicalPath);
+        output << prefix << "size=" << record.size << "\n";
+        appendE29LengthPrefixedField(output, prefix + "sha256", record.sha256);
+    }
+    manifestText = output.str();
+    if (manifestText.empty())
+    {
+        failureReason = "E29_INPUT_MANIFEST_SERIALIZATION_EMPTY";
+        return false;
+    }
+    return true;
+}
+
+bool buildE29CheckpointProvenance(
+    int                            argc,
+    char**                         argv,
+    ZhangE29CheckpointProvenance& provenance,
+    string&                        failureReason
+)
+{
+    provenance = {};
+    if (!resolveE29ExecutablePath(
+            argc > 0 ? argv[0] : nullptr,
+            provenance.binaryPath,
+            failureReason)
+        || !buildE29CanonicalConfigText(
+            argc, argv, provenance.configText, failureReason)
+        || !buildE29InputManifestText(
+            provenance.inputManifestText, failureReason))
+    {
+        return false;
+    }
+    provenance.experimentMode = zhangCheckpointModeForConfig(acsConfig, failureReason);
+    if (provenance.experimentMode.empty()) return false;
+    return true;
+}
+
+bool validateE29AppendOnlyProductFile(
+    const string& filename,
+    const string& expectedHeader,
+    GTime         completedTsync,
+    GTime         resumeTsync,
+    string&       failureReason
+)
+{
+    if (filename.empty())
+    {
+        return true;
+    }
+    std::error_code error;
+    const std::filesystem::path path(filename);
+    if (!std::filesystem::exists(path, error))
+    {
+        if (error)
+        {
+            failureReason = "E29_RESTORE_OUTPUT_STAT_FAILED:" + filename;
+            return false;
+        }
+        return true;
+    }
+    if (!std::filesystem::is_regular_file(path, error) || error)
+    {
+        failureReason = "E29_RESTORE_OUTPUT_NOT_REGULAR_FILE:" + filename;
+        return false;
+    }
+    if (std::filesystem::file_size(path, error) == 0 && !error)
+    {
+        return true;
+    }
+    if (error)
+    {
+        failureReason = "E29_RESTORE_OUTPUT_SIZE_FAILED:" + filename;
+        return false;
+    }
+
+    std::ifstream input(path);
+    string line;
+    if (!input || !std::getline(input, line) || line != expectedHeader)
+    {
+        failureReason = "E29_RESTORE_OUTPUT_HEADER_MISMATCH:" + filename;
+        return false;
+    }
+
+    bool sawData = false;
+    long double previousEpoch = -std::numeric_limits<long double>::infinity();
+    long double maximumEpoch = -std::numeric_limits<long double>::infinity();
+    std::size_t lineNumber = 1;
+    while (std::getline(input, line))
+    {
+        lineNumber++;
+        if (line.empty())
+        {
+            failureReason = "E29_RESTORE_OUTPUT_EMPTY_DATA_ROW:" + filename +
+                            ":" + std::to_string(lineNumber);
+            return false;
+        }
+        const auto comma = line.find(',');
+        if (comma == string::npos || comma == 0)
+        {
+            failureReason = "E29_RESTORE_OUTPUT_EPOCH_FIELD_MISSING:" + filename +
+                            ":" + std::to_string(lineNumber);
+            return false;
+        }
+        const string epochField = line.substr(0, comma);
+        std::size_t consumed = 0;
+        long double dataEpoch = 0;
+        try
+        {
+            dataEpoch = std::stold(epochField, &consumed);
+        }
+        catch (...)
+        {
+            failureReason = "E29_RESTORE_OUTPUT_EPOCH_PARSE_FAILED:" + filename +
+                            ":" + std::to_string(lineNumber);
+            return false;
+        }
+        if (consumed != epochField.size() || !std::isfinite(dataEpoch))
+        {
+            failureReason = "E29_RESTORE_OUTPUT_EPOCH_INVALID:" + filename +
+                            ":" + std::to_string(lineNumber);
+            return false;
+        }
+        if (dataEpoch + 1e-9L < previousEpoch)
+        {
+            failureReason = "E29_RESTORE_OUTPUT_EPOCH_ORDER_INVALID:" + filename +
+                            ":" + std::to_string(lineNumber);
+            return false;
+        }
+        sawData = true;
+        previousEpoch = dataEpoch;
+        maximumEpoch = std::max(maximumEpoch, dataEpoch);
+    }
+    if (!input.eof())
+    {
+        failureReason = "E29_RESTORE_OUTPUT_READ_FAILED:" + filename;
+        return false;
+    }
+    if (!sawData)
+    {
+        return true;
+    }
+    if (maximumEpoch > completedTsync.bigTime + 1e-9L
+        || maximumEpoch >= resumeTsync.bigTime - 1e-9L)
+    {
+        failureReason = "E29_RESTORE_OUTPUT_CONTAINS_FUTURE_EPOCH:" + filename;
+        return false;
+    }
+    return true;
+}
+
+bool validateE29RestoreProductOutputs(
+    GTime completedTsync,
+    GTime resumeTsync,
+    string& failureReason
+)
+{
+    static const string legacyProductHeader =
+        "gpst_seconds,solution,satellite,observable,clock_m,clock_sigma_m,"
+        "phase_m,phase_sigma_m,clock_phase_covariance_m2,correction_m,"
+        "correction_sigma_m,discontinuity_counter,integer_shift_cycles,"
+        "fractional_shift_cycles,datum_version,valid_from_gpst_seconds,"
+        "product_iod,reset_reason,persistent_relation_known,"
+        "current_alignment_state,integer_structure_valid,"
+        "integer_datum_continuous,integer_precision_valid,integer_valid,"
+        "integer_component_id,integer_datum_id,"
+        "solution_interval_start_gpst_seconds,"
+        "solution_interval_end_gpst_seconds,numeric_valid,branch_valid,"
+        "continuity_valid,ppp_usable,pppar_usable,invalid_reason";
+    // The explicit GEC AR capability writes the current product schema.
+    // Its checkpoints must be able to resume beside their own append-only
+    // products; accepting only the historical 34-column schema made that
+    // ordinary exact-provenance restore fail after its first output epoch.
+    // Do not broaden the legacy GPS/FLOAT restore contract here.
+    static const string gecArProductHeader = legacyProductHeader +
+        ",phase_product_segment_id,integer_component_version,"
+        "integer_alignment_generation,real_gauge_generation,"
+        "integer_component_size,integer_component_rank,"
+        "certified_relation_count,redundant_relation_count,"
+        "cycle_closure_valid,dual_frequency_ar_valid,product_state,"
+        "discontinuity,ar_valid,support_segment_fingerprint,"
+        "backend_s_basis_generation,same_segment_continuous,"
+        "requires_user_ambiguity_reset,public_phase_segment_id," +
+        std::string(zhangPublishedContinuityCsvHeader);
+    static const string covarianceHeader =
+        "gpst_seconds,solution,row_satellite,row_parameter,row_observable,"
+        "column_satellite,column_parameter,column_observable,covariance_m2";
+    return validateE29AppendOnlyProductFile(
+               acsConfig.zhangPppAr.product_filename,
+               zhangMultiGnssArCheckpointActive(acsConfig)
+                   ? gecArProductHeader : legacyProductHeader,
+               completedTsync, resumeTsync, failureReason)
+        && validateE29AppendOnlyProductFile(
+               acsConfig.zhangPppAr.product_covariance_filename,
+               covarianceHeader, completedTsync, resumeTsync, failureReason);
+}
+
+bool canonicaliseE29CaptureEpochs(
+    const std::vector<string>& configured,
+    std::set<string>&          canonical,
+    string&                    failureReason
+)
+{
+    canonical.clear();
+    for (const string& epochText : configured)
+    {
+        try
+        {
+            const auto parsed = boost::posix_time::time_from_string(epochText);
+            const GTime epochTime(parsed);
+            if (epochTime.to_string(0) != epochText)
+            {
+                failureReason = "E29_CAPTURE_EPOCH_NOT_CANONICAL:" + epochText;
+                return false;
+            }
+            const long double interval = acsConfig.epoch_interval;
+            const long double quotient = epochTime.bigTime / interval;
+            if (std::abs(quotient - std::round(quotient)) > 1e-9L)
+            {
+                failureReason = "E29_CAPTURE_EPOCH_NOT_INTERVAL_ALIGNED:" + epochText;
+                return false;
+            }
+        }
+        catch (const std::exception& exception)
+        {
+            failureReason = "E29_CAPTURE_EPOCH_PARSE_FAILED:" + epochText +
+                            ":" + exception.what();
+            return false;
+        }
+        if (!canonical.insert(epochText).second)
+        {
+            failureReason = "E29_CAPTURE_EPOCH_DUPLICATE:" + epochText;
+            return false;
+        }
+    }
+    return true;
+}
+
+string makeE29CheckpointId(const string& runtimeId, int completedEpoch, GTime completedTsync)
+{
+    string compactTime = completedTsync.to_ISOstring(0);
+    compactTime.erase(
+        std::remove_if(
+            compactTime.begin(), compactTime.end(),
+            [](char value)
+            {
+                return value == '-' || value == ':' || value == 'T' || value == ' ';
+            }),
+        compactTime.end());
+    const string runtimeHash = zhangCheckpointSha256(runtimeId);
+    return "E29-" + compactTime + "-e" + std::to_string(completedEpoch) +
+           "-r" + runtimeHash.substr(0, 12);
+}
+}  // namespace
+
+struct ConfiguredStreamState
+{
+    std::set<string> configuredSources;
+    std::set<string> configuredReceivers;
+};
+
+std::vector<StreamParserPtr> retiredStreamParsers;
+
+string streamDisplayName(const string& sourceString)
+{
+    URL url(sourceString);
+
+    if (url.host.empty() == false && url.path.empty() == false)
+    {
+        if (url.path.front() == '/')
+        {
+            return url.path.substr(1);
+        }
+
+        return url.path;
+    }
+
+    return sourceString;
+}
+
+void retireStreamParser(StreamParserPtr streamParser_ptr)
+{
+    if (streamParser_ptr == nullptr)
+    {
+        return;
+    }
+
+    try
+    {
+        if (auto* tcpSocket = dynamic_cast<TcpSocket*>(&streamParser_ptr->stream))
+        {
+            tcpSocket->shutdown();
+        }
+    }
+    catch (...)
+    {
+    }
+
+    retiredStreamParsers.push_back(std::move(streamParser_ptr));
+}
+
+ConfiguredStreamState getConfiguredStreamState()
+{
+    ConfiguredStreamState state;
+
+    auto addSources = [&](const vector<string>& inputNames)
+    { state.configuredSources.insert(inputNames.begin(), inputNames.end()); };
+
+    auto addReceiverSources = [&](const auto& inputMap)
+    {
+        for (const auto& [id, inputNames] : inputMap)
+        {
+            state.configuredReceivers.insert(id);
+            addSources(inputNames);
+        }
+    };
+
+    for (const auto& [id, slrInputs] : slrObsFiles)
+    {
+        state.configuredReceivers.insert(id);
+        addSources(slrInputs);
+    }
+
+    addReceiverSources(acsConfig.ubx_inputs);
+    addReceiverSources(acsConfig.sbf_inputs);
+    addReceiverSources(acsConfig.custom_inputs);
+    addReceiverSources(acsConfig.rnx_inputs);
+    addReceiverSources(acsConfig.obs_rtcm_inputs);
+    addReceiverSources(acsConfig.pseudo_sp3_inputs);
+    addReceiverSources(acsConfig.pseudo_snx_inputs);
+
+    addSources(acsConfig.nav_rtcm_inputs);
+    addSources(acsConfig.qzs_rtcm_inputs);
+    addSources(acsConfig.sisnet_inputs);
+
+    return state;
+}
+
+void avoidCollisions(ReceiverMap& receiverMap)
+{
+    for (auto& [id, rec] : receiverMap)
+    {
+        auto trace = getTraceFile(rec);
+    }
+
+    for (auto& [id, rec] : receiverMap)
+    {
+        // create sinex estimate maps
+        theSinex.estimatesMap[id];
+        theSinex.solEpochMap[id];
+
+        auto& recOpts = acsConfig.getRecOpts(id);
+
+        if (recOpts.sat_id.empty() == false)
+        {
+            auto& satNav = nav.satNavMap[recOpts.sat_id.c_str()];
+        }
+    }
+}
+
+/** Perform operations for each station
+ * This function occurs in parallel with other stations - ensure that any operations on global maps
+ * do not create new entries, as that will destroy the map for other processes. Variables within the
+ * rec object are ok to use, but be aware that pointers from the within the receiver often point to
+ * global variables. Prepare global maps by accessing the desired elements before calling this
+ * function.
+ */
+void mainOncePerEpochPerStation(Receiver& rec, Network& net, bool& emptyEpoch, KFState& remoteState)
+{
+    if (rec.isPseudoRec)
+    {
+        return;
+    }
+
+    auto trace = getTraceFile(rec);
+
+    if (rec.ready == false)
+    {
+        string missingStatus;
+        if (auto it = latestMissingObsStatusByReceiver.find(rec.id);
+            it != latestMissingObsStatusByReceiver.end())
+        {
+            missingStatus = it->second;
+        }
+
+        trace << "\n"
+              << "Receiver " << rec.id << " has no data for this epoch";
+        if (missingStatus.empty() == false)
+        {
+            trace << " (" << missingStatus << ")";
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "Receiver " << rec.id << " has no data for this epoch"
+                                << (missingStatus.empty() ? "" : " (" + missingStatus + ")");
+        return;
+    }
+
+    sinexPerEpochPerStation(trace, tsync, rec);
+
+    preprocessor(trace, rec, true, &net.kfState, &remoteState);
+
+    if (acsConfig.process_preprocessor == false)
+    {
+        // Update observation variances if not calculated in preprocessor
+        obsVariances(rec.obsList);
+    }
+
+    if (acsConfig.process_spp)
+    {
+        spp(trace, rec, &net.kfState, &remoteState);
+    }
+
+    if (rec.ready == false || rec.invalid)
+    {
+        return;
+    }
+
+    auto missingWarnInvalidate = [&](string thing, bool failureBool, bool requiredConfig) -> bool
+    {
+        if (failureBool == false)
+        {
+            return false;
+        }
+
+        if (requiredConfig)
+        {
+            trace << "\n"
+                  << "Warning: Receiver " << rec.id << " rejected due to lack of " << thing;
+            BOOST_LOG_TRIVIAL(warning)
+                << "Receiver " << rec.id << " rejected due to lack of " << thing;
+
+            rec.invalid = true;
+
+            return true;
+        }
+
+        BOOST_LOG_TRIVIAL(warning) << thing << " not found for " << rec.id;
+
+        return false;
+    };
+
+    bool sppUsed;
+    selectAprioriSource(trace, rec, tsync, sppUsed, net.kfState, &remoteState);
+
+    if (sppUsed)
+    {
+        string message =
+            "fixed receiver apriori position not found for " + rec.id
+            + "; using SPP fallback. Check receiver_options." + rec.id
+            + ".apriori_position, receiver_options." + rec.id
+            + ".models.pos.sources, and loaded SINEX station coordinates.";
+
+        if (acsConfig.require_apriori_positions)
+        {
+            trace << "\n"
+                  << "Warning: Receiver " << rec.id << " rejected because " << message;
+            BOOST_LOG_TRIVIAL(warning) << "Receiver " << rec.id << " rejected because " << message;
+
+            rec.invalid = true;
+
+            return;
+        }
+
+        BOOST_LOG_TRIVIAL(warning) << message;
+    }
+
+    if (missingWarnInvalidate(
+            "Receiver metadata apriori position",
+            rec.failureAprioriPos,
+            acsConfig.require_apriori_positions
+        ))
+        return;
+    if (missingWarnInvalidate(
+            "Antenna details",
+            rec.antennaId.empty(),
+            acsConfig.require_antenna_details
+        ))
+        return;
+    if (missingWarnInvalidate(
+            "Site eccentricity",
+            rec.failureEccentricity,
+            acsConfig.require_site_eccentricity
+        ))
+        return;
+    if (missingWarnInvalidate("Sinex information", rec.failureSinex, acsConfig.require_sinex_data))
+        return;
+
+    emptyEpoch = false;
+
+    BOOST_LOG_TRIVIAL(trace) << "Read " << rec.obsList.size() << " observations for station "
+                             << rec.id;
+
+    // calculate statistics
+    if (rec.obsList.empty() == false)
+    {
+        if ((GTime)rec.firstEpoch == GTime::noTime())
+        {
+            rec.firstEpoch = rec.obsList.front()->time;
+        }
+        rec.lastEpoch = rec.obsList.front()->time;
+        rec.epochCount++;
+        rec.obsCount += rec.obsList.size();
+
+        for (auto& obs : only<GObs>(rec.obsList))
+            for (auto& [ft, sigList] : obs.sigsLists)
+                for (auto& sig : sigList)
+                {
+                    rec.codeCount[sig.code]++;
+                }
+
+        for (auto& obs : only<GObs>(rec.obsList))
+        {
+            rec.satCount[obs.Sat]++;
+        }
+    }
+
+    if (acsConfig.process_ionosphere)
+    {
+        obsIonoData(trace, rec);
+    }
+
+    auto& recOpts = acsConfig.getRecOpts(rec.id);
+
+    rec.antBoresight = recOpts.antenna_boresight;
+    rec.antAzimuth   = recOpts.antenna_azimuth;
+
+    recAtt(rec, tsync, recOpts.attitudeModel.sources);
+    testEclipse(rec.obsList);
+
+    if (acsConfig.output_rinex_obs)
+    {
+        writeRinexObs(rec.id, rec, tsync, rec.obsList, acsConfig.rinex_obs_version);
+    }
+}
+
+void mainOncePerEpochPerSatellite(
+    Trace&   trace,
+    GTime    time,
+    SatSys   Sat,
+    KFState& kfState,
+    KFState& remoteKF
+)
+{
+    auto& satNav  = nav.satNavMap[Sat];
+    auto& satOpts = acsConfig.getSatOpts(Sat);
+
+    if (satOpts.exclude)
+    {
+        return;
+    }
+
+    // get svn and block type if possible
+    if (Sat.svn().empty())
+    {
+        auto it = nav.svnMap[Sat].lower_bound(time);
+        if (it == nav.svnMap[Sat].end())
+        {
+            BOOST_LOG_TRIVIAL(warning) << "SVN not found for " << Sat.id();
+
+            Sat.setSvn("UNKNOWN");
+        }
+        else
+        {
+            Sat.setSvn(it->second);
+        }
+
+        // reinitialise the options with the updated values
+        satOpts._initialised = false;
+    }
+
+    if (Sat.blockType().empty())
+    {
+        auto it = nav.blocktypeMap.find(Sat.svn());
+        if (it == nav.blocktypeMap.end())
+        {
+            BOOST_LOG_TRIVIAL(warning)
+                << "Block type not found for " << Sat.id()
+                << ", attitude modelling etc may be affected, check sinex file";
+
+            Sat.setBlockType("UNKNOWN");
+        }
+        else
+        {
+            Sat.setBlockType(it->second);
+        }
+
+        // reinitialise the options with the updated values
+        satOpts._initialised =
+            false;  // todo? this is insufficient since the opts are inherited from the other
+                    // initialised ones per file which are not reset
+    }
+
+    satOpts = acsConfig.getSatOpts(Sat);
+
+    satNav.antBoresight = satOpts.antenna_boresight;
+    satNav.antAzimuth   = satOpts.antenna_azimuth;
+
+    selectAprioriSource(Sat, time, kfState, &remoteKF);
+}
+
+void cullData(GTime time)
+{
+    cullOldEphs(time);
+    cullOldSSRs(time);
+    cullOldBiases(time);
+
+    mongoCull(time);
+}
+
+bool mainOncePerEpoch(Network& pppNet, Network& ionNet, ReceiverMap& receiverMap, GTime time)
+{
+    traceFloatInputMemoryBoundary("MAIN_ONCE_ENTRY","POINT",receiverMap,pppNet.kfState);
+    avoidCollisions(receiverMap);
+
+    // reload any new or modified files
+    reloadInputFiles();
+    traceFloatInputMemoryBoundary("MAIN_INPUT_RELOAD","END",receiverMap,pppNet.kfState);
+
+    addDefaultBias();
+
+    createTracefiles(receiverMap, pppNet, ionNet);
+    traceFloatInputMemoryBoundary("MAIN_TRACE_PREPARE","END",receiverMap,pppNet.kfState);
+
+    auto pppTrace = getTraceFile(pppNet);
+
+    // initialise mongo if not already done
+    mongoooo();
+
+    // integrate accelerations and early prepare satPos0 with propagated values
+    traceFloatInputMemoryBoundary("MAIN_ORBIT_PREDICTION","BEGIN",receiverMap,pppNet.kfState);
+    predictOrbits(pppTrace, pppNet.kfState, time);
+    traceFloatInputMemoryBoundary("MAIN_ORBIT_PREDICTION","END",receiverMap,pppNet.kfState);
+    // predictInertials(pppTrace, pppNet.kfState, time);
+
+    BOOST_LOG_TRIVIAL(info) << " ------- PREPROCESSING STATIONS       --------" << "\n";
+
+    KFState remoteState;
+    traceFloatInputMemoryBoundary("MAIN_SATELLITE_PREPARE","BEGIN",receiverMap,pppNet.kfState);
+    if (acsConfig.mongoOpts.use_predictions != E_Mongo::NONE)
+    {
+        mongoReadFilter(remoteState, time, acsConfig.mongoOpts.used_predictions);
+
+        BOOST_LOG_TRIVIAL(info) << "Remote state was updated at " << remoteState.time.to_string();
+
+        remoteState.outputStates(pppTrace, "/REMOTE");
+
+        mongoStates(
+            pppNet.kfState,
+            {.suffix    = "/REMOTE",
+             .instances = acsConfig.mongoOpts.output_states,
+             .queue     = acsConfig.mongoOpts.queue_outputs}
+        );
+
+        pppNet.kfState.alternate_ptr = &remoteState;
+
+        nav.erp.filterValues = getErpFromFilter(pppNet.kfState);
+    }
+
+    const int DT = 1;
+    for (int dt : {DT, 0})
+    {
+        ERPValues erpv = getErp(nav.erp, time + dt);
+
+        FrameSwapper frameSwapper(time + dt, erpv);
+
+        frameSwapper.setCache(dt);
+    }
+
+    loadSBASdata(pppTrace, time, nav);
+
+    // try to get svns & block types of all used satellites
+    for (auto& [Sat, satNav] : nav.satNavMap)
+    {
+        if (acsConfig.process_sys[Sat.sys] == false)
+            continue;
+
+        mainOncePerEpochPerSatellite(pppTrace, time, Sat, pppNet.kfState, remoteState);
+    }
+
+    traceFloatInputMemoryBoundary("MAIN_SATELLITE_PREPARE","END",receiverMap,pppNet.kfState);
+    // do per-station pre processing
+    traceFloatInputMemoryBoundary("MAIN_STATION_PREPROCESS","BEGIN",receiverMap,pppNet.kfState);
+    bool emptyEpoch = true;
+    std::vector<Receiver*> stationWork;
+    stationWork.reserve(receiverMap.size());
+    for(auto& [id,rec]:receiverMap)stationWork.push_back(&rec);
+    std::vector<unsigned char> hasObservations(stationWork.size());
+    std::vector<double> stationMs(stationWork.size());
+    const auto stationStarted=std::chrono::steady_clock::now();
+    {
+    ZhangFloatThreading::ScopedFloatThreads preprocessThreads;
+    ZhangFloatThreading::ScopedOuterWork outerWork;
+#ifdef ENABLE_PARALLELISATION
+#pragma omp parallel for schedule(dynamic,1)
+#endif
+    for (int i = 0; i < static_cast<int>(stationWork.size()); i++)
+    {
+        bool localEmpty=true;
+        const auto started=std::chrono::steady_clock::now();
+        mainOncePerEpochPerStation(*stationWork[i],pppNet,localEmpty,remoteState);
+        hasObservations[i]=!localEmpty;
+        stationMs[i]=std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-started).count();
+    }
+    }
+    emptyEpoch=std::none_of(hasObservations.begin(),hasObservations.end(),
+        [](unsigned char seen){return seen!=0;});
+    std::sort(stationMs.begin(),stationMs.end());
+    const auto stationQuantile=[&](double fraction) {
+        if(stationMs.empty())return 0.0;
+        return stationMs[static_cast<std::size_t>(fraction*(stationMs.size()-1))];
+    };
+    pppTrace<<"\nZHANG_FLOAT_PREPROCESS_WORK epoch="<<time.to_string(0)
+        <<" stations_seen="<<stationWork.size()
+        <<" nonempty_stations="<<std::count(hasObservations.begin(),hasObservations.end(),1)
+        <<" wall_ms="<<std::chrono::duration<double,std::milli>(
+            std::chrono::steady_clock::now()-stationStarted).count()
+        <<" station_ms_p50="<<stationQuantile(0.50)
+        <<" station_ms_p95="<<stationQuantile(0.95)
+        <<" station_ms_max="<<stationQuantile(1.0);
+    traceFloatInputMemoryBoundary("MAIN_STATION_PREPROCESS","END",receiverMap,pppNet.kfState);
+
+    if (emptyEpoch)
+    {
+        BOOST_LOG_TRIVIAL(warning) << "Epoch " << epoch << " has no observations";
+    }
+
+    if (acsConfig.process_ppp)
+    {
+        traceFloatInputMemoryBoundary("MAIN_PPP_ENTRY","POINT",receiverMap,pppNet.kfState);
+        const bool pppCommitted = ppp(
+            pppTrace, receiverMap, pppNet.kfState, remoteState);
+
+        for (auto& [Sat, satNav] : nav.satNavMap)
+        {
+            // prevent the memoised orbital positions being used in per epoch post processing and
+            // outputs
+            satNav.satPos0.posTime = GTime::noTime();
+        }
+
+        if (!pppCommitted)
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "PPP epoch transaction failed closed at " << time;
+            return false;
+        }
+    }
+
+    perEpochPostProcessingAndOutputs(
+        pppTrace,
+        time,
+        ionNet,
+        receiverMap,
+        pppNet.kfState,
+        emptyEpoch
+    );
+
+    if (acsConfig.delete_old_ephemerides)
+    {
+        cullData(time);
+    }
+
+    if (acsConfig.check_plumbing)
+    {
+        plumber();
+    }
+
+    callbacksOncePerEpoch();
+
+    return true;
+}
+
+/** Perform any post-final epoch calculations and outputs, then begin reverse smoothing and tidy up
+ */
+void mainPostProcessing(Network& pppNet, Network& ionNet, ReceiverMap& receiverMap)
+{
+    BOOST_LOG_TRIVIAL(info) << "Post processing... ";
+
+    auto pppTrace = getTraceFile(pppNet);
+
+    if (acsConfig.process_ppp && acsConfig.ambrOpts.mode != E_ARmode::OFF &&
+        acsConfig.ambrOpts.once_per_epoch == false && acsConfig.ambrOpts.fix_and_hold)
+    {
+        BOOST_LOG_TRIVIAL(info) << "\n"
+                                << "---------------PERFORMING AMBIGUITY RESOLUTION ON NETWORK WITH "
+                                   "FIX AND HOLD ------------- "
+                                << "\n";
+
+        fixAndHoldAmbiguities(pppTrace, pppNet.kfState);
+
+        mongoStates(
+            pppNet.kfState,
+            {.suffix    = "/AR",
+             .instances = acsConfig.mongoOpts.output_states,
+             .queue     = acsConfig.mongoOpts.queue_outputs}
+        );
+    }
+
+    if (acsConfig.process_ppp && acsConfig.process_minimum_constraints &&
+        acsConfig.minconOpts.once_per_epoch == false)
+    {
+        BOOST_LOG_TRIVIAL(info) << " ------- PERFORMING MIN-CONSTRAINTS   --------" << "\n";
+
+        for (auto& [id, rec] : receiverMap)
+        {
+            rec.minconApriori = rec.aprioriPos;
+        }
+
+        {
+            ERPValues erpv = getErp(nav.erp, pppNet.kfState.time);
+
+            FrameSwapper frameSwapper(pppNet.kfState.time, erpv);
+
+            for (auto& [Sat, satNav] : nav.satNavMap)
+            {
+                SatPos satPos;
+
+                satPos.Sat        = Sat;
+                satPos.satNav_ptr = &satNav;
+
+                bool pass = satpos(
+                    nullStream,
+                    pppNet.kfState.time,
+                    pppNet.kfState.time,
+                    satPos,
+                    {E_Source::PRECISE, E_Source::BROADCAST},
+                    E_OffsetType::COM,
+                    nav
+                );
+                if (pass == false)
+                {
+                    BOOST_LOG_TRIVIAL(warning) << "No sat pos found for " << satPos.Sat.id() << ".";
+                    continue;
+                }
+
+                satNav.aprioriPos = frameSwapper(satPos.rSatCom);
+            }
+        }
+
+        MinconStatistics minconStatistics;
+
+        mincon(pppTrace, pppNet.kfState, &minconStatistics);
+
+        pppNet.kfState.outputStates(pppTrace, "/CONSTRAINED");
+
+        mongoStates(
+            pppNet.kfState,
+            {.suffix    = "/CONSTRAINED",
+             .instances = acsConfig.mongoOpts.output_states,
+             .queue     = acsConfig.mongoOpts.queue_outputs}
+        );
+
+        outputMinconStatistics(pppTrace, minconStatistics);
+    }
+
+    if (acsConfig.output_sinex)
+    {
+        sinexPostProcessing(tsync, receiverMap, pppNet.kfState);
+    }
+
+    outputPredictedStates(pppTrace, pppNet.kfState);
+
+    if (acsConfig.process_rts)
+    {
+        while (spitQueueRunning)
+        {
+            sleep_for(std::chrono::milliseconds(acsConfig.sleep_milliseconds));
+        }
+
+        for (auto& [Sat, satNav] : nav.satNavMap)
+        {
+            // prevent the memoised orbital positions being used in rts
+            satNav.satPos0.posTime = GTime::noTime();
+        }
+
+        if (acsConfig.process_ppp)
+        {
+            rtsSmoothing(pppNet.kfState, receiverMap, true);
+        }
+
+        if (acsConfig.process_ionosphere)
+        {
+            rtsSmoothing(ionNet.kfState, receiverMap, true);
+        }
+    }
+
+    outputSummaries(pppTrace, receiverMap);
+
+    outputStatistics(pppTrace, pppNet.kfState.statisticsMapSum, pppNet.kfState.statisticsMapSum);
+}
+
+void tryExitGracefully(int signum)
+{
+    if (!epochStopRequest.request())
+    {
+        // second time this is called, dont worry too much about gracefullness
+        abort();
+    }
+
+    // Logging/configuration writes are not signal-safe. Finish the current
+    // epoch using unchanged provenance, then report an interrupted run.
+}
+
+int main(int argc, char** argv)
+{
+    traceLevel = 5;
+
+    // Register the sink in the logging core
+    boost::log::core::get()->add_sink(boost::make_shared<sinks::synchronous_sink<ConsoleLog>>());
+    boost::log::core::get()->set_filter(boost::log::trivial::severity >= boost::log::trivial::info);
+    acsSeverity = boost::log::trivial::info;
+
+    BOOST_LOG_TRIVIAL(info) << "PEA starting... (" << ginanBranchName() << " "
+                            << ginanCommitVersion() << " from " << ginanCommitDate() << ")" << "\n";
+
+    GTime peaStartTime       = timeGet();
+    auto  peaStartTimeChrono = system_clock::now();
+
+    exitOnErrors();
+
+    // Define the function to be called when ctrl-c (SIGINT) is sent to process
+    signal(SIGINT, tryExitGracefully);
+
+    bool pass = configure(argc, argv);
+    if (pass == false)
+    {
+        if (acsConfig.dry_run)
+        {
+            BOOST_LOG_TRIVIAL(error) << "Dry-run failed: configuration is invalid";
+        }
+        else
+        {
+            BOOST_LOG_TRIVIAL(error) << "Incorrect configuration";
+        }
+
+        BOOST_LOG_TRIVIAL(info) << "PEA finished";
+        TcpSocket::ioContext.stop();
+        return EXIT_FAILURE;
+    }
+
+    if (!zhangR51RatioPolicyValid(acsConfig.ambrOpts.ratioThres))
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "R51_RATIO_POLICY_INVALID: the configured/effective threshold must be finite and >1; "
+               "ZHANG_R51_RATIO_THRESHOLD must be a complete numeric value";
+        TcpSocket::ioContext.stop();
+        return EXIT_FAILURE;
+    }
+    if (zhangR51RatioOverrideActive())
+        BOOST_LOG_TRIVIAL(info) << "R51_RATIO_POLICY configured_threshold=" << acsConfig.ambrOpts.ratioThres
+            << " effective_threshold=" << zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres)
+            << " override_present=" << (std::getenv("ZHANG_R51_RATIO_THRESHOLD") != nullptr)
+            << " calibration=UNCALIBRATED_RATIO_ONLY";
+
+    if (acsConfig.dry_run)
+    {
+        BOOST_LOG_TRIVIAL(info) << "Dry-run successful: configuration and sanity checks passed";
+        BOOST_LOG_TRIVIAL(info) << "PEA finished";
+        TcpSocket::ioContext.stop();
+        return EXIT_SUCCESS;
+    }
+
+    if (acsConfig.output_log)
+    {
+        addFileLog(acsConfig.log_json);
+    }
+
+    BOOST_LOG_TRIVIAL(info) << "Compilation details:";
+    BOOST_LOG_TRIVIAL(info) << "====================";
+    BOOST_LOG_TRIVIAL(info) << "Ginan branch:     " << ginanBranchName();
+    BOOST_LOG_TRIVIAL(info) << "Ginan version:    " << ginanCommitVersion();
+    BOOST_LOG_TRIVIAL(info) << "Commit date:      " << ginanCommitDate();
+    BOOST_LOG_TRIVIAL(info) << "Operating system: " << ginanOsName();
+    BOOST_LOG_TRIVIAL(info) << "Compiler version: " << ginanCompilerVersion();
+    BOOST_LOG_TRIVIAL(info) << "Boost version:    " << ginanBoostVersion();
+    BOOST_LOG_TRIVIAL(info) << "Eigen version:    " << ginanEigenVersion();
+    BOOST_LOG_TRIVIAL(info) << "Mongocxx version: " << ginanMongoVersion();
+    BOOST_LOG_TRIVIAL(info) << "\n";
+
+    BOOST_LOG_TRIVIAL(info) << "Runtime details:";
+    BOOST_LOG_TRIVIAL(info) << "================";
+    BOOST_LOG_TRIVIAL(info) << "Logging at trace level" << traceLevel;
+    BOOST_LOG_TRIVIAL(info) << "Threading with max " << Eigen::nbThreads() << " eigen threads";
+#ifdef ENABLE_PARALLELISATION
+    BOOST_LOG_TRIVIAL(info) << "Threading with max " << omp_get_max_threads() << " omp threads";
+#endif
+    BOOST_LOG_TRIVIAL(info) << "\n";
+    BOOST_LOG_TRIVIAL(info) << "\n";
+
+    // prepare the satNavMap so that it at least has entries for everything
+    for (auto [sys, max] :
+         {tuple<E_Sys, int>{E_Sys::GPS, NSATGPS},
+          tuple<E_Sys, int>{E_Sys::GLO, NSATGLO},
+          tuple<E_Sys, int>{E_Sys::GAL, NSATGAL},
+          tuple<E_Sys, int>{E_Sys::QZS, NSATQZS},
+          tuple<E_Sys, int>{E_Sys::LEO, NSATLEO},
+          tuple<E_Sys, int>{E_Sys::BDS, NSATBDS},
+          tuple<E_Sys, int>{E_Sys::SBS, NSATSBS}})
+        for (int prn = 1; prn <= max; prn++)
+        {
+            SatSys Sat(sys, prn);
+
+            if (acsConfig.process_sys[Sat.sys] == false)
+                continue;
+
+            auto& satOpts = acsConfig.getSatOpts(Sat);
+
+            if (satOpts.exclude)
+                continue;
+
+            nav.satNavMap[Sat].id = Sat.id();
+        }
+
+    nav.leaps = acsConfig.leap_seconds;
+
+    Network pppNet;
+    {
+        pppNet.kfState.FilterOptions::operator=(acsConfig.pppOpts);
+        pppNet.kfState.id               = "Net";
+        pppNet.kfState.output_residuals = acsConfig.output_residuals;
+        pppNet.kfState.outputMongoMeasurements =
+            (acsConfig.mongoOpts.output_measurements != E_Mongo::NONE);
+
+        pppNet.kfState.measRejectCallbacks.push_back(incrementPhaseSignalError);
+        pppNet.kfState.measRejectCallbacks.push_back(incrementSatelliteErrors);
+        pppNet.kfState.measRejectCallbacks.push_back(incrementReceiverErrors);
+        pppNet.kfState.measRejectCallbacks.push_back(pseudoMeasTest);
+        pppNet.kfState.measRejectCallbacks.push_back(deweightMeas);
+
+        pppNet.kfState.stateRejectCallbacks.push_back(incrementStateErrors);
+        pppNet.kfState.stateRejectCallbacks.push_back(
+            rejectWorstMeasByState
+        );  // Assume the state error is caused by a single measurement error and try removing it
+        // first
+        pppNet.kfState.stateRejectCallbacks.push_back(relaxState);
+        pppNet.kfState.stateRejectCallbacks.push_back(rejectAllMeasByState);
+    }
+	if (acsConfig.zhangFullRank.enable || acsConfig.zhangPppAr.user_adapter)
+	{
+		std::string runtimeFailure;
+		if (!bindZhangCheckpointRuntimeId(
+				pppNet.kfState,
+				acsConfig.zhangPppAr.checkpoint_runtime_id,
+				&runtimeFailure))
+		{
+			BOOST_LOG_TRIVIAL(error)
+				<< "Unable to bind Zhang authoritative runtime: "
+				<< runtimeFailure;
+			TcpSocket::ioContext.stop();
+			return EXIT_FAILURE;
+		}
+	}
+
+    Network ionNet;
+    if (acsConfig.process_ionosphere)
+    {
+        ionNet.kfState.FilterOptions::operator=(acsConfig.ionModelOpts);
+        ionNet.kfState.id               = "ION";
+        ionNet.kfState.output_residuals = acsConfig.output_residuals;
+        ionNet.kfState.outputMongoMeasurements =
+            (acsConfig.mongoOpts.output_measurements != E_Mongo::NONE);
+        ionNet.kfState.rts_basename = "IONEX_RTS";
+
+        ionNet.kfState.measRejectCallbacks.push_back(deweightMeas);
+
+        ionNet.kfState.stateRejectCallbacks.push_back(incrementStateErrors);
+        ionNet.kfState.stateRejectCallbacks.push_back(
+            rejectWorstMeasByState
+        );  // Assume the state error is caused by a single measurement error and try removing it
+        // first
+        ionNet.kfState.stateRejectCallbacks.push_back(relaxState);
+        ionNet.kfState.stateRejectCallbacks.push_back(rejectAllMeasByState);
+    }
+
+    // initialise mongo
+    mongoooo();
+
+    if (acsConfig.rts_only)
+    {
+        replaceString(acsConfig.pppOpts.rts_filename, "<RECEIVER>", pppNet.id);
+
+        pppNet.kfState.rts_basename = acsConfig.pppOpts.rts_filename;
+
+        rtsSmoothing(pppNet.kfState, receiverMap);
+
+        exit(0);
+    }
+
+    initialiseBias();
+
+    boost::posix_time::ptime logptime = currentLogptime();
+    createDirectories(logptime);
+
+    traceFloatInputMemoryBoundary("STARTUP_INITIAL_INPUT_LOAD","BEGIN",receiverMap,pppNet.kfState);
+    reloadInputFiles();
+    traceFloatInputMemoryBoundary("STARTUP_INITIAL_INPUT_LOAD","END",receiverMap,pppNet.kfState);
+
+    auto hasRealtimeObservationInput = []()
+    {
+        for (auto& [id, streamParser_ptr] : streamParserMultimap)
+        {
+            auto* obsStream = dynamic_cast<ObsStream*>(streamParser_ptr.get());
+            if (obsStream != nullptr && dynamic_cast<TcpSocket*>(&obsStream->stream) != nullptr)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    bool hasRealtimeObsInput = hasRealtimeObservationInput();
+
+    addDefaultBias();
+
+    TcpSocket::startClients();
+
+    if (acsConfig.start_epoch.is_not_a_date_time() == false)
+    {
+        GTime startGTime = GTime(acsConfig.start_epoch);
+        tsync            = startGTime.floorTime(acsConfig.epoch_interval);
+
+        if (tsync != startGTime)
+        {
+            BOOST_LOG_TRIVIAL(warning)
+                << "Start epoch " << startGTime << " is not aligned to the epoch interval "
+                << acsConfig.epoch_interval << ", rounding down to " << tsync;
+        }
+
+        acsConfig.start_epoch = tsync.to_posixTime();
+    }
+
+    const bool e29CheckpointMode = acsConfig.zhangPppAr.deterministic_checkpoint;
+    ZhangE29CheckpointProvenance e29StartupProvenance;
+    string e29StartupBinarySha256;
+    std::set<string> e29PendingCaptureEpochs;
+    string e29LastCheckpointId;
+    std::optional<GTime> e29FirstResumeTsync;
+    bool e29CheckpointFatal = false;
+    string e29CheckpointFatalReason;
+    const bool us20ColdCheckpoint = zhangCheckpointFlagEqualsOne(ZHANG_US20_GLOBAL134_CHECKPOINT_FLAG);
+    const bool us20E240Continuation = zhangCheckpointFlagEqualsOne(ZHANG_US20_E240_CONTINUATION_FLAG);
+    std::optional<ZhangUs20Global134CheckpointPolicy> us20CheckpointPolicy;
+    bool us20WarmupCheckpointPaused = false;
+
+    const char* e29RestoreEnvironment = std::getenv("ZHANG_E29_RESTORE_BUNDLE");
+    const string e29RestoreDirectory =
+        e29RestoreEnvironment != nullptr && *e29RestoreEnvironment != '\0'
+            ? string(e29RestoreEnvironment)
+            : acsConfig.zhangPppAr.checkpoint_restore_path;
+    if (us20ColdCheckpoint)
+    {
+        string policyFailure, actualBinaryPath;
+        ZhangUs20Global134CheckpointPolicy policy;
+        if (!e29CheckpointMode ||
+            !resolveE29ExecutablePath(argc > 0 ? argv[0] : nullptr, actualBinaryPath, policyFailure) ||
+            !buildUs20Global134CheckpointPolicy(actualBinaryPath, e29RestoreDirectory,
+                receiverMap, policy, policyFailure) ||
+            (zhangCheckpointFlagEqualsOne("ZHANG_GEC134_RESTORE_ONLY") && e29RestoreDirectory.empty()))
+        {
+            BOOST_LOG_TRIVIAL(error) << "US20_GLOBAL134_STARTUP_POLICY_REJECTED:" << policyFailure;
+            TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+        }
+        us20CheckpointPolicy = std::move(policy);
+        BOOST_LOG_TRIVIAL(info) << (us20E240Continuation
+            ? "US20_E240_CODEC_FIX_FINITE_POLICY_ADMITTED" : "US20_GLOBAL134_COLD_CHECKPOINT_POLICY_ADMITTED")
+            << " actual_receivers=" << receiverMap.size()
+            << " stage=" << zhangUs20Global134EnvironmentValue(us20CheckpointPolicy->environment,
+                ZHANG_US20_GLOBAL134_STAGE_FLAG)
+            << " product_basis=SINGLE_S_BASIS_NATIVE regional_atmosphere_export=OFF"
+            << " physical_STEC_ZTD=RETAINED legacy_migration_authority=0";
+    }
+    if (zhangCheckpointFlagEqualsOne("ZHANG_MULTI_GNSS_AR_CHECKPOINT") &&
+        (!e29CheckpointMode || e29RestoreDirectory.empty()))
+    {
+        BOOST_LOG_TRIVIAL(error) << "GEC134_AR_CHECKPOINT_REQUIRES_EXPLICIT_RESTORE_AND_CHECKPOINTS";
+        TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+    }
+    if (!e29CheckpointMode && !e29RestoreDirectory.empty())
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "ZHANG_E29_RESTORE_BUNDLE was requested while "
+               "deterministic_checkpoint is disabled";
+        TcpSocket::ioContext.stop();
+        return EXIT_FAILURE;
+    }
+    if (e29CheckpointMode)
+    {
+        if (acsConfig.start_epoch.is_not_a_date_time())
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "E29 deterministic checkpointing requires an explicit start_epoch";
+            TcpSocket::ioContext.stop();
+            return EXIT_FAILURE;
+        }
+
+        string checkpointFailure;
+        if (!canonicaliseE29CaptureEpochs(
+                acsConfig.zhangPppAr.checkpoint_capture_epochs,
+                e29PendingCaptureEpochs,
+                checkpointFailure)
+            || !buildE29CheckpointProvenance(
+                argc, argv, e29StartupProvenance, checkpointFailure))
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "E29 checkpoint provenance initialization failed: "
+                << checkpointFailure;
+            TcpSocket::ioContext.stop();
+            return EXIT_FAILURE;
+        }
+        e29StartupBinarySha256 = zhangCheckpointFileSha256(
+            e29StartupProvenance.binaryPath, &checkpointFailure);
+        if (e29StartupBinarySha256.empty())
+        {
+            BOOST_LOG_TRIVIAL(error)
+                << "E29 executable provenance hash failed: "
+                << checkpointFailure;
+            TcpSocket::ioContext.stop();
+            return EXIT_FAILURE;
+        }
+
+        if (!e29RestoreDirectory.empty())
+        {
+            auto restoreProvenance = e29StartupProvenance;
+            ZhangGec134MigrationAuthority gec134Migration;
+            const ZhangGec134MigrationAuthority* migration = nullptr;
+            ZhangGec134ArContinuationAuthority gec134ArContinuation;
+            const ZhangGec134ArContinuationAuthority* continuation = nullptr;
+            ZhangUs20E240ContinuationAuthority us20E240Authority;
+            const ZhangUs20E240ContinuationAuthority* us20Continuation = nullptr;
+            const bool gecArMode = zhangMultiGnssArCheckpointActive(acsConfig);
+            const bool restoreOnly = zhangCheckpointFlagEqualsOne("ZHANG_GEC134_RESTORE_ONLY");
+            if (restoreOnly && !gecArMode)
+            {
+                BOOST_LOG_TRIVIAL(error) << "GEC134_RESTORE_ONLY_REQUIRES_EXPLICIT_AR_MODE";
+                TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+            }
+            if (us20E240Continuation)
+            {
+                // Only the original pinned e240 archive can cross producers.
+                // Archives created by this candidate retain the ordinary exact
+                // producer/config/input reader, including the validation snapshot.
+                if (!zhangUs20E240RestorePathAllowed(e29RestoreDirectory))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "US20_E240_RESTORE_PATH_REJECTED";
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                if (e29RestoreDirectory == ZHANG_US20_E240_SOURCE_PATH)
+                {
+                    boost::json::object sourceManifest;
+                    if (!loadGec134CheckpointManifest(e29RestoreDirectory, sourceManifest, checkpointFailure) ||
+                        !authoriseUs20E240TransportContinuation(e29RestoreDirectory, sourceManifest,
+                            e29StartupProvenance, restoreProvenance, us20E240Authority, checkpointFailure))
+                    {
+                        BOOST_LOG_TRIVIAL(error) << "US20_E240_CONTINUATION_REJECTED:" << checkpointFailure;
+                        TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                    }
+                    us20Continuation = &us20E240Authority;
+                    BOOST_LOG_TRIVIAL(info) << "US20_E240_CONTINUATION_AUTHORISED policy="
+                        << ZHANG_US20_E240_CONTINUATION_POLICY
+                        << " source_bundle_sha256=" << ZHANG_US20_E240_SOURCE_BUNDLE_SHA
+                        << " source_payload_unchanged=1 historical_rhs_applied_to_current_search=0";
+                }
+            }
+            if (gecArMode && !us20ColdCheckpoint)
+            {
+                std::map<string, string> environment;
+                if (!collectGec134MigrationEnvironment(environment, checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                boost::json::object sourceManifest;
+                if (!loadGec134CheckpointManifest(e29RestoreDirectory, sourceManifest, checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                const auto* mode = sourceManifest.if_contains("experiment_mode");
+                if (!mode || !mode->is_string())
+                {
+                    BOOST_LOG_TRIVIAL(error) << "GEC134_SOURCE_EXPERIMENT_MODE_MISSING";
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                if (mode->as_string() == ZHANG_GEC134_SOURCE_MODE)
+                {
+                    if (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_AR_CONTINUATION_FLAG))
+                    {
+                        BOOST_LOG_TRIVIAL(error) << "GEC134_AR_CONTINUATION_REQUIRES_AR_SOURCE";
+                        TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                    }
+                    if (!authoriseGec134FloatToArMigration(e29RestoreDirectory, sourceManifest,
+                            e29StartupProvenance, restoreProvenance, gec134Migration, checkpointFailure))
+                    {
+                        BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                        TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                    }
+                    migration = &gec134Migration;
+                    BOOST_LOG_TRIVIAL(info) << "GEC134_FLOAT_TO_AR_AUTHORISED policy="
+                        << (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_LOCAL_ONE_EPOCH_FLAG)
+                            ? ZHANG_GEC134_LOCAL_ONE_EPOCH_POLICY : ZHANG_GEC134_MIGRATION_POLICY)
+                        << " source_payload_unchanged=1"
+                        << " source_bundle_sha256=" << ZHANG_GEC134_SOURCE_BUNDLE_SHA256;
+                }
+                else if (mode->as_string() != ZHANG_GEC134_AR_MODE)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "GEC134_SOURCE_EXPERIMENT_MODE_REJECTED";
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                else if (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_AR_CONTINUATION_FLAG))
+                {
+                    auto sourceString = [&](const char* name) -> string
+                    {
+                        const auto* entry = sourceManifest.if_contains(name);
+                        if (!entry || !entry->is_string()) return {};
+                        return string(entry->as_string().data(), entry->as_string().size());
+                    };
+                    const bool ordinaryStrict = zhangGec134ArContinuationUsesOrdinaryRestore(
+                        sourceString("experiment_mode"), sourceString("binary_sha256"),
+                        sourceString("config_sha256"), sourceString("input_manifest_sha256"),
+                        sourceString("config_text"), sourceString("input_manifest_text"),
+                        e29StartupProvenance.experimentMode, e29StartupBinarySha256,
+                        e29StartupProvenance.configText, e29StartupProvenance.inputManifestText);
+                    if (!ordinaryStrict && !authoriseGec134ArContinuation(e29RestoreDirectory, sourceManifest,
+                            e29StartupProvenance, restoreProvenance, gec134ArContinuation,
+                            checkpointFailure))
+                    {
+                        BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                        TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                    }
+                    if (ordinaryStrict)
+                        BOOST_LOG_TRIVIAL(info) << "GEC134_AR_CONTINUATION_ORDINARY_STRICT_RESTORE"
+                            << " source_ar_sections=9 target_ar_sections=9";
+                    else
+                    {
+                        continuation = &gec134ArContinuation;
+                        BOOST_LOG_TRIVIAL(info) << "GEC134_AR_CONTINUATION_AUTHORISED policy="
+                            << ZHANG_GEC134_AR_CONTINUATION_POLICY
+                            << " source_payload_unchanged=1 source_ar_sections=9 target_ar_sections=9"
+                            << " source_bundle_sha256=" << ZHANG_GEC134_AR_E122_BUNDLE_SHA256;
+                    }
+                }
+                // A new AR archive uses the ordinary exact-provenance path.
+                // Merely retaining the migration opt-in cannot bypass it.
+            }
+            const char* reuseEnvironment = std::getenv("ZHANG_R51_REUSE_FLOAT_20240717");
+            const bool reuseAuditedFloat = reuseEnvironment && std::string(reuseEnvironment) == "1";
+            if (reuseAuditedFloat)
+            {
+                // First pin the live AR target config and input inventory. The
+                // source checkpoint provenance is loaded only after this gate.
+                if (!buildE29CanonicalConfigText(argc, argv, restoreProvenance.configText,
+                                                 checkpointFailure, false))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_FLOAT_REUSE_CONFIG_FAILED:" << checkpointFailure;
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                restoreProvenance.binaryPath =
+                    "/home/rx/GINAN/frozen-r51-ratio3-float2h-ar1h-20260917/bin/pea";
+                std::map<std::string, std::string> environment;
+                for (const char* name : {"ZHANG_R51_REUSE_FLOAT_20240717", "ZHANG_R51_ENABLE",
+                        "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_AR_START_GPST_SECONDS",
+                        "ZHANG_R51_RATIO_THRESHOLD",
+                        "ZHANG_R49_FUSION_WEIGHT", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
+                        "ZHANG_R51_REUSE_FLOAT_THREADS_8_1",
+                        "MKL_NUM_THREADS"})
+                {
+                    const char* value = std::getenv(name);
+                    environment[name] = value ? value : "UNSET";
+                }
+                std::ostringstream effectiveRatioText;
+                effectiveRatioText << std::setprecision(std::numeric_limits<double>::max_digits10)
+                    << zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres);
+                environment["ZHANG_R51_EFFECTIVE_RATIO_THRESHOLD"] = effectiveRatioText.str();
+                const auto sourceSha = zhangCheckpointFileSha256(
+                    (std::filesystem::path(e29RestoreDirectory) / "checkpoint.bundle").string());
+                if (!zhangR51AuditedFloatReuseAllowed(sourceSha,
+                        zhangCheckpointFileSha256(restoreProvenance.binaryPath),
+                        zhangCheckpointSha256(restoreProvenance.configText),
+                        zhangCheckpointSha256(restoreProvenance.inputManifestText), environment))
+                {
+                    BOOST_LOG_TRIVIAL(error)
+                        << "R51_FLOAT_REUSE_PINNED_IDENTITY_REJECTED"
+                        << " source_bundle_sha256=" << sourceSha
+                        << " source_binary_sha256="
+                        << zhangCheckpointFileSha256(restoreProvenance.binaryPath)
+                        << " source_config_sha256="
+                        << zhangCheckpointSha256(restoreProvenance.configText)
+                        << " source_input_manifest_sha256="
+                        << zhangCheckpointSha256(restoreProvenance.inputManifestText);
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                if (!loadR51AuditedFloatSourceProvenance(
+                        e29RestoreDirectory, restoreProvenance,
+                        checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "R51_FLOAT_REUSE_AUDITED source_bundle_sha256=" << sourceSha
+                    << " source_epoch=2024-07-17_01:59:30 target_binary_sha256=" << e29StartupBinarySha256
+                    << " policy_change=RATIO_ONLY target_ratio_threshold="
+                    << zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres)
+                    << " source_payload_unchanged=1 source_ar_decisions=NONE";
+                if (environment["ZHANG_R51_REUSE_FLOAT_THREADS_8_1"] == "1")
+                    BOOST_LOG_TRIVIAL(warning)
+                        << "R51_FLOAT_REUSE_THREAD_PROFILE target=OMP8_OPENBLAS1"
+                        << " source=OMP4_OPENBLAS4 source_identity=PINNED"
+                        << " target_numerical_equivalence=UNVERIFIED";
+            }
+            const char* ratioReuseEnvironment = std::getenv("ZHANG_R51_REUSE_RATIO_20240717");
+            if (ratioReuseEnvironment && std::string(ratioReuseEnvironment)=="1")
+            {
+                if (reuseAuditedFloat)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_CHECKPOINT_MIGRATION_MODE_CONFLICT";
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                // The complete new-format config and input manifest must match
+                // byte-for-byte. Only this audited executable transition differs.
+                restoreProvenance.binaryPath =
+                    "/home/rx/GINAN/frozen-r51-ratioonly3-float2h-ar1h-20260917/bin/pea";
+                std::map<std::string,std::string> environment;
+                for (const char* name : {"ZHANG_R51_REUSE_RATIO_20240717", "ZHANG_R51_ENABLE",
+                        "ZHANG_R51_RATIO_ONLY", "ZHANG_R51_AR_START_GPST_SECONDS",
+                        "ZHANG_R51_RATIO_THRESHOLD",
+                        "ZHANG_R49_FUSION_WEIGHT", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
+                        "MKL_NUM_THREADS"})
+                {
+                    const char* value=std::getenv(name);
+                    environment[name]=value?value:"UNSET";
+                }
+                std::ostringstream effectiveRatioText;
+                effectiveRatioText << std::setprecision(std::numeric_limits<double>::max_digits10)
+                    << zhangR51EffectiveRatioThreshold(acsConfig.ambrOpts.ratioThres);
+                environment["ZHANG_R51_EFFECTIVE_RATIO_THRESHOLD"] = effectiveRatioText.str();
+                const auto sourceSha=zhangCheckpointFileSha256(
+                    (std::filesystem::path(e29RestoreDirectory)/"checkpoint.bundle").string());
+                if (!zhangR51AuditedRatioReuseAllowed(sourceSha,
+                        zhangCheckpointFileSha256(restoreProvenance.binaryPath),
+                        zhangCheckpointSha256(restoreProvenance.configText),
+                        zhangCheckpointSha256(restoreProvenance.inputManifestText),environment))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "R51_RATIO_REUSE_PINNED_IDENTITY_REJECTED";
+                    TcpSocket::ioContext.stop();
+                    return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "R51_RATIO_REUSE_AUDITED source_bundle_sha256=" << sourceSha
+                    << " source_epoch=2024-07-17_02:00:00 target_binary_sha256=" << e29StartupBinarySha256
+                    << " policy_unchanged=RATIO_ONLY source_payload_unchanged=1";
+            }
+            ZhangCheckpointBundle checkpointBundle;
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_READ","BEGIN",receiverMap,pppNet.kfState);
+            auto readResult = readZhangE29CheckpointDirectory(
+                e29RestoreDirectory,
+                restoreProvenance,
+                acsConfig.zhangPppAr.checkpoint_runtime_id,
+                checkpointBundle, migration, continuation, us20Continuation);
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_READ","END",receiverMap,pppNet.kfState);
+            if (!readResult.valid)
+            {
+                BOOST_LOG_TRIVIAL(error)
+                    << "E29 checkpoint read failed: " << readResult.failureReason;
+                TcpSocket::ioContext.stop();
+                return EXIT_FAILURE;
+            }
+
+            ZhangE29CheckpointRestorePlan restorePlan;
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_PREFLIGHT","BEGIN",receiverMap,pppNet.kfState);
+            auto preflightResult = preflightZhangE29CheckpointBundle(
+                checkpointBundle,
+                restoreProvenance,
+                pppNet.kfState,
+                receiverMap,
+                nav,
+                streamParserMultimap,
+                streamDOAMap,
+                acsConfig.epoch_interval,
+                restorePlan, migration, continuation, us20Continuation);
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_PREFLIGHT","END",receiverMap,pppNet.kfState);
+            if (!preflightResult.valid)
+            {
+                BOOST_LOG_TRIVIAL(error)
+                    << "E29 checkpoint preflight failed: "
+                    << preflightResult.failureReason;
+                TcpSocket::ioContext.stop();
+                return EXIT_FAILURE;
+            }
+
+            const auto& controller = restorePlan.controller.state;
+            const GTime completedTsync =
+                restoreZhangCheckpointTime(controller.completedTsync);
+            const GTime resumeTsync =
+                restoreZhangCheckpointTime(controller.nextTsync);
+            if (us20E240Continuation)
+            {
+                if (!validateUs20E240DecodedRestore(e29RestoreDirectory, checkpointBundle,
+                        controller, e29StartupProvenance, us20Continuation, checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << checkpointFailure;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "US20_E240_NATIVE_DECODED_RESTORE_ADMITTED"
+                    << " source_completed_epoch=" << controller.completedEpoch
+                    << " full_nine_section_restore_and_exact_audit_still_required=1";
+            }
+            else if (us20ColdCheckpoint)
+            {
+                // Admission is based on authenticated bundle data and the
+                // controller decoded by native preflight, not a copied label
+                // from the external JSON manifest. The module importer still
+                // validates the complete V5 envelope/gauge/signal identities.
+                std::map<string, string> sourceCanonical;
+                const auto graph = checkpointBundle.sections.find(ZHANG_GRAPH_CHECKPOINT_SECTION_NAME);
+                if (!ZhangGec134MigrationDetail::canonicalFields(
+                        checkpointBundle.manifest.configText, sourceCanonical, checkpointFailure) ||
+                    !sourceCanonical.count("us20_global134_producer_path") ||
+                    graph == checkpointBundle.sections.end() || graph->second.schemaVersion != 5 ||
+                    !graph->second.payload.starts_with("GINAN_ZHANG_GRAPH_V5\n") ||
+                    checkpointBundle.manifest.configText != e29StartupProvenance.configText ||
+                    checkpointBundle.manifest.inputManifestText != e29StartupProvenance.inputManifestText)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "US20_GLOBAL134_NATIVE_PRODUCER_OR_V5_PAYLOAD_REJECTED:"
+                        << checkpointFailure;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                ZhangUs20Global134CheckpointIdentity sourceIdentity, expectedProducer;
+                sourceIdentity.binarySha256 = checkpointBundle.manifest.binarySha256;
+                sourceIdentity.configSha256 = checkpointBundle.manifest.configSha256;
+                sourceIdentity.inputSha256 = checkpointBundle.manifest.inputManifestSha256;
+                sourceIdentity.binaryPath = sourceCanonical.at("us20_global134_producer_path");
+                sourceIdentity.experimentMode = checkpointBundle.manifest.experimentMode;
+                sourceIdentity.runtimeId = checkpointBundle.manifest.runtimeId;
+                sourceIdentity.epoch = checkpointBundle.manifest.epoch;
+                sourceIdentity.completedEpoch = controller.completedEpoch;
+                sourceIdentity.nextEpoch = controller.nextEpoch;
+                sourceIdentity.graphSchema = graph->second.schemaVersion;
+                sourceIdentity.sectionCount = static_cast<int>(checkpointBundle.sections.size());
+                expectedProducer.binaryPath = e29StartupProvenance.binaryPath;
+                expectedProducer.binarySha256 = e29StartupBinarySha256;
+                expectedProducer.configSha256 = zhangCheckpointSha256(e29StartupProvenance.configText);
+                expectedProducer.inputSha256 = zhangCheckpointSha256(e29StartupProvenance.inputManifestText);
+                if (!us20CheckpointPolicy || !validateZhangUs20Global134StrictRestoreIdentity(
+                        *us20CheckpointPolicy, sourceIdentity, expectedProducer, checkpointFailure))
+                {
+                    BOOST_LOG_TRIVIAL(error) << "US20_GLOBAL134_STRICT_RESTORE_IDENTITY_REJECTED:"
+                        << checkpointFailure;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "US20_GLOBAL134_STRICT_RESTORE_ADMITTED"
+                    << " same_producer=1 source_ar_sections=9 graph_payload=V5"
+                    << " source_completed_epoch=" << controller.completedEpoch
+                    << " actual_native_restore_and_exact_audit_still_required=1";
+            }
+            if (controller.completedEpoch < 1
+                || controller.nextEpoch != controller.completedEpoch + 1
+                || std::abs(
+                    (resumeTsync - completedTsync).to_double()
+                    - acsConfig.epoch_interval) > 1e-9)
+            {
+                BOOST_LOG_TRIVIAL(error)
+                    << "E29 checkpoint controller does not describe an exact next epoch";
+                TcpSocket::ioContext.stop();
+                return EXIT_FAILURE;
+            }
+            if (!validateE29RestoreProductOutputs(
+                    completedTsync, resumeTsync, checkpointFailure))
+            {
+                BOOST_LOG_TRIVIAL(error)
+                    << "E29 checkpoint output safety gate failed: "
+                    << checkpointFailure;
+                TcpSocket::ioContext.stop();
+                return EXIT_FAILURE;
+            }
+
+            // reloadInputFiles() has loaded the full immutable precise inputs.
+            // Reproduce the continuous run's configured culling boundary before
+            // the satellite runtime section is imported.  Mongo state is not a
+            // checkpointed precise input and is deliberately not touched here.
+            if (acsConfig.delete_old_ephemerides)
+            {
+                cullOldEphs(completedTsync);
+                cullOldSSRs(completedTsync);
+                cullOldBiases(completedTsync);
+            }
+
+            ZhangPeaControllerCheckpointState restoredController;
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_COMMIT","BEGIN",receiverMap,pppNet.kfState);
+            auto commitResult = commitZhangE29CheckpointBundle(
+                checkpointBundle,
+                restoreProvenance,
+                pppNet.kfState,
+                receiverMap,
+                nav,
+                streamParserMultimap,
+                streamDOAMap,
+                restorePlan,
+                restoredController, migration, continuation, us20Continuation);
+            traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_COMMIT","END",receiverMap,pppNet.kfState);
+            if (!commitResult.valid || commitResult.liveStateMayBePartial)
+            {
+                BOOST_LOG_TRIVIAL(error)
+                    << "E29 checkpoint commit failed; process will not continue: "
+                    << commitResult.failureReason
+                    << ", live_state_may_be_partial="
+                    << commitResult.liveStateMayBePartial;
+                TcpSocket::ioContext.stop();
+                return EXIT_FAILURE;
+            }
+
+            if (gecArMode)
+            {
+                const auto auditRoot = std::filesystem::path(acsConfig.outputs_root).parent_path() / "restore_audit";
+                auto auditDirectory = auditRoot / (migration ? "after_restore" :
+                    "ar_roundtrip_" + checkpointBundle.manifest.checkpointId);
+                // The new local continuation is first restored without consuming
+                // an epoch, then started under the same authenticated hour plan.
+                // Preserve both immutable audits rather than colliding with the
+                // validation-only directory or skipping the formal-run audit.
+                if (restoreOnly && (zhangCheckpointFlagEqualsOne(ZHANG_GEC134_AR_CONTINUATION_FLAG) ||
+                                    us20ColdCheckpoint))
+                    auditDirectory += "-validation-only";
+                traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_EXACT_AUDIT","BEGIN",receiverMap,pppNet.kfState);
+                const auto audit = auditAndWriteZhangGec134RestoredState(auditDirectory.string(),
+                    checkpointBundle, pppNet.kfState, receiverMap, nav,
+                    streamParserMultimap, streamDOAMap, restoredController,
+                    e29StartupProvenance, migration, continuation, us20Continuation);
+                traceFloatInputMemoryBoundary("STARTUP_CHECKPOINT_EXACT_AUDIT","END",receiverMap,pppNet.kfState);
+                if (!audit.valid)
+                {
+                    BOOST_LOG_TRIVIAL(error) << "GEC134_AFTER_RESTORE_EXACT_AUDIT_FAILED:"
+                        << audit.failureReason;
+                    TcpSocket::ioContext.stop(); return EXIT_FAILURE;
+                }
+                BOOST_LOG_TRIVIAL(info) << "GEC134_AFTER_RESTORE_EXACT_AUDIT_PASSED"
+                    << " source_completed_epoch=" << restoredController.completedEpoch
+                    << " next_epoch=" << restoredController.nextEpoch
+                    << " full_kf_and_all_persistent_source_state_exact=1"
+                    << " receiver_ready_and_workset_audit_policy=POST_EPOCH_RESET"
+                    << " snapshot=" << auditDirectory.string()
+                    << " snapshot_bundle_sha256=" << audit.payloadSha256
+                    << " restore_only=" << restoreOnly;
+                if (restoreOnly)
+                {
+                    BOOST_LOG_TRIVIAL(info) << "GEC134_RESTORE_ONLY_COMPLETED_NO_EPOCH_CONSUMED";
+                    TcpSocket::ioContext.stop(); return EXIT_SUCCESS;
+                }
+            }
+
+            epoch = restoredController.completedEpoch;
+            tsync = restoreZhangCheckpointTime(restoredController.completedTsync);
+            e29FirstResumeTsync =
+                restoreZhangCheckpointTime(restoredController.nextTsync);
+            e29LastCheckpointId = commitResult.checkpointId;
+
+            // Discard capture requests already covered by the restored state,
+            // but retain every later request.  An isolated restart output tree
+            // can then republish the later immutable bundles.  Their section
+            // hashes provide a direct continuous-versus-restart equivalence
+            // audit instead of relying only on final product CSVs.
+            e29PendingCaptureEpochs.erase(
+                e29PendingCaptureEpochs.begin(),
+                e29PendingCaptureEpochs.upper_bound(completedTsync.to_string(0)));
+
+            BOOST_LOG_TRIVIAL(info)
+                << "Restored E29 checkpoint " << commitResult.checkpointId
+                << " at completed epoch " << epoch << " (" << tsync
+                << "); first resume epoch is " << *e29FirstResumeTsync;
+        }
+    }
+
+    traceFloatInputMemoryBoundary("STARTUP_RESTORE_SCOPE_RELEASED","POINT",receiverMap,pppNet.kfState);
+    createTracefiles(receiverMap, pppNet, ionNet);
+    traceFloatInputMemoryBoundary("STARTUP_TRACE_READY","POINT",receiverMap,pppNet.kfState);
+
+    for (auto yaml : acsConfig.yamls)
+    {
+        YAML::Emitter emitter;
+        emitter << YAML::DoubleQuoted << YAML::Flow << YAML::BeginSeq << yaml;
+
+        string config(emitter.c_str() + 1);
+
+        mongoOutputConfig(config);
+    }
+
+    configureUploadingStreams();
+
+    configAtmosRegions(std::cout, receiverMap);
+
+    if (acsConfig.mincon_only)
+    {
+        minconOnly(std::cout, receiverMap);
+    }
+
+    doDebugs();
+
+    BOOST_LOG_TRIVIAL(info) << "\n";
+    BOOST_LOG_TRIVIAL(info) << "Starting to process epochs...";
+
+    //============================================================================
+    // MAIN PROCESSING LOOP														//
+    //============================================================================
+
+    GTime lastEpochStartTime;
+    GTime lastProcStartTime;
+    GTime lastEpochStopTime;
+
+    auto atLastEpoch = [&](bool processed = false) -> bool
+    {
+        if (epochStopRequest.pending())
+        {
+            BOOST_LOG_TRIVIAL(info) << "SIGINT: exiting at epoch boundary " << epoch
+                << "; authenticated configuration unchanged; run interrupted";
+            return true;
+        }
+        // Check number of epochs
+        if (acsConfig.max_epochs > 0 && epoch >= acsConfig.max_epochs)
+        {
+            BOOST_LOG_TRIVIAL(info) << "\n"
+                                    << "Exiting at epoch " << epoch << " as epoch count "
+                                    << acsConfig.max_epochs << " has been reached";
+
+            return true;
+        }
+
+        if (tsync == GTime::noTime())
+        {
+            return false;
+        }
+
+        GWeek week = tsync;
+        GTow  tow  = tsync;
+
+        if (processed)
+        {
+            BOOST_LOG_TRIVIAL(info)
+                << "Processed epoch #" << epoch << " - " << "GPS time: " << week << " "
+                << std::setw(6) << tow << " - " << tsync << " (data handling took "
+                << (lastProcStartTime - lastEpochStartTime) << ", processing took "
+                << (lastEpochStopTime - lastProcStartTime) << ", epoch took "
+                << (lastEpochStopTime - lastEpochStartTime) << ")";
+        }
+
+        // Check end epoch
+        if (acsConfig.end_epoch.is_not_a_date_time() == false &&
+            tsync.to_posixTime() >= acsConfig.end_epoch)
+        {
+            BOOST_LOG_TRIVIAL(info)
+                << "Exiting at epoch " << epoch << " (" << tsync << ") as end epoch "
+                << acsConfig.end_epoch << " has been reached";
+
+            return true;
+        }
+
+        return false;
+    };
+
+    // Read the observations for each station and do stuff
+
+    bool waitMessage = false;
+    bool nextEpoch   = true;
+    bool complete    = false;  // When all input files are empty the processing is deemed complete -
+                               // run until then, or until something else breaks the loop
+    int loopEpochs = 0;  // A count of how many loops of epoch_interval this loop used up (usually
+                         // one, but may be more if skipping epochs)
+    auto nominalLoopStartTime =
+        system_clock::now();  // The time the next loop is expected to start - if it doesnt start
+                              // until after this, it may be skipped
+    GTime firstObsTime              = GTime::noTime();
+    bool  holdingReconnectOutage    = false;
+    bool  hasProcessedRealtimeEpoch = false;
+    auto  reconnectOutageStart      = system_clock::time_point{};
+    auto  lastOutageStatusLog       = system_clock::time_point{};
+
+    while (complete == false)
+    {
+        // Increment epoch and tsync
+        if (nextEpoch)
+        {
+            nextEpoch = false;
+            epoch++;
+
+            BOOST_LOG_TRIVIAL(info) << "Starting epoch #" << epoch;
+
+            nominalLoopStartTime +=
+                std::chrono::milliseconds((int)(acsConfig.wait_next_epoch * 1000));
+
+            lastEpochStartTime = timeGet();
+
+            if (tsync != GTime::noTime())
+            {
+                // dont obliterate the freshly configured tsync before the first epoch
+                if (epoch != 1)
+                {
+                    tsync.bigTime += acsConfig.epoch_interval;
+                }
+
+                // Eugene: This will try forcing align tsync to integeral epochs, which can make
+                // processing epochs something like: 0.0, 0.3, 0.6, 1.0, ...
+                // if (fabs(tsync.bigTime - round(tsync.bigTime)) < acsConfig.epoch_tolerance)
+                // {
+                //     tsync.bigTime = round(tsync.bigTime);
+                // }
+            }
+
+            if (e29FirstResumeTsync)
+            {
+                if (tsync != *e29FirstResumeTsync)
+                {
+                    e29CheckpointFatal = true;
+                    e29CheckpointFatalReason =
+                        "E29_FIRST_RESUME_EPOCH_MISMATCH";
+                    break;
+                }
+                BOOST_LOG_TRIVIAL(info)
+                    << "E29 checkpoint resume boundary verified at epoch "
+                    << epoch << " (" << tsync << ")";
+                e29FirstResumeTsync.reset();
+            }
+
+            traceFloatInputMemoryBoundary("SYNC_EPOCH_ENTRY","POINT",receiverMap,pppNet.kfState);
+            for (auto& [id, rec] : receiverMap)
+            {
+                rec.ready = false;
+
+                auto trace = getTraceFile(rec);
+
+                trace << "\n";
+                trace << "\n"
+                      << "------=============== Epoch " << epoch << " =============-----------"
+                      << "\n";
+                trace << "\n"
+                      << "------=============== Time  " << tsync << " =============-----------"
+                      << "\n";
+            }
+
+            {
+                auto pppTrace = getTraceFile(pppNet);
+
+                pppTrace << "\n";
+                pppTrace << "\n"
+                         << "------=============== Epoch " << epoch << " =============-----------"
+                         << "\n";
+                pppTrace << "\n"
+                         << "------=============== Time  " << tsync << " =============-----------"
+                         << "\n";
+            }
+        }
+
+        traceFloatInputMemoryBoundary("SYNC_EPOCH_HEADERS","END",receiverMap,pppNet.kfState);
+        // Calculate the time at which we will stop waiting for data to come in for this epoch
+        auto breakTime = nominalLoopStartTime +
+                         std::chrono::milliseconds((int)(acsConfig.max_rec_latency * 1000));
+
+        if (loopEpochs)  // Eugene: This doesn't do anything at all?
+        {
+            BOOST_LOG_TRIVIAL(info) << "Starting epoch #" << epoch;
+
+            waitMessage = false;
+        }
+
+        if (system_clock::now() > breakTime)
+        {
+            BOOST_LOG_TRIVIAL(warning)
+                << "Excessive time elapsed, skipping epoch " << epoch
+                << ". Configuration 'wait_next_epoch' is " << acsConfig.wait_next_epoch;
+
+            nextEpoch = true;
+
+            if (atLastEpoch())
+            {
+                break;
+            }
+
+            continue;
+        }
+
+        // get observations from streams (allow some delay between stations, and retry, to ensure
+        // all messages for the epoch have arrived)
+        map<string, bool>   dataAvailableMap;
+        map<string, string> missingObsReasons;
+        map<string, string> missingObsSources;
+        map<string, string> missingObsStates;
+        vector<double>      readyLatencySeconds;
+        bool                repeat  = true;
+        int                 attempt = 0;
+        while (repeat && system_clock::now() < breakTime)
+        {
+            attempt++;
+
+            repeat = false;
+
+            // load any changes from the config
+            traceFloatInputMemoryBoundary("SYNC_CONFIG_RECHECK","BEGIN",receiverMap,pppNet.kfState);
+            bool newConfig = acsConfig.parse();
+            traceFloatInputMemoryBoundary("SYNC_CONFIG_RECHECK","END",receiverMap,pppNet.kfState);
+
+            // Infra-0 is a frozen-provenance experiment.  ACSConfig::parse()
+            // has already applied a detected file change by the time it
+            // returns true, so continuing would mix two effective
+            // configurations in one supposedly deterministic seed/replay.
+            if (e29CheckpointMode && newConfig)
+            {
+                e29CheckpointFatal = true;
+                e29CheckpointFatalReason =
+                    "E29_RUNTIME_CONFIGURATION_CHANGED";
+                repeat = false;
+                break;
+            }
+
+            // make any changes to streams.
+            ConfiguredStreamState configuredStreamState;
+            if (newConfig)
+            {
+                reloadInputFiles();
+                configureUploadingStreams();
+                configuredStreamState = getConfiguredStreamState();
+            }
+
+            // remove any dead streams
+            for (auto iter = streamParserMultimap.begin(); iter != streamParserMultimap.end();)
+            {
+                auto& [id, streamParser_ptr] = *iter;
+                auto&  stream                = streamParser_ptr->stream;
+                string recId                 = id;
+
+                auto& recOpts = acsConfig.getRecOpts(id);
+
+                auto removeReceiver = [&]()
+                {
+                    for (auto& [key, index] : pppNet.kfState.kfIndexMap)
+                    {
+                        if (key.str == recId)
+                        {
+                            pppNet.kfState.removeState(key);
+
+                            auto nodeHandler          = pppNet.kfState.kfIndexMap.extract(key);
+                            nodeHandler.key().rec_ptr = nullptr;
+                            pppNet.kfState.kfIndexMap.insert(std::move(nodeHandler));
+                        }
+                    }
+
+                    receiverMap.erase(recId);
+                };
+
+                if (newConfig &&
+                    configuredStreamState.configuredSources.find(stream.sourceString) ==
+                        configuredStreamState.configuredSources.end())
+                {
+                    auto retiredStreamParser = streamParser_ptr;
+
+                    BOOST_LOG_TRIVIAL(info) << "Removing " << stream.sourceString
+                                            << " because it is no longer configured";
+
+                    streamDOAMap.erase(stream.sourceString);
+
+                    if (configuredStreamState.configuredReceivers.find(recId) ==
+                        configuredStreamState.configuredReceivers.end())
+                    {
+                        removeReceiver();
+                    }
+
+                    iter = streamParserMultimap.erase(iter);
+                    retireStreamParser(std::move(retiredStreamParser));
+
+                    continue;
+                }
+
+                if (recOpts.kill)
+                {
+                    BOOST_LOG_TRIVIAL(info)
+                        << "Removing " << stream.sourceString << " due to kill config";
+                    auto retiredStreamParser = streamParser_ptr;
+
+                    removeReceiver();
+
+                    iter = streamParserMultimap.erase(iter);
+                    retireStreamParser(std::move(retiredStreamParser));
+
+                    continue;
+                }
+
+                try
+                {
+                    auto& obsStream = dynamic_cast<ObsStream&>(*streamParser_ptr);
+
+                    if (obsStream.hasObs())
+                    {
+                        iter++;
+                        continue;
+                    }
+                }
+                catch (...)
+                {
+                }
+
+                if (stream.isAvailable() && stream.isDead())
+                {
+                    BOOST_LOG_TRIVIAL(info) << "No more data available on " << stream.sourceString;
+
+                    // record as dead and erase
+                    streamDOAMap[stream.sourceString] = true;
+
+                    iter = streamParserMultimap.erase(iter);
+
+                    continue;
+                }
+
+                iter++;
+            }
+
+            if (newConfig)
+            {
+                hasRealtimeObsInput = hasRealtimeObservationInput();
+            }
+
+            // Check if all streams are dead
+            if (streamParserMultimap.empty())
+            {
+                static bool once = true;
+                if (once)
+                {
+                    once = false;
+
+                    BOOST_LOG_TRIVIAL(info) << "\n";
+                    BOOST_LOG_TRIVIAL(info) << "Inputs finished at epoch #" << epoch;
+                }
+
+                if (acsConfig.require_obs)
+                    complete = true;
+
+                break;
+            }
+
+            BOOST_LOG_TRIVIAL(debug) << "\n";
+            BOOST_LOG_TRIVIAL(debug) << "tsync: " << tsync.to_string(6) << " - attempt " << attempt;
+            BOOST_LOG_TRIVIAL(debug) << "Parsing non-observation streams ...";
+
+            // parse all non-observation streams
+            traceFloatInputMemoryBoundary("SYNC_NON_OBSERVATION_PARSE","BEGIN",receiverMap,pppNet.kfState);
+            for (auto& [id, streamParser_ptr] : streamParserMultimap)
+                try
+                {
+                    auto& obsStream = dynamic_cast<ObsStream&>(*streamParser_ptr);
+                }
+                catch (std::bad_cast& e)
+                {
+                    streamParser_ptr->parse();
+                }
+
+            traceFloatInputMemoryBoundary("SYNC_NON_OBSERVATION_PARSE","END",receiverMap,pppNet.kfState);
+            BOOST_LOG_TRIVIAL(debug) << "Parsing observation streams ...";
+
+            // Parse observation streams (including pseudo observations) for all receivers
+            for (auto& [id, rec] : receiverMap)
+            {
+                auto& recOpts = acsConfig.getRecOpts(id);
+
+                if (recOpts.exclude)
+                {
+                    continue;
+                }
+
+                if (rec.ready)
+                {
+                    BOOST_LOG_TRIVIAL(debug) << "Receiver " << id << " is ready, skipping ...";
+                    continue;
+                }
+
+                missingObsReasons[id] = "no_obs_stream";
+
+                auto trace = getTraceFile(rec);
+
+                // Search suitable data from all files from this receiver (for real-time data, there
+                // should be only one unique stream per receiver)
+                auto [begin, end] = streamParserMultimap.equal_range(id);
+                for (auto it = begin; it != end; it++)
+                {
+                    auto& streamParser_ptr = it->second;
+
+                    ObsStream* obsStream_ptr;
+
+                    try
+                    {
+                        obsStream_ptr = &dynamic_cast<ObsStream&>(*streamParser_ptr);
+                    }
+                    catch (std::bad_cast& e)
+                    {
+                        continue;
+                    }
+
+                    auto& obsStream = *obsStream_ptr;
+
+                    missingObsSources[id] = streamDisplayName(obsStream.stream.sourceString);
+
+                    auto describeStreamState = [&](const string& reason)
+                    {
+                        std::ostringstream state;
+                        state << "reason=" << reason
+                              << ", source=" << streamDisplayName(obsStream.stream.sourceString)
+                              << ", available=" << (obsStream.stream.isAvailable() ? "yes" : "no")
+                              << ", dead=" << (obsStream.stream.isDead() ? "yes" : "no");
+
+                        if (auto* tcpSocket = dynamic_cast<TcpSocket*>(&obsStream.stream))
+                        {
+                            long long nextReconnectUnixTime = tcpSocket->nextReconnectUnixTime();
+                            if (nextReconnectUnixTime > 0)
+                            {
+                                auto nowUnixTime =
+                                    std::chrono::system_clock::to_time_t(system_clock::now());
+                                long long reconnectInSeconds =
+                                    std::max(0LL, nextReconnectUnixTime - (long long)nowUnixTime);
+                                state << ", reconnect_in_s=" << reconnectInSeconds;
+                            }
+                            else
+                            {
+                                state << ", reconnect_in_s=0";
+                            }
+                        }
+                        else
+                        {
+                            state << ", reconnect_in_s=n/a";
+                        }
+
+                        if (obsStream.obsAgeCode != E_ObsAgeCode::UNKNOWN)
+                        {
+                            state << ", obs_age=" << obsStream.obsAgeCode;
+                        }
+
+                        return state.str();
+                    };
+
+                    BOOST_LOG_TRIVIAL(debug) << "Reading stream '" << obsStream.stream.sourceString
+                                             << "', isAvailable=" << obsStream.stream.isAvailable()
+                                             << ", isDead=" << obsStream.stream.isDead();
+
+                    if (obsStream.stream.isAvailable() == false)
+                    {
+                        missingObsReasons[id] = "stream_unavailable";
+                        missingObsStates[id]  = describeStreamState("stream_unavailable");
+                        BOOST_LOG_TRIVIAL(debug) << "Skipping unavailable stream '"
+                                                 << obsStream.stream.sourceString << "'";
+                        continue;
+                    }
+
+                    if (auto* tcpSocket = dynamic_cast<TcpSocket*>(&obsStream.stream))
+                    {
+                        if (tcpSocket->reconnectDueAfter(breakTime))
+                        {
+                            missingObsReasons[id] = "reconnect_after_breaktime";
+                            missingObsStates[id] = describeStreamState("reconnect_after_breaktime");
+                            BOOST_LOG_TRIVIAL(
+                                debug
+                            ) << "Skipping stream '"
+                              << obsStream.stream.sourceString
+                              << "' for this epoch because reconnect is scheduled after breakTime";
+                            continue;
+                        }
+                    }
+
+                    double epochTolerance =
+                        DTTOL;  // Use a very small tolerance if data interval is unknown (0) yet,
+                                // otherwise can take in multiple-epoch data
+
+                    // try to get some data (again)
+                    bool moreData = true;
+                    while (moreData)
+                    {
+                        if (acsConfig.assign_closest_epoch)
+                        {
+                            BOOST_LOG_TRIVIAL(warning)
+                                << "'assign_closest_epoch' is on, observations that fall between "
+                                   "processing epochs will be grouped to nearest epochs despite "
+                                   "'epoch_tolerance'";
+
+                            epochTolerance = acsConfig.epoch_interval / 2;
+                        }
+                        else if (obsStream.interval > 0)
+                        {
+                            epochTolerance =
+                                std::min(obsStream.interval / 2, acsConfig.epoch_tolerance);
+                        }
+
+                        BOOST_LOG_TRIVIAL(debug)
+                            << "Getting obs, id=" << id << ", targetTime=" << tsync.to_string(6)
+                            << ", epochTolerance=" << epochTolerance;
+
+                        GTime obsTime = tsync;
+                        traceFloatInputMemoryBoundary("SYNC_GET_OBS","BEGIN",receiverMap,pppNet.kfState,id);
+                        rec.obsList   = obsStream.getObs(obsTime, epochTolerance);
+                        traceFloatInputMemoryBoundary("SYNC_GET_OBS","END",receiverMap,pppNet.kfState,id);
+
+                        cleanSignals(rec.obsList);
+
+                        switch (obsStream.obsAgeCode)
+                        {
+                            case E_ObsAgeCode::UNKNOWN:
+                                moreData = false;
+                                if (firstObsTime == GTime::noTime() || obsTime < firstObsTime)
+                                {
+                                    firstObsTime = obsTime;
+                                }
+                                break;
+                            case E_ObsAgeCode::NO_OBS:
+                                moreData = false;
+                                break;
+                            case E_ObsAgeCode::PAST_OBS:
+                                traceFloatInputMemoryBoundary("SYNC_READ_PREPROCESS","BEGIN",receiverMap,pppNet.kfState,id);
+                                preprocessor(trace, rec);
+                                traceFloatInputMemoryBoundary("SYNC_READ_PREPROCESS","END",receiverMap,pppNet.kfState,id);
+                                break;
+                            case E_ObsAgeCode::CURRENT_OBS:
+                                moreData = false;  // Eugene to fix: May have more current obs from
+                                                   // next file
+                                traceFloatInputMemoryBoundary("SYNC_READ_PREPROCESS","BEGIN",receiverMap,pppNet.kfState,id);
+                                preprocessor(trace, rec);
+                                traceFloatInputMemoryBoundary("SYNC_READ_PREPROCESS","END",receiverMap,pppNet.kfState,id);
+                                break;
+                            case E_ObsAgeCode::FUTURE_OBS:
+                                moreData = false;
+                                break;
+                        }
+
+                        BOOST_LOG_TRIVIAL(debug)
+                            << "Checking obs age and preprocessing data if needed"
+                            << ", obsAgeCode=" << obsStream.obsAgeCode
+                            << ", moreData=" << (moreData ? "true" : "false");
+                    }
+
+                    if (rec.obsList.empty())
+                    {
+                        // Can only be NO_OBS or FUTURE_OBS
+                        if (obsStream.obsAgeCode == E_ObsAgeCode::NO_OBS)
+                        {
+                            missingObsReasons[id] = "no_obs";
+                            missingObsStates[id]  = describeStreamState("no_obs");
+                            // Failed to get observations, try again later
+                            repeat = true;  // Only need to retry on NO_OBS, for FUTURE_OBS, just
+                                            // move to next receiver
+
+                            BOOST_LOG_TRIVIAL(debug)
+                                << "Failed to get observations, try again later ...";
+                        }
+                        else if (obsStream.obsAgeCode == E_ObsAgeCode::FUTURE_OBS)
+                        {
+                            missingObsReasons[id] = "future_obs";
+                            missingObsStates[id]  = describeStreamState("future_obs");
+                        }
+                        else if (obsStream.obsAgeCode == E_ObsAgeCode::UNKNOWN)
+                        {
+                            missingObsReasons[id] = "unknown_obs_age";
+                            missingObsStates[id]  = describeStreamState("unknown_obs_age");
+                        }
+
+                        break;
+                    }
+
+                    dataAvailableMap[rec.id] = true;
+                    missingObsReasons.erase(rec.id);
+                    missingObsSources.erase(rec.id);
+                    missingObsStates.erase(rec.id);
+                    rec.ready  = true;
+                    rec.source = obsStream.stream.sourceString;
+
+                    extractReceiverMetadata(rec, obsStream.parser, &rec.obsList);
+                    extractTrackedSignals(rec, obsStream.parser, &rec.obsList);
+
+                    GTime readyTime = timeGet();
+                    if (tsync != GTime::noTime())
+                    {
+                        double readyLatencySecondsValue = (readyTime - tsync).to_double();
+                        readyLatencySeconds.push_back(readyLatencySecondsValue);
+
+                        BOOST_LOG_TRIVIAL(debug)
+                            << "Receiver " << rec.id << " ready diagnostic: attempt=" << attempt
+                            << ", ready_time=" << readyTime << ", ready_latency_s=" << std::fixed
+                            << std::setprecision(2) << readyLatencySecondsValue
+                            << ", obs_count=" << rec.obsList.size()
+                            << ", source=" << streamDisplayName(rec.source);
+                    }
+                    else
+                    {
+                        BOOST_LOG_TRIVIAL(debug)
+                            << "Receiver " << rec.id << " ready diagnostic: attempt=" << attempt
+                            << ", ready_time=" << readyTime
+                            << ", ready_latency_s=startup_pending_tsync"
+                            << ", obs_count=" << rec.obsList.size()
+                            << ", source=" << streamDisplayName(rec.source);
+                    }
+
+                    auto now = system_clock::now();
+
+                    if (now >= nominalLoopStartTime)
+                    {
+                        auto nominalLatency = now - nominalLoopStartTime;
+
+                        trace << "\n"
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     nominalLoopStartTime - peaStartTimeChrono
+                                 )
+                                     .count()
+                              << "ms" << " "
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     now - peaStartTimeChrono
+                                 )
+                                     .count()
+                              << "ms" << " " << rec.id << " nominal latency :  "
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     nominalLatency
+                                 )
+                                     .count()
+                              << "ms";
+                    }
+                    else
+                    {
+                        // this observation is earlier than expected
+                        // only shorten waiting periods, never extend
+
+                        auto nominalLatency = nominalLoopStartTime - now;
+
+                        trace << "\n"
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     nominalLoopStartTime - peaStartTimeChrono
+                                 )
+                                     .count()
+                              << "ms" << " "
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     now - peaStartTimeChrono
+                                 )
+                                     .count()
+                              << "ms" << " " << rec.id << " nominal latency : -"
+                              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     nominalLatency
+                                 )
+                                     .count()
+                              << "ms" << " Advancing start time";
+
+                        auto alternateBreakTime =
+                            now +
+                            std::chrono::milliseconds((int)(acsConfig.max_rec_latency * 1000));
+                        auto alternateStartTime = now;
+
+                        if (alternateBreakTime < breakTime)
+                        {
+                            breakTime = alternateBreakTime;
+                        }
+                        if (alternateStartTime < nominalLoopStartTime)
+                        {
+                            nominalLoopStartTime = alternateStartTime;
+                        }
+                    }
+
+                    break;
+                }
+            }
+            // Determine start time by earliest obs time and try getting obs again
+            if (tsync == GTime::noTime())
+            {
+                tsync = firstObsTime.floorTime(acsConfig.epoch_interval);
+
+                acsConfig.start_epoch = tsync.to_posixTime();
+
+                BOOST_LOG_TRIVIAL(warning)
+                    << "Start epoch not configured, rounding down first obs time " << firstObsTime
+                    << ", epoch_interval=" << acsConfig.epoch_interval
+                    << ", start_epoch=" << tsync.to_string(6);
+
+                repeat = true;
+            }
+
+            if (repeat)
+            {
+                sleep_for(std::chrono::milliseconds(acsConfig.sleep_milliseconds));
+            }
+        }
+
+        if (e29CheckpointFatal)
+        {
+            break;
+        }
+
+        BOOST_LOG_TRIVIAL(debug) << "Epoch data handling done with " << attempt << " attempt(s)\n";
+
+        if (complete)
+        {
+            break;
+        }
+
+        if (acsConfig.allow_missing_inputs && dataAvailableMap.empty())
+        {
+            if (waitMessage == false)
+            {
+                waitMessage = true;
+
+                BOOST_LOG_TRIVIAL(info) << "No more data available, waiting for further inputs...";
+            }
+
+            continue;
+        }
+
+        if (dataAvailableMap.empty() && acsConfig.require_obs && hasProcessedRealtimeEpoch &&
+            epoch > 1)
+        {
+            bool      sawRealtimeObsStream      = false;
+            long long earliestReconnectUnixTime = 0;
+
+            for (auto& [id, streamParser_ptr] : streamParserMultimap)
+            {
+                ObsStream* obsStream_ptr = nullptr;
+
+                try
+                {
+                    obsStream_ptr = &dynamic_cast<ObsStream&>(*streamParser_ptr);
+                }
+                catch (std::bad_cast&)
+                {
+                    continue;
+                }
+
+                auto& obsStream = *obsStream_ptr;
+
+                if (obsStream.isPseudoRec)
+                {
+                    continue;
+                }
+
+                auto* tcpSocket = dynamic_cast<TcpSocket*>(&obsStream.stream);
+                if (tcpSocket == nullptr)
+                {
+                    continue;
+                }
+
+                sawRealtimeObsStream = true;
+
+                long long nextReconnectUnixTime = tcpSocket->nextReconnectUnixTime();
+                if (nextReconnectUnixTime > 0 &&
+                    (earliestReconnectUnixTime == 0 ||
+                     nextReconnectUnixTime < earliestReconnectUnixTime))
+                {
+                    earliestReconnectUnixTime = nextReconnectUnixTime;
+                }
+            }
+
+            if (sawRealtimeObsStream)
+            {
+                if (holdingReconnectOutage == false)
+                {
+                    holdingReconnectOutage = true;
+                    reconnectOutageStart   = system_clock::now();
+                    lastOutageStatusLog    = reconnectOutageStart - 1s;
+                    BOOST_LOG_TRIVIAL(info) << "Realtime outage hold active, keeping tsync at "
+                                            << tsync << " until realtime observations resume";
+                }
+
+                auto now = system_clock::now();
+
+                if (now - lastOutageStatusLog >= 1s)
+                {
+                    auto outageElapsed = std::chrono::duration_cast<std::chrono::seconds>(
+                        now - reconnectOutageStart
+                    );
+                    BOOST_LOG_TRIVIAL(info) << "Realtime outage hold ongoing, tsync=" << tsync
+                                            << ", outage_elapsed=" << outageElapsed.count() << "s";
+                    lastOutageStatusLog = now;
+                }
+
+                auto holdSleep = std::chrono::milliseconds(acsConfig.sleep_milliseconds);
+
+                if (earliestReconnectUnixTime > 0)
+                {
+                    auto earliestReconnectTime =
+                        system_clock::from_time_t((time_t)earliestReconnectUnixTime);
+
+                    if (earliestReconnectTime > now)
+                    {
+                        holdSleep = std::min(
+                            std::chrono::duration_cast<std::chrono::milliseconds>(
+                                earliestReconnectTime - now
+                            ),
+                            std::chrono::milliseconds(1000)
+                        );
+                    }
+                }
+
+                sleep_for(holdSleep);
+                nominalLoopStartTime = system_clock::now();
+                lastEpochStartTime   = timeGet();
+
+                continue;
+            }
+        }
+        else if (holdingReconnectOutage)
+        {
+            holdingReconnectOutage = false;
+            auto outageElapsed     = std::chrono::duration_cast<std::chrono::seconds>(
+                system_clock::now() - reconnectOutageStart
+            );
+            BOOST_LOG_TRIVIAL(info) << "Realtime outage hold released at tsync " << tsync
+                                    << " after " << outageElapsed.count() << "s";
+        }
+
+        if (tsync == GTime::noTime())
+        {
+            if (acsConfig.require_obs)
+                continue;
+
+            tsync = timeGet().floorTime(acsConfig.epoch_interval);
+
+            acsConfig.start_epoch = tsync.to_posixTime();
+        }
+
+        lastProcStartTime = timeGet();
+        traceFloatInputMemoryBoundary("SYNC_COMPLETE","POINT",receiverMap,pppNet.kfState);
+
+        bool realtimeProcessing = acsConfig.simulate_real_time || hasRealtimeObsInput;
+
+        std::ostringstream syncSummary;
+        syncSummary << "Synced " << dataAvailableMap.size() << "/" << receiverMap.size()
+                    << " receivers after " << attempt << " attempt(s)";
+
+        if (realtimeProcessing)
+        {
+            syncSummary << ", sync_now=" << lastProcStartTime
+                        << ", sync_latency=" << (lastProcStartTime - tsync);
+
+            if (readyLatencySeconds.empty() == false)
+            {
+                std::sort(readyLatencySeconds.begin(), readyLatencySeconds.end());
+
+                auto percentile = [&](double p)
+                {
+                    size_t index = (size_t)std::floor(p * (readyLatencySeconds.size() - 1));
+                    return readyLatencySeconds[index];
+                };
+
+                syncSummary << ", ready_latency_s[min/p25/p50/p75/max]=" << std::fixed
+                            << std::setprecision(2) << readyLatencySeconds.front() << "/"
+                            << percentile(0.25) << "/" << percentile(0.50) << "/"
+                            << percentile(0.75) << "/" << readyLatencySeconds.back();
+            }
+
+            BOOST_LOG_TRIVIAL(info) << syncSummary.str();
+        }
+        else if (attempt > 1 || dataAvailableMap.size() < receiverMap.size())
+        {
+            BOOST_LOG_TRIVIAL(info) << syncSummary.str();
+        }
+        else
+        {
+            BOOST_LOG_TRIVIAL(debug) << syncSummary.str();
+        }
+
+        for (auto& [id, rec] : receiverMap)
+        {
+            if (dataAvailableMap.find(id) != dataAvailableMap.end())
+            {
+                latestMissingObsStatusByReceiver.erase(id);
+                continue;
+            }
+
+            auto it = missingObsReasons.find(id);
+            if (it == missingObsReasons.end())
+            {
+                latestMissingObsStatusByReceiver.erase(id);
+                continue;
+            }
+
+            std::ostringstream missingDiagnostic;
+            missingDiagnostic << "Receiver " << id << " not-ready diagnostic: attempts=" << attempt
+                              << ", sync_reason=" << it->second
+                              << ", sync_latency=" << (lastProcStartTime - tsync);
+
+            auto sourceIt = missingObsSources.find(id);
+            if (sourceIt != missingObsSources.end() && sourceIt->second.empty() == false)
+            {
+                missingDiagnostic << ", source=" << sourceIt->second;
+            }
+
+            auto stateIt = missingObsStates.find(id);
+            if (stateIt != missingObsStates.end() && stateIt->second.empty() == false)
+            {
+                latestMissingObsStatusByReceiver[id] = stateIt->second;
+                missingDiagnostic << ", state={" << stateIt->second << "}";
+            }
+            else
+            {
+                latestMissingObsStatusByReceiver.erase(id);
+            }
+
+            BOOST_LOG_TRIVIAL(debug) << missingDiagnostic.str();
+        }
+
+        bool processedEpoch = false;
+        if (acsConfig.require_obs == false || dataAvailableMap.empty() == false)
+        {
+            processedEpoch = mainOncePerEpoch(
+                pppNet, ionNet, receiverMap, tsync);
+
+            if (!processedEpoch)
+            {
+                e29CheckpointFatal = true;
+                e29CheckpointFatalReason =
+                    "AUTHORITATIVE_PPP_FACTOR_TRANSACTION_FAILED:" +
+                    tsync.to_string(0);
+            }
+
+            if (processedEpoch && acsConfig.require_obs &&
+                dataAvailableMap.empty() == false)
+            {
+                hasProcessedRealtimeEpoch = true;
+            }
+        }
+
+        if (e29CheckpointMode && processedEpoch)
+        {
+            const string completedEpochText = tsync.to_string(0);
+            auto capture = e29PendingCaptureEpochs.find(completedEpochText);
+            if (capture != e29PendingCaptureEpochs.end())
+            {
+                string checkpointFailure;
+                ZhangE29CheckpointProvenance currentProvenance;
+                if (!buildE29CheckpointProvenance(
+                        argc, argv, currentProvenance, checkpointFailure))
+                {
+                    e29CheckpointFatal = true;
+                    e29CheckpointFatalReason =
+                        "E29_CAPTURE_PROVENANCE_REBUILD_FAILED:" +
+                        checkpointFailure;
+                }
+                else if (
+                    currentProvenance.experimentMode !=
+                        e29StartupProvenance.experimentMode
+                    || currentProvenance.binaryPath !=
+                        e29StartupProvenance.binaryPath
+                    || currentProvenance.configText !=
+                        e29StartupProvenance.configText
+                    || currentProvenance.inputManifestText !=
+                        e29StartupProvenance.inputManifestText)
+                {
+                    e29CheckpointFatal = true;
+                    e29CheckpointFatalReason =
+                        "E29_CAPTURE_PROVENANCE_CHANGED_SINCE_STARTUP";
+                }
+                else
+                {
+                    string binaryHashFailure;
+                    const string currentBinarySha256 =
+                        zhangCheckpointFileSha256(
+                            currentProvenance.binaryPath,
+                            &binaryHashFailure);
+                    if (currentBinarySha256.empty()
+                        || currentBinarySha256 != e29StartupBinarySha256)
+                    {
+                        e29CheckpointFatal = true;
+                        e29CheckpointFatalReason =
+                            "E29_CAPTURE_BINARY_CHANGED_SINCE_STARTUP:" +
+                            binaryHashFailure;
+                    }
+                }
+                if (!e29CheckpointFatal)
+                {
+                    ZhangPeaControllerCheckpointState controller;
+                    auto controllerResult =
+                        makeZhangPeaPostEpochCheckpointState(
+                            epoch,
+                            captureZhangCheckpointTime(tsync),
+                            acsConfig.epoch_interval,
+                            controller);
+                    if (!controllerResult.valid)
+                    {
+                        e29CheckpointFatal = true;
+                        e29CheckpointFatalReason =
+                            "E29_CAPTURE_CONTROLLER_FAILED:" +
+                            controllerResult.failureReason;
+                    }
+                    else
+                    {
+                        ZhangE29CheckpointIdentity identity;
+                        identity.runtimeId =
+                            acsConfig.zhangPppAr.checkpoint_runtime_id;
+                        identity.checkpointId = makeE29CheckpointId(
+                            identity.runtimeId, epoch, tsync);
+                        identity.parentCheckpointId = e29LastCheckpointId;
+                        const auto target =
+                            std::filesystem::path(
+                                acsConfig.zhangPppAr
+                                    .checkpoint_output_directory)
+                            / identity.checkpointId;
+                        auto checkpointResult =
+                            captureAndWriteZhangE29Checkpoint(
+                                target.string(),
+                                pppNet.kfState,
+                                receiverMap,
+                                nav,
+                                streamParserMultimap,
+                                streamDOAMap,
+                                controller,
+                                identity,
+                                currentProvenance);
+                        if (!checkpointResult.valid)
+                        {
+                            e29CheckpointFatal = true;
+                            e29CheckpointFatalReason =
+                                "E29_CAPTURE_WRITE_FAILED:" +
+                                checkpointResult.failureReason;
+                        }
+                        else
+                        {
+                            e29LastCheckpointId =
+                                checkpointResult.checkpointId;
+                            e29PendingCaptureEpochs.erase(capture);
+                            BOOST_LOG_TRIVIAL(info)
+                                << "Published E29 checkpoint "
+                                << checkpointResult.checkpointId
+                                << " at " << completedEpochText
+                                << ", bytes="
+                                << checkpointResult.payloadBytes
+                                << ", sha256="
+                                << checkpointResult.payloadSha256
+                                << ", sections="
+                                << checkpointResult.sectionCount;
+                            if (us20ColdCheckpoint && checkpointResult.sectionCount != 9)
+                            {
+                                e29CheckpointFatal = true;
+                                e29CheckpointFatalReason = "US20_GLOBAL134_CAPTURE_REQUIRES_NINE_SECTIONS";
+                            }
+                            else if (us20CheckpointPolicy && zhangUs20Global134WarmupTerminal(
+                                    *us20CheckpointPolicy, completedEpochText, epoch))
+                            {
+                                const bool probe = us20CheckpointPolicy->outputsRoot ==
+                                    string(ZHANG_US20_GLOBAL134_PROBE_ROOT) + "/outputs";
+                                const string expectedId = probe ? ZHANG_US20_GLOBAL134_PROBE_CAPTURE :
+                                    ZHANG_US20_GLOBAL134_WARMUP_CAPTURE;
+                                if (checkpointResult.checkpointId != expectedId)
+                                {
+                                    e29CheckpointFatal = true;
+                                    e29CheckpointFatalReason = "US20_GLOBAL134_WARMUP_CAPTURE_IDENTITY_REJECTED";
+                                }
+                                else
+                                {
+                                    // Pause only after successful atomic capture
+                                    // at the committed native epoch boundary.
+                                    // Future capture requests remain in the
+                                    // frozen five-hour plan for strict restore.
+                                    us20WarmupCheckpointPaused = true;
+                                    BOOST_LOG_TRIVIAL(info)
+                                        << "US20_GLOBAL134_WARMUP_CHECKPOINT_PAUSE"
+                                        << " checkpoint_id=" << checkpointResult.checkpointId
+                                        << " epoch=" << completedEpochText
+                                        << " completed_epoch=" << epoch
+                                        << " sections=9 experiment_complete=0";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        lastEpochStopTime = timeGet();
+
+        if (e29CheckpointFatal || us20WarmupCheckpointPaused)
+        {
+            break;
+        }
+
+        if (atLastEpoch(true))
+        {
+            break;
+        }
+
+        nextEpoch = true;
+    }
+
+    if (e29CheckpointMode && !e29PendingCaptureEpochs.empty()
+        && !e29CheckpointFatal && !us20WarmupCheckpointPaused)
+    {
+        if (epochStopRequest.interruptedCaptureSchedule(
+                e29CheckpointMode,!e29PendingCaptureEpochs.empty(),e29CheckpointFatal))
+            BOOST_LOG_TRIVIAL(warning) << "E29_CAPTURE_SCHEDULE_INTERRUPTED pending="
+                << e29PendingCaptureEpochs.size() << " experiment_complete=0 exit_code="
+                << 128+SIGINT;
+        else
+        {
+            e29CheckpointFatal = true;
+            e29CheckpointFatalReason =
+                "E29_REQUESTED_CAPTURE_EPOCHS_NOT_REACHED:" +
+                std::to_string(e29PendingCaptureEpochs.size());
+        }
+    }
+
+    if (e29CheckpointFatal)
+    {
+        BOOST_LOG_TRIVIAL(error)
+            << "E29 deterministic checkpoint run failed: "
+            << e29CheckpointFatalReason;
+    }
+
+    // Disconnect the downloading clients and stop the io_service for clean shutdown.
+    for (auto& [id, ntripStream] : only<NtripStream>(streamParserMultimap))
+    {
+        ntripStream.disconnect();
+    }
+
+    ntripBroadcaster.stopBroadcast();
+    TcpSocket::ioContext.stop();
+
+    GTime peaInterTime = timeGet();
+    BOOST_LOG_TRIVIAL(info) << "\n"
+                            << "PEA started  processing at : " << peaStartTime << "\n"
+                            << "and finished processing at : " << peaInterTime << "\n"
+                            << "Total processing duration  : " << (peaInterTime - peaStartTime)
+                            << "\n"
+                            << "\n";
+
+    BOOST_LOG_TRIVIAL(info) << "\n"
+                            << "Finalising streams and post processing...";
+
+    if (!e29CheckpointFatal && !us20WarmupCheckpointPaused)
+    {
+        mainPostProcessing(pppNet, ionNet, receiverMap);
+    }
+
+    GTime peaStopTime = timeGet();
+    BOOST_LOG_TRIVIAL(info) << "\n"
+                            << "PEA started  processing at : " << peaStartTime << "\n"
+                            << "and finished processing at : " << peaStopTime << "\n"
+                            << "Total processing duration  : " << (peaStopTime - peaStartTime)
+                            << "\n"
+                            << "\n";
+
+    BOOST_LOG_TRIVIAL(info) << "PEA finished";
+
+    return epochStopRequest.exitCode(e29CheckpointFatal);
+}
