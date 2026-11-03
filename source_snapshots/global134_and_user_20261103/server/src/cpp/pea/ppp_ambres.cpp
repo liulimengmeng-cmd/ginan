@@ -1,4 +1,5 @@
 #include <memory>
+#include <cstring>
 #include "common/zhangP0ResourceProbe.hpp"
 #include "common/zhangRatioOnly.hpp"
 #include "common/zhangR49ConstraintNis.hpp"
@@ -6,6 +7,8 @@
 #include "common/zhangProductPhysicalCatalogue.hpp"
 #include "common/zhangProductFloatCarrierMetadata.hpp"
 #include "common/zhangWholeFloatSupport.hpp"
+#include "common/zhangPreparedWholeFloatSupport.hpp"
+#include "common/zhangPendingCurrentBridge.hpp"
 #include "common/zhangFloatMetadataCommit.hpp"
 #include "common/zhangCertifiedTreeTransport.hpp"
 #include "common/zhangArThreading.hpp"
@@ -18558,6 +18561,95 @@ solveZhangDualComponentGaugeBlocks(
 // R51 owns one physical compatibility view, including variables that are no
 // longer in the current numerical posterior. They remain existential integer
 // variables, so parity consequences cannot disappear during projection.
+static std::string zhangPreparedBridgeModelAndGraphIdentity(const KFState& state,E_Sys system)
+{
+    ZhangPhaseTimer timer("BRIDGE_SUPPORT_GRAPH_AND_MODEL_SCOPE");
+    std::ostringstream identity;
+    auto bits=[&](double value) {std::uint64_t raw;std::memcpy(&raw,&value,sizeof(raw));identity<<' '<<raw;};
+    for(const auto& [key,index]:state.kfIndexMap)if(zhangIsProductFloatCarrierKey(key)) {
+        zhangExactWorkCheckpoint("BRIDGE_SUPPORT_CARRIER_MODEL_SCOPE");
+        identity<<std::quoted(static_cast<std::string>(key));
+        const auto model=state.stateTransitionMap.find(key);
+        identity<<' '<<(model!=state.stateTransitionMap.end());
+        if(model!=state.stateTransitionMap.end())for(const auto& [source,powers]:model->second) {
+            identity<<std::quoted(static_cast<std::string>(source))<<' '<<powers.size();
+            for(const auto& [power,value]:powers){identity<<' '<<power;bits(value);}
+        }
+        for(const auto* values:{&state.procNoiseMap,&state.gaussMarkovTauMap}) {
+            const auto item=values->find(key);identity<<' '<<(item!=values->end());
+            if(item!=values->end())bits(item->second);
+        }
+    }
+    ZhangGraphIntegerContext graph;
+    const bool hasGraph=zhangGraphIntegerContext(state,system,graph);
+    identity<<" GRAPH "<<hasGraph;
+    if(hasGraph) {
+        identity<<std::quoted(graph.runtimeIdentity)<<std::quoted(graph.snapshotEpoch)
+            <<std::quoted(graph.committedSBasisIdentity)<<' '<<graph.eventId<<' '<<graph.representationVersion
+            <<' '<<graph.committedSGaugeVersion<<' '<<graph.floatGaugeVersion<<' '<<graph.integerComponentVersion
+            <<' '<<graph.productDatumVersion<<' '<<graph.signalObservationFinalized;
+        for(const auto& [edge,signals]:graph.signalArcVersions) {
+            zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SIGNAL_VERSION_SCOPE");
+            identity<<std::quoted(edge.receiver)<<std::quoted(edge.satellite.id());
+            for(const auto& [code,version]:signals)identity<<' '<<code<<':'<<version<<';';
+        }
+        for(const auto& [code,edges]:graph.signalObservationEdges) {
+            identity<<" ADMIT "<<code<<' '<<edges.size();
+            for(const auto& edge:edges) {
+                zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SIGNAL_ADMISSION_SCOPE");
+                identity<<std::quoted(edge.receiver)<<std::quoted(edge.satellite.id());
+            }
+        }
+    }
+    return identity.str();
+}
+
+
+std::shared_ptr<ZhangPreparedWholeFloatSupport> zhangAcquirePreparedWholeFloatSupport(
+    const KFState& state,E_Sys system,const std::array<E_ObsCode,2>& codes,
+    const std::shared_ptr<const ZhangCurrentProductFloatOwnerToken>& owner,
+    const std::shared_ptr<const ZhangCurrentEpochCompiledDomain>& domain,
+    const std::vector<std::string>& physicalIds,const std::string& runtime,
+    long int epoch,const std::string& posterior,const std::string& chart)
+{
+    ZhangPhaseTimer timer("BRIDGE_SUPPORT_FROZEN_SCOPE_CACHE");
+    if(!owner || !domain)return {};
+    const auto modelAndGraphIdentity=zhangPreparedBridgeModelAndGraphIdentity(state,system);
+    // Synchronous preparation only. Weak owners ensure an epoch/branch cannot
+    // keep old authority alive. No address-only or epoch-only cache keys.
+    static std::vector<std::shared_ptr<ZhangPreparedWholeFloatSupport>> cache;
+    cache.erase(std::remove_if(cache.begin(),cache.end(),[](const auto& item) {
+        return item->owner.expired() || item->domain.expired();
+    }),cache.end());
+    for(const auto& item:cache) {
+        zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SCOPE_CACHE_LOOKUP");
+        if(item->owner.lock()==owner && item->domain.lock()==domain &&
+            item->stateOwner==&state && item->sequence==state.factorCommitSequence &&
+            item->epoch==epoch && item->system==system && item->codes==codes &&
+            item->runtime==runtime && item->posterior==posterior && item->chart==chart &&
+            item->root==owner->floatRoot() && item->order==owner->stateOrder() &&
+            item->generation==domain->identity.constraintGeneration &&
+            item->modelAndGraphIdentity==modelAndGraphIdentity &&
+            item->physicalIds==physicalIds)return item;
+    }
+    auto item=std::make_shared<ZhangPreparedWholeFloatSupport>();
+    item->owner=owner;item->domain=domain;item->stateOwner=&state;
+    item->sequence=state.factorCommitSequence;item->epoch=epoch;item->system=system;item->codes=codes;
+    item->runtime=runtime;item->posterior=posterior;item->chart=chart;
+    item->root=owner->floatRoot();item->order=owner->stateOrder();
+    item->generation=domain->identity.constraintGeneration;
+    item->modelAndGraphIdentity=modelAndGraphIdentity;
+    for(const auto& id:physicalIds) {
+        zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SCOPE_PHYSICAL_ID_COPY");
+        item->physicalIds.push_back(id);
+    }
+    // This is a bounded work cache, not a history store. Eviction cannot
+    // authorise an incomplete result; it only makes later preparation cold.
+    if(cache.size()>=4)cache.erase(cache.begin());
+    cache.push_back(item);return item;
+}
+
+
 ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
     const KFState& state,E_Sys system,const std::array<E_ObsCode,2>& codes,
     const std::vector<std::string>& physicalIds,
@@ -18565,7 +18657,8 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
     const ZhangBridgeSpanMatrix& queryRows,const ZhangBridgeSpanRow& initialOffsets,
     const ZhangWholeFloatArcResolver& resolveArc,
     const ZhangWholeFloatCurrentVerifier& verifyCurrentBindings,
-    std::ostream* trace,const std::string& targetLabel)
+    std::ostream* trace,const std::string& targetLabel,
+    ZhangPreparedWholeFloatSupport* shared)
 {
     ZhangPhaseTimer timer("WHOLE_FLOAT_SUPPORT_PRODUCTION");
     ZhangWholeFloatSupportResult invalid;
@@ -18573,21 +18666,54 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
     if(!resolveArc || !verifyCurrentBindings || conditioners.size()!=conditionerValues.size() ||
         !zhangExactRectangularMatrix(conditioners,dimension))
     {invalid.reason="WHOLE_FLOAT_SUPPORT_INPUT_NOT_BOUND";return invalid;}
-    std::map<std::string,std::string> arcNumericReasons;
+    ZhangPreparedWholeFloatSupport local;
+    auto& prepared=shared?*shared:local;
+    if(shared) {
+        ZhangPhaseTimer identity("BRIDGE_SUPPORT_FROZEN_SCOPE_RECHECK");
+        ++prepared.scopeChecks;++prepared.orderBuilds;
+        const auto owner=prepared.owner.lock();const auto domain=prepared.domain.lock();
+        const auto current=zhangCurrentEpochEvidenceRegistry().find({prepared.runtime,system});
+        if(!owner || !domain || prepared.stateOwner!=&state ||
+            current==zhangCurrentEpochEvidenceRegistry().end() ||
+            current->second.currentDomainIdentity()!=domain->identity ||
+            prepared.sequence!=state.factorCommitSequence || prepared.system!=system || prepared.codes!=codes ||
+            prepared.modelAndGraphIdentity!=zhangPreparedBridgeModelAndGraphIdentity(state,system) ||
+            prepared.physicalIds!=physicalIds || prepared.generation!=domain->identity.constraintGeneration ||
+            !owner->matches(state,prepared.runtime,prepared.epoch,prepared.posterior,prepared.chart,
+                zhangFloatCarrierStateOrder(state.kfIndexMap)) || conditionerValues!=domain->basisValues ||
+            conditioners.size()!=domain->basis.size()) {
+            invalid.reason="BRIDGE_PREPARED_SUPPORT_STALE_SCOPE";return invalid;
+        }
+        for(std::size_t r=0;r<conditioners.size();++r) {
+            zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SOURCE_HNF_SCOPE_ROW");
+            const auto& basis=domain->basis[r];
+            if(basis.size()>conditioners[r].size() || !std::equal(basis.begin(),basis.end(),conditioners[r].begin()) ||
+                std::any_of(conditioners[r].begin()+basis.size(),conditioners[r].end(),[](const auto& x){return x!=0;})) {
+                invalid.reason="BRIDGE_PREPARED_SUPPORT_STALE_DOMAIN";return invalid;
+            }
+        }
+    }
+    ++prepared.queryCalls;
+    auto& arcNumericReasons=prepared.arcReasons;
     auto numericArc=[&](const std::string& id,ZhangCoordinateRow& row) {
+        ++prepared.arcCalls;
+        if(const auto found=prepared.arcResolved.find(id);found!=prepared.arcResolved.end()) {
+            ++prepared.arcHits;if(found->second)row=prepared.arcRows.at(id);return found->second;
+        }
+        ZhangPhaseTimer mapping("BRIDGE_SUPPORT_ARC_MAP");
         std::string why;const bool result=resolveArc(id,row,why);
-        arcNumericReasons[id]=why;return result;
+        arcNumericReasons[id]=why;prepared.arcResolved[id]=result;
+        if(result)prepared.arcRows[id]=row;return result;
     };
 	// Available FLOAT coordinates are a ROW SPACE, not necessarily individual
 	// physical ambiguities. Typed carriers may retain a whole phase combination
 	// while neither constituent arc is separately readable. Keep every actual
 	// phase-gauge term during elimination; Phi/lambda is never silently N.
-	using SymbolRow=std::map<std::string,ZhangR51Rational>;
-	struct BoundSpanRow {SymbolRow symbols;ZhangCoordinateRow numeric;bool oldAux=false;};
-	std::map<std::string,BoundSpanRow> availablePhi;
-	std::vector<BoundSpanRow> structuredPhi;
-	bool wholeSpanPrepared=false,wholeSpanPreparationValid=false;
-	std::string wholeSpanPreparationReason;
+	using SymbolRow=ZhangPreparedWholeFloatSupport::SymbolRow;
+	using BoundSpanRow=ZhangPreparedWholeFloatSupport::BoundRow;
+	auto& availablePhi=prepared.availablePhi;
+	auto& structuredPhi=prepared.structuredPhi;
+	auto& wholeSpanPreparationReason=prepared.reason;
 	auto symbolAdd=[](SymbolRow& destination,const SymbolRow& source,const ZhangR51Rational& scale) {
 		for(const auto& [id,value]:source) {
 			zhangExactWorkCheckpoint("BRIDGE_WHOLE_FLOAT_SYMBOL_ADD");
@@ -18618,33 +18744,100 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 		return why=="VERSIONED_PHYSICAL_ARC_NOT_IN_CURRENT_POSTERIOR" || why=="RETIRED_ARC_AUXILIARY_STATE_MISSING";
 	};
 	auto prepareWholeSpan=[&]() {
-		if(wholeSpanPrepared)return wholeSpanPreparationValid;
-		wholeSpanPrepared=true;
-		if(!zhangProductFloatTargetMetadataValid(state,wholeSpanPreparationReason))return false;
-		std::vector<ZhangProductFloatTargetRequest> registered;
-		if(!zhangReadFloatTargets(state.metaDataMap,registered,wholeSpanPreparationReason))return false;
-		std::set<std::string> ids(physicalIds.begin(),physicalIds.end());
-		for(const auto& item:registered)if(item.numericBindingComplete &&
+		if(!prepared.snapshotComplete) {
+			ZhangPhaseTimer snapshot("BRIDGE_METADATA_SNAPSHOT_BATCHED_COPY");
+			auto entry=prepared.snapshotStarted?state.metaDataMap.upper_bound(prepared.snapshotCursor):state.metaDataMap.begin();
+			for(;entry!=state.metaDataMap.end();++entry) {
+				zhangExactWorkCheckpoint("BRIDGE_METADATA_SNAPSHOT_ENTRY");
+				prepared.metadata.emplace(entry->first,entry->second);
+				prepared.snapshotCursor=entry->first;prepared.snapshotStarted=true;
+			}
+			prepared.snapshotComplete=true;
+		}
+		{
+			ZhangPhaseTimer identity("BRIDGE_METADATA_LITERAL_SCOPE_CHECK");
+			if(prepared.metadata.size()!=state.metaDataMap.size()) {wholeSpanPreparationReason="BRIDGE_FROZEN_METADATA_CHANGED";return false;}
+			auto actual=state.metaDataMap.begin();
+			for(const auto& literal:prepared.metadata) {
+				zhangExactWorkCheckpoint("BRIDGE_METADATA_LITERAL_ENTRY");
+				if(literal!=*actual++) {wholeSpanPreparationReason="BRIDGE_FROZEN_METADATA_CHANGED";return false;}
+			}
+		}
+		if(!prepared.decodeComplete) {
+			ZhangPhaseTimer decode("BRIDGE_METADATA_DECODE_ONCE_BATCHED");
+			auto entry=prepared.decodeStarted?prepared.metadata.upper_bound(prepared.decodeCursor):prepared.metadata.begin();
+			for(;entry!=prepared.metadata.end();++entry) {
+				zhangExactWorkCheckpoint("BRIDGE_METADATA_DECODE_ENTRY");
+				const bool target=entry->first.starts_with(ZHANG_FLOAT_TARGET_V2_PREFIX);
+				const bool carrier=entry->first.starts_with(ZHANG_FLOAT_CARRIER_V2_PREFIX);
+				if(target || carrier) {
+					ZhangProductFloatTargetRequest item;
+					if(!zhangDecodeFloatTarget(entry->second,item) ||
+						(target && entry->first!=std::string(ZHANG_FLOAT_TARGET_V2_PREFIX)+item.targetId))
+					{wholeSpanPreparationReason="FLOAT_TARGET_METADATA_INVALID";return false;}
+					// Wire scope order is one shared directory value. Do not copy
+					// hundreds of kilobytes into each decoded target just to compare it.
+					if(target && prepared.registered.size()>=8192) {wholeSpanPreparationReason="FLOAT_TARGET_DIRECTORY_CAPACITY";return false;}
+					if(target)prepared.registered.push_back(std::move(item));
+					else prepared.carriers.emplace(entry->first,std::move(item));
+					++prepared.decodeEntries;prepared.decodeBytes+=entry->second.size();
+				}
+				prepared.decodeCursor=entry->first;prepared.decodeStarted=true;
+			}
+			prepared.decodeComplete=true;
+		}
+		if(!prepared.metadataValid) {
+			++prepared.orderBuilds;
+			const auto order=zhangFloatCarrierStateOrder(state.kfIndexMap);
+			if(!zhangValidateDecodedProductFloatTargetMetadata(state,prepared.registered,
+				prepared.carriers,order,wholeSpanPreparationReason))return false;
+			prepared.metadataValid=true;
+		}
+		if(prepared.prepared)return true;
+		auto& registered=prepared.registered;auto& ids=prepared.ids;
+		if(!prepared.catalogueComplete) {
+			ZhangPhaseTimer catalogue("BRIDGE_SUPPORT_PHYSICAL_CATALOGUE");
+			for(const auto& id:physicalIds) {zhangExactWorkCheckpoint("BRIDGE_SUPPORT_PHYSICAL_ID");ids.insert(id);}
+			for(;prepared.idCollectCursor<registered.size();++prepared.idCollectCursor) {
+				zhangExactWorkCheckpoint("BRIDGE_SUPPORT_TARGET_CATALOGUE");
+				const auto& item=registered[prepared.idCollectCursor];
+				if(item.numericBindingComplete &&
 			item.symbolicSpace!=ZhangProductFloatTargetSpace::SOURCE_KF_COORDINATE)
 			for(const auto& [term,value]:item.physicalCoefficients)
+			{ zhangExactWorkCheckpoint("BRIDGE_SUPPORT_CATALOGUE_TERM");
 				if(value!=0 && term.edge.satellite.sys==system &&
-					(term.observable==codes[0] || term.observable==codes[1]))ids.insert(termId(term));
-		for(const auto& id:ids) {
+					(term.observable==codes[0] || term.observable==codes[1]))ids.insert(termId(term)); }
+			}
+			prepared.catalogueComplete=true;
+		}
+		{
+		ZhangPhaseTimer rows("BRIDGE_SUPPORT_AVAILABLE_NUMERIC_ROWS");
+		auto idIt=prepared.arcStarted?ids.upper_bound(prepared.arcCursor):ids.begin();
+		for(;idIt!=ids.end();++idIt) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_AVAILABLE_ROW");
+			const auto& id=*idIt;
 			ZhangProductFloatVersionedTerm term;ZhangCoordinateRow row;
-			if(!decodeTerm(id,term) || !numericArc(id,row))continue;
+			if(!decodeTerm(id,term) || !numericArc(id,row)) {prepared.arcCursor=id;prepared.arcStarted=true;continue;}
 			const auto wave=zhangFloatCarrierExactDouble(zhangE27Wavelength(system,term.observable));
-			if(!wave || *wave<=0)continue;
+			if(!wave || *wave<=0) {prepared.arcCursor=id;prepared.arcStarted=true;continue;}
 			const ZhangR51Rational inverse=ZhangR51Rational(1)/ *wave;
 			BoundSpanRow bound;bound.symbols=gaugeTerms(term,inverse);bound.symbols["N:"+id]=1;
 			bound.numeric=std::move(row);bound.oldAux=arcNumericReasons.at(id)=="CORRELATED_RETIRED_ARC_AUXILIARY_ROW";
 			availablePhi.emplace(id,std::move(bound));
+			prepared.arcCursor=id;prepared.arcStarted=true;
 		}
-		for(const auto& item:registered) {
+		prepared.arcsComplete=true;
+		}
+		ZhangPhaseTimer nuisance("BRIDGE_SUPPORT_SYMBOLIC_AND_NUISANCE_ROWS");
+		for(;prepared.structuredCursor<registered.size();++prepared.structuredCursor) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_STRUCTURED_TARGET");
+			const auto& item=registered[prepared.structuredCursor];
 			if(!item.numericBindingComplete || item.symbolicSpace==ZhangProductFloatTargetSpace::SOURCE_KF_COORDINATE)continue;
 			const auto offset=zhangFloatCarrierExactDouble(item.numericOffset);
 			if(!offset || *offset!=item.symbolicOffset)continue;
 			BoundSpanRow bound;bound.numeric=item.numericRow;bool supported=true;
 			for(const auto& [term,value]:item.physicalCoefficients) {
+				zhangExactWorkCheckpoint("BRIDGE_SUPPORT_SYMBOLIC_TERM");
 				if(value==0)continue;
 				if(term.edge.satellite.sys!=system || (term.observable!=codes[0] && term.observable!=codes[1])){supported=false;break;}
 				const auto id=termId(term);
@@ -18660,14 +18853,14 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 				else {supported=false;break;}
 			}
 			if(!supported)continue;
-			for(const auto& [id,value]:item.nuisanceCoefficients)bound.symbols["G:EXPLICIT|"+id]+=value;
+			for(const auto& [id,value]:item.nuisanceCoefficients) {zhangExactWorkCheckpoint("BRIDGE_SUPPORT_NUISANCE_TERM");bound.symbols["G:EXPLICIT|"+id]+=value;}
 			for(const auto& [key,value]:bound.numeric) {
 				if(!state.kfIndexMap.contains(key) || !std::isfinite(value)){supported=false;break;}
 				bound.oldAux|=value!=0 && key.type==KF::PRODUCT_HANDOFF;
 			}
 			if(supported)structuredPhi.push_back(std::move(bound));
 		}
-		wholeSpanPreparationValid=true;return true;
+		prepared.prepared=true;return true;
 	};
 	auto wholeFloatRows=[&](const std::vector<ZhangR51RationalRow>& queries,const ZhangR51RationalRow& offsets) {
 		ZhangWholeFloatSupportResult result;result.offsets=offsets;
@@ -18679,11 +18872,17 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 				}
 			return row;
 		};
-		std::vector<SymbolRow> fullH,reducedH,fullS,reducedS,fullTargets,reducedTargets;
-		std::vector<std::size_t> hIndices,sIndices;
-		for(std::size_t r=0;r<conditioners.size();++r) {
+		std::vector<SymbolRow> fullTargets,reducedTargets;
+		auto& fullH=prepared.fullH;auto& reducedH=prepared.reducedH;
+		auto& fullS=prepared.fullS;auto& reducedS=prepared.reducedS;
+		auto& hIndices=prepared.hIndices;auto& sIndices=prepared.sIndices;
+		ZhangPhaseTimer baseTimer("BRIDGE_SUPPORT_BASE_AND_TARGET_SYMBOLS");
+		for(;prepared.hCursor<conditioners.size();++prepared.hCursor) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_BASE_CURRENT_ROW");
+			const auto r=prepared.hCursor;
 			SymbolRow row;bool authority=true;
 			for(int c=0;c<dimension;++c)if(conditioners[r][c]!=0) {
+				zhangExactWorkCheckpoint("BRIDGE_SUPPORT_BASE_CURRENT_TERM");
 				row["N:"+physicalIds[c]]=conditioners[r][c];
 				if(const auto failed=arcNumericReasons.find(physicalIds[c]);failed!=arcNumericReasons.end() &&
 					!availablePhi.contains(physicalIds[c]) && !missingAllowed(failed->second))authority=false;
@@ -18692,14 +18891,18 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 			const auto reduced=eliminateAvailable(row);
 			if(!reduced.empty()){fullH.push_back(std::move(row));reducedH.push_back(reduced);hIndices.push_back(r);}
 		}
-		for(std::size_t r=0;r<structuredPhi.size();++r) {
+		for(;prepared.sCursor<structuredPhi.size();++prepared.sCursor) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_BASE_NUMERIC_ROW");
+			const auto r=prepared.sCursor;
 			const auto reduced=eliminateAvailable(structuredPhi[r].symbols);
 			if(!reduced.empty()){fullS.push_back(structuredPhi[r].symbols);reducedS.push_back(reduced);sIndices.push_back(r);}
 		}
 		for(const auto& query:queries) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_TARGET_SYMBOL_ROW");
 			if(query.size()!=dimension){result.reason="WHOLE_FLOAT_QUERY_DIMENSION_INVALID";return result;}
 			SymbolRow row;
 			for(int c=0;c<dimension;++c)if(query[c]!=0) {
+				zhangExactWorkCheckpoint("BRIDGE_SUPPORT_TARGET_SYMBOL_TERM");
 				if(const auto failed=arcNumericReasons.find(physicalIds[c]);failed!=arcNumericReasons.end() &&
 					!availablePhi.contains(physicalIds[c]) && !missingAllowed(failed->second)) {
 					result.reason="WHOLE_FLOAT_QUERY_CURRENT_AUTHORITY_INVALID";return result;
@@ -18710,11 +18913,12 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 		}
 		std::map<std::string,std::size_t> reducedColumns;
 		for(const auto* group:{&reducedH,&reducedS,&reducedTargets})for(const auto& row:*group)
-			for(const auto& [id,value]:row)if(value!=0)reducedColumns.try_emplace(id,reducedColumns.size());
+			for(const auto& [id,value]:row) {zhangExactWorkCheckpoint("BRIDGE_SUPPORT_REDUCED_COLUMN_INDEX");if(value!=0)reducedColumns.try_emplace(id,reducedColumns.size());}
 		auto dense=[&](const SymbolRow& row) {ZhangBridgeSpanRow dense(reducedColumns.size());
 			for(const auto& [id,value]:row)if(value!=0)dense[reducedColumns.at(id)]=value;return dense;};
 		ZhangExactMatrix h;ZhangExactVector scales;
 		for(const auto& row:reducedH) {
+			zhangExactWorkCheckpoint("BRIDGE_SUPPORT_BASE_DENSE_ROW");
 			ZhangExactInteger scale=1;
 			for(const auto& [id,value]:row) {ZhangExactInteger a=scale,b=denominator(value);
 				while(b!=0){ZhangExactInteger r=a%b;a=b;b=r;}scale=scale/a*denominator(value);}
@@ -18772,6 +18976,13 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
 			<<" original_physical_columns="<<dimension<<" residual_and_nuisance_columns="<<reducedColumns.size()
 			<<" current_rows="<<h.size()<<" whole_numeric_rows="<<s.size()<<" targets="<<queries.size()
 			<<" full_physical_and_nuisance_witness_exact=1 integer_image_unchanged=1";
+		if(trace)*trace<<"\nZHANG_BRIDGE_PREPARED_SUPPORT_SAMPLE time="<<state.time.to_string(0)
+			<<" satellite="<<targetLabel<<" queries="<<prepared.queryCalls
+			<<" decoded_entries="<<prepared.decodeEntries<<" decoded_bytes="<<prepared.decodeBytes
+			<<" per_target_order_copies=0 scope_rechecks="<<prepared.scopeChecks<<" state_order_builds="<<prepared.orderBuilds
+			<<" arc_calls="<<prepared.arcCalls<<" arc_hits="<<prepared.arcHits
+			<<" base_current_rows="<<fullH.size()<<" base_numeric_rows="<<fullS.size()
+			<<" integer_authority=0 prepared_scope_only=1";
 		return result;
 	};
 	return wholeFloatRows(queryRows,initialOffsets);
@@ -19370,6 +19581,10 @@ static bool zhangTryAdmitLegacyCurrentEventOverlap(
 		reason = "CURRENT_EVENT_OVERLAP_EXACT_ROW_CONFLICT";
 		return false;
 	}
+	// This closure trace is cooperative/cancellable and must precede both the
+	// final time gate and publication. It records a private candidate only.
+	trace << "\nZHANG_CURRENT_EVENT_PROOF_TRACE stage=PRIVATE_PRECOMMIT";
+	zhangTraceDecisionProofs(trace, state.time, proofs);
 	const auto finalMilliseconds = std::chrono::duration_cast<
 		std::chrono::milliseconds>(
 			std::chrono::steady_clock::now() - eventStart).count();
@@ -19385,7 +19600,6 @@ static bool zhangTryAdmitLegacyCurrentEventOverlap(
 		return false;
 	}
 	registry[{runtimeId, system}] = std::move(proposed);
-	zhangTraceDecisionProofs(trace, state.time, proofs);
 	reason = "CURRENT_EVENT_OVERLAP_WL_L1_RATIO_ACCEPTED";
 	trace << "\nZHANG_CURRENT_EVENT_OVERLAP time=" << state.time.to_string(0)
 		<< " system=" << enum_to_string(system)
@@ -19478,6 +19692,224 @@ zhangBindCurrentProductFloatOwner(const KFState& state,E_Sys system,
 	reason="CURRENT_PRODUCT_FULL_FLOAT_IMMUTABLE_OWNER_BOUND|"+token->conditionedReason;return token;
 }
 
+static bool zhangPreparedBridgeMetadataMatches(const KFState& state,
+    const ZhangPreparedWholeFloatSupport& prepared)
+{
+    ZhangPhaseTimer timer("BRIDGE_PENDING_LITERAL_METADATA_RECHECK");
+    if(!prepared.snapshotComplete || prepared.metadata.size()!=state.metaDataMap.size())return false;
+    auto actual=state.metaDataMap.begin();
+    for(const auto& literal:prepared.metadata) {
+        zhangExactWorkCheckpoint("BRIDGE_PENDING_LITERAL_METADATA_ENTRY");
+        if(literal!=*actual++)return false;
+    }
+    return true;
+}
+
+
+static std::shared_ptr<ZhangPendingCurrentBridge> zhangPendingCurrentBridgeWork(
+    const KFState& state,E_Sys system,const std::array<E_ObsCode,2>& codes,
+    const ZhangCurrentProductBridgePlan* plan,ZhangCurrentEpochEvidence& base,
+    const ZhangCurrentBridgeConditioningKey& conditioning,double ratioThreshold)
+{
+    if(!plan || !plan->immutableFloat)return {};
+    ZhangPhaseTimer timer("BRIDGE_PENDING_PARENT_AND_TARGET_IDENTITY");
+    const auto modelAndGraphIdentity=zhangPreparedBridgeModelAndGraphIdentity(state,system);
+    std::array<ZhangSharedProductTargetKey,2> targets;
+    std::string why;
+    for(int s=0;s<2;++s)if(!zhangCanonicalSharedProductTarget(plan->completeSignalTargets[s],targets[s],why))return {};
+    static std::vector<std::shared_ptr<ZhangPendingCurrentBridge>> cache;
+    cache.erase(std::remove_if(cache.begin(),cache.end(),[](const auto& item) {
+        return item->owner.expired();
+    }),cache.end());
+    auto same=[](const auto& a,const auto& b){return !(a<b) && !(b<a);};
+    for(const auto& item:cache) {
+        zhangExactWorkCheckpoint("BRIDGE_PENDING_PARENT_LOOKUP");
+        if(item->owner.lock()==plan->immutableFloat && item->stateOwner==&state &&
+            item->sequence==state.factorCommitSequence && item->epoch==base.epochGpstSeconds &&
+            item->system==system && item->codes==codes && item->satellite==plan->satellite &&
+            item->changeMask==plan->changeMask && item->conditioning==conditioning &&
+            item->threshold==ratioThreshold &&
+            item->modelAndGraphIdentity==modelAndGraphIdentity &&
+            item->mapProven==plan->fullJointMapProven && item->mapWitnesses==plan->fullJointMapWitness &&
+            same(item->targets[0],targets[0]) && same(item->targets[1],targets[1]) &&
+            item->transaction->matches(base) &&
+            ((!item->candidate && !item->exactAudited) ||
+                (item->support && zhangPreparedBridgeMetadataMatches(state,*item->support))))return item;
+    }
+    auto item=std::make_shared<ZhangPendingCurrentBridge>();
+    item->owner=plan->immutableFloat;item->stateOwner=&state;item->sequence=state.factorCommitSequence;
+    item->epoch=base.epochGpstSeconds;item->system=system;item->codes=codes;
+    item->satellite=plan->satellite;item->changeMask=plan->changeMask;
+    item->threshold=ratioThreshold;
+    item->targets=std::move(targets);item->conditioning=conditioning;
+    item->modelAndGraphIdentity=modelAndGraphIdentity;
+    item->mapProven=plan->fullJointMapProven;item->mapWitnesses=plan->fullJointMapWitness;
+    item->transaction=std::make_shared<ZhangCurrentEpochEventTransaction>(base);
+    if(cache.size()>=8)cache.erase(cache.begin());
+    cache.push_back(item);return item;
+}
+
+static bool zhangPreparePendingWholeNumericRows(std::ostream& trace,const KFState& state,
+    ZhangCurrentEpochEvidence& base,ZhangPendingCurrentBridge& pending,std::string& reason)
+{
+    if(!pending.support)return true; // The legacy individually-readable path is unchanged.
+    auto& support=*pending.support;
+    const auto owner=support.owner.lock();const auto domain=support.domain.lock();
+    if(!owner || !domain || support.stateOwner!=&state ||
+        support.sequence!=state.factorCommitSequence || support.system!=pending.system || support.codes!=pending.codes ||
+        base.currentDomainIdentity()!=domain->identity ||
+        support.modelAndGraphIdentity!=zhangPreparedBridgeModelAndGraphIdentity(state,pending.system) ||
+        !owner->matches(state,support.runtime,support.epoch,support.posterior,support.chart,
+            zhangFloatCarrierStateOrder(state.kfIndexMap)) ||
+        !support.snapshotComplete || !zhangPreparedBridgeMetadataMatches(state,support)) {
+        reason="CURRENT_EVENT_OVERLAP_PENDING_WHOLE_SCOPE_STALE";return false;
+    }
+    if(pending.numericAudited)return true;
+    ZhangPhaseTimer mapping("BRIDGE_PENDING_LIFT_WHOLE_CURRENT_H_MAP");
+    std::map<std::string,std::size_t> columns;
+    for(std::size_t c=0;c<support.physicalIds.size();++c) {
+        zhangExactWorkCheckpoint("OVERLAP_PENDING_WHOLE_COLUMN");
+        if(!columns.emplace(support.physicalIds[c],c).second) {
+            reason="CURRENT_EVENT_OVERLAP_PENDING_DUPLICATE_PHYSICAL_COLUMN";return false;
+        }
+    }
+    ZhangBridgeSpanMatrix queries;
+    for(const auto& physical:pending.physicalRows) {
+        zhangExactWorkCheckpoint("OVERLAP_PENDING_WHOLE_LIFT_ROW");
+        ZhangBridgeSpanRow query(columns.size());
+        for(const auto& [id,value]:physical) {
+            zhangExactWorkCheckpoint("OVERLAP_PENDING_WHOLE_LIFT_TERM");
+            if(value < -9007199254740991LL || value > 9007199254740991LL) {
+                reason="CURRENT_EVENT_OVERLAP_LIFT_COEFFICIENT_NOT_EXACT_DOUBLE";return false;
+            }
+            const auto c=columns.find(id);
+            if(c==columns.end()) {reason="CURRENT_EVENT_OVERLAP_PENDING_LIFT_COLUMN_UNKNOWN";return false;}
+            query[c->second]=value;
+        }
+        queries.push_back(std::move(query));
+    }
+    ZhangExactMatrix h;
+    for(const auto& row:domain->basis) {
+        zhangExactWorkCheckpoint("OVERLAP_PENDING_WHOLE_H_ROW");
+        if(row.size()>columns.size()) {reason="CURRENT_EVENT_OVERLAP_PENDING_H_SHAPE_INVALID";return false;}
+        h.push_back(row);h.back().resize(columns.size());
+    }
+    // All per-arc outcomes (including missing historical arcs) were frozen by
+    // the complete original/residual support queries. Resolve the LIFT as a
+    // whole functional in that same span; do not ask CURRENT to admit every
+    // constituent old arc again. The exact nuisance/full-N witness and bound
+    // current H numerical recipe are audited by the production resolver.
+    const auto answer=zhangResolveWholeFloatSupportProduction(state,pending.system,pending.codes,
+        support.physicalIds,h,domain->basisValues,queries,ZhangBridgeSpanRow(queries.size()),
+        [](const std::string&,ZhangCoordinateRow&,std::string& why) {
+            why="PENDING_WHOLE_SUPPORT_NOT_PREPARED";return false;
+        },[&](std::string& why){return base.validatePhysicalNumericBindings(why);},
+        &trace,pending.satellite.id(),&support);
+    if(!answer.valid || answer.rows.size()!=pending.physicalRows.size() || answer.offsets.size()!=answer.rows.size()) {
+        reason="CURRENT_EVENT_OVERLAP_PENDING_WHOLE_LIFT_"+answer.reason;return false;
+    }
+    auto rows=answer.rows;
+    for(std::size_t r=0;r<rows.size();++r) {
+        zhangExactWorkCheckpoint("OVERLAP_PENDING_WHOLE_AFFINE_BINDING");
+        if(answer.offsets[r]!=0) {
+            const auto one=state.kfIndexMap.find(KFState::oneKey);
+            const auto existing=rows[r].find(KFState::oneKey);
+            const auto old=zhangFloatCarrierExactDouble(existing==rows[r].end()?0:existing->second);
+            if(!old) {reason="CURRENT_EVENT_OVERLAP_PENDING_AFFINE_CONSTANT_NOT_EXACT";return false;}
+            const ZhangFloatCarrierRational total=*old+answer.offsets[r];
+            const double value=total.convert_to<double>();
+            const auto exact=zhangFloatCarrierExactDouble(value);
+            if(!exact || *exact!=total || one==state.kfIndexMap.end() ||
+                one->second<0 || one->second>=state.x.size() ||
+                state.P.rows()!=state.x.size() || state.P.cols()!=state.x.size() ||
+                state.x(one->second)!=1 || (state.P.row(one->second).array()!=0).any() ||
+                (state.P.col(one->second).array()!=0).any()) {
+                reason="CURRENT_EVENT_OVERLAP_PENDING_AFFINE_CONSTANT_NOT_EXACT";return false;
+            }
+            rows[r][KFState::oneKey]=value;
+        }
+        for(auto i=rows[r].begin();i!=rows[r].end();) {
+            if(!state.kfIndexMap.contains(i->first) || !std::isfinite(i->second)) {
+                reason="CURRENT_EVENT_OVERLAP_PENDING_WHOLE_NUMERIC_ROW_INVALID";return false;
+            }
+            if(i->second==0)i=rows[r].erase(i);else ++i;
+        }
+        if(rows[r].empty()) {reason="CURRENT_EVENT_OVERLAP_PENDING_WHOLE_NUMERIC_ROW_EMPTY";return false;}
+    }
+    pending.numericRows=std::move(rows);pending.numericAudited=true;
+    return true;
+}
+
+bool zhangFinishPendingCurrentBridge(std::ostream& trace,const KFState& state,
+    ZhangCurrentEpochEvidence& base,ZhangPendingCurrentBridge& pending,std::string& reason)
+{
+    if(!pending.exactAudited || !pending.transaction ||
+        (!pending.transaction->committed() && !pending.transaction->matches(base))) {
+        reason="CURRENT_EVENT_OVERLAP_PENDING_PARENT_NOT_CURRENT";return false;
+    }
+    if(pending.physicalRows.size()!=pending.values.size() || pending.targetValues.size()!=2) {
+        reason="CURRENT_EVENT_OVERLAP_PENDING_SHAPE_INVALID";return false;
+    }
+    if(pending.transaction->committed()) {
+        // Public/idempotent use must bind the actual FLOAT owner as well as
+        // the registry. A copied or subsequently advanced KF object cannot
+        // inherit success from an old committed transaction.
+        const auto support=pending.support;
+        const auto owner=support?support->owner.lock():nullptr;
+        if(!support || !owner || support->stateOwner!=&state ||
+            support->system!=pending.system || support->codes!=pending.codes ||
+            support->sequence!=state.factorCommitSequence ||
+            owner->floatRoot()!=base.floatStateRoot ||
+            !owner->matches(state,support->runtime,support->epoch,support->posterior,support->chart,
+                zhangFloatCarrierStateOrder(state.kfIndexMap)) ||
+            support->modelAndGraphIdentity!=zhangPreparedBridgeModelAndGraphIdentity(state,pending.system) ||
+            !zhangPreparedBridgeMetadataMatches(state,*support) ||
+            zhangR51NumericRoot(state.x,state.P)!=owner->floatRoot()) {
+            reason="CURRENT_EVENT_OVERLAP_COMMITTED_FLOAT_SCOPE_STALE";return false;
+        }
+        if(!pending.transaction->commit(base,reason))return false;
+        reason="CURRENT_EVENT_OVERLAP_RESIDUAL_RATIO_ACCEPTED";return true;
+    }
+    if(!zhangPreparePendingWholeNumericRows(trace,state,base,pending,reason))return false;
+    if(pending.numericRows.size()!=pending.physicalRows.size()) {
+        reason="CURRENT_EVENT_OVERLAP_PENDING_FROZEN_NUMERIC_SHAPE_INVALID";return false;
+    }
+    for(;pending.stagedRows<pending.physicalRows.size();++pending.stagedRows) {
+        zhangExactWorkCheckpoint("OVERLAP_PENDING_DELTA_ROW_ENTRY",true);
+        const auto row=pending.stagedRows;
+        ZhangPhaseTimer insert("BRIDGE_PENDING_DELTA_CONFLICT_AND_INSERT");
+        if(!pending.transaction->stage(pending.physicalRows[row],pending.values[row],pending.proofs,
+            pending.witness,pending.numericRows[row],reason))return false;
+    }
+    if(!pending.prepared) {
+        ZhangPhaseTimer audit("BRIDGE_PENDING_DELTA_FULL_AUDIT");
+        if(!pending.transaction->prepare(reason))return false;
+        pending.prepared=true;
+    }
+    if(!pending.proofsTraced) {
+        // The dependency traversal contains cancellation checkpoints. It must
+        // finish while the transaction is private; no cooperative/fallible
+        // proof callback may turn an already published decision into TIMEOUT.
+        trace<<"\nZHANG_CURRENT_EVENT_PROOF_TRACE stage=PRIVATE_PRECOMMIT";
+        zhangTraceDecisionProofs(trace,state.time,pending.proofs);
+        pending.proofsTraced=true;
+    }
+    // A ready private transaction is retained on cancellation. No integer
+    // authority is published until the exact same parent passes this gate.
+    zhangExactWorkCheckpoint("OVERLAP_ATOMIC_COMMIT",true);
+    {
+        ZhangPhaseTimer commit("BRIDGE_PENDING_DELTA_ATOMIC_COMMIT");
+        if(!pending.transaction->commit(base,reason))return false;
+    }
+    reason="CURRENT_EVENT_OVERLAP_RESIDUAL_RATIO_ACCEPTED";
+    trace<<"\nZHANG_CURRENT_EVENT_PENDING_COMMIT time="<<state.time.to_string(0)
+        <<" satellite="<<pending.satellite.id()<<" stage=COMMITTED"
+        <<" residual_dimension="<<pending.residualDimension<<" staged_rows="<<pending.stagedRows
+        <<" exact_original_image_audited=1 full_numeric_binding_audited=1";
+    return true;
+}
+
+
 bool zhangTryAdmitCurrentEventOverlap(
 	std::ostream& trace, const KFState& state, E_Sys system,
 	E_ObsCode observable, const SatSys& satellite,
@@ -19515,6 +19947,8 @@ bool zhangTryAdmitCurrentEventOverlap(
 				<<" exhausted="<<budget.exhausted<<" last_phase="<<budget.phase
 				<<" budget_reason="<<budget.reason<<" checkpoints="<<budget.checkpoints
 				<<" clock_checks="<<budget.clockChecks<<" library_boundaries="<<budget.libraryBoundaries
+				<<" cancel_latency_ms="<<(budget.exhausted && budget.deadline!=ZhangExactWorkBudget::Clock::time_point::max()
+					? std::max(0.0,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-budget.deadline).count()):0.0)
 				<<" cooperative_deadline=1 hard_wall_bound=0";
 		}
 	} budgetTrace{trace,state,satellite,reason,exactBudget,eventStart};
@@ -19580,6 +20014,17 @@ bool zhangTryAdmitCurrentEventOverlap(
 		reason = "CURRENT_EVENT_OVERLAP_FROZEN_FLOAT_ROOT_MISMATCH";
 		return false;
 	}
+	const auto codes = *configuredCodes;
+	const auto frozenConditioner=zhangCurrentBridgeConditioningKey(registry,runtimeId,epoch,
+		posteriorId,chartId,floatRoot,fullOrder);
+	const auto pendingWork=zhangPendingCurrentBridgeWork(state,system,codes,
+		completeTargetPlan,found->second,frozenConditioner,ratioThreshold);
+	if(pendingWork && pendingWork->exactAudited) {
+		trace<<"\nZHANG_CURRENT_EVENT_PENDING_RESUME time="<<state.time.to_string(0)
+			<<" satellite="<<satellite.id()<<" stage="<<(pendingWork->prepared?"PRIVATE_READY":"DELTA_STAGING")
+			<<" staged_rows="<<pendingWork->stagedRows<<" same_parent=1 integer_authority_before_commit=0";
+		return zhangFinishPendingCurrentBridge(trace,state,found->second,*pendingWork,reason);
+	}
 	constexpr std::size_t maximumEventCandidates = 32;
 	constexpr int maximumBridgeDimension = 2;
 	struct EpochEventAttempts
@@ -19599,7 +20044,6 @@ bool zhangTryAdmitCurrentEventOverlap(
 			attempts.candidates.clear();
 		}
 	}
-	const auto codes = *configuredCodes;
 	std::array<ZhangGraphProductEventReceipt, 2> subjectReceipts;
 	std::array<ZhangGraphProductEventReceipt, 2> referenceReceipts;
 	std::array<ZhangProductIntegerTransition, 2> transitions;
@@ -19795,16 +20239,37 @@ bool zhangTryAdmitCurrentEventOverlap(
 	if(!currentDomain || !currentDomain->feasible) {
 		reason="CURRENT_EVENT_OVERLAP_CURRENT_INTEGER_DOMAIN_CONFLICT";return false;
 	}
-	auto columns=currentDomain->columns;
+	std::map<std::string,std::size_t> columns;
+	{
+		ZhangPhaseTimer copy("BRIDGE_PHYSICAL_COLUMN_CATALOGUE_COPY");
+		for(const auto& item:currentDomain->columns) {
+			zhangExactWorkCheckpoint("BRIDGE_PHYSICAL_COLUMN_COPY_ENTRY");columns.insert(item);
+		}
+	}
 	for(const auto& row:physicalRows) for(const auto& [id,value]:row)
 		if(value!=0 && !columns.contains(id)) columns[id]=columns.size();
 	const int dimension=columns.size();
 	if(dimension==0 || (physicalRows[0].empty() && physicalRows[1].empty())) {
 		reason="CURRENT_EVENT_OVERLAP_STRUCTURAL_ZERO_NO_NEW_AR";return false;
 	}
-	ZhangExactMatrix conditioners=currentDomain->basis;
-	for(auto& row:conditioners) row.resize(dimension);
-	ZhangExactVector conditionerValues=currentDomain->basisValues;
+	ZhangExactMatrix conditioners;
+	ZhangExactVector conditionerValues;
+	{
+		ZhangPhaseTimer copy("BRIDGE_CURRENT_HNF_AND_RHS_COPY");
+		conditioners.reserve(currentDomain->basis.size());conditionerValues.reserve(currentDomain->basisValues.size());
+		for(const auto& source:currentDomain->basis) {
+			zhangExactLibraryBoundary("BRIDGE_CURRENT_HNF_ROW_COPY_BEGIN");
+			conditioners.push_back(source);conditioners.back().resize(dimension);
+			zhangExactLibraryBoundary("BRIDGE_CURRENT_HNF_ROW_COPY_END");
+		}
+		for(const auto& value:currentDomain->basisValues) {
+			zhangExactWorkCheckpoint("BRIDGE_CURRENT_RHS_COPY");conditionerValues.push_back(value);
+		}
+	}
+	struct BridgeLocalEvidenceCleanup {
+		ZhangExactMatrix& h;ZhangExactVector& b;
+		~BridgeLocalEvidenceCleanup() {ZhangPhaseTimer cleanup("BRIDGE_LOCAL_HNF_RHS_DESTRUCT");h.clear();b.clear();}
+	} localEvidenceCleanup{conditioners,conditionerValues};
 	auto exactRow=[&](const ZhangCurrentEpochPhysicalRow& row) {
 		ZhangExactVector out(dimension);
 		for(const auto& [id,value]:row) out[columns.at(id)]+=value;
@@ -19872,11 +20337,13 @@ bool zhangTryAdmitCurrentEventOverlap(
 			<<" current_generation="<<currentDomain->identity.constraintGeneration
 			<<" float_root="<<floatRoot<<" reason="<<why<<" status="<<status;
 	};
+	const auto preparedSupport=completePlan?zhangAcquirePreparedWholeFloatSupport(state,system,codes,
+		completeTargetPlan->immutableFloat,currentDomain,physicalIds,runtimeId,epoch,posteriorId,chartId):nullptr;
 	auto wholeFloatRows=[&](const std::vector<ZhangR51RationalRow>& queries,const ZhangR51RationalRow& offsets) {
 		return zhangResolveWholeFloatSupportProduction(state,system,codes,physicalIds,conditioners,conditionerValues,
 			queries,offsets,[&](const std::string& id,ZhangCoordinateRow& row,std::string& why) {
 				const bool result=numericArc(id,row);why=arcNumericReasons.at(id);return result;
-			},[&](std::string& why){return found->second.validatePhysicalNumericBindings(why);},&trace,satellite.id());
+			},[&](std::string& why){return found->second.validatePhysicalNumericBindings(why);},&trace,satellite.id(),preparedSupport.get());
 	};
 	ZhangWholeFloatSupportResult wholePreflight;
 	if(completePlan) {
@@ -20111,8 +20578,7 @@ bool zhangTryAdmitCurrentEventOverlap(
 				std::to_string(evidence.numericConstraints.size());
 	for(const auto& signature:residualSignatures)searchTicket+="["+signature+"]";
 	const auto candidateKey=std::make_pair(searchTicket,
-		zhangCurrentBridgeConditioningKey(registry,runtimeId,epoch,posteriorId,
-			chartId,floatRoot,fullOrder));
+		frozenConditioner);
 	{
 		std::lock_guard<std::mutex> lock(attemptsMutex);
 		auto& attempts=attemptsByRuntime[{runtimeId,system}];
@@ -20280,7 +20746,27 @@ bool zhangTryAdmitCurrentEventOverlap(
 	// One shared absolute budget includes preparation, enumeration and exact
 	// admission. A complete search is not an admitted proof until exact checks finish.
 	options.search_deadline=exactBudget.deadline;
-	const int fixed=GNSS_AR(trace,search,options);
+	const VectorXd candidateInputMean=search.aflt;
+	const MatrixXd candidateInputCovariance=search.Paflt;
+	bool reusedCandidate=false;
+	int fixed=0;
+	{
+		ZhangPhaseTimer candidateTimer("BRIDGE_PENDING_CANDIDATE_RECHECK_OR_SEARCH");
+		if(pendingWork && pendingWork->candidate &&
+			pendingWork->candidateInputMean.size()==search.aflt.size() &&
+			pendingWork->candidateInputCovariance.rows()==search.Paflt.rows() &&
+			pendingWork->candidateInputCovariance.cols()==search.Paflt.cols() &&
+			(pendingWork->candidateInputMean.array()==search.aflt.array()).all() &&
+			(pendingWork->candidateInputCovariance.array()==search.Paflt.array()).all() &&
+			pendingWork->candidateImage.projector==frame.projector && pendingWork->candidateImage.offsets==frame.offsets &&
+			pendingWork->candidateImage.generators==frame.generators &&
+			pendingWork->candidateImage.particularTarget==frame.particularTarget) {
+			search=*pendingWork->candidate;fixed=residualDimension;reusedCandidate=true;
+			search.searchDiagnostic.factorSeconds=search.searchDiagnostic.reductionSeconds=
+				search.searchDiagnostic.enumerationSeconds=search.searchDiagnostic.totalSeconds=0;
+		}
+		else fixed=GNSS_AR(trace,search,options);
+	}
 	trace<<"\nZHANG_CURRENT_EVENT_SEARCH_TIMING time="<<state.time.to_string(0)
 		<<" satellite="<<satellite.id()<<" residual_dimension="<<residualDimension
 		<<" factor_seconds="<<search.searchDiagnostic.factorSeconds
@@ -20294,6 +20780,7 @@ bool zhangTryAdmitCurrentEventOverlap(
 		<<" s1="<<search.searchDiagnostic.bestSquaredDistance
 		<<" s2="<<search.searchDiagnostic.secondSquaredDistance
 		<<" ratio="<<search.searchDiagnostic.ratio<<" current_compatible=1"
+		<<" reused_completed_candidate="<<reusedCandidate
 		<<" search_reason="<<search.searchDiagnostic.reason;
 	if(fixed!=residualDimension || search.Ztrs.rows()!=residualDimension ||
 		search.Ztrs.cols()!=residualDimension || search.zfix.size()!=residualDimension ||
@@ -20308,6 +20795,14 @@ bool zhangTryAdmitCurrentEventOverlap(
 			search.searchDiagnostic.reason=="INVALID_COVARIANCE"?"CURRENT_EVENT_OVERLAP_INVALID_COVARIANCE":
 			!search.searchDiagnostic.topTwoComplete?"CURRENT_EVENT_OVERLAP_INCOMPLETE_TOP_TWO":
 			"CURRENT_EVENT_OVERLAP_RATIO_REJECTED";return false;
+	}
+	if(pendingWork && !reusedCandidate) {
+		ZhangPhaseTimer save("BRIDGE_PENDING_CANDIDATE_STORE");
+		pendingWork->candidateInputMean=candidateInputMean;
+		pendingWork->candidateInputCovariance=candidateInputCovariance;
+		pendingWork->candidateImage=frame;
+		pendingWork->support=preparedSupport;
+		pendingWork->candidate=std::make_shared<const GinAR_mtx>(search);
 	}
 	zhangExactWorkCheckpoint("OVERLAP_EXACT_ADMISSION_ENTRY",true);
 	ZhangExactMatrix searchRows;ZhangExactVector searchValues;
@@ -20349,7 +20844,11 @@ bool zhangTryAdmitCurrentEventOverlap(
 	decision->observationProvenance=runtimeId+"|PPP_COMMITTED|E"+std::to_string(epoch)+
 		"|R51_RATIO_ONLY_NO_FFR_GUARANTEE";
 	decision->conditionalFailureBound=1.0;
-	if(currentDomain->sharedProofs)decision->parents=*currentDomain->sharedProofs;
+	{
+		ZhangPhaseTimer copy("BRIDGE_PENDING_PARENT_PROOFS_COPY");
+		if(currentDomain->sharedProofs)decision->parents=*currentDomain->sharedProofs;
+	}
+	auto proofStatementTimer=std::make_unique<ZhangPhaseTimer>("BRIDGE_PENDING_PROOF_STATEMENT");
 	std::ostringstream statement;
 	statement<<std::setprecision(17)<<"R51_CURRENT_EVENT_RESIDUAL_V2 WITNESS="<<witness
 		<<" RESIDUAL_DIMENSION="<<residualDimension<<" RATIO="<<search.searchDiagnostic.ratio
@@ -20368,36 +20867,55 @@ bool zhangTryAdmitCurrentEventOverlap(
 		statement<<":"<<searchValues[r];
 	}
 	decision->originalStatement=statement.str();
+	proofStatementTimer.reset();
 	const ZhangDecisionProofs proofs{decision};
-	ZhangCurrentEpochEvidence proposed=found->second;
-	for(int r=0;r<liftedRows.size();++r) {
-		zhangExactWorkCheckpoint("OVERLAP_PREPARATION_LOOP");
-		ZhangCurrentEpochPhysicalRow physical;
-		for(int c=0;c<dimension;++c)if(liftedRows[r][c]!=0)
-			physical[physicalIds[c]]=liftedRows[r][c];
-		ZhangCoordinateRow numeric;
-		// Denominator clearing scales the numerical condition as well as its
-		// physical row and RHS. Rebuild from the exact lifted row, not Z*W.
-		for(int c=0;c<dimension;++c)if(liftedRows[r][c]!=0) {
-			const auto& coefficient=liftedRows[r][c];
-			if(coefficient < -9007199254740991LL || coefficient > 9007199254740991LL) {
-				reason="CURRENT_EVENT_OVERLAP_LIFT_COEFFICIENT_NOT_EXACT_DOUBLE";return false;
+	// Preserve the completed ORIGINAL-image/lift audit before any potentially
+	// interrupted delta staging. This receipt has no authority until commit.
+	auto privateWork=pendingWork?pendingWork:std::make_shared<ZhangPendingCurrentBridge>();
+	{
+		ZhangPhaseTimer copy("BRIDGE_PENDING_EXACT_PAYLOAD_COPY");
+		std::vector<ZhangCurrentEpochPhysicalRow> physical;
+		physical.reserve(liftedRows.size());
+		for(const auto& row:liftedRows) {
+			ZhangCurrentEpochPhysicalRow exact;
+			for(int c=0;c<dimension;++c)if(row[c]!=0) {
+				zhangExactWorkCheckpoint("OVERLAP_PENDING_EXACT_PAYLOAD_TERM");
+				exact.emplace(physicalIds[c],row[c]);
 			}
-			ZhangCoordinateRow arc;
-			if(!numericArc(physicalIds[c],arc)) {
-				reason="CURRENT_EVENT_OVERLAP_LIFT_ARC_SUPPORT_MISSING";return false;
+			physical.push_back(std::move(exact));
+		}
+		if(!privateWork->transaction)privateWork->transaction=std::make_shared<ZhangCurrentEpochEventTransaction>(found->second);
+		privateWork->physicalRows=std::move(physical);privateWork->values=liftedValues;
+		privateWork->targetValues=finalAdmission.targetValues;privateWork->proofs=proofs;
+		privateWork->witness=witness;privateWork->codes=codes;privateWork->system=system;
+		privateWork->satellite=satellite;privateWork->referenceSatellite=referenceSatellite;
+		privateWork->residualDimension=residualDimension;privateWork->changeMask=changeMask;
+		privateWork->oldAuxSeen=oldAuxSeen;privateWork->ratio=search.searchDiagnostic.ratio;
+		privateWork->threshold=ratioThreshold;
+		privateWork->support=preparedSupport;
+		if(!preparedSupport) {
+			// The legacy receipt mode already required every constituent arc
+			// above. Freeze that old numerical recipe here, before finalisation;
+			// the final atomic boundary never rediscovers CURRENT arc support.
+			std::vector<ZhangCoordinateRow> numeric;
+			for(const auto& row:privateWork->physicalRows) {
+				ZhangCoordinateRow mapped;
+				for(const auto& [id,value]:row) {
+					zhangExactWorkCheckpoint("OVERLAP_LEGACY_LIFT_NUMERIC_TERM");
+					if(value < -9007199254740991LL || value > 9007199254740991LL) {
+						reason="CURRENT_EVENT_OVERLAP_LIFT_COEFFICIENT_NOT_EXACT_DOUBLE";return false;
+					}
+					ZhangCoordinateRow arc;
+					if(!numericArc(id,arc)) {reason="CURRENT_EVENT_OVERLAP_LIFT_ARC_SUPPORT_MISSING";return false;}
+					zhangAddCoordinateRow(mapped,arc,value.convert_to<double>());
+				}
+				numeric.push_back(std::move(mapped));
 			}
-			zhangAddCoordinateRow(numeric,arc,coefficient.convert_to<double>());
+			privateWork->numericRows=std::move(numeric);privateWork->numericAudited=true;
 		}
-		if(!proposed.addEventOverlap(physical,liftedValues[r],proofs,witness) ||
-			!proposed.addNumericConstraint(numeric,liftedValues[r],physical)) {
-			reason="CURRENT_EVENT_OVERLAP_EVIDENCE_OR_NUMERIC_INSERT_REJECTED";return false;
-		}
+		privateWork->exactAudited=true;
 	}
-	zhangExactWorkCheckpoint("OVERLAP_ATOMIC_COMMIT",true);
-	registry[{runtimeId,system}]=std::move(proposed);
-	zhangTraceDecisionProofs(trace,state.time,proofs);
-	reason="CURRENT_EVENT_OVERLAP_RESIDUAL_RATIO_ACCEPTED";
+	if(!zhangFinishPendingCurrentBridge(trace,state,found->second,*privateWork,reason))return false;
 	trace<<"\nZHANG_CURRENT_EVENT_OVERLAP time="<<state.time.to_string(0)
 		<<" system="<<enum_to_string(system)<<" satellite="<<satellite.id()
 		<<" reference="<<referenceSatellite.id()<<" change_mask="<<changeMask

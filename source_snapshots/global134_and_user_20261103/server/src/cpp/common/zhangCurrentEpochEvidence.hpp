@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -11,6 +12,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -21,6 +23,7 @@
 #include "common/zhangR47ProductDomain.hpp"
 #include "common/zhangUserIntegerFunctional.hpp"
 #include "common/zhangCurrentProductBridgePlan.hpp"
+#include "common/zhangPhaseTimer.hpp"
 
 struct KFState;
 
@@ -734,6 +737,259 @@ struct ZhangCurrentEpochEvidence
 			: (inCurrentChart ? "EXACT_CURRENT_AFFINE_INTEGER_CONSEQUENCE"
 				: "EXACT_CURRENT_EVENT_OVERLAP_CONSEQUENCE");
 		return out;
+	}
+};
+
+/** Same-parent event admission without cloning the complete numerical recipe.
+ * The caller still performs exact residual-image admission and whole-FLOAT
+ * verification. This class only stages the already verified rows and applies
+ * the existing provenance/conflict gates to base UNION delta. No candidate is
+ * authoritative before commit. A transaction is local to one registry owner
+ * and one immutable FLOAT/chart/constraint generation; it cannot cross epochs.
+ *
+ * Registry mutation is single-writer. All supported mutations append rows or
+ * replace the domain generation/cache; in-place editing of admitted records is
+ * forbidden. Reserves may change capacity on cancellation, never evidence.
+ */
+class ZhangCurrentEpochEventTransaction
+{
+	const ZhangCurrentEpochEvidence* parent_;
+	ZhangCurrentEpochDomainIdentity identity_;
+	std::string stateOrder_, psdRoot_;
+	bool psdValidated_, valid_;
+	std::shared_ptr<ZhangCurrentEpochDomainCache> cache_;
+	std::vector<std::size_t> sizes_;
+	ZhangCurrentEpochEvidence delta_;
+	std::shared_ptr<ZhangCurrentEpochDomainCache> nextCache_;
+	bool prepared_ = false, committed_ = false;
+	std::uint64_t committedGeneration_ = 0;
+
+	static std::vector<std::size_t> sizes(const ZhangCurrentEpochEvidence& e)
+	{
+		return {e.rows.size(), e.values.size(), e.rowProofs.size(),
+			e.eventOverlapRows.size(), e.eventOverlapValues.size(),
+			e.eventOverlapProofs.size(), e.eventOverlapWitnesses.size(),
+			e.numericConstraints.size(), e.physicalNumericBindings.size()};
+	}
+	bool parentMatches(const ZhangCurrentEpochEvidence& e) const
+	{
+		return &e == parent_ && e.valid == valid_ &&
+			e.floatPosteriorPsdValidated == psdValidated_ &&
+			e.floatPosteriorPsdRootId == psdRoot_ &&
+			e.floatPosteriorPsdStateOrderId == stateOrder_ &&
+			e.currentDomainIdentity() == identity_ && e.domainCache == cache_ &&
+			sizes(e) == sizes_;
+	}
+	void setScope(ZhangCurrentEpochEvidence& e) const
+	{
+		e.valid = valid_; e.runtimeId = identity_.runtimeId;
+		e.system = identity_.system; e.epochGpstSeconds = identity_.epochGpstSeconds;
+		e.posteriorId = identity_.posteriorId; e.floatStateRoot = identity_.rootId;
+		e.chartId = identity_.chartId;
+		e.floatPosteriorPsdValidated = psdValidated_;
+		e.floatPosteriorPsdRootId = psdRoot_;
+		e.floatPosteriorPsdStateOrderId = stateOrder_;
+	}
+	bool baseConflicts(const ZhangCurrentEpochPhysicalRow& physical,
+		const ZhangExactInteger& value, const std::string& witness,
+		const ZhangCoordinateRow& numeric, bool& eventExists,
+		bool& numericExists, bool& bindingExists, std::string& reason) const
+	{
+		const auto& base = *parent_;
+		for (const auto& [rows, values] : {std::pair{&base.rows, &base.values},
+			std::pair{&base.eventOverlapRows, &base.eventOverlapValues}})
+		{
+			if (rows->size() != values->size())
+			{ reason = "EVENT_DELTA_BASE_SHAPE_INVALID"; return true; }
+			for (std::size_t i = 0; i < rows->size(); ++i)
+			{
+				zhangExactWorkCheckpoint("EVENT_DELTA_PHYSICAL_CONFLICT_SCAN");
+				if ((*rows)[i] != physical) continue;
+				if ((*values)[i] != value)
+				{ reason = "EVENT_DELTA_PHYSICAL_RHS_CONFLICT"; return true; }
+				if (rows == &base.eventOverlapRows)
+				{
+					if (i >= base.eventOverlapWitnesses.size() ||
+						base.eventOverlapWitnesses[i] != witness)
+					{ reason = "EVENT_DELTA_EVENT_WITNESS_CONFLICT"; return true; }
+					eventExists = true;
+				}
+			}
+		}
+		for (const auto& item : base.numericConstraints)
+		{
+			zhangExactWorkCheckpoint("EVENT_DELTA_NUMERIC_CONFLICT_SCAN");
+			if (item.rowCycles != numeric) continue;
+			if (item.value != value)
+			{ reason = "EVENT_DELTA_NUMERIC_RHS_CONFLICT"; return true; }
+			numericExists = true;
+		}
+		for (const auto& item : base.physicalNumericBindings)
+		{
+			zhangExactWorkCheckpoint("EVENT_DELTA_BINDING_CONFLICT_SCAN");
+			if (item.physical != physical) continue;
+			if (item.rowCycles != numeric || item.value != value ||
+				item.epochGpstSeconds != identity_.epochGpstSeconds ||
+				item.system != identity_.system || item.runtimeId != identity_.runtimeId ||
+				item.posteriorId != identity_.posteriorId || item.rootId != identity_.rootId ||
+				item.chartId != identity_.chartId || item.stateOrderId != stateOrder_)
+			{ reason = "EVENT_DELTA_PHYSICAL_NUMERIC_BINDING_CONFLICT"; return true; }
+			bindingExists = true;
+		}
+		return false;
+	}
+	// Capacities are reserved before publication. With noexcept element moves,
+	// no allocation, budget callback or validation can split the logical commit.
+	template<class T> static void append(std::vector<T>& into, std::vector<T>& from) noexcept
+	{
+		static_assert(std::is_nothrow_move_constructible_v<T>);
+		for (auto& item : from) into.emplace_back(std::move(item));
+	}
+public:
+	explicit ZhangCurrentEpochEventTransaction(const ZhangCurrentEpochEvidence& base)
+		: parent_(&base), identity_(base.currentDomainIdentity()),
+		  stateOrder_(base.floatPosteriorPsdStateOrderId), psdRoot_(base.floatPosteriorPsdRootId),
+		  psdValidated_(base.floatPosteriorPsdValidated), valid_(base.valid),
+		  cache_(base.domainCache), sizes_(sizes(base))
+	{ setScope(delta_); }
+	bool committed() const { return committed_; }
+	bool matches(const ZhangCurrentEpochEvidence& base) const
+	{ return !committed_ && parentMatches(base); }
+	bool stage(const ZhangCurrentEpochPhysicalRow& physical,
+		const ZhangExactInteger& value, const ZhangDecisionProofs& proofs,
+		const std::string& witness, const ZhangCoordinateRow& numeric,
+		std::string& reason)
+	{
+		if (committed_ || prepared_ || !parentMatches(*parent_))
+		{ reason = "EVENT_DELTA_PARENT_CHANGED_OR_CLOSED"; return false; }
+		zhangExactLibraryBoundary("EVENT_DELTA_STAGE_ENTRY");
+		ZhangCoordinateRow normalized;
+		for (const auto& [key, coefficient] : numeric)
+		{
+			if (!std::isfinite(coefficient))
+			{ reason = "EVENT_DELTA_NUMERIC_NONFINITE"; return false; }
+			if (coefficient != 0) normalized.emplace(key, coefficient);
+		}
+		bool eventExists = false, numericExists = false, bindingExists = false;
+		if (baseConflicts(physical, value, witness, normalized,
+			eventExists, numericExists, bindingExists, reason)) return false;
+		// Only copy the small event delta, never the base chart, numerical
+		// recipe or thousands of repeated state-order strings in old bindings.
+		zhangExactLibraryBoundary("EVENT_DELTA_PRIVATE_COPY_BEGIN");
+		auto candidate = delta_;
+		zhangExactLibraryBoundary("EVENT_DELTA_PRIVATE_COPY_END");
+		if (!candidate.addEventOverlap(physical, value, proofs, witness) ||
+			!candidate.addNumericConstraint(normalized, value, physical))
+		{ reason = "EVENT_DELTA_EXISTING_ADMISSION_GATE_REJECTED"; return false; }
+		zhangExactLibraryBoundary("EVENT_DELTA_STAGE_VALIDATED");
+		delta_ = std::move(candidate);
+		reason = "EVENT_DELTA_STAGED_PRIVATE"; return true;
+	}
+	bool prepare(std::string& reason)
+	{
+		if (committed_ || !parentMatches(*parent_))
+		{ reason = "EVENT_DELTA_PARENT_CHANGED_OR_CLOSED"; return false; }
+		if (prepared_) return true;
+		if (parent_->rows.size() != parent_->rowProofs.size() ||
+			parent_->eventOverlapRows.size() != parent_->eventOverlapProofs.size() ||
+			parent_->eventOverlapRows.size() != parent_->eventOverlapWitnesses.size())
+		{ reason = "EVENT_DELTA_PARENT_PROOF_SHAPE_INVALID"; return false; }
+		// Base and delta can refer to one proof ID through different parents.
+		// Check their joint closure before publication, retaining pointer sharing.
+		ZhangDecisionProofs unionProofs;
+		for (const auto* groups : {&parent_->rowProofs, &parent_->eventOverlapProofs,
+			static_cast<const std::vector<ZhangDecisionProofs>*>(&delta_.eventOverlapProofs)})
+			for (const auto& group : *groups)
+			{
+				zhangExactWorkCheckpoint("EVENT_DELTA_UNION_PROOF_GROUP");
+				unionProofs.insert(unionProofs.end(), group.begin(), group.end());
+			}
+		zhangExactLibraryBoundary("EVENT_DELTA_UNION_PROOF_CLOSURE_BEGIN");
+		const auto closure = [&]()
+		{
+			ZhangPhaseTimer timer("BRIDGE_DELTA_UNION_PROOF_CLOSURE");
+			return zhangDecisionRiskClosure(unionProofs);
+		}();
+		zhangExactLibraryBoundary("EVENT_DELTA_UNION_PROOF_CLOSURE_END");
+		if (!closure.valid || zhangRatioStatisticalReject(closure.bound > 1e-3))
+		{ reason = "EVENT_DELTA_BASE_UNION_DELTA_PROOF_CONFLICT"; return false; }
+		ZhangCurrentEpochEvidence ready; setScope(ready);
+		for (std::size_t i = 0; i < delta_.eventOverlapRows.size(); ++i)
+		{
+			zhangExactWorkCheckpoint("EVENT_DELTA_PREPARE");
+			const auto& row = delta_.eventOverlapRows[i];
+			const auto& value = delta_.eventOverlapValues[i];
+			const auto binding = std::find_if(delta_.physicalNumericBindings.begin(),
+				delta_.physicalNumericBindings.end(), [&](const auto& b) { return b.physical == row; });
+			if (binding == delta_.physicalNumericBindings.end())
+			{ reason = "EVENT_DELTA_NUMERIC_BINDING_MISSING"; return false; }
+			bool eventExists = false, numericExists = false, bindingExists = false;
+			if (baseConflicts(row, value, delta_.eventOverlapWitnesses[i], binding->rowCycles,
+				eventExists, numericExists, bindingExists, reason)) return false;
+			if (!eventExists)
+			{
+				ready.eventOverlapRows.push_back(row); ready.eventOverlapValues.push_back(value);
+				ready.eventOverlapProofs.push_back(delta_.eventOverlapProofs[i]);
+				ready.eventOverlapWitnesses.push_back(delta_.eventOverlapWitnesses[i]);
+			}
+			if (!numericExists && std::none_of(ready.numericConstraints.begin(),
+				ready.numericConstraints.end(), [&](const auto& c) { return c.rowCycles == binding->rowCycles; }))
+				ready.numericConstraints.push_back({binding->rowCycles, value});
+			if (!bindingExists) ready.physicalNumericBindings.push_back(*binding);
+		}
+		nextCache_ = std::make_shared<ZhangCurrentEpochDomainCache>();
+		delta_ = std::move(ready); prepared_ = true;
+		reason = "EVENT_DELTA_READY_PRIVATE"; return true;
+	}
+	bool commit(ZhangCurrentEpochEvidence& target, std::string& reason)
+	{
+		if (committed_)
+		{
+			auto currentIdentity = target.currentDomainIdentity();
+			currentIdentity.constraintGeneration = identity_.constraintGeneration;
+			if (&target != parent_ || target.constraintGeneration != committedGeneration_ ||
+				currentIdentity != identity_ || target.valid != valid_ ||
+				target.floatPosteriorPsdValidated != psdValidated_ ||
+				target.floatPosteriorPsdRootId != psdRoot_ ||
+				target.floatPosteriorPsdStateOrderId != stateOrder_)
+			{ reason = "EVENT_DELTA_COMMITTED_OWNER_OR_GENERATION_CHANGED"; return false; }
+			reason = "EVENT_DELTA_ALREADY_COMMITTED"; return true;
+		}
+		if (!parentMatches(target))
+		{ reason = "EVENT_DELTA_COMMIT_PARENT_CHANGED"; return false; }
+		if (!prepare(reason)) return false;
+		const auto count = delta_.eventOverlapRows.size();
+		const bool changed = count || !delta_.numericConstraints.empty() || !delta_.physicalNumericBindings.empty();
+		const auto increment = changed ? (count ? count : 1) : 0;
+		if (increment > std::numeric_limits<std::uint64_t>::max() - target.constraintGeneration)
+		{ reason = "EVENT_DELTA_CONSTRAINT_GENERATION_OVERFLOW"; return false; }
+		zhangExactLibraryBoundary("EVENT_DELTA_BEFORE_RESERVE");
+		target.eventOverlapRows.reserve(target.eventOverlapRows.size() + delta_.eventOverlapRows.size());
+		zhangExactLibraryBoundary("EVENT_DELTA_RESERVE_ROWS");
+		target.eventOverlapValues.reserve(target.eventOverlapValues.size() + delta_.eventOverlapValues.size());
+		target.eventOverlapProofs.reserve(target.eventOverlapProofs.size() + delta_.eventOverlapProofs.size());
+		target.eventOverlapWitnesses.reserve(target.eventOverlapWitnesses.size() + delta_.eventOverlapWitnesses.size());
+		zhangExactLibraryBoundary("EVENT_DELTA_RESERVE_EVENTS");
+		target.numericConstraints.reserve(target.numericConstraints.size() + delta_.numericConstraints.size());
+		target.physicalNumericBindings.reserve(target.physicalNumericBindings.size() + delta_.physicalNumericBindings.size());
+		zhangExactLibraryBoundary("EVENT_DELTA_BEFORE_ATOMIC_PUBLICATION");
+		if (!parentMatches(target))
+		{ reason = "EVENT_DELTA_COMMIT_PARENT_CHANGED"; return false; }
+		// No throwing operation below until all six containers and generation
+		// have been published. Keep the old per-added-row generation semantics.
+		append(target.eventOverlapRows, delta_.eventOverlapRows);
+		append(target.eventOverlapValues, delta_.eventOverlapValues);
+		append(target.eventOverlapProofs, delta_.eventOverlapProofs);
+		append(target.eventOverlapWitnesses, delta_.eventOverlapWitnesses);
+		append(target.numericConstraints, delta_.numericConstraints);
+		append(target.physicalNumericBindings, delta_.physicalNumericBindings);
+		if (changed)
+		{
+			target.constraintGeneration += increment;
+			target.domainCache = std::move(nextCache_);
+		}
+		committedGeneration_ = target.constraintGeneration; committed_ = true;
+		reason = "EVENT_DELTA_ATOMICALLY_COMMITTED"; return true;
 	}
 };
 

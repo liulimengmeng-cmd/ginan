@@ -9,6 +9,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#ifndef ZHANG_E240_POLICY_PRODUCTION_LINK
 std::string zhangCheckpointSha256(const std::string& bytes)
 {
     unsigned char out[EVP_MAX_MD_SIZE]; unsigned int size=0;
@@ -18,6 +19,7 @@ std::string zhangCheckpointSha256(const std::string& bytes)
     for (unsigned i=0;i<size;++i) text<<std::hex<<std::setw(2)<<std::setfill('0')<<unsigned(out[i]);
     return text.str();
 }
+#endif
 namespace {
 unsigned checks=0;
 void require(bool value,const std::string& why)

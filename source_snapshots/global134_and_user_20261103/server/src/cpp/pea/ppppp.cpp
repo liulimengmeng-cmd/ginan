@@ -2686,6 +2686,11 @@ bool ppp(
             trace << "\nZHANG_FINAL_SIGNAL_ADMISSION time=" << kfState.time.to_string(0)
                   << " system=" << static_cast<int>(system)
                   << " valid=" << admitted << " reason=" << admissionReason;
+            if (admitted)
+            {
+                std::string rerouteReason;
+                zhangTryPostQcCertifiedGraphReroute(trace, kfState, system, rerouteReason);
+            }
         }
     }
 

@@ -14,6 +14,7 @@ struct ZhangWholeFloatSupportResult
 using ZhangWholeFloatArcResolver = std::function<bool(
     const std::string&,std::map<KFKey,double>&,std::string&)>;
 using ZhangWholeFloatCurrentVerifier = std::function<bool(std::string&)>;
+struct ZhangPreparedWholeFloatSupport;
 
 // Non-inline production assembly shared with the live event-overlap path.
 // H/b belong to an already verified feasible CURRENT integer domain. The arc
@@ -28,4 +29,5 @@ ZhangWholeFloatSupportResult zhangResolveWholeFloatSupportProduction(
     const ZhangBridgeSpanMatrix& queries,const ZhangBridgeSpanRow& offsets,
     const ZhangWholeFloatArcResolver& resolveArc,
     const ZhangWholeFloatCurrentVerifier& verifyCurrentBindings,
-    std::ostream* trace=nullptr,const std::string& targetLabel={});
+    std::ostream* trace=nullptr,const std::string& targetLabel={},
+    ZhangPreparedWholeFloatSupport* prepared=nullptr);

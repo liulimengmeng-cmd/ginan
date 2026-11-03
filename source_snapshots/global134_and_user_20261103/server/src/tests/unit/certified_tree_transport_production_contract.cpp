@@ -29,7 +29,7 @@ struct Fixture
     ReceiverMap receivers;
     std::ostringstream trace;
     ZhangGraphIntegerContext before;
-    explicit Fixture(bool reverse,const std::string& owner)
+    explicit Fixture(bool reverse,const std::string& owner,bool sharedProductBranch=false)
     {
         // CURRENT provenance requires a real positive epoch, not noTime().
         state.time.bigTime=1405216800;
@@ -37,11 +37,18 @@ struct Fixture
         std::vector<ZhangGraphEdge> edges={
             {"A",SatSys("G01")},{"A",SatSys("G02")},{"B",SatSys("G01")},
             {"B",SatSys("G02")},{"C",SatSys("G01")},{"C",SatSys("G02")}};
+        if(sharedProductBranch)
+        {
+            edges.push_back({"B",SatSys("G03")});
+            edges.push_back({"B",SatSys("G04")});
+        }
         if (reverse) std::reverse(edges.begin(),edges.end());
         for(const auto& edge:edges) addObservation(edge);
         updateZhangFullRankReferences(trace,receivers,state);
         require(zhangGraphIntegerContext(state,E_Sys::GPS,before),"production initial graph missing");
-        require(before.basis.treeEdges==std::set<ZhangGraphEdge>{edgesFor("A",1),edgesFor("A",2),edgesFor("B",1),edgesFor("C",1)},
+        auto expectedTree=std::set<ZhangGraphEdge>{edgesFor("A",1),edgesFor("A",2),edgesFor("B",1),edgesFor("C",1)};
+        if(sharedProductBranch) { expectedTree.insert(edgesFor("B",3));expectedTree.insert(edgesFor("B",4)); }
+        require(before.basis.treeEdges==expectedTree,
             "fixture initial tree differs from the literal oracle tree");
         for(const auto code:codes)
         {
@@ -136,6 +143,85 @@ struct Fixture
     }
     ~Fixture() { eraseZhangGraphRuntime(state); }
 };
+
+static void runPostQcRerouteCase(bool history,bool cut,bool rejectCallback)
+{
+    Fixture fixture(false,"POST_QC_REROUTE_"+std::to_string(history)+std::to_string(cut)+std::to_string(rejectCallback),true);
+    if(history) fixture.installCurrentEvidenceAndCommitContract();
+    fixture.state.time=fixture.state.time+30;
+    updateZhangFullRankReferences(fixture.trace,fixture.receivers,fixture.state);
+    fixture.state.lastPppTransactionCommitted=true;fixture.state.lastPppQcConverged=true;
+    const auto failed=Fixture::edgesFor("B",1);
+    KFMeas measurement;measurement.time=fixture.state.time;
+    unsigned int rejects=0;
+    for(const auto& edge:fixture.before.basis.edges) for(const auto code:codes)
+    {
+        KFKey key;key.type=KF::PHAS_MEAS;key.str=edge.receiver;key.Sat=edge.satellite;key.num=int(code);
+        measurement.obsKeys.push_back(key);
+        std::map<std::string,void*> metadata;metadata["phaseRejectCount"]=&rejects;
+        if(code==codes[1] && (edge==failed || (cut && edge==Fixture::edgesFor("B",2))))
+            metadata["zhangPppDeweighted"]=&rejects;
+        measurement.metaDataMaps.push_back(std::move(metadata));
+    }
+    const int rows=measurement.obsKeys.size();
+    measurement.H=MatrixXd::Zero(rows,fixture.state.x.size());
+    measurement.R=MatrixXd::Identity(rows,rows);
+    std::string reason;
+    require(zhangFinalizeGraphSignalObservationAdmission(fixture.state,E_Sys::GPS,measurement,reason),
+        "post-QC fixture finalization failed: "+reason);
+    ZhangGraphIntegerContext before;require(zhangGraphIntegerContext(fixture.state,E_Sys::GPS,before),"post-QC source missing");
+    const auto oldIndex=fixture.state.kfIndexMap;const VectorXd oldX=fixture.state.x;const MatrixXd oldP=fixture.state.P;
+    const auto oldMetadata=fixture.state.metaDataMap;const auto oldSequence=fixture.state.factorCommitSequence;
+    if(rejectCallback) fixture.state.exactStateTransformCallback=[](const KFState&,GTime,
+        const std::map<KFKey,int>&,const std::map<KFKey,int>&,const SparseMatrix<double>&,
+        const std::string&,const VectorXd&,const MatrixXd&,std::uint64_t,std::uint64_t){return false;};
+    const bool accepted=zhangTryPostQcCertifiedGraphReroute(fixture.trace,fixture.state,E_Sys::GPS,reason);
+    ZhangGraphIntegerContext after;require(zhangGraphIntegerContext(fixture.state,E_Sys::GPS,after),"post-QC result missing");
+    require(!after.signalObservationEdges.at(int(codes[1])).contains(failed),"deweighted signal was readmitted");
+    require(after.signalObservationEdges.at(int(codes[0])).contains(failed),"passing signal was unnecessarily readmitted/removed");
+    require(after.signalArcVersions==before.signalArcVersions,"temporary QC changed physical arc identities");
+    require(zhangCurrentEpochEvidenceRegistry().empty(),"historical reroute granted CURRENT AR authority");
+    if(!history || cut || rejectCallback)
+    {
+        require(!accepted && after.basis.treeEdges==before.basis.treeEdges &&
+            fixture.state.kfIndexMap==oldIndex && fixture.state.metaDataMap==oldMetadata &&
+            fixture.state.factorCommitSequence==oldSequence &&
+            (fixture.state.x-oldX).isZero() && (fixture.state.P-oldP).isZero(),
+            "failed post-QC candidate changed authoritative posterior, metadata or graph: "+reason);
+        require(reason.find(!history?"UNCERTIFIED":cut?"CUT_HAS_NO_FULL_RANK":"TRANSACTION_REJECTED")!=std::string::npos,
+            "post-QC rejection did not report the actual unavailable direction/cut/transaction: "+reason);
+        return;
+    }
+    require(accepted && !after.basis.treeEdges.contains(failed) && after.basis.treeEdges.contains(Fixture::edgesFor("B",2)),
+        "post-QC certified shared path not rerouted: "+reason);
+    require(after.basis.edges==before.basis.edges && after.signalObservationEdges==before.signalObservationEdges,
+        "post-QC exchange deleted FLOAT coordinates or fabricated current observations");
+    // Literal independent oracle: changing B's datum subtracts lambda*N_B2
+    // from EVERY B-only product satellite; preserve clock/phase cross-Q too.
+    std::vector<std::pair<KFKey,VectorXd>> literal;
+    for(const auto code:codes) for(const auto& satellite:before.basis.satellites)
+    {
+        const auto key=zhangTransportSatelliteKey(code,satellite);
+        VectorXd row=VectorXd::Zero(oldX.size());row(oldIndex.at(key))=1;
+        if(satellite.prn>=3)row(oldIndex.at(zhangTransportAmbiguityKey(code,Fixture::edgesFor("B",2))))=
+            -CLIGHT/(code==codes[0]?FREQ1:FREQ2);
+        literal.push_back({key,std::move(row)});
+    }
+    for(const auto& satellite:before.basis.satellites)
+    {VectorXd row=VectorXd::Zero(oldX.size());const auto key=clockKey(satellite);row(oldIndex.at(key))=1;literal.push_back({key,std::move(row)});}
+    for(const auto& [key,row]:literal)
+    {
+        const int i=fixture.state.kfIndexMap.at(key);
+        require(std::abs(fixture.state.x(i)-row.dot(oldX))<1e-10,"post-QC mean violates literal product oracle");
+        for(const auto& [other,otherRow]:literal)
+            require(std::abs(fixture.state.P(i,fixture.state.kfIndexMap.at(other))-row.dot(oldP*otherRow))<1e-9,
+                "post-QC complete product/clock cross-Q violates literal oracle");
+    }
+    require(fixture.trace.str().find("affected_products=4")!=std::string::npos,
+        "shared-path multi-target impact was not diagnosed");
+    require(!zhangTryPostQcCertifiedGraphReroute(fixture.trace,fixture.state,E_Sys::GPS,reason) &&
+        reason=="POST_QC_COMMITTED_TREE_STILL_ADMITTED","repeating reroute did not remain idempotent");
+}
 
 static void runEquivalentHistoryCase()
 {
@@ -357,5 +443,9 @@ int main()
     runProductionCase(false); runProductionCase(true); runDisconnectedProductionCase();
     runAllArcsRetiredFreshObservationCase(false);runAllArcsRetiredFreshObservationCase(true);
     runEquivalentHistoryCase();
+    runPostQcRerouteCase(true,false,false);
+    runPostQcRerouteCase(false,false,false);
+    runPostQcRerouteCase(true,true,false);
+    runPostQcRerouteCase(true,false,true);
     std::cout<<"CERTIFIED_TREE_TRANSPORT_PRODUCTION_CONTRACT_PASS FIXTURE_NOT_REAL_PRODUCT_PUBLICATION\n";
 }

@@ -23,6 +23,7 @@
 #include "common/zhangMultiGnssFloatCheckpoint.hpp"
 #include "common/zhangCertifiedTreeTransport.hpp"
 #include "common/zhangProductFloatCarrierMetadata.hpp"
+#include "common/zhangHistoricalEvidenceArchive.hpp"
 #include "pea/zhangPppAr.hpp"
 
 namespace
@@ -539,7 +540,7 @@ bool validateExactSections(
 	if (legacyPppAr != bundle.sections.end()
 		&& (legacyPppAr->second.schemaVersion == 3 ||
 			legacyPppAr->second.schemaVersion == 4 ||
-			legacyPppAr->second.schemaVersion == 5))
+			legacyPppAr->second.schemaVersion == 5 || legacyPppAr->second.schemaVersion == 6))
 	{
 		for (auto& requirement : required)
 		{
@@ -703,7 +704,8 @@ static ZhangE29CheckpointResult captureZhangE29CheckpointBundleWithGecVersion(
 	const ZhangE29CheckpointIdentity& identity,
 	const ZhangE29CheckpointProvenance& provenance,
 	ZhangCheckpointBundle& bundle,
-	std::uint32_t requestedGecVersion)
+	std::uint32_t requestedGecVersion,
+    std::uint32_t validationPppArVersion = 0)
 {
 	std::lock_guard<std::recursive_mutex> lock(e29CheckpointRuntimeMutex);
 	if (identity.runtimeId.empty() || identity.checkpointId.empty())
@@ -880,7 +882,7 @@ static ZhangE29CheckpointResult captureZhangE29CheckpointBundleWithGecVersion(
 
 	payload.clear();
 	auto pppArResult = exportZhangPppArCheckpointSection(
-		authoritativeState, identity.runtimeId, payload);
+		authoritativeState, identity.runtimeId, payload, validationPppArVersion);
 	if (!pppArResult.valid)
 	{
 		return checkpointFailure(
@@ -889,7 +891,7 @@ static ZhangE29CheckpointResult captureZhangE29CheckpointBundleWithGecVersion(
 	}
 	if (!addSection(
 		candidate, ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME,
-		ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION,
+		validationPppArVersion ? validationPppArVersion : ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION,
 		std::move(payload), failureReason))
 	{
 		return checkpointFailure(failureReason);
@@ -1085,7 +1087,8 @@ ZhangE29CheckpointResult auditAndWriteZhangGec134RestoredState(
 	// still use AUTO, including V2 for nonempty current evidence.
 	auto captured = captureZhangE29CheckpointBundleWithGecVersion(authoritativeState, receivers,
 		navigation, streams, streamDoneMap, controller, identity, targetProvenance, after,
-		sourceGecVersion);
+		sourceGecVersion, sourceBundle.sections.contains(ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME) &&
+            sourceBundle.sections.at(ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME).schemaVersion == 6 ? 6 : 0);
 	if (!captured.valid) return captured;
 	if (!zhangCheckpointKfCoreBitwiseEqual(sourceBundle.kfCore, after.kfCore))
 		return checkpointFailure("GEC134_MIGRATION_AFTER_RESTORE_CAPTURE_CORE_CHANGED");
@@ -1222,6 +1225,30 @@ ZhangE29CheckpointResult auditAndWriteZhangGec134RestoredState(
 	return written;
 }
 
+static zhang_history_archive::Scope checkpointHistoricalScope(
+    const ZhangCheckpointBundle& bundle, const std::string& payloadSha256)
+{
+    return {bundle.manifest.runtimeId, bundle.manifest.epoch,
+        bundle.manifest.checkpointId, bundle.manifest.parentCheckpointId, payloadSha256};
+}
+
+static std::vector<zhang_history_archive::Evidence> checkpointHistoricalEvidence(
+    const ZhangCheckpointBundle& bundle, const std::string& payloadSha256)
+{
+    (void)bundle;
+    // Index the complete metadata catalogues in the ALREADY serialised
+    // parent, instead of duplicating potentially huge proof/scope strings.
+    // The cold reader must first load and verify that complete bundle; a
+    // hash/index alone supplies neither a certificate nor Gaussian moments.
+    return {
+        {"COMPLETE_PARENT_METADATA_REFERENCE", "KF_CORE_TRANSPORT_CERTIFICATES",
+            "KF_CORE.metaDataMap PREFIX ZHANG_TRANSPORT_ONLY_COMMITTED_V1 ALL_EXACT_VALUES",
+            {payloadSha256}},
+        {"COMPLETE_PARENT_METADATA_REFERENCE", "KF_CORE_FLOAT_TARGET_DEFINITIONS",
+            "KF_CORE.metaDataMap PREFIXES ZHANG_FLOAT_ ZHANG_HANDOFF_FLOAT_ ALL_EXACT_VALUES",
+            {payloadSha256}}};
+}
+
 ZhangE29CheckpointResult writeZhangE29CheckpointDirectory(
 	const std::string& targetDirectory,
 	const ZhangCheckpointBundle& bundle)
@@ -1315,12 +1342,38 @@ ZhangE29CheckpointResult writeZhangE29CheckpointDirectory(
 					verifyResult.failureReason);
 	}
 
-	std::filesystem::rename(staging, target, error);
-	if (error)
+    // Low-frequency checkpoint boundary only, outside every bridge budget.
+    // Archive small immutable evidence, referring to the ONE complete bundle
+    // rather than duplicating its dense Gaussian state or inventing zero Pxz.
+    if (!zhangValidateCertifiedTreeTransportMetadata(bundle.kfCore.metaDataMap,
+            bundle.manifest.runtimeId, failureReason) ||
+        !zhang_history_archive::syncFile(bundlePath) ||
+        !zhang_history_archive::syncFile(manifestPath))
+    {
+        cleanupStaging();
+        return checkpointFailure("CHECKPOINT_HISTORY_PARENT_NOT_DURABLE_OR_VALID:" + failureReason);
+    }
+    const auto historicalScope = checkpointHistoricalScope(bundle, binaryResult.payloadSha256);
+    const auto verifyHistoryParent = [&](const std::string& expected, std::string& reason)
+    {
+        const auto verified = verifyZhangCheckpointBundleEnvelope(bundlePath.string(), expected);
+        reason = verified.failureReason;
+        return verified.valid && verified.payloadBytes == binaryResult.payloadBytes;
+    };
+    if (!zhang_history_archive::write(staging / zhang_history_archive::directoryName,
+            historicalScope, checkpointHistoricalEvidence(bundle, binaryResult.payloadSha256),
+            verifyHistoryParent, failureReason))
+    {
+        cleanupStaging();
+        return checkpointFailure("CHECKPOINT_HISTORY_ARCHIVE_WRITE_REJECTED:" + failureReason);
+    }
+
+	if (!zhang_history_archive::syncDirectory(staging) ||
+        !zhang_history_archive::renameDurably(staging, target))
 	{
 		cleanupStaging();
 		return checkpointFailure(
-			"E29_CHECKPOINT_DIRECTORY_PUBLISH_FAILED:" + error.message());
+			"E29_CHECKPOINT_DIRECTORY_PUBLISH_FAILED");
 	}
 
 	ZhangE29CheckpointResult result;
@@ -1462,6 +1515,34 @@ ZhangE29CheckpointResult readZhangE29CheckpointDirectory(
 				? "E29_CHECKPOINT_MANIFEST_CONTENT_MISMATCH"
 				: failureReason);
 	}
+
+    // Legacy checkpoints may predate this optional archive. Once present,
+    // missing/corrupt objects, wrong scope or an unavailable complete parent
+    // fail closed before ANY runtime importer is allowed to mutate state.
+    const auto historyDirectory = directory / zhang_history_archive::directoryName;
+    if (std::filesystem::exists(historyDirectory, error))
+    {
+        const auto verifyHistoryParent = [&](const std::string& expected, std::string& reason)
+        {
+            const auto verified = verifyZhangCheckpointBundleEnvelope(bundlePath.string(), expected);
+            reason = verified.failureReason;
+            return verified.valid && verified.payloadBytes == ioResult.payloadBytes;
+        };
+        std::vector<zhang_history_archive::Evidence> evidence;
+        if (!zhang_history_archive::read(historyDirectory,
+                checkpointHistoricalScope(candidate, ioResult.payloadSha256), verifyHistoryParent,
+                evidence, failureReason) ||
+            evidence != checkpointHistoricalEvidence(candidate, ioResult.payloadSha256))
+            return checkpointFailure("CHECKPOINT_HISTORY_ARCHIVE_READ_REJECTED:" + failureReason);
+        if (!zhangValidateCertifiedTreeTransportMetadata(candidate.kfCore.metaDataMap,
+                candidate.manifest.runtimeId, failureReason))
+            return checkpointFailure("CHECKPOINT_HISTORY_RESOLVED_PARENT_CERTIFICATE_INVALID:" + failureReason);
+    }
+    else if (error)
+        return checkpointFailure("CHECKPOINT_HISTORY_ARCHIVE_STATUS_FAILED:" + error.message());
+    else if (candidate.sections.contains(ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME) &&
+        candidate.sections.at(ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME).schemaVersion >= 7)
+        return checkpointFailure("CHECKPOINT_HISTORY_ARCHIVE_REQUIRED_BY_SCHEMA7_MISSING");
 
 	bundle = std::move(candidate);
 	ZhangE29CheckpointResult result;

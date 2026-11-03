@@ -1,0 +1,318 @@
+{
+  "schema": "DATUM_UNKNOWN_REPAIR_VALIDATION_V1",
+  "base_commit": "6177d1ac87d544a9354daafd47633249be9cff08",
+  "candidate_sha256": "00a16f65eee965038b672b5ad773468b5798d86b1690cecf1771902b6474f657",
+  "full_build_passed": true,
+  "fresh_TUs": 18,
+  "verified_reused_TUs": 140,
+  "linked_TUs": 158,
+  "test_only_relink": {
+    "attempt": "build_05",
+    "fresh_TUs": 0,
+    "verified_reused_TUs": 158,
+    "production_candidate_identity_unchanged": true
+  },
+  "native_aggregate_passed": true,
+  "native_tasks": 51,
+  "native_executions": 50,
+  "build_only_tasks": 1,
+  "native_tests": [
+    {
+      "name": "us20_global134_checkpoint_policy",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "multi_gnss_float_checkpoint_policy",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "gec134_ar_continuation_classifier",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "single_s_basis_mode",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "single_s_basis_component_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "native_zero_datum_posterior",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "epoch_product_zero_datum",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_float_lifecycle",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_full_joint_handoff",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_structural_publication_gap",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "single_s_chord_production_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "single_s_basis_native_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "product_numerical_continuity",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "user_published_continuity_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "leaf_product_identity_production_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_float_active_dependencies",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_work_identity",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_search_budget",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_event_budget",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_handoff_bundle_reader",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_algebra_transport_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_graph_runtime_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "multi_gnss_runtime",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "multi_gnss_private_checkpoint_gate",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_posterior_destination_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_physical_consequence_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "certified_tree_transport",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "combined_transform_full_q",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_posterior_buffer_benchmark",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "certified_tree_transport_production_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_float_target_metadata_transform",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_float_target_carrier_reference",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_target_batch_metadata_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "checkpoint_float_target_counter_roundtrip",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_float_target_clone_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_metadata_only_guard",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_product_float_consumer_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_product_float_carrier_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "exact_float_target_span_reference",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_target_exact_shear_recovery",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "float_target_resolver_batch_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "ar_product_base_workspace_reference",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "ar_product_base_workspace_production",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "r51_exact_image_copy_sparse_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "gec_ar_runtime_checkpoint",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "ratio_only_skip_nis_native",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "us20_e240_continuation_policy",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "us20_e240_nine_section_audit",
+      "executed": false,
+      "passed": true
+    },
+    {
+      "name": "current_event_evidence_delta",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "gps_prepared_support_contract",
+      "executed": true,
+      "passed": true
+    },
+    {
+      "name": "historical_evidence_archive",
+      "executed": true,
+      "passed": true
+    }
+  ],
+  "evidence_sha256": {
+    "build_02/BUILD_PLAN.json": "83685a99aad8da9f1b34edad5823a71c8e665666c8559f80397669fd27fdb54c",
+    "build_02/BUILD_RESULT.json": "d7e7d0cf03a52c2716ede93063d0a5ffcda7c4dee3fb3c22baf54dda87b5c375",
+    "build_02/NATIVE_RESULT.json": "08659545f78d0e88d81fc6bdd95299e0a9d51ac731078b0e18efb272d0a4ace5",
+    "build_03/BUILD_PLAN.json": "3350dd1e7c85f5877148ff6ae5885ce2e266231950f097c2abf2766cb642cd51",
+    "build_03/BUILD_RESULT.json": "792f11383ab19070035d1b0afb5e0c749dcc4836e72f2d08e536c1216a659440",
+    "build_03/NATIVE_RESULT.json": "432468f69ab828a1e8eae7411d23ac68411e05005381fa1427857eececdf68b1",
+    "build_04/BUILD_PLAN.json": "7cb24438a374e3064d95c13b43a56a4a3e2b0d870453e295c4d9bf9fb0fdfde2",
+    "build_04/BUILD_RESULT.json": "d42254f1d2fe810bedd414fdc8b8c60a01819532a37cf1c87e72c78bcbf58abf",
+    "build_04/NATIVE_RESULT.json": "aa1d07b4eb7c23433a09db0e1e83c86be5d8bd43f5ba310600829fbe5bb62f28",
+    "build_05/BUILD_PLAN.json": "522a6e8e1db4f9b01047c4d4a214618ded3b22abed42398e91039d5398e0bd57",
+    "build_05/BUILD_RESULT.json": "952cabc44fdb90732d60a342d3d964847b6444c3e3d124b0694226c5496c8cce",
+    "build_05/NATIVE_RESULT.json": "21ba974f2e760f82e750509f1572930e6bcbfbf1947f888fcaf93adf978c6848"
+  },
+  "source_snapshot_manifest_sha256": "2fdfec405936991b25e07d7c097e4dedaff3f8f31ac3a929be1954ab085f36a0",
+  "peer_review_blockers_fixed": [
+    "postcommit_cancellation_reported_after_publication",
+    "whole_lift_rejected_by_individual_current_arc_gate"
+  ],
+  "earlier_build_01": "Intentionally stopped after independent blocking review; retained, not counted as PASS.",
+  "earlier_native_02": "30 tasks passed; next test did not compile (Duration compared with int). Corrected test only; all tasks rerun in native03.",
+  "native_acceptance_reuse": "48 successful current-candidate executions and 1 build-only task individually reverified through native04/native03 (same producer/source/dependencies/runtime/inputs); 2 further executions completed in native05.",
+  "earlier_native_03": "46 tasks passed; the next standalone SHA helper collided at full-production linkage. Added a test-only production-link guard; production binary unchanged.",
+  "earlier_native_04": "49 tasks passed (48 executed and 1 build-only); GPS test lacked a direct header include. Fixed test only; production binary unchanged.",
+  "whole_network_60_epoch_replay_performed": false,
+  "real_e240_nine_section_process_roundtrip_performed": false,
+  "scientific_accuracy_accepted": false,
+  "formal_AR_started": false,
+  "production_or_server_program_replaced": false,
+  "policy": {
+    "ratio": 2,
+    "joint_NIS": false,
+    "independent_epoch_AR": true,
+    "WSL_GiB": 20
+  },
+  "limits": [
+    "Controlled production-linked native fixtures are not actual G03/G24/C27/E11 network-event replays.",
+    "Legacy predictor cold start with no accepted velocity history remains fail-closed; rejected samples never train it.",
+    "Metadata/sparse support cache and post-QC dense full-Q audit costs still need real-network timing/memory measurement.",
+    "Carriers support identity/Q0 source models; dynamic mixed coordinates are rejected, not approximated with zero Q.",
+    "History archive is a verified locator into the complete retained parent bundle, not a standalone certificate database."
+  ]
+}

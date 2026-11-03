@@ -301,6 +301,108 @@ void testGlobalRetirement()
 }
 }
 
+// Shape of the measured C27 event: FALK-C28 L5P disappears, L1P remains,
+// and the physical signal version stays V0. This is a production coordinate
+// planner/central-KF test, not a claim to replay the real 134-station posterior.
+void testFalkSignalOnlyLossAndPhysicalSlip()
+{
+    const ZhangGraphEdge lost{"FALK",SatSys("C28")};
+    ZhangGraphBasis old;
+    old.rootReceiver="A";old.receivers={"A","FALK","AGGO"};
+    old.satellites={SatSys("C27"),SatSys("C28")};
+    for(const auto& receiver:old.receivers)for(const auto& satellite:old.satellites)
+        old.edges.insert({receiver,satellite});
+    old.treeEdges={{"A",SatSys("C27")},{"FALK",SatSys("C27")},lost,{"AGGO",SatSys("C27")}};
+    old.connected=true;old.componentCount=1;
+    auto destination=old;
+    destination.treeEdges.erase(lost);destination.treeEdges.insert({"A",SatSys("C28")});
+    const std::map<E_ObsCode,double> wavelengths{{E_ObsCode::L1P,.19},{E_ObsCode::L5P,.25}};
+    KFState source;source.time.bigTime=1405218450;
+    source.kfIndexMap.clear();source.stateTransitionMap.clear();
+    source.metaDataMap[ZHANG_CHECKPOINT_RUNTIME_ID_METADATA]="FALK_C28_SIGNAL_V0_CONTRACT";
+    std::vector<KFKey> keys{KFState::oneKey};
+    for(const auto& [code,wavelength]:wavelengths)
+    {
+        for(const auto& receiver:old.receivers)if(receiver!=old.rootReceiver)
+            keys.push_back(zhangTransportReceiverKey(E_Sys::BDS,code,receiver));
+        for(const auto& satellite:old.satellites)
+            keys.push_back(zhangTransportSatelliteKey(code,satellite));
+        for(const auto& edge:old.edges)if(!old.treeEdges.contains(edge))
+            keys.push_back(zhangTransportAmbiguityKey(code,edge));
+    }
+    KFKey clock;clock.type=KF::SAT_CLOCK;clock.Sat=SatSys("C27");keys.push_back(clock);
+    source.x=VectorXd::Zero(keys.size());source.dx=source.x;
+    source.P=MatrixXd::Zero(keys.size(),keys.size());
+    for(size_t i=0;i<keys.size();++i)
+    {
+        source.kfIndexMap[keys[i]]=i;source.stateTransitionMap[keys[i]][keys[i]][0]=1;
+        source.x(i)=i?2+.5*i:1;
+        for(size_t j=1;i && j<keys.size();++j)
+            source.P(i,j)=.02*(i+1)*(j+1)+(i==j?1+i:0);
+    }
+    std::map<ZhangGraphEdge,std::map<int,int>> versions;
+    for(const auto& edge:old.edges)for(const auto& [code,wavelength]:wavelengths)
+        versions[edge][int(code)]=0;
+    const ZhangCoordinateRow oldRow{
+        {zhangTransportReceiverKey(E_Sys::BDS,E_ObsCode::L5P,"FALK"),1},
+        {zhangTransportSatelliteKey(E_ObsCode::L5P,SatSys("C28")),1}};
+    for(const bool slip:{false,true})
+    {
+        auto state=source;
+        std::map<int,std::set<ZhangGraphEdge>> signalEdges;
+        for(const auto& [code,wavelength]:wavelengths)signalEdges[int(code)]=destination.edges;
+        if(!slip)signalEdges[int(E_ObsCode::L5P)].erase(lost);
+        std::set<ZhangGraphEdge> retired;
+        std::map<ZhangGraphEdge,std::set<E_ObsCode>> retiredSignals;
+        if(slip){retired.insert(lost);retiredSignals[lost].insert(E_ObsCode::L5P);}
+        auto plan=zhangPlanGraphCoordinateTransport(state,E_Sys::BDS,old,destination,retired,wavelengths,
+            [](const auto&,auto){return 100.;},[](const auto&,auto){return 100.;},
+            &retiredSignals,true,nullptr,&old.edges,&versions,&signalEdges);
+        check(plan.valid,plan.failureReason.c_str());
+        check(plan.retainedOldArcAuxiliaryKeys.contains({E_ObsCode::L5P,lost}) &&
+            !plan.retainedOldArcAuxiliaryKeys.contains({E_ObsCode::L1P,lost}),
+            "L1 topological presence suppressed capture of absent/retired L5 V0");
+        const auto retained=plan.retainedOldArcAuxiliaryKeys.at({E_ObsCode::L5P,lost});
+        ZhangHandoffFloatIdentity identity;
+        check(zhangHandoffFloatIdentityFromKey(retained,identity) && identity.arcVersion==0,
+            "old V0 auxiliary was relabelled as the new physical arc");
+        check(plan.transform.contains(zhangTransportAmbiguityKey(E_ObsCode::L5P,lost))==slip,
+            "missing L5 coordinate was fabricated from the surviving L1 chord");
+        const auto proof=zhangVerifyGraphFunctionalTransport(plan,oldRow,{{retained,1}},0,0,0);
+        check(proof.sameTimeMapProven,"old complete L5 V0 did not cancel all independent fresh sources");
+        if(slip)
+        {
+            ZhangCoordinateRow current{{zhangTransportReceiverKey(E_Sys::BDS,E_ObsCode::L5P,"FALK"),1},
+                {zhangTransportSatelliteKey(E_ObsCode::L5P,SatSys("C28")),1},
+                {zhangTransportAmbiguityKey(E_ObsCode::L5P,lost),.25}};
+            check(!zhangVerifyGraphFunctionalTransport(plan,oldRow,current,0,0).sameTimeMapProven,
+                "fresh V1/slip arc inherited V0 same-time FLOAT or integer identity");
+        }
+        const auto capture=zhangPlanHandoffFloatCapture(state,plan.transform);
+        check(capture.valid,capture.failureReason.c_str());
+        std::ostringstream trace;
+        check(state.applyStateTransform(trace,plan.transform,"TEST_FALK_SIGNAL_LIFECYCLE",
+            plan.independentSourceVariances,&capture.metadata),"FALK production central transform failed");
+        const int row=state.kfIndexMap.at(retained);
+        double expectedMean=0,expectedVariance=0;
+        for(const auto& [left,a]:oldRow)
+        {
+            expectedMean+=a*source.x(source.kfIndexMap.at(left));
+            for(const auto& [right,b]:oldRow)expectedVariance+=a*b*source.P(source.kfIndexMap.at(left),source.kfIndexMap.at(right));
+        }
+        check(std::abs(state.x(row)-expectedMean)<1e-12 && std::abs(state.P(row,row)-expectedVariance)<1e-12,
+            "FALK retained full mean/variance differs from independent source oracle");
+        for(const auto& [destinationKey,column]:state.kfIndexMap)
+        {
+            double expected=0;
+            for(const auto& [oldKey,a]:oldRow)for(const auto& [input,b]:plan.transform.at(destinationKey))
+                if(source.kfIndexMap.contains(input))expected+=a*b*source.P(source.kfIndexMap.at(oldKey),source.kfIndexMap.at(input));
+            check(std::abs(state.P(row,column)-expected)<1e-10,
+                "FALK retained direction lost full cross-Q to a destination state");
+        }
+    }
+}
+
 int main()
 {
     setenv("ZHANG_R51_ENABLE", "1", 1);
@@ -526,9 +628,11 @@ int main()
         !optionalPlan.retainedOldArcAuxiliaryKeys.contains({E_ObsCode::L2W,chord}),
         "optional signal chord blocked FLOAT or fabricated unavailable band");
     testGlobalRetirement();
+    testFalkSignalOnlyLossAndPhysicalSlip();
     std::cout << "PASS production retained FLOAT: version isolation, full information-form mean/P, "
         "next-epoch joint update, pinned dependency lifetime, inactive expiry, checkpoint registry, "
         "AR branch isolation, surviving cross-P, 0/30/150/300 s policy, invalid-setting rejection, "
         "128 inactive/8192 dependency capacities, signal-specific support, global G/E/C active 0/300/330 ages, "
-        "system-order/no-availability controls, corrupt-source refusal, full callback KF rollback\n";
+        "system-order/no-availability controls, corrupt-source refusal, full callback KF rollback, "
+        "FALK-C28 L5 missing/L1 present V0, physical-slip fresh-prior negative, full destination cross-Q\n";
 }

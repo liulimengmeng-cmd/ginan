@@ -23,6 +23,51 @@ struct ZhangProductConditionalMapResult
     std::vector<int> physicalCoefficients;
 };
 
+// A complete versioned FLOAT functional may be recoverable from typed
+// carriers even though none of its individual old arcs can be reconstructed.
+// The caller supplies a row already resolved with an exact whole-span witness.
+// This proves the numeric map only; it never certifies the integer RHS.
+inline ZhangProductConditionalMapResult zhangProveWholeProductConditionalMap(
+    const ZhangCoordinateRow& oldRow,const ZhangCoordinateRow& writerRow,
+    const ZhangProductIntegerTransition& difference,double wavelength,
+    bool oldJointProven,bool completeSpanProven,
+    const ZhangCoordinateRow& completeDifferenceMetres,double offsetMetres)
+{
+    ZhangProductConditionalMapResult result;
+    if(!oldJointProven || !completeSpanProven)
+    {result.reason="WHOLE_PRODUCT_JOINT_MOMENT_OR_EXACT_SPAN_UNPROVEN";return result;}
+    if(oldRow.empty() || writerRow.empty() || !difference.valid ||
+        difference.physicalEdges.size()!=difference.physicalArcVersions.size() ||
+        difference.physicalEdges.size()!=difference.coefficients.size() ||
+        difference.affineOffsetCycles!=0 || offsetMetres!=0 ||
+        !(wavelength>0) || !std::isfinite(wavelength))
+    {result.reason="INVALID_WHOLE_PRODUCT_FUNCTIONAL_DIFFERENCE";return result;}
+    for(size_t i=0;i<difference.coefficients.size();++i)
+    {
+        const auto& value=difference.coefficients[i];
+        const int coefficient=value.convert_to<int>();
+        if(difference.physicalArcVersions[i]<0 || ZhangExactInteger(coefficient)!=value)
+        {result.reason="PRODUCT_BRIDGE_VERSION_OR_COEFFICIENT_OUT_OF_RANGE";return result;}
+        result.physicalEdges.push_back(difference.physicalEdges[i]);
+        result.physicalArcVersions.push_back(difference.physicalArcVersions[i]);
+        result.physicalCoefficients.push_back(coefficient);
+    }
+    for(const auto& [key,value]:completeDifferenceMetres)
+    {
+        if(!std::isfinite(value))
+        {result.reason="WHOLE_PRODUCT_BRIDGE_ROW_NONFINITE";return result;}
+        if(value!=0)result.bridgeStateRowCycles.emplace(key,value/wavelength);
+    }
+    ZhangCoordinateRow residual=writerRow;
+    zhangAddCoordinateRow(residual,oldRow,-1);
+    zhangAddCoordinateRow(residual,completeDifferenceMetres,-1);
+    for(const auto& [key,value]:residual)
+        if(!std::isfinite(value) || std::abs(value)>1e-10)
+        {result.reason="WHOLE_PRODUCT_FUNCTIONAL_BRIDGE_ROW_IDENTITY_FAILED";return result;}
+    result.valid=true;result.reason="EXACT_WHOLE_VERSIONED_PRODUCT_FUNCTIONAL_MAP_NO_INTEGER_AUTHORITY";
+    return result;
+}
+
 inline ZhangProductConditionalMapResult zhangProveProductConditionalMap(
     const ZhangCoordinateRow& transportedOldProductRow,
     const ZhangCoordinateRow& actualNewWriterRow,

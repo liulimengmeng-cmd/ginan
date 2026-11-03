@@ -72,6 +72,78 @@ int main()
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();
 
+    // Legacy schema-6 supplies no predictor. A persistent 1.004 m / 30 s
+    // trend cannot bootstrap from its OWN rejected values. Without accepted
+    // historical endpoints or an independently justified dynamics model,
+    // continuing UNKNOWN is the safe and explicitly tested limitation.
+    auto cold = zhangAdvanceProductNumericalDynamics({}, 100, nan, 120, "legacy-cold-chart");
+    for (int epoch = 1; epoch <= 4; ++epoch)
+    {
+        auto event = comparable(30.0 * epoch);
+        event.previousCorrection = cold.correction;
+        event.currentCorrection = cold.correction + 1.004 * epoch;
+        double predicted;
+        event.useTimePrediction = zhangPredictProductNumericalChange(cold,
+            event.previousCorrection, event.gapSeconds, 120, "legacy-cold-chart", predicted);
+        event.predictedCorrectionChange = predicted;
+        require(!event.useTimePrediction, "legacy cold start invented a rate from rejected data");
+        mustSuspend(event, "unmodelled cold 1.004m/30s trend was granted continuity");
+        require(!cold.hasRate && cold.correction == 100, "cold rejected candidate advanced last-good dynamics");
+    }
+    auto coldGap = comparable(150);
+    coldGap.currentCorrection = 100 + 5 * 1.004;
+    const auto coldGapAssessment = assess(coldGap);
+    require(coldGapAssessment.gapOnlyUnassessed && !coldGapAssessment.evaluated,
+        "cold reference expiry was treated as a measured passing residual");
+    auto reanchored = zhangAdvanceProductNumericalDynamics(cold, coldGap.currentCorrection,
+        150, 120, "new-public-segment");
+    double missingColdRate;
+    require(!reanchored.hasRate && !zhangPredictProductNumericalChange(reanchored,
+        reanchored.correction, 30, 120, "new-public-segment", missingColdRate),
+        "unassessed gap invented a rate across an uncertified public segment");
+
+    // Eleven E11-like cycles: the original certified endpoint is 120 s old,
+    // and normal clock-minus-phase evolution crosses the unchanged 1 m gate.
+    // The predictor has only TWO PRIOR accepted endpoints; no current value
+    // enters its rate. This is a deterministic contract, not a real E11 replay.
+    for (int cycle = 0; cycle < 11; ++cycle)
+    {
+        const double step = 1.000915 + cycle * (1.008614 - 1.000915) / 10;
+        const double rate = -step / 120;
+        const std::string domain = "E11|L1|verified-physical-chart";
+        auto dynamics = zhangAdvanceProductNumericalDynamics({}, 100, nan, 120, domain);
+        dynamics = zhangAdvanceProductNumericalDynamics(dynamics, 100 + rate * 30, 30, 120, domain);
+        double prediction;
+        auto event = comparable(120);
+        event.previousCorrection = dynamics.correction;
+        event.currentCorrection = dynamics.correction + rate * 120;
+        require(!assess(event).valid, "legacy E11-like cumulative step did not cross 1 m");
+        event.useTimePrediction = zhangPredictProductNumericalChange(dynamics,
+            event.previousCorrection, event.gapSeconds, 120, domain, prediction);
+        event.predictedCorrectionChange = prediction;
+        require(event.useTimePrediction && assess(event).valid,
+            "prior-only elapsed-time prediction retained periodic false rejection");
+        const auto lastGood = dynamics;
+        for (const double unexplainedJump : {2.0, -12 * 0.190293672798})
+        {
+            auto jumped = event;
+            jumped.currentCorrection += unexplainedJump;
+            mustSuspend(jumped, "prediction swallowed clock jump or phase integer offset");
+        }
+        require(dynamics.correction == lastGood.correction &&
+            dynamics.rateMetresPerSecond == lastGood.rateMetresPerSecond,
+            "a rejected candidate trained the predictor");
+        require(!zhangPredictProductNumericalChange(dynamics, event.previousCorrection,
+            150, 120, domain, prediction), "prediction bypassed certified-reference age gate");
+        require(!zhangPredictProductNumericalChange(dynamics, event.previousCorrection,
+            30, 120, "different-physical-chart", prediction), "prediction crossed an unproved chart");
+        require(!zhangPredictProductNumericalChange(dynamics, event.previousCorrection + 1,
+            30, 120, domain, prediction), "prediction did not bind its last accepted endpoint");
+        auto invalidPrediction = event;
+        invalidPrediction.predictedCorrectionChange = inf;
+        mustSuspend(invalidPrediction, "nonfinite predictor bypassed numerical gate");
+    }
+
     auto initial = comparable();
     initial.hasPrevious = false;
     initial.samePublishedIdentity = false;

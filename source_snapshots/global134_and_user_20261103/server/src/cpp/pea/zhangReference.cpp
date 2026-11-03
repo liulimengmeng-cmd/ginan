@@ -369,13 +369,28 @@ void storeGraphProductEventReceipts(
     }
     for (auto& receipt : receipts)
     {
+        receipt.destinationFactorSequence=state.factorCommitSequence;
+        receipt.destinationStateOrderId=zhangFloatCarrierStateOrder(state.kfIndexMap);
         const GraphProductReceiptKey identity = {
             runtimeId, epoch, system, receipt.observable,
             receipt.satellite};
-        // A second state transform in the same epoch requires composition of
-        // both affine maps.  Until such composition exists, fail closed rather
-        // than letting the last receipt masquerade as the whole handoff.
-        if (graphProductEventReceipts.contains(identity))
+        const auto previous=graphProductEventReceipts.find(identity);
+        const bool composed=previous!=graphProductEventReceipts.end() &&
+            receipt.sameEpochSourceRebased &&
+            receipt.rebasedFromTransportId==previous->second.fullJointTransportId &&
+            !receipt.initialPublishedTargetId.empty() &&
+            receipt.initialPublishedTargetId==previous->second.initialPublishedTargetId &&
+            receipt.initialPublishedLifecycleId==previous->second.initialPublishedLifecycleId &&
+            receipt.initialPublishedFunctionalFingerprint==previous->second.initialPublishedFunctionalFingerprint &&
+            receipt.oldBackendGeneration==previous->second.oldBackendGeneration &&
+            receipt.oldChartGeneration==previous->second.oldChartGeneration &&
+            receipt.sourceRuntimeId==runtimeId && receipt.sourceFactorSequence<receipt.destinationFactorSequence &&
+            receipt.oldProductProjectionCaptured && receipt.representableSameTimeMapProven &&
+            receipt.fullJointMomentTransportProven;
+        // Replacement is permitted only for the initial published functional
+        // re-resolved on the measured second source and fully audited through
+        // its actual transform. An uncomposed last-event overwrite stays closed.
+        if (previous!=graphProductEventReceipts.end() && !composed)
         {
             receipt.conditionalProductMapProven = false;
             receipt.sameTimeMapProven = false;
@@ -2230,6 +2245,102 @@ map<SatSys, ZhangSignedPhysicalPath> zhangSatelliteTreePaths(
     return satellitePaths;
 }
 
+string graphReceiptInitialFunctionalFingerprint(const ZhangGraphProductEventReceipt& receipt)
+{
+    ZhangProductIntegerFunctional functional;
+    functional.satellite=receipt.satellite;functional.referenceSatellite=receipt.productReferenceSatellite;
+    functional.observable=receipt.observable;functional.physicalEdges=receipt.oldProductFunctionalEdges;
+    functional.physicalArcVersions=receipt.oldProductFunctionalArcVersions;
+    functional.networkCoefficients=receipt.oldProductFunctionalCoefficients;
+    functional.affineOffsetCycles=receipt.oldProductFunctionalAffineOffsetCycles;
+    functional.valid=functional.physicalEdges.size()==functional.physicalArcVersions.size() &&
+        functional.physicalEdges.size()==functional.networkCoefficients.size();
+    return zhangProductPhysicalFunctionalFingerprint(functional);
+}
+
+bool rebaseGraphReceiptOnCurrentFloatTarget(const KFState& state,
+    const ZhangGraphProductEventReceipt& initial,const ZhangProductFloatTargetRequest& target,
+    int backend,int chart,std::uint64_t measuredSequence,int measuredChart,
+    ZhangGraphProductEventReceipt& rebased,string& reason)
+{
+    const auto owner=zhangProductFloatOwnerId(state),order=zhangFloatCarrierStateOrder(state.kfIndexMap);
+    auto reject=[&](const char* why){reason=why;return false;};
+    if(!state.lastPppTransactionCommitted || !state.lastPppQcConverged ||
+        measuredSequence!=state.factorCommitSequence || measuredChart!=chart)
+        return reject("SAME_EPOCH_REBASE_CURRENT_MEASUREMENT_SCOPE_UNPROVEN");
+    if(initial.time!=state.time || initial.sourceRuntimeId!=owner ||
+        initial.newBackendGeneration!=backend || initial.newChartGeneration!=chart ||
+        initial.destinationFactorSequence>state.factorCommitSequence ||
+        initial.sourceFactorSequence>initial.destinationFactorSequence ||
+        initial.sourceStateOrderId.empty() || initial.destinationStateOrderId.empty() ||
+        !initial.oldProductProjectionCaptured || !initial.representableSameTimeMapProven ||
+        !initial.fullJointMomentTransportProven)
+        return reject("SAME_EPOCH_REBASE_PRIOR_RECEIPT_SCOPE_OR_FULL_Q_UNPROVEN");
+    const auto fingerprint=graphReceiptInitialFunctionalFingerprint(initial);
+    if(initial.initialPublishedTargetId.empty() || initial.initialPublishedLifecycleId.empty() ||
+        fingerprint=="INVALID" || fingerprint!=initial.initialPublishedFunctionalFingerprint ||
+        target.targetId!=initial.initialPublishedTargetId ||
+        target.lifecycleId!=initial.initialPublishedLifecycleId ||
+        target.consumer!="PUBLISHED_PHASE" || target.unit!="m" ||
+        !target.lifecycleId.ends_with("|"+fingerprint) ||
+        !target.active || !target.numericBindingComplete ||
+        target.scope.runtimeId!=owner || target.scope.stateOrderId!=order ||
+        !std::isfinite(target.numericOffset))
+        return reject("SAME_EPOCH_REBASE_INITIAL_PUBLISHED_TARGET_IDENTITY_MISMATCH");
+    const auto literal=state.metaDataMap.find(std::string(ZHANG_FLOAT_TARGET_V2_PREFIX)+target.targetId);
+    if(literal==state.metaDataMap.end() || literal->second!=zhangEncodeFloatTarget(target))
+        return reject("SAME_EPOCH_REBASE_TARGET_NOT_ACTUAL_SOURCE_DIRECTORY_ENTRY");
+    const auto generation=state.metaDataMap.find(ZHANG_FLOAT_TARGET_GENERATION_V2);
+    const auto saved=state.metaDataMap.find(ZHANG_FLOAT_TARGET_SAVED_FACTOR_SEQUENCE_V2);
+    if(generation==state.metaDataMap.end() || saved==state.metaDataMap.end() ||
+        generation->second!=std::to_string(target.scope.coordinateGeneration) ||
+        saved->second!=std::to_string(state.factorCommitSequence))
+        return reject("SAME_EPOCH_REBASE_TARGET_FACTOR_SEQUENCE_MISMATCH");
+    for(const auto& [key,value]:target.numericRow)
+        if(!state.kfIndexMap.contains(key) || !std::isfinite(value))
+            return reject("SAME_EPOCH_REBASE_TARGET_SOURCE_KEY_OR_COEFFICIENT_INVALID");
+    rebased=initial;
+    rebased.rebasedFromTransportId=initial.fullJointTransportId;
+    rebased.sameEpochSourceRebased=true;
+    ++rebased.sameEpochCompositionDepth;
+    rebased.sourceRuntimeId=owner;rebased.sourceStateOrderId=order;
+    rebased.sourceFactorSequence=state.factorCommitSequence;
+    rebased.destinationFactorSequence=0;rebased.destinationStateOrderId.clear();
+    rebased.oldPhaseRow=target.numericRow;
+    rebased.oldOffsetMetres=target.numericOffset;rebased.newOffsetMetres=target.numericOffset;
+    // No old moment survives a measurement update. Refreeze the current
+    // source; the event builder adds the whole cross-product phase block.
+    rebased.oldPhaseMeanMetres=rebased.oldPhaseVarianceMetres2=0;
+    rebased.oldClockMeanMetres=rebased.oldClockVarianceMetres2=rebased.oldClockPhaseCovarianceMetres2=0;
+    rebased.oldPhaseCrossCovarianceMetres2.clear();rebased.oldPhaseClockCrossCovarianceMetres2.clear();
+    rebased.oldClockClockCrossCovarianceMetres2.clear();
+    for(const auto& [left,a]:target.numericRow)
+    {
+        const int i=state.kfIndexMap.at(left);
+        if(i<0 || i>=state.x.size() || i>=state.P.rows())return reject("SAME_EPOCH_REBASE_SOURCE_DIMENSION_INVALID");
+        rebased.oldPhaseMeanMetres+=a*state.x(i);
+        for(const auto& [right,b]:target.numericRow)
+            rebased.oldPhaseVarianceMetres2+=a*b*state.P(i,state.kfIndexMap.at(right));
+    }
+    KFKey clock;clock.type=KF::SAT_CLOCK;clock.Sat=initial.satellite;
+    if(!state.kfIndexMap.contains(clock))return reject("SAME_EPOCH_REBASE_CURRENT_CLOCK_STATE_MISSING");
+    const int c=state.kfIndexMap.at(clock);
+    rebased.oldClockMeanMetres=state.x(c);rebased.oldClockVarianceMetres2=state.P(c,c);
+    for(const auto& [key,value]:target.numericRow)
+        rebased.oldClockPhaseCovarianceMetres2+=value*state.P(c,state.kfIndexMap.at(key));
+    if(!std::isfinite(rebased.oldPhaseMeanMetres) || !std::isfinite(rebased.oldPhaseVarianceMetres2) ||
+        !std::isfinite(rebased.oldClockMeanMetres) || !std::isfinite(rebased.oldClockVarianceMetres2) ||
+        !std::isfinite(rebased.oldClockPhaseCovarianceMetres2))
+        return reject("SAME_EPOCH_REBASE_CURRENT_MOMENTS_NONFINITE");
+    rebased.newPhaseRow.clear();rebased.actualWriterPhaseRow.clear();rebased.bridgeStateRowCycles.clear();
+    rebased.bridgePhysicalEdges.clear();rebased.bridgePhysicalArcVersions.clear();rebased.bridgePhysicalCoefficients.clear();
+    rebased.actualWriterProjectionBound=rebased.actualWriterRowMatches=rebased.sameTimeMapProven=false;
+    rebased.representableSameTimeMapProven=rebased.conditionalProductMapProven=rebased.fullJointMomentTransportProven=false;
+    rebased.failureReason=rebased.conditionalMapReason=rebased.jointMomentReason="NOT_EVALUATED";
+    reason="SAME_EPOCH_INITIAL_TARGET_REBOUND_TO_CURRENT_MEASURED_FLOAT";
+    return true;
+}
+
 vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
     const KFState& oldState,
     E_Sys system,
@@ -2247,7 +2358,7 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
     using ProductKey = pair<SatSys, E_ObsCode>;
     map<ProductKey, ZhangCoordinateRow> oldProductRows;
     string oldProjectionReason;
-    const bool oldProjectionAvailable = zhangGraphProductProjectionRows(
+    bool oldProjectionAvailable = zhangGraphProductProjectionRows(
         oldState, system, observables, oldBasis, oldProductTarget, true,
         oldProductRows, oldProjectionReason);
     const SatSys productReference = oldProductTarget.satellites.empty()
@@ -2262,6 +2373,77 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
         if (signal == found->second.end()) return std::nullopt;
         return signal->second;
     };
+    // Historical availability is a complete versioned functional question.
+    // Query the registered/typed-carrier span once for the whole event. Never
+    // route old physical arcs through CURRENT observation-admission gates.
+    vector<ZhangProductFloatTargetRequest> oldRequests;
+    vector<ProductKey> oldRequestKeys;
+    map<ProductKey,double> oldProductOffsets;
+    vector<ZhangProductFloatTargetRequest> registeredSourceTargets;
+    for(const auto code:observables)
+    {
+        const auto functions=zhangBuildProductIntegerFunctionals(
+            oldProductTarget,oldVersions,code,productReference);
+        const auto reference=oldSatellitePaths.find(productReference);
+        if(reference==oldSatellitePaths.end())continue;
+        for(const auto& [satellite,function]:functions)
+        {
+            if(!function.valid)continue;
+            map<ZhangGraphEdge,ZhangExactInteger> path;
+            for(const auto& [edge,value]:reference->second)path[edge]+=value;
+            for(size_t i=0;i<function.physicalEdges.size();++i)
+                path[function.physicalEdges[i]]+=function.networkCoefficients[i];
+            ZhangProductFloatTargetRequest request;
+            request.targetId="GRAPH_EVENT_OLD|"+satellite.id()+"|"+enum_to_string(code);
+            request.consumer="GRAPH_EVENT_OLD_COMPLETE_PHASE";
+            request.lifecycleId=eventKind;request.unit="m";
+            request.symbolicSpace=ZhangProductFloatTargetSpace::VERSIONED_PHASE_EDGE;
+            request.scope={zhangGraphRuntimeId(oldState),"PRE_GRAPH_EVENT",
+                zhangFloatCarrierStateOrder(oldState.kfIndexMap),oldState.factorCommitSequence};
+            bool complete=true;
+            for(const auto& [edge,value]:path)if(value!=0)
+            {
+                const auto version=signalVersion(oldVersions,edge,code);
+                if(!version){complete=false;break;}
+                request.physicalCoefficients[{edge,code,*version}]=value;
+            }
+            if(complete){oldRequestKeys.emplace_back(satellite,code);oldRequests.push_back(std::move(request));}
+        }
+    }
+    if(!oldRequests.empty())
+    {
+        vector<ZhangFloatTargetResolution> resolutions;
+        string reason;
+        if(!zhangResolveGraphProductHandoffTargetsBatch(oldState,oldRequests,resolutions,reason,nullptr,&registeredSourceTargets))
+        {oldProductRows.clear();oldProjectionAvailable=false;oldProjectionReason="OLD_COMPLETE_TARGET_DIRECTORY_INVALID:"+reason;}
+        else for(size_t i=0;i<resolutions.size();++i)if(resolutions[i].resolved)
+        {
+            oldProductRows[oldRequestKeys[i]]=std::move(resolutions[i].row);
+            oldProductOffsets[oldRequestKeys[i]]=resolutions[i].offset;
+            oldProjectionAvailable=true;
+        }
+    }
+    ZhangGraphSourceFunctionalResolver destinationResolver(oldState,plan);
+    map<ProductKey,ZhangGraphProductEventReceipt> rebasedSources;
+    const auto runtimeOwner=graphStateMap.find({zhangGraphRuntimeId(oldState),system});
+    for(const auto& [identity,initial]:graphProductEventReceipts)
+    {
+        if(std::get<0>(identity)!=zhangGraphRuntimeId(oldState) ||
+            std::get<1>(identity)!=oldState.time.to_string(9) || std::get<2>(identity)!=system)continue;
+        const auto target=std::find_if(registeredSourceTargets.begin(),registeredSourceTargets.end(),
+            [&](const auto& item){return item.targetId==initial.initialPublishedTargetId;});
+        ZhangGraphProductEventReceipt rebased;string reason;
+        const ProductKey key{initial.satellite,initial.observable};
+        if(runtimeOwner==graphStateMap.end() || target==registeredSourceTargets.end() ||
+            !rebaseGraphReceiptOnCurrentFloatTarget(oldState,initial,*target,
+                runtimeOwner->second.eventCounter,runtimeOwner->second.representationVersion,
+                runtimeOwner->second.signalObservationFactorSequence,runtimeOwner->second.phaseAdmissionChart,
+                rebased,reason))
+        {oldProductRows.erase(key);continue;}
+        oldProductRows[key]=rebased.oldPhaseRow;oldProductOffsets[key]=rebased.oldOffsetMetres;
+        oldProjectionAvailable=true;
+        rebasedSources.emplace(key,std::move(rebased));
+    }
     auto projectedMean = [&](const ZhangCoordinateRow& row)
         -> std::optional<double>
     {
@@ -2314,6 +2496,9 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
         receipt.observable = observable;
         receipt.satellite = satellite;
         receipt.eventKind = eventKind;
+        receipt.sourceRuntimeId=zhangGraphRuntimeId(oldState);
+        receipt.sourceStateOrderId=zhangFloatCarrierStateOrder(oldState.kfIndexMap);
+        receipt.sourceFactorSequence=oldState.factorCommitSequence;
         const auto owner = graphStateMap.find(
             {zhangGraphRuntimeId(oldState), system});
         if (owner != graphStateMap.end())
@@ -2347,11 +2532,36 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
                     receipt.failureReason =
                         "OLD_PRODUCT_FUNCTIONAL_ARC_VERSION_MISSING";
         }
+        if(const auto rebased=rebasedSources.find(productKey);rebased!=rebasedSources.end())
+        {
+            receipt=rebased->second;receipt.eventKind=eventKind;
+            receipt.fullJointTransportId=zhangGraphRuntimeId(oldState)+":"+oldState.time.to_string(9)+
+                ":"+enum_to_string(system)+":MEASURED_SOURCE_REBASE:"+std::to_string(oldState.factorCommitSequence);
+        }
         const auto oldRow = oldProductRows.find(productKey);
         receipt.oldProductProjectionCaptured = oldProjectionAvailable &&
             oldRow != oldProductRows.end();
         if (receipt.oldProductProjectionCaptured)
+        {
             receipt.oldPhaseRow = oldRow->second;
+            receipt.oldOffsetMetres=oldProductOffsets.contains(productKey)?oldProductOffsets.at(productKey):0;
+            receipt.newOffsetMetres=receipt.oldOffsetMetres;
+            if(!receipt.sameEpochSourceRebased)
+            {
+                const auto fingerprint=graphReceiptInitialFunctionalFingerprint(receipt);
+                for(const auto& target:registeredSourceTargets)
+                    if(target.active && target.numericBindingComplete && target.consumer=="PUBLISHED_PHASE" &&
+                        target.unit=="m" && target.lifecycleId.ends_with("|"+fingerprint) &&
+                        target.targetId.starts_with("PUBLISHED_PHASE|"+satellite.id()+"|"+enum_to_string(observable)+"|") &&
+                        target.numericRow==receipt.oldPhaseRow && target.numericOffset==receipt.oldOffsetMetres)
+                    {
+                        receipt.initialPublishedTargetId=target.targetId;
+                        receipt.initialPublishedLifecycleId=target.lifecycleId;
+                        receipt.initialPublishedFunctionalFingerprint=fingerprint;
+                        break;
+                    }
+            }
+        }
         const auto referencePath = oldSatellitePaths.find(productReference);
         if (receipt.failureReason != "NOT_EVALUATED")
         {
@@ -2360,8 +2570,8 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
         else if (!receipt.oldProductProjectionCaptured)
             receipt.failureReason = "OLD_PRODUCT_TARGET_PROJECTION_NOT_CAPTURED:" +
                 oldProjectionReason;
-        else if (oldFunctional == oldProductFunctionals.end() ||
-            !oldFunctional->second.valid)
+        else if (!receipt.sameEpochSourceRebased && (oldFunctional == oldProductFunctionals.end() ||
+            !oldFunctional->second.valid))
             receipt.failureReason = "OLD_VERSIONED_PRODUCT_FUNCTIONAL_MISSING";
         else if (referencePath == oldSatellitePaths.end())
             receipt.failureReason = "OLD_S_REFERENCE_PHYSICAL_PATH_MISSING";
@@ -2445,21 +2655,31 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
         // potential plus the versioned old P satellite-minus-reference path.
         // It is not the old S path of this satellite.
         map<ZhangGraphEdge, ZhangExactInteger> oldPhysicalPath;
-        for (const auto& [edge, coefficient] : referencePath->second)
-            oldPhysicalPath[edge] += coefficient;
-        for (size_t term = 0;
-             term < receipt.oldProductFunctionalEdges.size(); term++)
-            oldPhysicalPath[receipt.oldProductFunctionalEdges[term]] +=
-                receipt.oldProductFunctionalCoefficients[term];
-        ZhangCoordinateRow reconstructedOldRow;
-        const double lambda = zhangWavelength(system, observable);
+        const auto initialPath=receipt.physicalPathEdges;
+        const auto initialCoefficients=receipt.physicalPathCoefficients;
+        const auto initialVersions=receipt.oldPhysicalArcVersions;
+        if(receipt.sameEpochSourceRebased)
+            for(size_t i=0;i<initialPath.size();++i)oldPhysicalPath[initialPath[i]]+=initialCoefficients[i];
+        else
+        {
+            for (const auto& [edge, coefficient] : referencePath->second)oldPhysicalPath[edge] += coefficient;
+            for (size_t term = 0;term < receipt.oldProductFunctionalEdges.size(); term++)
+                oldPhysicalPath[receipt.oldProductFunctionalEdges[term]] +=receipt.oldProductFunctionalCoefficients[term];
+        }
+        receipt.physicalPathEdges.clear();receipt.physicalPathCoefficients.clear();
+        receipt.oldPhysicalArcVersions.clear();receipt.newPhysicalArcVersions.clear();
         for (const auto& [edge, exactCoefficient] : oldPhysicalPath)
         {
             if (exactCoefficient == 0) continue;
-            const auto previous = signalVersion(oldVersions, edge, observable);
+            auto previous = signalVersion(oldVersions, edge, observable);
+            if(receipt.sameEpochSourceRebased)
+            {
+                previous.reset();
+                for(size_t i=0;i<initialPath.size();++i)
+                    if(initialPath[i]==edge && i<initialVersions.size())previous=initialVersions[i];
+            }
             const auto current = signalVersion(currentVersions, edge, observable);
-            if (!previous ||
-                !oldBasis.edges.contains(edge))
+            if (!previous)
             {
                 receipt.failureReason =
                     "OLD_PRODUCT_PHYSICAL_ARC_OR_VERSION_MISSING";
@@ -2477,61 +2697,19 @@ vector<ZhangGraphProductEventReceipt> prepareGraphProductEventReceipts(
             receipt.oldPhysicalArcVersions.push_back(*previous);
             receipt.newPhysicalArcVersions.push_back(
                 current.value_or(-1));
-            ZhangCoordinateRow oldArc;
-            if (edge.receiver != oldBasis.rootReceiver)
-                oldArc[zhangTransportReceiverKey(
-                    system, observable, edge.receiver)] = 1;
-            oldArc[zhangTransportSatelliteKey(
-                observable, edge.satellite)] = 1;
-            if (!oldBasis.treeEdges.contains(edge))
-                oldArc[zhangTransportAmbiguityKey(
-                    observable, edge)] = lambda;
-            zhangAddCoordinateRow(reconstructedOldRow,
-                oldArc, coefficient);
-
             const bool physicalIdentityChanged =
                 !current || *current != *previous;
-            const bool needsAuxiliary = physicalIdentityChanged ||
-                !newBasis.edges.contains(edge);
             receipt.physicalArcChanged |= physicalIdentityChanged;
-            if (needsAuxiliary)
-            {
-                const auto auxiliary =
-                    plan.retainedOldArcAuxiliaryKeys.find(
-                        {observable, edge});
-                if (auxiliary == plan.retainedOldArcAuxiliaryKeys.end() ||
-                    !plan.transform.contains(auxiliary->second))
-                {
-                    receipt.failureReason =
-                        "OLD_PRODUCT_PATH_ARC_RETIRED_WITHOUT_CORRELATED_AUXILIARY";
-                    break;
-                }
+            const auto auxiliary=plan.retainedOldArcAuxiliaryKeys.find({observable,edge});
+            if(auxiliary!=plan.retainedOldArcAuxiliaryKeys.end() && plan.transform.contains(auxiliary->second))
                 receipt.retainedOldArcAuxiliaryKeys[edge] =
                     auxiliary->second;
-                receipt.newPhaseRow[auxiliary->second] += coefficient;
-                continue;
-            }
-            ZhangCoordinateRow newArc;
-            if (edge.receiver != newBasis.rootReceiver)
-                newArc[zhangTransportReceiverKey(
-                    system, observable, edge.receiver)] = 1;
-            newArc[zhangTransportSatelliteKey(
-                observable, edge.satellite)] = 1;
-            if (!newBasis.treeEdges.contains(edge))
-                newArc[zhangTransportAmbiguityKey(
-                    observable, edge)] = lambda;
-            zhangAddCoordinateRow(receipt.newPhaseRow,
-                newArc, coefficient);
         }
         if (receipt.failureReason == "NOT_EVALUATED")
         {
-            ZhangCoordinateRow oldResidual = reconstructedOldRow;
-            zhangAddCoordinateRow(oldResidual, receipt.oldPhaseRow, -1);
-            for (const auto& [key, coefficient] : oldResidual)
-                if (!std::isfinite(coefficient) ||
-                    std::abs(coefficient) > 1e-10)
-                    receipt.failureReason =
-                        "OLD_PRODUCT_PATH_AND_G_PROJECTION_MISMATCH";
+            string reason;
+            if(!destinationResolver.resolve(receipt.oldPhaseRow,receipt.newPhaseRow,reason))
+                receipt.failureReason="OLD_COMPLETE_TARGET_NOT_IN_ACTUAL_GRAPH_DESTINATION:"+reason;
         }
         if (receipt.failureReason == "NOT_EVALUATED")
         {
@@ -2574,6 +2752,64 @@ void bindGraphProductEventWriterRows(
     const auto newSatellitePaths = zhangSatelliteTreePaths(stateBasis);
     const string runtimeId = zhangGraphRuntimeId(state);
     const string epoch = state.time.to_string(9);
+    vector<ZhangProductFloatTargetRequest> bridgeRequests;
+    vector<GraphProductReceiptKey> bridgeKeys;
+    map<GraphProductReceiptKey,ZhangFloatTargetResolution> completeBridges;
+    // Prepare all complete transition queries together. Re-parsing the full
+    // FLOAT directory once per product would reintroduce the GPS long tail.
+    for(const auto& [key,receipt]:graphProductEventReceipts)
+    {
+        if(std::get<0>(key)!=runtimeId || std::get<1>(key)!=epoch ||
+            std::get<2>(key)!=system || !receipt.oldProductProjectionCaptured ||
+            !receipt.representableSameTimeMapProven || !receipt.fullJointMomentTransportProven)continue;
+        const auto functions=zhangBuildProductIntegerFunctionals(
+            runtime.productBasis,runtime.phaseArcVersions,receipt.observable,reference);
+        const auto current=functions.find(receipt.satellite);
+        const auto referencePath=newSatellitePaths.find(reference);
+        if(current==functions.end() || !current->second.valid || referencePath==newSatellitePaths.end())continue;
+        ZhangProductIntegerFunctional old,currentAbsolute;
+        old.satellite=receipt.satellite;old.referenceSatellite=receipt.productReferenceSatellite;
+        old.observable=receipt.observable;old.physicalEdges=receipt.physicalPathEdges;
+        old.physicalArcVersions=receipt.oldPhysicalArcVersions;
+        old.networkCoefficients=receipt.physicalPathCoefficients;
+        old.affineOffsetCycles=receipt.oldProductFunctionalAffineOffsetCycles;
+        old.valid=old.physicalEdges.size()==old.physicalArcVersions.size() &&
+            old.physicalEdges.size()==old.networkCoefficients.size();
+        currentAbsolute.satellite=receipt.satellite;currentAbsolute.referenceSatellite=reference;
+        currentAbsolute.observable=receipt.observable;
+        currentAbsolute.affineOffsetCycles=current->second.affineOffsetCycles;
+        map<ZhangGraphEdge,ZhangExactInteger> path;
+        for(const auto& [edge,value]:referencePath->second)path[edge]+=value;
+        for(size_t i=0;i<current->second.physicalEdges.size();++i)
+            path[current->second.physicalEdges[i]]+=current->second.networkCoefficients[i];
+        currentAbsolute.valid=true;
+        for(const auto& [edge,value]:path)if(value!=0)
+        {
+            const auto versions=runtime.phaseArcVersions.find(edge);
+            if(versions==runtime.phaseArcVersions.end() || !versions->second.contains(int(receipt.observable)))
+            {currentAbsolute.valid=false;break;}
+            currentAbsolute.physicalEdges.push_back(edge);
+            currentAbsolute.physicalArcVersions.push_back(versions->second.at(int(receipt.observable)));
+            currentAbsolute.networkCoefficients.push_back(value);
+        }
+        const auto transition=zhangProductIntegerFunctionalDifference(old,currentAbsolute);
+        if(!transition.valid || transition.affineOffsetCycles!=0)continue;
+        ZhangProductFloatTargetRequest request;
+        request.targetId="GRAPH_EVENT_BRIDGE|"+receipt.satellite.id()+"|"+enum_to_string(receipt.observable);
+        request.consumer="GRAPH_EVENT_COMPLETE_FLOAT_BRIDGE";request.lifecycleId=epoch;request.unit="m";
+        request.symbolicSpace=ZhangProductFloatTargetSpace::VERSIONED_PHASE_EDGE;
+        for(size_t i=0;i<transition.physicalEdges.size();++i)
+            request.physicalCoefficients[{transition.physicalEdges[i],receipt.observable,
+                transition.physicalArcVersions[i]}]+=transition.coefficients[i];
+        bridgeKeys.push_back(key);bridgeRequests.push_back(std::move(request));
+    }
+    if(!bridgeRequests.empty())
+    {
+        vector<ZhangFloatTargetResolution> results;string reason;
+        if(zhangResolveGraphProductHandoffTargetsBatch(state,bridgeRequests,results,reason))
+            for(size_t i=0;i<results.size();++i)completeBridges.emplace(bridgeKeys[i],std::move(results[i]));
+        else trace<<"\nZHANG_GRAPH_PRODUCT_COMPLETE_BRIDGE status=UNAVAILABLE reason="<<std::quoted(reason);
+    }
     int bound = 0;
     int proven = 0;
     for (auto& [identity, receipt] : graphProductEventReceipts)
@@ -2764,10 +3000,32 @@ void bindGraphProductEventWriterRows(
                     reason = "VERSIONED_PHYSICAL_ROW_IN_POSTERIOR";
                     return true;
                 };
-                const auto proof = zhangProveProductConditionalMap(
-                    receipt.newPhaseRow, receipt.actualWriterPhaseRow,
-                    transition, lambda,
-                    receipt.fullJointMomentTransportProven, physicalRow);
+                const auto complete=completeBridges.find(identity);
+                auto proof = complete!=completeBridges.end() && complete->second.resolved
+                    ? zhangProveWholeProductConditionalMap(
+                        receipt.newPhaseRow,receipt.actualWriterPhaseRow,transition,lambda,
+                        receipt.fullJointMomentTransportProven,true,
+                        complete->second.row,complete->second.offset)
+                    : zhangProveProductConditionalMap(
+                        receipt.newPhaseRow, receipt.actualWriterPhaseRow,
+                        transition, lambda,
+                        receipt.fullJointMomentTransportProven, physicalRow);
+                if(!proof.valid && previous.valid && currentAbsolute.valid &&
+                    receipt.oldProductProjectionCaptured && receipt.representableSameTimeMapProven &&
+                    receipt.fullJointMomentTransportProven && receipt.actualWriterProjectionBound)
+                {
+                    // The complete old absolute physical functional has an
+                    // exact actual-T/G witness, and the current writer has
+                    // its independently constructed current absolute chart
+                    // projection. Their DIFFERENCE is a complete versioned
+                    // FLOAT representation even when individual old arcs
+                    // were compressed away. This is not an integer decision.
+                    ZhangCoordinateRow endpointDifference=receipt.actualWriterPhaseRow;
+                    zhangAddCoordinateRow(endpointDifference,receipt.newPhaseRow,-1);
+                    proof=zhangProveWholeProductConditionalMap(receipt.newPhaseRow,
+                        receipt.actualWriterPhaseRow,transition,lambda,true,true,endpointDifference,0);
+                    if(proof.valid)proof.reason="EXACT_COMPLETE_ENDPOINT_DIFFERENCE_NO_INTEGER_AUTHORITY";
+                }
                 receipt.conditionalMapReason = proof.reason;
                 receipt.conditionalProductMapProven = proof.valid;
                 if (proof.valid)
@@ -2789,10 +3047,15 @@ void bindGraphProductEventWriterRows(
                 }
             }
         }
+        const string previousFailure=receipt.failureReason;
         receipt.failureReason = receipt.sameTimeMapProven
             ? "NONE" : receipt.conditionalProductMapProven
             ? "CONDITIONAL_CURRENT_INTEGER_BRIDGE_REQUIRED"
-            : "ACTUAL_WRITER_PRODUCT_ROW_OR_JOINT_MOMENT_MISMATCH";
+            : !receipt.representableSameTimeMapProven && previousFailure!="NOT_EVALUATED"
+            ? previousFailure
+            : !receipt.fullJointMomentTransportProven
+            ? "OLD_COMPLETE_TARGET_JOINT_MOMENT_UNPROVEN:"+receipt.jointMomentReason
+            : "ACTUAL_WRITER_PRODUCT_ROW_OR_JOINT_MOMENT_MISMATCH:"+receipt.conditionalMapReason;
         proven += receipt.sameTimeMapProven;
     }
     if (bound > 0 || !writerRows.empty())
@@ -3108,6 +3371,82 @@ set<ZhangGraphEdge> zhangStateReconstructibleEdges(
 }
 
 /** Re-express the existing Zhang phase state in a new spanning-tree basis. */
+// Audit every protected functional against the actual proposed posterior,
+// including covariance with ALL destination states. Sparse projection rows
+// avoid a dense target-by-source multiplication through a mostly zero row.
+bool applyAuditedGraphFloatTransform(Trace& trace, KFState& state,
+    const ZhangGraphCoordinatePlan& plan, const string& label,
+    const map<string,string>& metadata,
+    const map<string,ZhangCoordinateRow>& hints)
+{
+    std::vector<ZhangProductFloatTargetRequest> targets;
+    string reason;
+    if(!zhangReadFloatTargets(state.metaDataMap,targets,reason))
+    {state.lastFactorTransactionFailureReason=reason;return false;}
+    auto exact=std::move(state.exactStateTransformCallback);
+    auto transition=std::move(state.stateTransitionFactorCallback);
+    auto audit=[&](const KFState& source,const map<KFKey,int>& before,
+        const map<KFKey,int>& after,const SparseMatrix<double>& transform,
+        const VectorXd& mean,const MatrixXd& covariance)
+    {
+        std::vector<Eigen::Triplet<double>> oldEntries,newEntries;
+        int count=0;
+        for(const auto& target:targets)
+        {
+            if(!target.active || !target.numericBindingComplete)continue;
+            const auto next=hints.find(target.targetId);
+            if(next==hints.end())return false;
+            for(const auto& [key,value]:target.numericRow)
+                oldEntries.emplace_back(count,before.at(key),value);
+            for(const auto& [key,value]:next->second)
+                newEntries.emplace_back(count,after.at(key),value);
+            ++count;
+        }
+        if(!count)return true;
+        SparseMatrix<double> oldRows(count,before.size()),newRows(count,after.size());
+        oldRows.setFromTriplets(oldEntries.begin(),oldEntries.end());
+        newRows.setFromTriplets(newEntries.begin(),newEntries.end());
+        const VectorXd expectedMean=oldRows*source.x,actualMean=newRows*mean;
+        const MatrixXd sourceCross=oldRows*source.P;
+        const MatrixXd expectedCross=sourceCross*transform.transpose();
+        const MatrixXd actualCross=newRows*covariance;
+        const double meanError=(expectedMean-actualMean).norm()/std::max(1.0,expectedMean.norm());
+        const double qError=(expectedCross-actualCross).norm()/std::max(1.0,expectedCross.norm());
+        if(!std::isfinite(meanError) || !std::isfinite(qError) || meanError>1e-10 || qError>1e-10)
+        {state.lastFactorTransactionFailureReason="GRAPH_ACTIVE_TARGET_COMPLETE_JOINT_MOMENT_AUDIT_FAILED";return false;}
+        trace<<"\nZHANG_GRAPH_ACTIVE_TARGET_JOINT_AUDIT targets="<<count
+             <<" destination_states="<<mean.size()<<" mean_relative_error="<<meanError
+             <<" full_cross_covariance_relative_error="<<qError<<" diagonal_only=0";
+        return true;
+    };
+    struct RestoreCallbacks
+    {
+        KFState& state;
+        decltype(KFState::exactStateTransformCallback)& exact;
+        decltype(KFState::stateTransitionFactorCallback)& transition;
+        ~RestoreCallbacks(){state.exactStateTransformCallback=std::move(exact);
+            state.stateTransitionFactorCallback=std::move(transition);}
+    } restore{state,exact,transition};
+    state.exactStateTransformCallback=[&](const KFState& source,GTime time,
+        const map<KFKey,int>& before,const map<KFKey,int>& after,
+        const SparseMatrix<double>& t,const string& name,const VectorXd& x,
+        const MatrixXd& p,std::uint64_t first,std::uint64_t last)
+    {return audit(source,before,after,t,x,p) &&
+        (!exact || exact(source,time,before,after,t,name,x,p,first,last));};
+    state.stateTransitionFactorCallback=[&](const KFState& source,GTime time,
+        const map<KFKey,int>& before,const map<KFKey,int>& after,
+        const SparseMatrix<double>& t,const MatrixXd& q,const string& name,
+        const VectorXd& x,const MatrixXd& p,std::uint64_t first,std::uint64_t last)
+    {
+        if(!transition && exact)
+        {state.lastFactorTransactionFailureReason="STOCHASTIC_TRANSFORM_REQUIRES_TRANSITION_CONSUMER";return false;}
+        return audit(source,before,after,t,x,p) &&
+            (!transition || transition(source,time,before,after,t,q,name,x,p,first,last));
+    };
+    return state.applyStateTransform(trace,plan.transform,label,
+        plan.independentSourceVariances,&metadata,&hints);
+}
+
 bool transformZhangGraphBasis(
     Trace&                   trace,
     KFState&                 kfState,
@@ -3570,6 +3909,9 @@ bool transformZhangGraphBasis(
 
     if (zhangR51SingleBasisHandoffEnabled() && recordProductContinuity)
     {
+        string compositionReason;
+        if(!zhangGraphSameEpochReceiptRebaseReady(kfState,sys,compositionReason))
+            return fail(compositionReason.c_str());
         const auto previous = graphEventPreSignalArcVersions.find(
             {zhangGraphRuntimeId(kfState), sys});
         const auto owner = graphStateMap.find(
@@ -3668,6 +4010,14 @@ bool transformZhangGraphBasis(
             captureMetadata, captureFailureReason))
         return fail(captureFailureReason.c_str());
 
+    ZhangGraphCoordinatePlan protectedPlan;
+    protectedPlan.valid=true;protectedPlan.transform=transform;
+    protectedPlan.retainedOldArcAuxiliaryKeys=retainedOldArcAuxiliaryKeys;
+    map<string,ZhangCoordinateRow> targetHints;
+    if(!zhangProtectGraphFloatTargets(kfState,protectedPlan,captureMetadata,targetHints,captureFailureReason))
+        return fail(captureFailureReason.c_str());
+    transform=protectedPlan.transform;
+
     // Validate every audit destination and its pullback before committing any
     // KF/factor mutation. In particular, retired chords have no destination.
     // A failed post-commit lookup must never leave a new posterior with an old graph.
@@ -3730,7 +4080,8 @@ bool transformZhangGraphBasis(
         (retiredEdges.empty()
             ? " tree exchange"
             : " pivot before retired arc projection");
-    bool applied = kfState.applyStateTransform(trace, transform, label, {}, &captureMetadata);
+    bool applied = applyAuditedGraphFloatTransform(
+        trace,kfState,protectedPlan,label,captureMetadata,targetHints);
     if (!applied)
     {
         return fail("STATE_TRANSFORM_APPLICATION_FAILED");
@@ -3987,7 +4338,8 @@ bool transportZhangGraphComponents(
     {
         const bool retiredForSignal = retired.contains(edge) &&
             (!retiredSignals.contains(edge) || retiredSignals.at(edge).contains(code));
-        if ((retiredForSignal || !transported.edges.contains(edge)) &&
+        if ((retiredForSignal || !zhangGraphDestinationSignalPresent(
+                transported,code,edge,zhangR51SingleBasisHandoffEnabled()?&destinationSignalEdges:nullptr)) &&
             !plan.retainedOldArcAuxiliaryKeys.contains({code, edge}))
             trace << "\nZHANG_HANDOFF_FLOAT_CAPTURE time=" << state.time.to_string(0)
                   << " edge=" << edge.receiver << '/' << edge.satellite.id()
@@ -4002,6 +4354,9 @@ bool transportZhangGraphComponents(
         state.lastFactorTransactionFailureReason = captureFailureReason;
         return false;
     }
+    map<string,ZhangCoordinateRow> targetHints;
+    if(!zhangProtectGraphFloatTargets(state,plan,captureMetadata,targetHints,captureFailureReason))
+    {state.lastFactorTransactionFailureReason=captureFailureReason;return false;}
     vector<ZhangGraphProductEventReceipt> eventReceipts;
     if (retainEventAuxiliaries)
     {
@@ -4031,9 +4386,8 @@ bool transportZhangGraphComponents(
             oldVersions, currentVersions, retired, plan,
             "COMPONENT_REPARAMETERISATION");
     }
-    if (!state.applyStateTransform(trace, plan.transform,
-            "ZHANG_COMPONENT_REPARAMETERISATION", plan.independentSourceVariances,
-            &captureMetadata))
+    if (!applyAuditedGraphFloatTransform(trace,state,plan,
+            "ZHANG_COMPONENT_REPARAMETERISATION",captureMetadata,targetHints))
         return false;
     if (!eventReceipts.empty())
         validateGraphProductEventJointMoments(
@@ -8427,6 +8781,140 @@ bool zhangGraphSignalArcVersions(
     return true;
 }
 
+bool zhangTryPostQcCertifiedGraphReroute(
+    Trace& trace, KFState& state, E_Sys system, string& failureReason)
+{
+    const auto owner = graphStateMap.find({zhangGraphRuntimeId(state), system});
+    const auto configured = acsConfig.zhangFullRank.sysOpts.find(system);
+    if (!singleSBasisNative() || !zhangR51ProductRepairEnabled() ||
+        owner == graphStateMap.end() || configured == acsConfig.zhangFullRank.sysOpts.end())
+    { failureReason = "POST_QC_REROUTE_NOT_APPLICABLE"; return false; }
+    auto& runtime = owner->second;
+    const auto& codes = configured->second.baseline_observables;
+    auto finish = [&](const string& reason, bool committed = false)
+    {
+        failureReason = reason;
+        trace << "\nZHANG_POST_QC_CERTIFIED_REROUTE time=" << state.time.to_string(0)
+              << " system=" << enum_to_string(system) << " committed=" << committed
+              << " reason=" << reason
+              << " rejected_rows_readmitted=0 physical_arcs_changed=0 current_ar_authority=0"
+                 " current_ar_and_full_q_publication_reaudit_required=1";
+        return committed;
+    };
+    if (!runtime.initialized || !runtime.signalObservationFinalized ||
+        !state.lastPppTransactionCommitted || !state.lastPppQcConverged ||
+        runtime.signalObservationFactorSequence != state.factorCommitSequence ||
+        runtime.phaseAdmissionChart != runtime.representationVersion || codes.empty())
+        return finish("POST_QC_CURRENT_FACTOR_BINDING_UNPROVEN");
+    vector<set<ZhangGraphEdge>> perSignal;
+    for (const auto code : codes)
+    {
+        const auto found = runtime.signalObservationEdges.find(int(code));
+        perSignal.push_back(found == runtime.signalObservationEdges.end()
+            ? set<ZhangGraphEdge>{} : found->second);
+    }
+    auto common = zhangJointObservableEdgeIntersection(perSignal);
+    set<ZhangGraphEdge> broken;
+    std::set_difference(runtime.basis.treeEdges.begin(), runtime.basis.treeEdges.end(),
+        common.begin(), common.end(), std::inserter(broken, broken.end()));
+    if (broken.empty()) { failureReason = "POST_QC_COMMITTED_TREE_STILL_ADMITTED"; return false; }
+    const auto paths = zhangSatelliteTreePaths(runtime.basis);
+    set<SatSys> affected;
+    for (const auto& [satellite, path] : paths)
+        for (const auto& [edge, coefficient] : path)
+            if (coefficient != 0 && broken.contains(edge)) affected.insert(satellite);
+    const auto reconstructible = zhangStateReconstructibleEdges(state, system, codes,
+        runtime.basis, runtime.basis.edges);
+    for (auto it = common.begin(); it != common.end();)
+        it = reconstructible.contains(*it) ? std::next(it) : common.erase(it);
+    const auto forest = zhangBuildSpanningTree(common, runtime.basis.rootReceiver);
+    const int expectedNodes = int(runtime.basis.receivers.size() + runtime.basis.satellites.size());
+    const int representedNodes = int(forest.receivers.size() + forest.satellites.size());
+    const int cutComponents = forest.componentCount + expectedNodes - representedNodes;
+    const int candidateCount = int(std::count_if(common.begin(), common.end(),
+        [&](const auto& edge) { return !runtime.basis.treeEdges.contains(edge); }));
+    trace << "\nZHANG_POST_QC_REROUTE_CUT time=" << state.time.to_string(0)
+          << " system=" << enum_to_string(system) << " common_admitted_edges=" << common.size()
+          << " broken_tree_edges=" << broken.size() << " candidate_chords=" << candidateCount
+          << " cut_components=" << cutComponents << " represented_tree_rank=" << forest.treeEdges.size()
+          << " required_tree_rank=" << std::max(0, expectedNodes - 1)
+          << " affected_products=" << affected.size() * codes.size() << " affected_satellites=";
+    for (const auto& satellite : affected) trace << satellite.id() << ',';
+    for (std::size_t signal = 0; signal < codes.size(); ++signal)
+        for (const auto& edge : broken)
+            if (!perSignal[signal].contains(edge))
+                trace << "\nZHANG_POST_QC_REROUTE_REJECTED_EDGE observable=" << enum_to_string(codes[signal])
+                      << " edge=" << edge.receiver << ':' << edge.satellite.id()
+                      << " current_admitted=0 candidate_eligible=0";
+    if (cutComponents != 1 || forest.receivers != runtime.basis.receivers ||
+        forest.satellites != runtime.basis.satellites)
+        return finish("POST_QC_COMMON_ADMITTED_CUT_HAS_NO_FULL_RANK_REPLACEMENT");
+    // A second event must rebase the FIRST public target on the actual
+    // committed posterior. A last-receipt overwrite is never composition.
+    for (const auto& [identity, receipt] : graphProductEventReceipts)
+        if (std::get<0>(identity) == zhangGraphRuntimeId(state) &&
+            std::get<1>(identity) == state.time.to_string(9) && std::get<2>(identity) == system)
+        {
+            string compositionReason;
+            if (!zhangGraphSameEpochReceiptRebaseReady(state, system, compositionReason))
+                return finish("POST_QC_PRIOR_SAME_EPOCH_EVENT_REQUIRES_RECEIPT_COMPOSITION:" + compositionReason);
+            break;
+        }
+    const auto certified = certifiedTransportTreePlan(trace, state, system, runtime,
+        common, broken, {}, runtime.basis.rootReceiver, {}, codes,
+        runtime.phaseArcVersions, runtime.signalObservationEdges);
+    if (!certified.allOldEndpointsCertified || !certified.fallbackReplacements.empty() ||
+        !certified.newEndpointExtensions.empty() ||
+        !certified.jointSignalDirections.ranksEvaluated ||
+        certified.jointSignalDirections.unknownRank != 0)
+        return finish("POST_QC_REPLACEMENT_INTEGER_DIRECTIONS_UNCERTIFIED");
+    auto destination = certified.basis;
+    // Keep every old FLOAT coordinate. Losing current observation admission
+    // is not retirement of a physical ambiguity direction. Only the tree is
+    // exchanged; rejected rows remain absent from signalObservationEdges.
+    destination.edges = runtime.basis.edges;
+    KFState preflight = state;
+    preflight.exactStateTransformCallback = {};
+    preflight.stateTransitionFactorCallback = {};
+    preflight.authoritativeFactorTransactionCallback = {};
+    preflight.acceptedMeasurementFactorCallback = {};
+    ZhangStateTransformAudit preflightAudit;
+    if (!transformZhangGraphBasis(trace, preflight, system, codes, runtime.basis,
+            destination, false, {}, &preflightAudit) || !preflightAudit.evaluated ||
+        !preflight.x.allFinite() || !preflight.P.allFinite() ||
+        preflightAudit.meanMaximumAbsolute > 1e-8 ||
+        preflightAudit.covarianceRelativeNorm > 1e-10)
+        return finish("POST_QC_EXACT_FULL_Q_PREFLIGHT_FAILED:" + preflightAudit.failureReason);
+    // The production factor callback transports the immutable factor capture
+    // and all exact consumers atomically. This is not another measurement or
+    // an AR decision; its factor sequence is rebound below only on success.
+    const auto graphKey = std::make_pair(zhangGraphRuntimeId(state), system);
+    graphEventPreSignalArcVersions[graphKey] = runtime.phaseArcVersions;
+    graphEventPreArcVersions[graphKey].clear();
+    for (const auto& [edge, history] : runtime.edgeHistory)
+        graphEventPreArcVersions[graphKey][edge] = history.arcVersion;
+    ZhangStateTransformAudit audit;
+    if (!transformZhangGraphBasis(trace, state, system, codes, runtime.basis,
+            destination, true, {}, &audit))
+        return finish("POST_QC_EXACT_FACTOR_TRANSACTION_REJECTED:" + audit.failureReason);
+    runtime.basis = std::move(destination);
+    ++runtime.representationVersion;
+    ++runtime.committedSGaugeVersion;
+    ++runtime.eventCounter;
+    runtime.phaseAdmissionChart = runtime.representationVersion;
+    runtime.signalObservationFactorSequence = state.factorCommitSequence;
+    runtime.lastProductEventCause = "POST_QC_CERTIFIED_COMMON_TREE_EXCHANGE";
+    syncSingleSBasisProductView(runtime);
+    bindGraphProductEventWriterRows(trace, state, system, codes, runtime.basis, runtime);
+    trace << "\nZHANG_POST_QC_REROUTE_FULL_Q_AUDIT mean_max_m=" << audit.meanMaximumAbsolute
+          << " covariance_relative=" << audit.covarianceRelativeNorm
+          << " physical_rows=" << audit.observableRows
+          << " historical_certified_replacements=" << certified.certifiedReplacements.size()
+          << " known_rank=" << certified.jointSignalDirections.knownRank
+          << " unknown_rank=" << certified.jointSignalDirections.unknownRank;
+    return finish("POST_QC_CERTIFIED_EXACT_TREE_EXCHANGE_CURRENT_REAUDIT_PENDING", true);
+}
+
 bool zhangFinalizeGraphSignalObservationAdmission(
     const KFState& state,
     E_Sys system,
@@ -8627,6 +9115,43 @@ bool zhangGraphProductEventReceipt(
     if (found == graphProductEventReceipts.end()) return false;
     receipt = found->second;
     return true;
+}
+
+bool zhangRebaseGraphReceiptOnCurrentFloatTarget(const KFState& state,
+    const ZhangGraphProductEventReceipt& initial,const ZhangProductFloatTargetRequest& target,
+    int backend,int chart,std::uint64_t measuredSequence,int measuredChart,
+    ZhangGraphProductEventReceipt& rebased,string& reason)
+{
+    return rebaseGraphReceiptOnCurrentFloatTarget(state,initial,target,backend,chart,
+        measuredSequence,measuredChart,rebased,reason);
+}
+
+bool zhangGraphSameEpochReceiptRebaseReady(const KFState& state,E_Sys system,string& reason)
+{
+    vector<const ZhangGraphProductEventReceipt*> pending;
+    for(const auto& [key,receipt]:graphProductEventReceipts)
+        if(std::get<0>(key)==zhangGraphRuntimeId(state) &&
+            std::get<1>(key)==state.time.to_string(9) && std::get<2>(key)==system)pending.push_back(&receipt);
+    if(pending.empty()){reason="NO_PRIOR_SAME_EPOCH_RECEIPT";return true;}
+    if(!zhangProductFloatTargetMetadataValid(state,reason))return false;
+    vector<ZhangProductFloatTargetRequest> targets;
+    if(!zhangReadFloatTargets(state.metaDataMap,targets,reason))return false;
+    const auto owner=graphStateMap.find({zhangGraphRuntimeId(state),system});
+    if(owner==graphStateMap.end() || !owner->second.signalObservationFinalized ||
+        owner->second.phaseAdmissionTime!=state.time.to_string(9))
+    {reason="SAME_EPOCH_REBASE_CURRENT_GRAPH_MEASUREMENT_SCOPE_MISSING";return false;}
+    const auto& runtime=owner->second;
+    for(const auto* receipt:pending)
+    {
+        const auto target=std::find_if(targets.begin(),targets.end(),
+            [&](const auto& item){return item.targetId==receipt->initialPublishedTargetId;});
+        if(target==targets.end()){reason="SAME_EPOCH_REBASE_INITIAL_PUBLISHED_TARGET_MISSING";return false;}
+        ZhangGraphProductEventReceipt rebased;
+        if(!rebaseGraphReceiptOnCurrentFloatTarget(state,*receipt,*target,runtime.eventCounter,
+            runtime.representationVersion,runtime.signalObservationFactorSequence,runtime.phaseAdmissionChart,
+            rebased,reason))return false;
+    }
+    reason="SAME_EPOCH_ALL_INITIAL_TARGETS_REBOUND_TO_CURRENT_MEASURED_FLOAT";return true;
 }
 
 bool zhangGraphPhysicalArcFloatRow(
@@ -9836,7 +10361,7 @@ bool zhangCompressGraphProductFloatTargets(std::ostream& trace,KFState& state,st
                     ZhangProductFloatTargetRequest oldDefinition;
                     if(old==state.metaDataMap.end() || !zhangDecodeFloatTarget(old->second,oldDefinition) ||
                         oldDefinition.symbolicSpace!=ZhangProductFloatTargetSpace::VERSIONED_PHASE_EDGE ||
-                        !oldDefinition.nuisanceCoefficients.empty())
+                        !oldDefinition.nuisanceCoefficients.empty() || oldDefinition.symbolicOffset!=0)
                         return skip("OLD_CARRIER_WHOLE_PHASE_DEFINITION_UNAVAILABLE");
                     for(const auto& [term,value]:oldDefinition.physicalCoefficients)
                         phase[term]+=coefficient*oldDefinition.physicalScale*ZhangFloatCarrierRational(value);

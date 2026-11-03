@@ -66,6 +66,123 @@ struct ZhangGraphCoordinatePlan
         retainedOldArcAuxiliaryKeys;
 };
 
+// An edge can remain a chord on L1 while its L5 coordinate has no destination.
+// Topological presence alone must not suppress capture of the old L5 arc.
+inline bool zhangGraphDestinationSignalPresent(const ZhangGraphBasis& basis,
+    E_ObsCode code, const ZhangGraphEdge& edge,
+    const std::map<int, std::set<ZhangGraphEdge>>* signalEdges = nullptr)
+{
+    return basis.edges.contains(edge) && (!signalEdges ||
+        (signalEdges->contains(int(code)) && signalEdges->at(int(code)).contains(edge)));
+}
+
+// Resolve the complete functional against the ACTUAL [T G], not against a
+// collection of independently admitted current physical arcs. All fresh-source
+// columns are present, with exactly zero loading in the requested old target.
+class ZhangGraphSourceFunctionalResolver
+{
+    std::map<KFKey,std::size_t> columns;
+    zhang_float_target_q_span::Rows rows;
+    std::vector<KFKey> keys;
+    std::optional<zhang_float_target_q_span::ImmutableComponentSpan> span;
+    std::string failure;
+    const KFState& state;
+public:
+    ZhangGraphSourceFunctionalResolver(const KFState& input,const ZhangGraphCoordinatePlan& plan):state(input)
+    {
+        for(const auto& [key,index]:state.kfIndexMap)columns.emplace(key,index);
+        for(const auto& [key,variance]:plan.independentSourceVariances)
+            if(!columns.emplace(key,columns.size()).second)
+            {failure="GRAPH_TARGET_FRESH_SOURCE_COLLIDES_WITH_OLD_STATE";return;}
+        for(const auto& [key,row]:plan.transform)
+        {
+            keys.push_back(key);rows.emplace_back();
+            for(const auto& [input,value]:row)
+            {
+                const auto exact=zhangFloatCarrierExactDouble(value);
+                if(!columns.contains(input) || !exact)
+                {failure="GRAPH_TARGET_TRANSFORM_SOURCE_OR_COEFFICIENT_INVALID";return;}
+                if(*exact!=0)rows.back().emplace_back(columns.at(input),*exact);
+            }
+        }
+        span.emplace(rows,columns.size());
+    }
+    bool resolve(const ZhangCoordinateRow& source,ZhangCoordinateRow& destination,std::string& reason)
+    {
+        destination.clear();
+        if(!span){reason=failure;return false;}
+        ZhangFloatCarrierSparseRow target;
+        for(const auto& [key,value]:source)
+        {
+            const auto exact=zhangFloatCarrierExactDouble(value);
+            if(!state.kfIndexMap.contains(key) || !exact)
+            {reason="GRAPH_TARGET_SOURCE_ROW_INVALID";return false;}
+            if(*exact!=0)target.emplace(columns.at(key),*exact);
+        }
+        const auto resolved=span->resolve(target);
+        reason=resolved.reason;
+        if(!resolved.losslesslyEncodable)return false;
+        for(const auto& [index,value]:resolved.coefficients)
+            if(value!=0)destination.emplace(keys.at(index),value);
+        return true;
+    }
+};
+inline bool zhangResolveGraphSourceFunctional(const KFState& state,
+    const ZhangGraphCoordinatePlan& plan,const ZhangCoordinateRow& source,
+    ZhangCoordinateRow& destination,std::string& reason)
+{
+    ZhangGraphSourceFunctionalResolver resolver(state,plan);
+    return resolver.resolve(source,destination,reason);
+}
+
+// Protect bound active functionals BEFORE the physical graph projection.
+// Append a whole source functional only when it is outside the current exact
+// destination span (or its witness cannot be encoded losslessly). Subsequent
+// targets reuse that added direction, so dependent targets do not add states.
+// These are correlated real carriers, with no physical/integer arc authority.
+inline bool zhangProtectGraphFloatTargets(const KFState& state,
+    ZhangGraphCoordinatePlan& plan, std::map<std::string,std::string>& metadata,
+    std::map<std::string,ZhangCoordinateRow>& hints, std::string& reason)
+{
+    hints.clear();
+    if(!zhangProductFloatTargetMetadataValid(state,reason))return false;
+    std::vector<ZhangProductFloatTargetRequest> targets;
+    if(!zhangReadFloatTargets(state.metaDataMap,targets,reason))return false;
+    std::size_t added=0;
+    std::optional<ZhangGraphSourceFunctionalResolver> resolver;
+    for(const auto& target:targets)
+    {
+        if(!target.active || !target.numericBindingComplete)continue;
+        ZhangCoordinateRow row;
+        if(!resolver)resolver.emplace(state,plan);
+        if(!resolver->resolve(target.numericRow,row,reason))
+        {
+            const auto offset=zhangFloatCarrierExactDouble(target.numericOffset);
+            if(!offset){reason="GRAPH_TARGET_OFFSET_NONFINITE";return false;}
+            KFKey carrier;carrier.type=KF::PRODUCT_HANDOFF;
+            carrier.str="ZHANG_FLOAT_CARRIER:GRAPH:"+zhangProductFloatOwnerId(state)+":"+
+                std::to_string(state.factorCommitSequence+1)+":"+std::to_string(added++);
+            if(state.kfIndexMap.contains(carrier) || plan.transform.contains(carrier))
+            {reason="GRAPH_TARGET_PROTECTION_CARRIER_COLLISION";return false;}
+            plan.transform.emplace(carrier,target.numericRow);
+            auto definition=target;
+            definition.targetId=carrier.str;
+            definition.consumer="FLOAT_CARRIER_SOURCE_DEFINITION";
+            definition.active=false;definition.numericBindingComplete=false;
+            definition.numericOffset=0;
+            // The carrier is row*x, while the target is row*x+numericOffset.
+            definition.symbolicOffset-=*offset;
+            definition.bindingReason="PRE_GRAPH_CORRELATED_WHOLE_TARGET_DIRECTION_NO_INTEGER_AUTHORITY";
+            metadata[zhangProductFloatCarrierRecordKey(carrier)]=zhangEncodeFloatTarget(definition);
+            row={{carrier,1}};
+            resolver.reset(); // its immutable [T G] has gained one direction
+        }
+        hints.emplace(target.targetId,std::move(row));
+    }
+    reason="GRAPH_ACTIVE_BOUND_TARGETS_PROTECTED";
+    return true;
+}
+
 inline KFKey zhangGraphOldArcAuxiliaryKey(
     const KFState& state,
     E_ObsCode code,
@@ -515,7 +632,8 @@ inline ZhangGraphCoordinatePlan zhangPlanGraphCoordinateTransport(
                 const bool retiredForSignal = retiredArcs.contains(edge)
                     && (!retiredSignals || !retiredSignals->contains(edge)
                         || retiredSignals->at(edge).contains(code));
-                if (!retiredForSignal && destination.edges.contains(edge))
+                if (!retiredForSignal && zhangGraphDestinationSignalPresent(
+                        destination, code, edge, destinationSignalEdges))
                     continue;
                 std::optional<int> oldVersion;
                 if (oldSignalArcVersions)

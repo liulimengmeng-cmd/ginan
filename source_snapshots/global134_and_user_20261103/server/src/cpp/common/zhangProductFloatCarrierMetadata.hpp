@@ -104,6 +104,7 @@ inline bool zhangDecodeFloatTarget(const std::string& text,ZhangProductFloatTarg
     if (!number(numeric,target.numericOffset) || !(in>>count) || count>65536) return false;
     for (std::size_t i=0;i<count;++i)
     {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_DECODE_PHYSICAL_TERM");
         ZhangProductFloatVersionedTerm term;std::string satellite,value;int observable;
         if (!(in >> std::quoted(term.edge.receiver) >> std::quoted(satellite) >> observable
             >> term.arcVersion >> std::quoted(value)) || term.arcVersion<0) return false;
@@ -115,6 +116,7 @@ inline bool zhangDecodeFloatTarget(const std::string& text,ZhangProductFloatTarg
     if (!(in>>count) || count>65536) return false;
     for (std::size_t i=0;i<count;++i)
     {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_DECODE_NUISANCE_TERM");
         std::string id,value;if(!(in>>std::quoted(id)>>std::quoted(value)))return false;
         try {if(!target.nuisanceCoefficients.emplace(id,ZhangFloatCarrierRational(value)).second)return false;}
         catch (...) {return false;}
@@ -122,6 +124,7 @@ inline bool zhangDecodeFloatTarget(const std::string& text,ZhangProductFloatTarg
     if (!(in>>count) || count>65536) return false;
     for (std::size_t i=0;i<count;++i)
     {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_DECODE_NUMERIC_TERM");
         KFKey key;double value;
         if(!zhangReadFloatTargetKey(in,key) || !(in>>numeric) || !number(numeric,value) ||
             !target.numericRow.emplace(key,value).second)return false;
@@ -259,11 +262,99 @@ inline bool zhangProductFloatTargetMetadataValid(const KFState& state,std::strin
     reason="WHOLE_FLOAT_TARGET_AND_CARRIER_METADATA_VALID";return true;
 }
 
+/** Validate one already-decoded directory without materialising the shared
+ * (potentially very large) state-order string in every target. This has the
+ * same owner/generation/model/key gates as the legacy reader above. It is
+ * preparation only, never an integer/publication authority. The caller must
+ * decode the literal directory entries once and keep their immutable owner. */
+inline bool zhangValidateDecodedProductFloatTargetMetadata(
+    const KFState& state,const std::vector<ZhangProductFloatTargetRequest>& targets,
+    const std::map<std::string,ZhangProductFloatTargetRequest>& carriers,
+    const std::string& stateOrder,std::string& reason)
+{
+    ZhangPhaseTimer timer("BRIDGE_METADATA_SCOPE_AND_MODEL_AUDIT");
+    const auto owner=zhangProductFloatOwnerId(state);
+    std::size_t targetCount=0,carrierCount=0;
+    for(const auto& [name,value]:state.metaDataMap) {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_DIRECTORY_COVERAGE");
+        targetCount+=name.starts_with(ZHANG_FLOAT_TARGET_V2_PREFIX);
+        carrierCount+=name.starts_with(ZHANG_FLOAT_CARRIER_V2_PREFIX);
+    }
+    if(targetCount!=targets.size() || carrierCount!=carriers.size())
+    {reason="FLOAT_TARGET_DECODED_DIRECTORY_COVERAGE_MISMATCH";return false;}
+    std::optional<std::uint64_t> generation;
+    if(hasZhangFloatTargetV2State(state.metaDataMap)) {
+        if(!targetCount && !carrierCount){reason="ORPHAN_V2_FLOAT_TARGET_SCHEMA";return false;}
+        auto decimal=[&](const char* name,std::uint64_t& result) {
+            const auto entry=state.metaDataMap.find(name);
+            if(entry==state.metaDataMap.end() || entry->second.empty())return false;
+            try {std::size_t used=0;result=std::stoull(entry->second,&used);
+                return used==entry->second.size() && std::to_string(result)==entry->second;
+            }catch(...){return false;}
+        };
+        std::uint64_t saved=0,current=0;
+        const auto order=state.metaDataMap.find(ZHANG_FLOAT_TARGET_SCOPE_V2);
+        if(owner.empty() || stateOrder.empty() || order==state.metaDataMap.end() ||
+            order->second!=stateOrder || !decimal(ZHANG_FLOAT_TARGET_SAVED_FACTOR_SEQUENCE_V2,saved) ||
+            !decimal(ZHANG_FLOAT_TARGET_GENERATION_V2,current) || current>saved)
+        {reason="FLOAT_TARGET_SAVED_SEQUENCE_SCOPE_OR_DECIMAL_INVALID";return false;}
+        if(saved!=state.factorCommitSequence)
+        {reason="FLOAT_TARGET_SAVED_SEQUENCE_NOT_ACTUAL";return false;}
+        generation=current;
+    }
+    std::set<std::string> targetIds;
+    for(const auto& target:targets) {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_TARGET_SCOPE_AUDIT");
+        if(!targetIds.insert(target.targetId).second ||
+            !state.metaDataMap.contains(std::string(ZHANG_FLOAT_TARGET_V2_PREFIX)+target.targetId))
+        {reason="FLOAT_TARGET_DECODED_IDENTITY_MISMATCH";return false;}
+        if(target.scope.runtimeId!=owner ||
+            target.scope.coordinateGeneration>state.factorCommitSequence ||
+            (target.numericBindingComplete && (!generation ||
+                target.scope.coordinateGeneration!=*generation || target.scope.chartId.empty())))
+        {reason="FLOAT_TARGET_SAVED_SEQUENCE_OWNER_OR_GENERATION_MISMATCH";return false;}
+        if(!target.numericBindingComplete)continue;
+        if(!target.scope.stateOrderId.empty() && target.scope.stateOrderId!=stateOrder)
+        {reason="FLOAT_TARGET_COMPLETE_ORDER_MISMATCH";return false;}
+        for(const auto& [key,value]:target.numericRow) {
+            zhangExactWorkCheckpoint("BRIDGE_METADATA_NUMERIC_KEY_AUDIT");
+            if(!std::isfinite(value) || !state.kfIndexMap.contains(key))
+            {reason="FLOAT_TARGET_BOUND_KEY_OR_COEFFICIENT_INVALID";return false;}
+        }
+    }
+    std::set<std::string> records;
+    for(const auto& [key,index]:state.kfIndexMap)if(zhangIsProductFloatCarrierKey(key)) {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_CARRIER_MODEL_AUDIT");
+        const auto name=zhangProductFloatCarrierRecordKey(key);
+        const auto found=carriers.find(name);
+        if(found==carriers.end()) {reason="FLOAT_CARRIER_TAGGED_DEFINITION_OR_OWNER_INVALID";return false;}
+        const auto& definition=found->second;
+        if(definition.consumer!="FLOAT_CARRIER_SOURCE_DEFINITION" ||
+            definition.scope.runtimeId!=owner ||
+            definition.scope.coordinateGeneration>state.factorCommitSequence)
+        {reason="FLOAT_CARRIER_SAVED_SEQUENCE_DEFINITION_INVALID";return false;}
+        const auto model=state.stateTransitionMap.find(key);
+        if(model==state.stateTransitionMap.end() || model->second.size()!=1 ||
+            !model->second.contains(key) || model->second.at(key).size()!=1 ||
+            !model->second.at(key).contains(0) || model->second.at(key).at(0)!=1 ||
+            (state.procNoiseMap.contains(key) && state.procNoiseMap.at(key)!=0) ||
+            (state.gaussMarkovTauMap.contains(key) && state.gaussMarkovTauMap.at(key)>0))
+        {reason="FLOAT_CARRIER_NONCONSTANT_MODEL";return false;}
+        records.insert(name);
+    }
+    for(const auto& [name,definition]:carriers) {
+        zhangExactWorkCheckpoint("BRIDGE_METADATA_CARRIER_DIRECTORY_AUDIT");
+        if(!records.contains(name)) {reason="FLOAT_CARRIER_ORPHAN_DEFINITION";return false;}
+    }
+    reason="WHOLE_FLOAT_TARGET_AND_CARRIER_METADATA_VALID";return true;
+}
+
+
 // Staged remap used by EVERY real KF coordinate transform. The source row is
 // resolved as a whole against T; no individual missing source is assigned 0.
-// Existing legitimate transforms may leave a typed UNBOUND request, keeping
-// its original symbolic meaning. Optional compression is stricter and rejects
-// if ANY active bound row cannot be carried. No x/P or callback is mutated.
+// An active already-bound functional may never silently become UNBOUND.
+// Graph callers preserve its direction before projection; an unprotected
+// destructive map is rejected here before any x/P or callback mutation.
 inline bool transportZhangProductFloatTargetMetadata(const KFState& state,
     const std::map<KFKey,int>& destination,const SparseMatrix<double>& transform,
     const SparseMatrix<double>& noiseInjection,const std::string& label,
@@ -426,7 +517,8 @@ inline bool transportZhangProductFloatTargetMetadata(const KFState& state,
         if(!keysPresent || !next.allFinite() || !std::isfinite(error) || error>1e-10 ||
             !exactPullback())
         {
-            if(strict && target.active){reason="FLOAT_COMPRESSION_ACTIVE_TARGET_NOT_TRANSPORTABLE:"+target.targetId;return false;}
+            if(target.active){reason=(strict?"FLOAT_COMPRESSION_ACTIVE_TARGET_NOT_TRANSPORTABLE:":
+                "FLOAT_ACTIVE_BOUND_TARGET_NOT_TRANSPORTABLE:")+target.targetId;return false;}
             target.numericBindingComplete=false;
             target.bindingReason="UNBOUND_AFTER_REAL_TRANSFORM:"+label+
                 (exactFallbackReason.empty()?std::string():":"+exactFallbackReason);

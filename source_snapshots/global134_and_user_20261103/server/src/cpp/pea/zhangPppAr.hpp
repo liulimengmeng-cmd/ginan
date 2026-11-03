@@ -31,7 +31,7 @@ struct ReceiverMap;
 enum class ZhangCapturedMeasurementFamily;
 using Trace = std::ostream;
 
-inline constexpr std::uint32_t ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION = 6;
+inline constexpr std::uint32_t ZHANG_PPP_AR_CHECKPOINT_SCHEMA_VERSION = 7;
 inline constexpr const char* ZHANG_PPP_AR_CHECKPOINT_SECTION_NAME =
 	"zhang_ppp_ar_runtime";
 inline constexpr std::uint32_t ZHANG_GEC_AR_RUNTIME_CHECKPOINT_LEGACY_SCHEMA_VERSION = 1;
@@ -142,7 +142,10 @@ struct ZhangCheckpointSnapshotReferenceValidation
 ZhangPppArCheckpointResult exportZhangPppArCheckpointSection(
 	const KFState& owner,
 	const std::string& runtimeId,
-	std::string& payload);
+	std::string& payload,
+    // Validation-only comparison against a restored schema-6 source. Refused
+    // if it would discard any live predictor/publication attestation.
+    std::uint32_t validationSchemaVersion = 0);
 
 ZhangPppArCheckpointResult importZhangPppArCheckpointSection(
 	KFState& owner,

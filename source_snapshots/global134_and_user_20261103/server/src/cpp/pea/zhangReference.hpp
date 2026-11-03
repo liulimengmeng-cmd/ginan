@@ -191,6 +191,14 @@ struct ZhangGraphProductEventReceipt
     int oldBackendGeneration = -1;
     int newBackendGeneration = -1;
     std::string fullJointTransportId;
+    // Ephemeral scope for same-epoch post-QC re-expression. These are not
+    // serialized historical integer certificates or a measurement authority.
+    std::string sourceRuntimeId, sourceStateOrderId, destinationStateOrderId;
+    std::uint64_t sourceFactorSequence = 0, destinationFactorSequence = 0;
+    std::string initialPublishedTargetId, initialPublishedLifecycleId;
+    std::string initialPublishedFunctionalFingerprint, rebasedFromTransportId;
+    bool sameEpochSourceRebased = false;
+    unsigned sameEpochCompositionDepth = 0;
     ZhangCoordinateRow oldPhaseRow;
     ZhangCoordinateRow newPhaseRow;
     ZhangCoordinateRow actualWriterPhaseRow;
@@ -225,6 +233,14 @@ struct ZhangGraphProductEventReceipt
     // These keys are not current observed physical arcs or integer facts.
     std::map<ZhangGraphEdge, KFKey> retainedOldArcAuxiliaryKeys;
 };
+
+bool zhangRebaseGraphReceiptOnCurrentFloatTarget(const KFState& state,
+    const ZhangGraphProductEventReceipt& initial,
+    const ZhangProductFloatTargetRequest& currentTarget,
+    int currentBackend,int currentChart,std::uint64_t measuredFactorSequence,
+    int measuredChart,ZhangGraphProductEventReceipt& rebased,std::string& reason);
+bool zhangGraphSameEpochReceiptRebaseReady(
+    const KFState& state,E_Sys system,std::string& reason);
 
 bool zhangGraphProductEventReceipt(
     const KFState& state,
@@ -382,6 +398,13 @@ bool zhangFinalizeGraphSignalObservationAdmission(
     E_Sys system,
     const KFMeas& finalMeasurement,
     std::string& failureReason);
+
+/** After final QC, replace a failed common S-tree only through a complete
+ * historically certified, full-Q exact coordinate transaction. Rejected
+ * observations remain rejected. This does not issue CURRENT AR authority;
+ * the ordinary current-epoch AR and product writer must run afterwards. */
+bool zhangTryPostQcCertifiedGraphReroute(
+    Trace& trace, KFState& state, E_Sys system, std::string& failureReason);
 
 /** Old graph checkpoints cannot recover pre-migration signal identities.
  * The FLOAT state is retained, but prior integer/product continuity must be

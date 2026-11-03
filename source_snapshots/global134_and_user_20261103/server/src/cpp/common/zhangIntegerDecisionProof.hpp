@@ -15,6 +15,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "common/zhangExactWorkBudget.hpp"
 
 // Identity belongs to the accepted decision, NEVER to a transported row hash.
 // Bounds are conditional on all parents being correct; union accounting visits
@@ -368,6 +369,7 @@ inline ZhangDecisionRiskClosure zhangDecisionRiskClosure(const ZhangDecisionProo
     std::set<std::string> visiting;
     auto visit = [&](auto&& self, const ZhangDecisionProofPtr& proof) -> bool
     {
+        zhangExactWorkCheckpoint("DECISION_PROOF_CLOSURE_VISIT");
         if (!proof || proof->id.empty() || proof->originalStatement.empty() ||
             proof->observationProvenance.empty() ||
             !std::isfinite(proof->conditionalFailureBound) ||
@@ -392,7 +394,11 @@ inline ZhangDecisionRiskClosure zhangDecisionRiskClosure(const ZhangDecisionProo
         result.bound += proof->conditionalFailureBound;
         return true;
     };
-    for (const auto& root : roots) if (!visit(visit, root)) return result;
+    for (const auto& root : roots)
+    {
+        zhangExactWorkCheckpoint("DECISION_PROOF_CLOSURE_ROOT");
+        if (!visit(visit, root)) return result;
+    }
     result.valid = true;
     result.reason = "DECISION_DEPENDENCIES_CLOSED";
     return result;

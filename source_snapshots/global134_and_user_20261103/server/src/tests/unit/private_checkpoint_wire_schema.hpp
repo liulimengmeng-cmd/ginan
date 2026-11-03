@@ -7,6 +7,7 @@
 #include "common/zhangFactorCapture.hpp"
 #include "common/zhangPhaseContinuity.hpp"
 #include "common/zhangHybridService.hpp"
+#include "common/zhangProductNumericalContinuity.hpp"
 using std::map; using std::set; using std::string; using std::vector;
 namespace boost::serialization
 {
@@ -710,6 +711,15 @@ struct ProductPublicationIdentityCheckpoint
 	}
 };
 
+struct ProductNumericalHistoryCheckpoint
+{
+    ZhangProductNumericalDynamics dynamics;
+    string publicationProof;
+    template<class Archive>
+    void serialize(Archive& archive, const unsigned int)
+    { archive & dynamics; archive & publicationProof; }
+};
+
 struct ZhangGraphEdgeCheckpoint
 {
 	string receiver;
@@ -921,6 +931,7 @@ struct ZhangPppArCheckpointEnvelope
 	map<ProductKey, ZhangProductIntegerFunctionalCheckpoint> segmentPhysicalFunctionals;
 	map<ProductKey, ZhangProductIntegerTransitionCheckpoint> fullJointDifferences;
 	map<ProductKey, ZhangFullJointStructuralChainCheckpoint> structuralTransportChains;
+    map<ProductHistoryKey, ProductNumericalHistoryCheckpoint> productNumericalHistory;
 
 	template<class Archive>
 	void serialize(Archive& ar, const unsigned int)
@@ -965,6 +976,7 @@ struct ZhangPppArCheckpointEnvelope
 			ar & fullJointDifferences;
 		}
 		if (schemaVersion >= 6) ar & structuralTransportChains;
+        if (schemaVersion >= 7) ar & productNumericalHistory;
 	}
 };
 }

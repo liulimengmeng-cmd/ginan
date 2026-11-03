@@ -5,6 +5,7 @@
 #include "common/zhangCheckpoint.hpp"
 #include "common/zhangMultiGnssFloatCheckpoint.hpp"
 #include "common/zhangProductRelationAdmission.hpp"
+#include "common/zhangProductDatumTransition.hpp"
 #include "pea/zhangPppAr.hpp"
 #include "pea/ppp.hpp"
 #include "pea/zhangReference.hpp"
@@ -460,6 +461,67 @@ void floatBookkeeping(KFState& owner, const std::string& empty)
 }
 }
 
+static void numericalCheckpointRoundtrip(KFState& owner,const std::string& empty)
+{
+    mode(false);
+    auto snapshot=decode(empty);
+    const checkpoint_test_wire::ProductHistoryKey key{"PRODUCT_FIXED",SatSys("G13"),E_ObsCode::L1C};
+    checkpoint_test_wire::ProductHistoryCheckpoint history;
+    history.time=captureZhangCheckpointTime(owner.time);history.correction=100;
+    snapshot.productHistory[key]=history;
+    snapshot.productPublicationIdentity[key]={"PUBLISHED_SEGMENT","VERIFIED_PHYSICAL_CHART",1,0.01};
+    const std::string domain="VERIFIED_PHYSICAL_CHART|G1|C0|D0";
+    auto dynamics=zhangAdvanceProductNumericalDynamics({},99.75,30,120,domain);
+    dynamics=zhangAdvanceProductNumericalDynamics(dynamics,100,30,120,domain);
+    ZhangProductDatumTransition attestation;
+    auto& endpoint=attestation.target;
+    endpoint.epoch=double(owner.time.bigTime);endpoint.counter=endpoint.datum=0;
+    endpoint.componentVersion=endpoint.alignment=1;endpoint.satellite="G13";endpoint.observable="L1C";
+    endpoint.reference="G01";endpoint.segment="PUBLISHED_SEGMENT";endpoint.physicalFunctional="VERIFIED_PHYSICAL_CHART";
+    endpoint.component="GPS_COMPONENT";endpoint.posterior="FROZEN_ROOT";endpoint.bundle="ACTUAL_BUNDLE";
+    snapshot.productNumericalHistory[key]={dynamics,zhangDatumWireProof(attestation)};
+    const auto bytes=encode(snapshot);
+    auto result=importZhangPppArCheckpointSection(owner,runtime,bytes,true,2);
+    require(result.valid,"PREDICTOR_NEW_SCHEMA_PREFLIGHT:"+result.failureReason);
+    require(importZhangPppArCheckpointSection(owner,runtime,bytes,false,2).valid,"PREDICTOR_NEW_SCHEMA_COMMIT");
+    std::string after;
+    require(exportZhangPppArCheckpointSection(owner,runtime,after).valid && after==bytes,
+        "PREDICTOR_OR_PUBLIC_ATTESTATION_LOST_NEW_SCHEMA_ROUNDTRIP");
+    std::string legacyValidation;
+    require(!exportZhangPppArCheckpointSection(owner,runtime,legacyValidation,6).valid && legacyValidation.empty(),
+        "LEGACY_VALIDATION_EXPORT_DROPPED_LIVE_PREDICTOR_OR_ATTESTATION");
+    double beforePrediction=0,afterPrediction=0;
+    const auto restored=decode(after);
+    require(zhangPredictProductNumericalChange(dynamics,100,90,120,domain,beforePrediction) &&
+        zhangPredictProductNumericalChange(restored.productNumericalHistory.at(key).dynamics,100,90,120,domain,afterPrediction) &&
+        beforePrediction==afterPrediction,"RESUMED_PREDICTION_DIFFERS_FROM_UNINTERRUPTED_PREDICTION");
+    for(int bad=0;bad<5;++bad)
+    {
+        auto corrupted=snapshot;
+        if(bad==0)corrupted.productNumericalHistory[key].dynamics.rateMetresPerSecond=std::numeric_limits<double>::infinity();
+        if(bad==1)corrupted.productNumericalHistory[key].dynamics.domain="UNPROVED_DIFFERENT_CHART";
+        if(bad==2)corrupted.productNumericalHistory[key].dynamics.correction=99;
+        if(bad==3){auto wrong=attestation;++wrong.target.epoch;corrupted.productNumericalHistory[key].publicationProof=zhangDatumWireProof(wrong);}
+        if(bad==4)corrupted.productNumericalHistory.clear();
+        require(!importZhangPppArCheckpointSection(owner,runtime,encode(corrupted),true,2).valid &&
+            !importZhangPppArCheckpointSection(owner,runtime,encode(corrupted),false,2).valid,
+            "PREDICTOR_OR_ATTESTATION_CONTAMINATION_ACCEPTED:"+std::to_string(bad));
+        require(exportZhangPppArCheckpointSection(owner,runtime,after).valid && after==bytes,
+            "REJECTED_PREDICTOR_IMPORT_MUTATED_RUNTIME");
+    }
+    auto legacy=snapshot;legacy.schemaVersion=6;legacy.productNumericalHistory.clear();
+    require(importZhangPppArCheckpointSection(owner,runtime,encode(legacy),false,2).valid,
+        "LEGACY_SCHEMA6_PRODUCT_HISTORY_NO_LONGER_READABLE");
+    require(exportZhangPppArCheckpointSection(owner,runtime,after).valid,"LEGACY_COLD_EXPORT_FAILED");
+    const auto cold=decode(after).productNumericalHistory.at(key);
+    require(!cold.dynamics.hasSample && !cold.dynamics.hasRate && cold.publicationProof.empty(),
+        "LEGACY_SCHEMA6_INVENTED_PREDICTOR_OR_PUBLICATION_ATTESTATION");
+    require(exportZhangPppArCheckpointSection(owner,runtime,legacyValidation,6).valid && legacyValidation==encode(legacy),
+        "LEGACY_SOURCE_WIRE_FORMAT_NOT_EXACT_FOR_AFTER_RESTORE_VALIDATION");
+    require(importZhangPppArCheckpointSection(owner,runtime,empty,false,2).valid,"PREDICTOR_TEST_RUNTIME_CLEANUP_FAILED");
+    mode(true);
+}
+
 int main()
 try {
     mode(true);
@@ -587,6 +649,7 @@ try {
     require((owner.x.array() == originalX.array()).all() &&
         (owner.P.array() == originalP.array()).all() && owner.metaDataMap == originalMetadata,
         "ADAPTER_CONTRACT_MUTATED_AUTHORITATIVE_X_P_METADATA");
+    numericalCheckpointRoundtrip(owner,emptyPpp);
     boost::json::object result{
         {"status", "PASS"}, {"assertions", checks},
         {"actual_production_export_import", true}, {"producer_recompiled_in_driver", false},
@@ -601,6 +664,8 @@ try {
         {"enabled_prior_capture_scalar_oracle_preserved", true},
         {"nonempty_private_history_rejected", true}, {"legacy_gps_public_adapter_controls", true},
         {"failed_import_side_effect_free", true},
+        {"schema7_predictor_and_attestation_exact_roundtrip",true},
+        {"schema6_predictor_cold_reset_explicit",true},
         {"scope", "CONTROLLED_PRIVATE_ADAPTER_CONTRACT_NOT_FULL_BUNDLE_OR_REAL_DATA"},
         {"uncovered", "Not every private container type independently injected; full bundle and real-data resume are separate gates"}};
     std::cout << "PRIVATE_CHECKPOINT_GATE_RESULT " << boost::json::serialize(result) << '\n';

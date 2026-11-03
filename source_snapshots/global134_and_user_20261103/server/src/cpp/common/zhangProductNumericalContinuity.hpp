@@ -32,6 +32,73 @@ enum class ZhangProductComparisonDomain
     UNASSESSED
 };
 
+/** Deterministic clock-minus-phase trend, learned only from products that
+ * actually passed the complete publication transaction. This is deliberately
+ * separate from the certified publication endpoint. No temporal covariance
+ * is available here, so the prediction is an outlier guard, never a NIS,
+ * confidence bound, physical-continuity proof, or integer authorization. */
+struct ZhangProductNumericalDynamics
+{
+    bool hasSample = false;
+    bool hasRate = false;
+    double correction = std::numeric_limits<double>::quiet_NaN();
+    double rateMetresPerSecond = std::numeric_limits<double>::quiet_NaN();
+    std::string domain;
+    template<class Archive>
+    void serialize(Archive& archive, const unsigned int)
+    {
+        archive & hasSample; archive & hasRate; archive & correction;
+        archive & rateMetresPerSecond; archive & domain;
+    }
+};
+
+inline bool zhangProductNumericalDynamicsValid(const ZhangProductNumericalDynamics& dynamics,
+    double correction, const std::string& domain)
+{
+    if (!dynamics.hasSample) return !dynamics.hasRate && dynamics.domain.empty() &&
+        std::isnan(dynamics.correction) && std::isnan(dynamics.rateMetresPerSecond);
+    return std::isfinite(dynamics.correction) && dynamics.correction == correction &&
+        !domain.empty() && dynamics.domain == domain &&
+        (dynamics.hasRate ? std::isfinite(dynamics.rateMetresPerSecond) :
+            std::isnan(dynamics.rateMetresPerSecond));
+}
+
+inline ZhangProductNumericalDynamics zhangAdvanceProductNumericalDynamics(
+    const ZhangProductNumericalDynamics& previous, double correction,
+    double elapsedSeconds, double maximumGapSeconds, const std::string& domain)
+{
+    ZhangProductNumericalDynamics next;
+    if (!std::isfinite(correction) || domain.empty()) return next;
+    next.hasSample = true;
+    next.correction = correction;
+    next.domain = domain;
+    if (previous.hasSample && previous.domain == domain &&
+        std::isfinite(previous.correction) && std::isfinite(elapsedSeconds) &&
+        elapsedSeconds > 0 && std::isfinite(maximumGapSeconds) &&
+        maximumGapSeconds > 0 && elapsedSeconds <= maximumGapSeconds)
+    {
+        next.rateMetresPerSecond = (correction - previous.correction) / elapsedSeconds;
+        next.hasRate = std::isfinite(next.rateMetresPerSecond);
+    }
+    return next;
+}
+
+inline bool zhangPredictProductNumericalChange(
+    const ZhangProductNumericalDynamics& dynamics, double previousCorrection,
+    double elapsedSeconds, double maximumGapSeconds, const std::string& domain,
+    double& predictedChange)
+{
+    predictedChange = std::numeric_limits<double>::quiet_NaN();
+    if (!dynamics.hasSample || !dynamics.hasRate || dynamics.domain != domain ||
+        !std::isfinite(previousCorrection) || dynamics.correction != previousCorrection ||
+        !std::isfinite(dynamics.rateMetresPerSecond) ||
+        !std::isfinite(elapsedSeconds) || elapsedSeconds <= 0 ||
+        !std::isfinite(maximumGapSeconds) || maximumGapSeconds <= 0 ||
+        elapsedSeconds > maximumGapSeconds) return false;
+    predictedChange = dynamics.rateMetresPerSecond * elapsedSeconds;
+    return std::isfinite(predictedChange);
+}
+
 struct ZhangProductNumericalReferenceInput
 {
     bool currentNumericValid = false;
@@ -56,6 +123,10 @@ struct ZhangProductNumericalReferenceInput
     bool stagedIntegerDatumComparisonProven = false;
     double correctionBeforeStagedDatumChange = std::numeric_limits<double>::quiet_NaN();
     double stagedCorrectionShiftMetres = std::numeric_limits<double>::quiet_NaN();
+    // A pre-existing deterministic prediction may remove normal elapsed-time
+    // evolution. The current candidate is never used to train its own rate.
+    bool useTimePrediction = false;
+    double predictedCorrectionChange = std::numeric_limits<double>::quiet_NaN();
 };
 
 struct ZhangProductNumericalReference
@@ -132,15 +203,20 @@ inline ZhangProductNumericalReference zhangProductNumericalReference(
     // These finite-arithmetic checks apply even to an expired reference: in
     // that case the missing comparison must be the ONLY missing evidence.
     const double rawDelta = input.currentCorrection - input.previousCorrection;
-    const double delta = comparisonCorrection - input.previousCorrection;
+    const double measuredDelta = comparisonCorrection - input.previousCorrection;
+    if (input.useTimePrediction && !std::isfinite(input.predictedCorrectionChange))
+        return {Kind::INVALID, false, missing, "NUMERICAL_TIME_PREDICTION_NONFINITE"};
+    const double delta = measuredDelta - (input.useTimePrediction ? input.predictedCorrectionChange : 0);
     if (!std::isfinite(rawDelta) || !std::isfinite(delta))
         return {Kind::INVALID, false, missing, "NUMERICAL_REFERENCE_DELTA_NONFINITE"};
     if (!std::isfinite(input.gapSeconds) || input.gapSeconds <= 0)
         return {Kind::UNASSESSED, false, missing, "NUMERICAL_REFERENCE_TIME_INVALID"};
     if (input.gapSeconds > input.maximumGapSeconds)
         return {Kind::GAP_EXCEEDED, false, missing, "NUMERICAL_REFERENCE_GAP_EXCEEDED"};
-    return {Kind::COMPARABLE, true, delta, input.removeStagedIntegerDatumShift
-        ? "COMPARABLE_BEFORE_STAGED_INTEGER_DATUM_CHANGE" : "COMPARABLE_NUMERICAL_REFERENCE"};
+    return {Kind::COMPARABLE, true, delta, input.useTimePrediction
+        ? "DETERMINISTIC_TIME_PREDICTION_RESIDUAL_NO_TEMPORAL_COVARIANCE"
+        : input.removeStagedIntegerDatumShift
+            ? "COMPARABLE_BEFORE_STAGED_INTEGER_DATUM_CHANGE" : "COMPARABLE_NUMERICAL_REFERENCE"};
 }
 
 /** Numerical comparability is NOT old-segment integer authorization. A NEW
