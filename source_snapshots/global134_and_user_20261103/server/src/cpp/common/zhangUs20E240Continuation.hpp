@@ -36,12 +36,26 @@ inline constexpr const char* ZHANG_US20_E240_SOURCE_INPUT_SHA =
     "e325b47f85b6061b0859bf9af7e9256c7f6bd88a1cf2830099cd4faca06f5da4";
 inline constexpr const char* ZHANG_US20_E240_TARGET_DESCRIPTION =
     "US20 e240 codec repair FLOAT30m then AR270m";
+// Two additional literal capabilities for the separately authorised one-hour
+// experiment. No arbitrary root, binary, duration or schedule is accepted.
+inline constexpr const char* ZHANG_US20_E240_DATUM_AR1H_ROOT =
+    "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/run";
+inline constexpr const char* ZHANG_US20_E240_DATUM_AR1H_BINARY =
+    "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/candidate/pea";
+inline constexpr const char* ZHANG_US20_E240_DATUM_AR1H_OVERLAY =
+    "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/run/config/100_datum_unknown_ar1h_overlay.yaml";
+inline constexpr const char* ZHANG_US20_E240_DATUM_VALIDATION_ROOT =
+    "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/validation_e241/run";
+inline constexpr const char* ZHANG_US20_E240_DATUM_VALIDATION_OVERLAY =
+    "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/validation_e241/run/config/"
+    "100_datum_unknown_e241_validation_overlay.yaml";
 
 struct ZhangUs20E240FiniteProfile
 {
     std::string root, endEpoch, overlay, description;
     int maxEpochs;
     std::int64_t arStart;
+    std::string binary = ZHANG_US20_E240_TARGET_BINARY;
 };
 
 inline const std::vector<ZhangUs20E240FiniteProfile>& zhangUs20E240FiniteProfiles()
@@ -50,7 +64,11 @@ inline const std::vector<ZhangUs20E240FiniteProfile>& zhangUs20E240FiniteProfile
         {ZHANG_US20_E240_TARGET_ROOT,"2024-07-17 06:59:30",ZHANG_US20_E240_OVERLAY,
             ZHANG_US20_E240_TARGET_DESCRIPTION,840,1405218600},
         {ZHANG_US20_E240_VALIDATION_ROOT,"2024-07-17 02:00:30",ZHANG_US20_E240_VALIDATION_OVERLAY,
-            "US20 e240 codec repair e241-e242 validation",242,1405216800}};
+            "US20 e240 codec repair e241-e242 validation",242,1405216800},
+        {ZHANG_US20_E240_DATUM_AR1H_ROOT,"2024-07-17 02:59:30",ZHANG_US20_E240_DATUM_AR1H_OVERLAY,
+            "Datum UNKNOWN repair direct AR1h",360,1405216800,ZHANG_US20_E240_DATUM_AR1H_BINARY},
+        {ZHANG_US20_E240_DATUM_VALIDATION_ROOT,"2024-07-17 02:00:30",ZHANG_US20_E240_DATUM_VALIDATION_OVERLAY,
+            "Datum UNKNOWN repair e241-e242 validation",242,1405216800,ZHANG_US20_E240_DATUM_AR1H_BINARY}};
     return profiles;
 }
 
@@ -78,8 +96,10 @@ inline bool zhangUs20E240ContinuationRequested(
 inline std::vector<std::string> zhangUs20E240TargetCaptures(
     const std::string& root=ZHANG_US20_E240_TARGET_ROOT)
 {
-    if (root==ZHANG_US20_E240_VALIDATION_ROOT)
+    if (root==ZHANG_US20_E240_VALIDATION_ROOT || root==ZHANG_US20_E240_DATUM_VALIDATION_ROOT)
         return {"2024-07-17 02:00:00","2024-07-17 02:00:30"};
+    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT)
+        return {"2024-07-17 02:29:30","2024-07-17 02:59:30"};
     if (root!=ZHANG_US20_E240_TARGET_ROOT) return {};
     return {"2024-07-17 02:29:30", "2024-07-17 02:59:30",
         "2024-07-17 03:29:30", "2024-07-17 03:59:30",
@@ -96,7 +116,7 @@ inline std::string zhangUs20E240ValidationSnapshotPath(
         ZHANG_US20_GLOBAL134_WARMUP_CAPTURE + "-validation-only";
 }
 
-// Only these ten complete target checkpoints can be decoded as own archives.
+// Only the explicitly listed target checkpoints can decode as own archives.
 // The source archive and the validation snapshot retain separate authorities.
 inline const std::map<std::string,std::pair<int,std::string>>& zhangUs20E240TargetCheckpoints(
     const std::string& root=ZHANG_US20_E240_TARGET_ROOT)
@@ -105,7 +125,11 @@ inline const std::map<std::string,std::pair<int,std::string>>& zhangUs20E240Targ
         {"E29-20240717020000-e241-r32f626de9463",{241,"2024-07-17 02:00:00"}},
         {"E29-20240717020030-e242-r32f626de9463",{242,"2024-07-17 02:00:30"}}};
     static const std::map<std::string,std::pair<int,std::string>> empty;
-    if (root==ZHANG_US20_E240_VALIDATION_ROOT) return probe;
+    if (root==ZHANG_US20_E240_VALIDATION_ROOT || root==ZHANG_US20_E240_DATUM_VALIDATION_ROOT) return probe;
+    static const std::map<std::string,std::pair<int,std::string>> datumHour = {
+        {"E29-20240717022930-e300-r32f626de9463",{300,"2024-07-17 02:29:30"}},
+        {"E29-20240717025930-e360-r32f626de9463",{360,"2024-07-17 02:59:30"}}};
+    if (root==ZHANG_US20_E240_DATUM_AR1H_ROOT) return datumHour;
     if (root!=ZHANG_US20_E240_TARGET_ROOT) return empty;
     static const std::map<std::string,std::pair<int,std::string>> values = {
         {"E29-20240717022930-e300-r32f626de9463",{300,"2024-07-17 02:29:30"}},
@@ -161,7 +185,7 @@ inline bool validateZhangUs20E240TargetPolicy(
     if (!profile) return fail("US20_E240_FINITE_PROFILE_REQUIRED");
     const std::string& root = profile->root;
     if (value.outputsRoot != root + "/outputs" ||
-        value.binaryPath != ZHANG_US20_E240_TARGET_BINARY ||
+        value.binaryPath != profile->binary ||
         value.productFilename != root + "/outputs/zhang_internal_products.csv" ||
         value.covarianceFilename != root + "/outputs/zhang_internal_product_covariance.csv" ||
         value.checkpointOutputDirectory != root + "/checkpoints" ||
@@ -287,7 +311,7 @@ inline bool validateZhangUs20E240CanonicalDelta(
         return fail("US20_E240_NONWHITELISTED_SCIENCE_ENVIRONMENT");
     const std::map<std::string,std::pair<std::string,std::string>> delta = {
         {"working_directory",{"/mnt/d/GINAN_R20/inputData",profile->root}},
-        {"us20_global134_producer_path",{ZHANG_US20_GLOBAL134_BINARY,ZHANG_US20_E240_TARGET_BINARY}},
+        {"us20_global134_producer_path",{ZHANG_US20_GLOBAL134_BINARY,profile->binary}},
         {"us20_global134_checkpoint_policy",{"US20_GLOBAL134_COLD_FLOAT2H_AR5H_V2",ZHANG_US20_E240_CONTINUATION_POLICY}},
         {"effective_end_epoch",{"2024-07-17T06:59:30",endIso}},
         {"effective_max_epochs",{"840",std::to_string(profile->maxEpochs)}},
@@ -370,12 +394,12 @@ public:
         const std::string& inputSha) const
     {
         return valid_ && mode==ZHANG_US20_GLOBAL134_MODE &&
-            binaryPath==ZHANG_US20_E240_TARGET_BINARY && binarySha==targetBinarySha_ &&
+            binaryPath==targetBinaryPath_ && binarySha==targetBinarySha_ &&
             configText==targetConfigText_ && inputSha==inputSha_;
     }
 private:
     bool valid_=false;
-    std::string sourceConfigSha_,inputSha_,targetConfigText_,targetBinarySha_;
+    std::string sourceConfigSha_,inputSha_,targetConfigText_,targetBinarySha_,targetBinaryPath_;
     friend bool validateZhangUs20E240Continuation(
         const std::string&,const std::string&,const ZhangUs20E240SourceIdentity&,
         const std::string&,const std::string&,const std::string&,const std::string&,
@@ -407,7 +431,7 @@ inline bool validateZhangUs20E240Continuation(
         source.graphSchema!=5 || source.sectionCount!=9 ||
         zhangCheckpointSha256(sourceConfig)!=source.configSha256 ||
         zhangCheckpointSha256(sourceInputs)!=source.inputSha256 ||
-        targetInputs!=sourceInputs || targetBinaryPath!=ZHANG_US20_E240_TARGET_BINARY ||
+        targetInputs!=sourceInputs ||
         !zhangUs20Global134Sha256WellFormed(targetBinarySha) ||
         targetBinarySha==source.binarySha256)
         return fail("US20_E240_PINNED_SOURCE_OR_TARGET_REJECTED");
@@ -419,6 +443,8 @@ inline bool validateZhangUs20E240Continuation(
     const auto working=targetFields.find("working_directory");
     const auto* profile=working==targetFields.end()?nullptr:zhangUs20E240ProfileForRoot(working->second);
     if (!profile) return fail("US20_E240_FINITE_TARGET_ROOT_REQUIRED");
+    if (targetBinaryPath!=profile->binary)
+        return fail("US20_E240_SELECTED_PROFILE_BINARY_PATH_REQUIRED");
     std::error_code error;
     const std::filesystem::path root(profile->root);
     for (const auto& path : {root,root/"outputs",root/"checkpoints",root/"restore_audit"})
@@ -429,5 +455,6 @@ inline bool validateZhangUs20E240Continuation(
     }
     authority.valid_=true;authority.sourceConfigSha_=source.configSha256;
     authority.inputSha_=source.inputSha256;authority.targetConfigText_=targetConfig;
-    authority.targetBinarySha_=targetBinarySha;reason.clear();return true;
+    authority.targetBinarySha_=targetBinarySha;authority.targetBinaryPath_=targetBinaryPath;
+    reason.clear();return true;
 }

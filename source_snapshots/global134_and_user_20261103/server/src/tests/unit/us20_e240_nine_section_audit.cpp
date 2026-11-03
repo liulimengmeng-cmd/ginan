@@ -73,9 +73,11 @@ int main(int argc,char**argv)
         } else require(std::string(argv[3])==argv[4],"SAME_PRODUCER_REQUIRED");
         if(trajectory) {
             const std::string id="E29-20240717020030-e242-r32f626de9463";
-            const std::string root=ZHANG_US20_E240_VALIDATION_ROOT;
-            require(beforePath.string()==root+"/first_pass_archive/"+id &&
-                afterPath.string()==root+"/checkpoints/"+id,"E242_EXACT_COMPARISON_PATHS_REQUIRED");
+            bool exact=false;
+            for(const std::string root : {ZHANG_US20_E240_VALIDATION_ROOT,ZHANG_US20_E240_DATUM_VALIDATION_ROOT})
+                exact|=beforePath.string()==root+"/first_pass_archive/"+id &&
+                    afterPath.string()==root+"/checkpoints/"+id;
+            require(exact,"E242_EXACT_COMPARISON_PATHS_REQUIRED");
         }
         const auto before=load(beforePath,argv[3]),after=load(afterPath,argv[4]);
         json::object report,fields;json::array failed,sections;
@@ -148,8 +150,12 @@ int main(int argc,char**argv)
             // wire schemas are legacy V1 and scoped V2; restoration must
             // recapture the exact source format, not normalize either side.
             const bool gec=name=="GEC_AR_RUNTIME_V1";
-            const unsigned wanted=gec && left!=before.sections.end()?left->second.schemaVersion:schema;
-            const bool admitted=!gec || wanted==1 || wanted==2;
+            const bool pppAr=name=="zhang_ppp_ar_runtime";
+            const unsigned wanted=(gec || pppAr) && left!=before.sections.end()?left->second.schemaVersion:schema;
+            // Old e240 recaptures keep source schema 6. New own snapshots use
+            // schema 7; each comparison still requires the SAME exact source
+            // schema and complete payload on both sides, never 6-to-7 equality.
+            const bool admitted=gec?(wanted==1 || wanted==2):pppAr?(wanted==6 || wanted==7):true;
             bool equal=admitted && left!=before.sections.end() && right!=after.sections.end() &&
                 left->second.schemaVersion==wanted && right->second.schemaVersion==wanted;
             bool boundary=false;

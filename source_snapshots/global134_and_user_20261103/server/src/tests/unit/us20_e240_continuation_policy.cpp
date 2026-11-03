@@ -144,6 +144,54 @@ Fields targetFrom(const Fields& source,Fields& environment,bool probe=false)
     for (std::size_t i=0;i<captures.size();++i)out["effective_capture_epoch_"+std::to_string(i)]=captures[i];
     return out;
 }
+
+std::string datumRoot(bool probe)
+{
+    return probe?"/home/rx/GINAN/datum_unknown_ar1h_20261103_01/validation_e241/run":
+        "/home/rx/GINAN/datum_unknown_ar1h_20261103_01/run";
+}
+std::vector<std::string> datumCaptures(bool probe)
+{
+    return probe?std::vector<std::string>{"2024-07-17 02:00:00","2024-07-17 02:00:30"}:
+        std::vector<std::string>{"2024-07-17 02:29:30","2024-07-17 02:59:30"};
+}
+std::string expectedDatumOverlay(bool probe)
+{
+    const auto root=datumRoot(probe);
+    const std::string captures=probe?"        - '2024-07-17 02:00:00'\n        - '2024-07-17 02:00:30'\n":
+        "        - '2024-07-17 02:29:30'\n        - '2024-07-17 02:59:30'\n";
+    return "processing_options:\n  epoch_control:\n    end_epoch: '"+
+        std::string(probe?"2024-07-17 02:00:30":"2024-07-17 02:59:30")+"'\n    max_epochs: "+
+        (probe?"242":"360")+"\n  gnss_general:\n    zhang_pppar:\n      checkpoint_output_directory: '"+
+        root+"/checkpoints'\n      checkpoint_capture_epochs:\n"+captures+
+        "      product_filename: '"+root+"/outputs/zhang_internal_products.csv'\n"+
+        "      product_covariance_filename: '"+root+"/outputs/zhang_internal_product_covariance.csv'\n"+
+        "outputs:\n  outputs_root: '"+root+"/outputs'\n  metadata:\n    config_description: '"+
+        (probe?"Datum UNKNOWN repair e241-e242 validation":"Datum UNKNOWN repair direct AR1h")+"'\n";
+}
+Fields datumTargetFrom(const Fields& source,Fields& environment,bool probe)
+{
+    auto out=targetFrom(source,environment,true);
+    const auto root=datumRoot(probe);
+    out["working_directory"]=root;
+    out["us20_global134_producer_path"]="/home/rx/GINAN/datum_unknown_ar1h_20261103_01/candidate/pea";
+    out["effective_end_epoch"]=probe?"2024-07-17T02:00:30":"2024-07-17T02:59:30";
+    out["effective_max_epochs"]=probe?"242":"360";
+    for(const auto&[key,suffix]:Fields{{"effective_outputs_root","/outputs"},
+        {"effective_product_filename","/outputs/zhang_internal_products.csv"},
+        {"effective_product_covariance_filename","/outputs/zhang_internal_product_covariance.csv"},
+        {"effective_checkpoint_output_directory","/checkpoints"}})out[key]=root+suffix;
+    out["config_file_10_path"]=root+(probe?"/config/100_datum_unknown_e241_validation_overlay.yaml":
+        "/config/100_datum_unknown_ar1h_overlay.yaml");
+    out["config_file_10_bytes"]=expectedDatumOverlay(probe);
+    out["config_file_10_size"]=std::to_string(out["config_file_10_bytes"].size());
+    out["config_file_10_sha256"]=zhangCheckpointSha256(out["config_file_10_bytes"]);
+    out["command_argument_11"]=out["config_file_10_path"];
+    const auto captures=datumCaptures(probe);
+    for(std::size_t index=0;index<captures.size();++index)
+        out["effective_capture_epoch_"+std::to_string(index)]=captures[index];
+    return out;
+}
 }
 int main(int argc,char**argv)
 {
@@ -265,14 +313,14 @@ int main(int argc,char**argv)
         require(!grant(id,std::string(ZHANG_US20_E240_SOURCE_BUNDLE_SHA),std::string(64,'b'),inputs),"wrong sidecar accepted");
         require(!grant(id,std::string(ZHANG_US20_E240_SOURCE_BUNDLE_SHA),std::string(ZHANG_US20_E240_SOURCE_MANIFEST_SHA),inputs+"x"),"changed inputs accepted");
         require(!zhangUs20E240RestorePathAllowed(std::string(ZHANG_US20_E240_SOURCE_PATH)+"/../e240"),"lexical alias accepted");
-        // The only second profile is a literal two-AR validation. It carries no
+        // The original second profile is a literal two-AR validation. It carries no
         // additional mathematical/environment switch and cannot authorize a
         // formal path with the probe schedule or a cross-profile own archive.
         const std::string probeRoot="/home/rx/GINAN/ar_checkpoint_codec_fix_20261103_01/validation_e241/run";
         const std::string probeId="E29-20240717020000-e241-r32f626de9463";
         const std::string probeCheckpoint=probeRoot+"/checkpoints/"+probeId;
         Fields probeEnvironment;const auto probeTarget=targetFrom(source,probeEnvironment,true);
-        require(zhangUs20E240FiniteProfiles().size()==2 &&
+        require(zhangUs20E240FiniteProfiles().size()==4 &&
             std::string(ZHANG_US20_E240_VALIDATION_ROOT)==probeRoot,"unexpected finite profile catalog");
         require(expectedOverlay(true)==zhangUs20E240OverlayText(probeRoot),"independent e241 overlay differs");
         require(validateZhangUs20E240CanonicalDelta(sourceText,encode(probeTarget),probeEnvironment,reason),
@@ -337,6 +385,79 @@ int main(int argc,char**argv)
             std::string(64,'a'),encode(probeTarget),ZHANG_US20_E240_SOURCE_INPUT_SHA) &&
             !token.matchesTarget(ZHANG_US20_GLOBAL134_MODE,ZHANG_US20_E240_TARGET_BINARY,
             std::string(64,'a'),encode(target),ZHANG_US20_E240_SOURCE_INPUT_SHA),"capability crossed finite config identity");
+        // Independent literal one-hour/probe fixtures. They add no science
+        // switches, arbitrary roots, duration or binary aliases.
+        for(const bool datumProbe : {false,true})
+        {
+            const auto datum=datumRoot(datumProbe);
+            const std::string binary="/home/rx/GINAN/datum_unknown_ar1h_20261103_01/candidate/pea";
+            Fields datumEnvironment;const auto datumTarget=datumTargetFrom(source,datumEnvironment,datumProbe);
+            const auto* profile=zhangUs20E240ProfileForRoot(datum);
+            require(profile && profile->binary==binary && profile->arStart==1405216800 &&
+                profile->maxEpochs==(datumProbe?242:360),"new finite profile has wrong binary/schedule");
+            require(expectedDatumOverlay(datumProbe)==zhangUs20E240OverlayText(datum),
+                "independent one-hour/probe overlay mismatch");
+            require(zhangUs20E240TargetCaptures(datum)==datumCaptures(datumProbe) &&
+                zhangUs20E240TargetCheckpoints(datum).size()==2,"new finite capture catalogue mismatch");
+            require(validateZhangUs20E240CanonicalDelta(sourceText,encode(datumTarget),datumEnvironment,reason),
+                "new exact canonical rejected:"+reason);
+            require(zhangUs20Global134ScienceEnvironment(datumEnvironment)==
+                zhangUs20Global134ScienceEnvironment(probeEnvironment),"new profile changed a science environment value");
+            auto datumPolicy=policy;datumPolicy.environment=datumEnvironment;
+            datumPolicy.binaryPath=binary;datumPolicy.outputsRoot=datum+"/outputs";
+            datumPolicy.productFilename=datum+"/outputs/zhang_internal_products.csv";
+            datumPolicy.covarianceFilename=datum+"/outputs/zhang_internal_product_covariance.csv";
+            datumPolicy.checkpointOutputDirectory=datum+"/checkpoints";
+            datumPolicy.endEpoch=datumProbe?"2024-07-17 02:00:30":"2024-07-17 02:59:30";
+            datumPolicy.maxEpochs=datumProbe?242:360;datumPolicy.arStartGpstSeconds=1405216800;
+            datumPolicy.captureEpochs=datumCaptures(datumProbe);
+            require(validateZhangUs20E240TargetPolicy(datumPolicy,reason),"new exact observed policy rejected:"+reason);
+            for(const auto& mutate:std::vector<std::function<void(ZhangUs20Global134CheckpointPolicy&)>>{
+                [](auto&x){x.binaryPath=ZHANG_US20_E240_TARGET_BINARY;},
+                [](auto&x){x.binaryPath+=".other";},[](auto&x){x.outputsRoot+="/../outputs";},
+                [](auto&x){x.maxEpochs=120;},[](auto&x){x.maxEpochs=361;},
+                [](auto&x){x.endEpoch="2024-07-17 03:00:00";},
+                [](auto&x){x.arStartGpstSeconds=1405218600;},
+                [](auto&x){x.environment["ZHANG_R51_AR_START_GPST_SECONDS"]="1405218600";},
+                [](auto&x){x.captureEpochs.pop_back();},
+                [](auto&x){x.captureEpochs[0]="2024-07-17 02:30:00";},
+                [](auto&x){x.ratio=3;},[](auto&x){x.jointNisEnabled=true;},
+                [](auto&x){x.independentEpochAr=false;}})
+            {auto bad=datumPolicy;mutate(bad);require(!validateZhangUs20E240TargetPolicy(bad,reason),
+                "new profile accepted wrong path/duration/start/captures/science");}
+            for(const auto& mutate:std::vector<std::function<void(Fields&)>>{
+                [](auto&x){x["us20_global134_producer_path"]=ZHANG_US20_E240_TARGET_BINARY;},
+                [](auto&x){x["working_directory"]+="/..";},[](auto&x){x["effective_max_epochs"]="120";},
+                [](auto&x){x["effective_end_epoch"]="2024-07-17T03:00:00";},
+                [](auto&x){x["environment_ZHANG_R51_AR_START_GPST_SECONDS"]="1405218600";},
+                [](auto&x){x["effective_capture_epoch_0"]="2024-07-17 02:30:00";},
+                [](auto&x){x["config_file_10_bytes"]+="hidden_model: true\n";}})
+            {auto bad=datumTarget;mutate(bad);require(!validateZhangUs20E240CanonicalDelta(sourceText,
+                encode(bad),datumEnvironment,reason),"new profile accepted a nonwhitelisted canonical change");}
+            require(validateZhangUs20E240Continuation(ZHANG_US20_E240_SOURCE_BUNDLE_SHA,
+                ZHANG_US20_E240_SOURCE_MANIFEST_SHA,id,sourceText,inputs,encode(datumTarget),inputs,
+                binary,std::string(64,'a'),datumEnvironment,token,reason),"new source capability rejected:"+reason);
+            require(token.matchesTarget(ZHANG_US20_GLOBAL134_MODE,binary,std::string(64,'a'),
+                encode(datumTarget),ZHANG_US20_E240_SOURCE_INPUT_SHA) &&
+                !token.matchesTarget(ZHANG_US20_GLOBAL134_MODE,ZHANG_US20_E240_TARGET_BINARY,std::string(64,'a'),
+                    encode(datumTarget),ZHANG_US20_E240_SOURCE_INPUT_SHA),"new authority did not bind the selected binary");
+            require(!validateZhangUs20E240Continuation(ZHANG_US20_E240_SOURCE_BUNDLE_SHA,
+                ZHANG_US20_E240_SOURCE_MANIFEST_SHA,id,sourceText,inputs,encode(datumTarget),inputs,
+                ZHANG_US20_E240_TARGET_BINARY,std::string(64,'a'),datumEnvironment,token,reason) && !token.valid(),
+                "selected-profile capability accepted wrong binary");
+            const auto& catalogue=zhangUs20E240TargetCheckpoints(datum);
+            for(const auto& [checkpoint,identity]:catalogue)
+            {
+                int done=-1;std::string at,found;
+                require(zhangUs20E240OwnCheckpointIdentity(datum+"/checkpoints/"+checkpoint,done,at,found,datum) &&
+                    done==identity.first && at==identity.second && found==checkpoint,"new exact checkpoint identity rejected");
+                require(!zhangUs20E240RestorePathAllowed(datum+"/checkpoints/"+checkpoint,
+                    datumRoot(!datumProbe)),"new capability crossed finite roots");
+            }
+            require(!zhangUs20E240ProfileForRoot(datum+"/../run") &&
+                !zhangUs20E240RestorePathAllowed(datum+"/checkpoints/E29-20240717032930-e420-r32f626de9463",datum),
+                "new profile accepted lexical alias or unlisted duration");
+        }
         std::cout<<"US20_E240_CONTINUATION_POLICY checks="<<checks<<" passed=1 native_restore_executed=0\n";
         return 0;
     }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

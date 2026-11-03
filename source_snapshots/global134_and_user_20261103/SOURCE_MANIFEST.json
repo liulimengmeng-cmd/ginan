@@ -2445,8 +2445,8 @@
       "bytes": 7367
     },
     "server/src/cpp/common/zhangUs20E240Continuation.hpp": {
-      "sha256": "4e392d5843c6428c3d42d71b080598ef91e9214e95628e4bc2992e46358defa6",
-      "bytes": 24046
+      "sha256": "d58dfae6e04bb184d9d3ef3bbb3f9ad99d11c92c4884ab55c0734e204baf2084",
+      "bytes": 26035
     },
     "server/src/cpp/common/zhangUs20Global134Checkpoint.hpp": {
       "sha256": "b153c774957aaba0340cd06a2d1ff793e63a70c0e405460513c44c5b45dae7f4",
@@ -3753,12 +3753,12 @@
       "bytes": 23776
     },
     "server/src/tests/unit/us20_e240_continuation_policy.cpp": {
-      "sha256": "b4824591f3c9d6e1c2c156cb7cc7e59efce635240f47e63743d2665e40287f49",
-      "bytes": 25035
+      "sha256": "8de823aa9686b0748e0d35d01aa9f7572e7d87e845634dde5877ade6a1c71c7a",
+      "bytes": 33944
     },
     "server/src/tests/unit/us20_e240_nine_section_audit.cpp": {
-      "sha256": "390a52a73df4f8e62059b93651f9366768e81e5cca4414ea25a6e08524a19b35",
-      "bytes": 13711
+      "sha256": "01a706b6ec81ee16eeb3aa45d7dde47378cca49af8328dbbf599e7c1fcb01467",
+      "bytes": 14163
     },
     "server/src/tests/unit/us20_global134_checkpoint_policy.cpp": {
       "sha256": "992985424b3287e4c7d6cc29f1f74e26601680b4884b7dd654c63c575fbb788f",

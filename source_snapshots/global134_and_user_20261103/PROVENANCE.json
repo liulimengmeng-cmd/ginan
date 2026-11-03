@@ -2,12 +2,12 @@
   "schema": "SERVER_USER_SOURCE_PROVENANCE_V2",
   "snapshot_date": "2026-11-03",
   "server": {
-    "source": "Global134 G/E/C independent datum-UNKNOWN repair candidate",
+    "source": "Global134 G/E/C datum-UNKNOWN repair with exact local direct-AR1h and e241-e242 launch profiles",
     "source_files": 950,
-    "binary_sha256": "00a16f65eee965038b672b5ad773468b5798d86b1690cecf1771902b6474f657",
+    "binary_sha256": "8900c00a35db8d75cb90e90f02a584998764f06a0388ce8f5ab2ab5a78ffe4bc",
     "full_build_passed": true,
-    "fresh_TUs": 18,
-    "reused_TUs": 140,
+    "fresh_TUs": 5,
+    "reused_TUs": 153,
     "linked_TUs": 158,
     "native_task_records_passed": 51,
     "native_runtime_executions": 50,
@@ -35,7 +35,15 @@
       "Metadata/sparse support cache and post-QC dense full-Q audit costs still need real-network timing/memory measurement.",
       "Carriers support identity/Q0 source models; dynamic mixed coordinates are rejected, not approximated with zero Q.",
       "History archive is a verified locator into the complete retained parent bundle, not a standalone certificate database."
-    ]
+    ],
+    "native_adopted_executions": 0,
+    "native_adopted_build_only_records": 0,
+    "real_process_validation_state": "IN_PROGRESS",
+    "formal_AR_hour_completed": false,
+    "profile_change_only_after_commit": "27bcca5520e1e63574193c3219201f3754730e0f",
+    "numerical_algorithm_sources_unchanged": true,
+    "qualification_sha256": "2ce738b15cba9a9db3e15840d938a0cb0e6e2e1e4b9f5a73f345c3624a87dc27",
+    "validation_status_recorded_utc": "2026-11-03T09:03:50.380121+00:00"
   },
   "user": {
     "source": "US20 realtime final effective source, parent baseline plus 16-file overlay",
@@ -101,6 +109,46 @@
       "C27-L5P old FLOAT target transport and signal-level direction retention"
     ]
   },
-  "source_snapshot_manifest_sha256": "2fdfec405936991b25e07d7c097e4dedaff3f8f31ac3a929be1954ab085f36a0",
-  "validation_file": "VALIDATION_DATUM_UNKNOWN_20261103.json"
+  "source_snapshot_manifest_sha256": "98b96c5553987703fb0909c679a36a11d1fe30c8daa578110f674ef5723e92fc",
+  "validation_file": "VALIDATION_AR1H_PROFILE_20261103.json",
+  "prior_datum_unknown_repair_server": {
+    "source": "Global134 G/E/C independent datum-UNKNOWN repair candidate",
+    "source_files": 950,
+    "binary_sha256": "00a16f65eee965038b672b5ad773468b5798d86b1690cecf1771902b6474f657",
+    "full_build_passed": true,
+    "fresh_TUs": 18,
+    "reused_TUs": 140,
+    "linked_TUs": 158,
+    "native_task_records_passed": 51,
+    "native_runtime_executions": 50,
+    "native_build_only_tasks": 1,
+    "final_native_integrity_verification_completed": true,
+    "final_native_result_passed": true,
+    "actual_real_AR_checkpoint_roundtrip_verified": false,
+    "formal_run_started": false,
+    "PPP_AR_checkpoint_schema": 7,
+    "legacy_checkpoint_schemas_supported": [
+      3,
+      4,
+      5,
+      6
+    ],
+    "policy": {
+      "ratio": 2,
+      "joint_NIS": false,
+      "independent_epoch_AR": true,
+      "WSL_GiB": 20
+    },
+    "known_validation_limits": [
+      "Controlled production-linked native fixtures are not actual G03/G24/C27/E11 network-event replays.",
+      "Legacy predictor cold start with no accepted velocity history remains fail-closed; rejected samples never train it.",
+      "Metadata/sparse support cache and post-QC dense full-Q audit costs still need real-network timing/memory measurement.",
+      "Carriers support identity/Q0 source models; dynamic mixed coordinates are rejected, not approximated with zero Q.",
+      "History archive is a verified locator into the complete retained parent bundle, not a standalone certificate database."
+    ]
+  },
+  "prior_validation_file": "VALIDATION_DATUM_UNKNOWN_20261103.json",
+  "prior_datum_unknown_repair_source_commit": "27bcca5520e1e63574193c3219201f3754730e0f",
+  "prior_provenance_file": "BASELINE_27BCCA_PROVENANCE.json",
+  "prior_source_manifest_file": "BASELINE_27BCCA_SOURCE_MANIFEST.json"
 }
